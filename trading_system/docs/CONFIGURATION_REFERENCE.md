@@ -14,6 +14,7 @@
 | `STOCK_PRICE_FRESHNESS_DAYS` | `7` | 정수/문자열 | 캐시 유효 기간 (일). 특수값: `none`, `never`, `all`, `-1` → 오프라인 모드 (네트워크 미사용) |
 | `DEBUG_MODE` | `False` | bool | 디버그 모드 활성화. `True` 시 학습 샘플을 시장당 3~5개로 제한 |
 | `LOG_LEVEL` | `INFO` | 문자열 | 로깅 레벨 (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `MARKET_COSTS_JSON` | *(기본 JSON)* | JSON 문자열 | 시장별 증권거래세, SEC 수수료, 마찰비용 오버라이드 JSON |
 
 ### 경로 해석 규칙
 - 상대 경로 지정 시 `trading_system/` 디렉토리 기준으로 해석됩니다
@@ -34,6 +35,8 @@ STOCK_PRICE_FRESHNESS_DAYS=none
 | `UPDATE_INTERVAL` | `0` | 정수 | 종목 데이터 수집 간 대기 시간 (초). 0 = 대기 없음 |
 | `INFERENCE_TARGET` | `ALL` | 콤마 구분 | 추론 대상 시장 (`SP500,NASDAQ,RUSSELL2000,KOSPI,KOSDAQ` 또는 `KRX`, `ALL`) |
 | `BACKTEST_YEARS` | `5` | 정수/`all` | 백테스트 기간 (년). `all` = 전체 데이터 |
+| `ENABLE_LIVE_OPTIONS_FETCH` | `False` | bool | 실시간 옵션 체인 API 호출 활성화 여부 |
+| `CROSS_SECTION_NORM_METHOD`| `percentile_rank` | 문자열 | 31대 전략 점수 횡단면 정규화 방식 (`percentile_rank`, `gaussian_cdf`) |
 
 ---
 
@@ -41,10 +44,10 @@ STOCK_PRICE_FRESHNESS_DAYS=none
 
 | 변수명 | 기본값 | 타입 | 설명 |
 |--------|--------|------|------|
-| `TRAIN_SAMPLE_SP500` | `50` | 정수/`%`/`all` | SP500 학습 종목 수. `all` = 전량, `50%` = 절반 |
-| `TRAIN_SAMPLE_KRX` | `50` | 정수/`%`/`all` | KRX(KOSPI+KOSDAQ) 학습 종목 수 |
+| `TRAIN_SAMPLE_SP500` | `50` | 정수/`%`/`all` | SP500 층화 샘플링 종목 수. `all` = 전량, `50%` = 절반 |
+| `TRAIN_SAMPLE_KRX` | `50` | 정수/`%`/`all` | KRX(KOSPI+KOSDAQ) 층화 샘플링 종목 수 |
 | `TRAIN_START_DATE` | `2023-01-01` | 날짜 | 학습 데이터 시작일 (YYYY-MM-DD) |
-| `TRAIN_SEED` | `42` | 정수/`none` | 학습 데이터 샘플링 시드. `none` = 무작위 |
+| `TRAIN_SEED` | `42` | 정수/`none` | 학습 데이터 층화 샘플링 시드. `none` = 무작위 |
 | `SKIP_TRAINING` | `False` | bool | `True` 시 기존 모델 파일 재사용 (학습 건너뛰기) |
 
 ### 학습 샘플 크기 설정 예시
@@ -53,7 +56,7 @@ STOCK_PRICE_FRESHNESS_DAYS=none
 TRAIN_SAMPLE_SP500=all
 TRAIN_SAMPLE_KRX=all
 
-# 시장당 100개씩 샘플링
+# 시장당 100개씩 층화 샘플링
 TRAIN_SAMPLE_SP500=100
 TRAIN_SAMPLE_KRX=100
 
@@ -64,7 +67,7 @@ TRAIN_SAMPLE_KRX=30%
 
 ---
 
-## 4. 브로커 및 실거래 주문 관리
+## 4. 브로커 및 실거래 주문 관리 (Execution OMS)
 
 | 변수명 | 기본값 | 타입 | 설명 |
 |--------|--------|------|------|
@@ -75,7 +78,7 @@ TRAIN_SAMPLE_KRX=30%
 | `KIS_MOCK_APP_KEY` | *(빈 문자열)* | 문자열 | KIS 모의투자 App Key |
 | `KIS_MOCK_APP_SECRET` | *(빈 문자열)* | 문자열 | KIS 모의투자 App Secret |
 | `KIS_MOCK_ACCOUNT` | *(빈 문자열)* | 문자열 | KIS 모의투자 계좌번호 |
-| `KILL_SWITCH` | *(미설정)* | `0`/`1` | 하드웨어 킬 스위치 (1 설정 시 신규 주문 100% 차단) |
+| `KILL_SWITCH` | `0` | `0`/`1` | 하드웨어 킬 스위치 (1 설정 시 신규 주문 100% 즉시 차단) |
 
 ---
 
@@ -91,7 +94,7 @@ TRAIN_SAMPLE_KRX=30%
 | `DEEPSEEK_API_KEY` | *(빈 문자열)* | 문자열 | DeepSeek API 키 |
 | `DEEPSEEK_MODEL` | `deepseek-chat` | 문자열 | DeepSeek 모델명 |
 
-> **참고**: LLM API 키가 모두 미설정 시에도 기본 FinBERT 텍스트 감성 엔진 및 31대 전략 파이프라인 예측은 정상 작동합니다.
+> **참고**: LLM API 키가 미설정되어도 로컬 FinBERT 감성 엔진 및 31대 전략 파이프라인 정량 예측은 100% 정상 작동합니다.
 
 ---
 
@@ -115,16 +118,20 @@ TRAIN_SAMPLE_KRX=30%
 | `config.py` | `slippage_krx_market_order` | `0.005` | KRX 시가 슬리피지 기본값 (0.5%) |
 | `run_pipeline.py` | `_CPU_WORKERS` | `os.cpu_count()` | 병렬 작업자 수 |
 | `run_pipeline.py` | `_PER_SYMBOL_TIMEOUT` | `30` | 종목당 타임아웃 (초) |
-| `run_pipeline.py` | `socket.setdefaulttimeout` | `5` | 소켓 타임아웃 (초) |
-| `prediction_model.py` | `fundamental_filing_lag` | `+60 days` | 재무제표 공시 시차 (Lookahead Bias 제거) |
+| `network_clients` | `adaptive_timeouts` | `connect=8s, read=15s` | 소스별 개별 적응형 타임아웃 및 지터 백오프 (전역 락 제거) |
+| `earnings_data.py` | `dynamic_filing_lag` | `KRX: 45d, US: 40d` | 시장별 법정 공시 시차 및 실공시일(`filing_date`) 즉시 우선 반영 |
 | `prediction_model.py` | `horizons` | `[1,3,5,10,20,60,120,200]` | 예측 horizon |
 | `prediction_model.py` | `surge_horizons` | `[1,3,5,20]` | Surge horizon |
 | `prediction_model.py` | `surge_threshold` | `0.20` | 급등 임계치 (20%) |
 | `prediction_model.py` | `us_etf_lag_shift` | `shift(1)` | Lead-Lag US 섹터 ETF 1일 시차 Shift |
+| `score_normalizer.py`| `percentile_rank` | `[0.0, 1.0]` | 31대 전략 출력 횡단면 균일 분산 점수 정규화 |
 | `ensemble_scorer.py` | 31대 전략 앙상블 | 31개 Factor/Model | Reg, Surge, LL, VCP Rule/ML, LSTM, Stat-Arb, Sector, RIM, Event, MQ, IV, OF, Rev, ARM, CARD, LATR, InstFor, SC, Sent, Neutral, VolT, Micro, Accrual, ShortSq, ValueUp, Trend, Gamma, Insider, Tone, HFT |
-| `ensemble_scorer.py` | Microstructure Cost | STT/SEC + Spread + Market Impact | KOSPI 0.15%, KOSDAQ 0.18%, US SEC 0.003%, 동적 스프레드, Kyle 시장충격 |
+| `ensemble_scorer.py` | Missing Strategy Weight | `Dynamic Zero-Weight` | 미산출 전략 가중치 0 처리 및 활성 전략 가중치 재정규화 |
+| `ensemble_scorer.py` | Microstructure Cost | STT/SEC + Spread + Impact | KOSPI 0.15%, KOSDAQ 0.18%, US SEC 0.003%, 동적 스프레드, Kyle/Almgren 시장충격 |
 | `portfolio_allocator.py`| `HRP Ledoit-Wolf delta` | `0.15` | 공분산 행렬 수축 강도 |
-| `portfolio_allocator.py`| `Leland buffer bands` | `[0.5%, 5.0%]` | 동적 No-Trade 턴오버 히스테리시스 밴드 |
+| `portfolio_allocator.py`| `Leland buffer bands` | `[0.5%, 5.0%]` | 동적 No-Trade 버퍼 밴드 (신규 진입/전량 청산 바이패스) |
+| `almgren_chriss.py` | `risk_aversion_lambda` | `1e-6` | 충격과 타이밍 리스크 절충 최적 집행 트랜치 파라미터 |
+| `order_manager.py` | `7 Safety Gates` | `7대 안전 게이트` | SEVERE 위기 차단, 킬 스위치, 티커 정규식, 가격 이상치, 10주 라운딩, 포지션 캡, 순알파 허들 |
 | `trading_agent.py` | `ATR_LOOKBACK_DAYS` | `14` | ATR 계산 Lookback 기간 |
 | `trading_agent.py` | `ATR_MULTIPLIER` | `2.5` | ATR 손절 및 트레일링 스탑 승수 |
 | `trading_agent.py` | `CORRELATION_BLOCK_THRESHOLD` | `0.85` | 포트폴리오 상관관계 BLOCK(매수 차단) 임계치 |

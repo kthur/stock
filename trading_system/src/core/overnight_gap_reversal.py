@@ -101,7 +101,6 @@ class OvernightGapReversalEngine(BaseStrategyEngine):
                 # 1. Calculate Overnight Gap % = (Open_t - Close_t-1) / Close_t-1
                 prev_close = close.iloc[-2]
                 curr_open = open_p.iloc[-1]
-                curr_close = close.iloc[-1]
 
                 if prev_close <= 0 or curr_open <= 0:
                     results.append({'symbol': sym, 'overnight_gap_score': 0.50})

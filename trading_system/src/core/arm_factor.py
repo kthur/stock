@@ -76,6 +76,18 @@ class ARMFactorEngine(BaseStrategyEngine):
             p_df = prc.get(sym)
             f_dict = fund.get(sym, {})
 
+            has_revision_data = (
+                f_dict.get('eps_revision_pct') is not None or
+                f_dict.get('target_price_revision_pct') is not None or
+                f_dict.get('tp_revision_pct') is not None or
+                f_dict.get('earnings_surprise_pct') is not None or
+                f_dict.get('eps_growth') is not None
+            )
+
+            if not has_revision_data or not f_dict:
+                raw_scores[sym] = 0.50
+                continue
+
             # 1. Consensus Revision (EPS 추정치 변경율 및 fallback)
             raw_eps_rev = f_dict.get('eps_revision_pct')
             if raw_eps_rev is None:

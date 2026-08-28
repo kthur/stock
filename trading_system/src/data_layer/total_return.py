@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, Any, Union
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class TotalReturnEngine:
         """
         p = np.asarray(prices, dtype=np.float64).ravel()
         d = np.nan_to_num(np.asarray(dividends, dtype=np.float64).ravel(), nan=0.0)
-        
+
         N = len(p)
         if N == 0:
             return pd.Series([], dtype=np.float64)
@@ -77,7 +77,7 @@ class TotalReturnEngine:
 
         # Proximity indicator to ex-date
         in_capture_window = (-self.window_pre <= days_to_ex_date <= self.window_post)
-        
+
         if in_capture_window and z_yield > 0.0:
             # Gaussian bell curve centered at ex-date (t=0)
             time_decay = np.exp(-0.5 * (days_to_ex_date / 2.0) ** 2)
@@ -110,5 +110,5 @@ class TotalReturnEngine:
         tri_ret = (tri_price_series.iloc[-1] - tri_price_series.iloc[-2]) / max(tri_price_series.iloc[-2], 1e-4)
 
         # False breakdown: Raw price fell below threshold, but TRI remained stable
-        is_false_breakdown = (raw_ret < breakdown_threshold) and (tri_ret >= -0.005)
+        is_false_breakdown = bool((raw_ret < breakdown_threshold) and (tri_ret >= -0.005))
         return is_false_breakdown

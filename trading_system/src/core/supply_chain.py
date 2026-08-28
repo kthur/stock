@@ -47,7 +47,24 @@ LEAD_CUSTOMER_MAP: Dict[str, List[str]] = {
     "096770": ["373220", "F"],                  # SK Innovation -> SK On
     "278280": ["373220", "006400"],             # Chunbo -> Electrolyte Additive
     "137310": ["373220", "006400"],             # Cosmo AM&T -> Cathode
+    # Bio/Pharma CDMO & Biosimilar Value Chain -> Global Pharma Leaders
+    "207940": ["PFE", "JNJ", "BMY", "NVO"],     # Samsung Biologics -> Global Pharma CDMO
     "068270": ["JNJ", "PFE", "NVO"],            # Celltrion -> Global Bio / Pharma
+    "000100": ["JNJ", "PFE"],                   # Yuhan Corp -> Global Licensee (Janssen)
+    # Defense & Aerospace Value Chain -> Global Defense Leaders / Prime Contractors
+    "012450": ["LMT", "RTX", "BA"],             # Hanwha Aerospace -> Global Defense & Aero Engines
+    "079550": ["012450", "LMT", "RTX"],         # LIG Nex1 -> Precision Guided Munitions / Hanwha
+    "047810": ["BA", "LMT"],                    # KAI -> Boeing / Lockheed
+    "272210": ["012450", "079550"],             # Hanwha Systems -> Defense Avionics & Radar
+    "064350": ["012450", "RTX"],                # Hyundai Rotem -> Defense Armor & Rail
+    # Power Equipment & Transformer Value Chain -> US AI Data Center / Grid Infrastructure
+    "267260": ["GE", "ETN", "PWR"],             # HD Hyundai Electric -> US Power Grid / AI Hyperscalers
+    "298040": ["GE", "ETN", "PWR"],             # Hyosung Heavy Industries -> US Grid / High Voltage
+    "010120": ["GE", "ETN"],                    # LS Electric -> Smart Grid / Distribution
+    # Shipbuilding & Marine Value Chain -> Global Energy Logistics / LNG Carriers
+    "329180": ["005490", "XOM", "CVX"],         # HD Hyundai Heavy -> LNG Carrier / Global Oil & Gas
+    "042660": ["005490", "XOM", "CVX"],         # Hanwha Ocean -> Naval / LNG
+    "010140": ["005490", "XOM"],                # Samsung Heavy Industries -> FLNG / Containerships
     # Automotive OEM & Tier-1 Suppliers -> Hyundai / Kia / Tesla
     "005380": ["TSLA", "TM"],                   # Hyundai Motor -> Global Auto
     "000270": ["005380", "TSLA"],               # Kia -> Hyundai / Global EV

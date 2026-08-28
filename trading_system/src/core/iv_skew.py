@@ -38,7 +38,7 @@ class IVSkewEngine(BaseStrategyEngine):
         self.atm_threshold = atm_threshold
         self.config = config
 
-    _iv_cache = {}
+    _iv_cache: dict[tuple[str, str], dict[str, Any]] = {}
 
     def compute_skew_for_ticker(self, ticker: str) -> float:
         """
@@ -51,7 +51,7 @@ class IVSkewEngine(BaseStrategyEngine):
         if cache_key in self._iv_cache:
             entry = self._iv_cache[cache_key]
             if time.time() - entry['timestamp'] < 86400:
-                return entry['score']
+                return float(entry['score'])
 
         try:
             import yfinance as yf

@@ -10,8 +10,7 @@ from __future__ import annotations
 
 import logging
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Any, Union
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +93,9 @@ class HawkesVPINToxicityGate:
         """
         vpin = self.compute_vpin(buy_volumes, sell_volumes)
         is_toxic = (vpin >= self.vpin_threshold)
-        
+
         orig_strategy = str(order_plan.get("execution_strategy", "MIDPOINT_PEG"))
-        
+
         if is_toxic:
             # Toxic flow detected: switch away from passive pegging to avoid adverse selection
             recommended_strategy = "DEFENSIVE_TWAP" if "TWAP" in orig_strategy else "DEFENSIVE_VWAP"

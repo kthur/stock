@@ -44,11 +44,11 @@
 
 ```
 1. Load config (TradingConfig)
-2. Fetch global indicators (VIX, TNX, USDKRW, WTI, Gold, DXY 등)
+2. Fetch global indicators (VIX, TNX, USDKRW, WTI, Gold, DXY 등 — 적응형 타임아웃 & 지터 지수 백오프)
 3. Store market indicators (SQLite WAL & Write Mutex)
 4. Load/update stock universe (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000)
 5. Fetch indicator history (train + inference)
-6. Prepare training data (ThreadPoolExecutor + fundamental fetch 60d lag + float32 memory downcast)
+6. Prepare training data (Market x Sector x Cap 층화 샘플링 + 동적 Filing Lag[KRX 45d, US 40d] + float32 다운캐스팅)
 7. Train:
    a. Regression (per market: sp500/nasdaq/russell2000/kospi/kosdaq)
    b. Surge classifier (per market, capped scale weight)
@@ -56,20 +56,21 @@
    d. VCP ML (per market)
    e. Strict Causal LSTM sequence models
    f. Isotonic & Platt Regression Calibrators fitting
-8. Fetch inference fundamentals (background async)
+8. Fetch inference fundamentals (background async, dynamic filing lag applied)
 9. Fetch inference price data (ALL symbols)
 10. Predict:
     a. Regression + Surge (shared feature computation)
     b. VCP rule-based pattern detection
     c. Lead-Lag 2-tier inference
-    d. Stat-Arb pair cointegration scanning
+    d. Stat-Arb pair cointegration scanning (순수 통계적 유의 페어만 선별)
     e. Sector Rotation relative momentum scoring
-    f. 31-Strategy factor scoring (RIM / Event-Driven / MQ / IV Skew / Order Flow / Reversal / ARM / CARD / LATR / Inst & Foreign / Supply Chain / NLP Sentiment / Factor Neutralized / Vol Target / Microstructure / Accruals / Short Squeeze / Value-Up / Trend Eff / Gamma Squeeze / Insider Buying / Tone Drift / Darkpool HFT)
-    g. 31-Strategy Dynamic Weighted Ensemble Scoring (PCA-ZCA Whitening, Gram-Schmidt Decorrelation, Microstructure friction costs deduction & RiskManager Crisis Gating)
+    f. 31-Strategy factor scoring
+    g. CrossSectionalScoreNormalizer (Percentile Rank / Winsorized Gaussian CDF [0, 1])
+    h. 31-Strategy Dynamic Weighted Ensemble Scoring (PCA-ZCA Whitening, Gram-Schmidt Decorrelation, Missing Strategy Zero-Weighting, Microstructure friction costs deduction & RiskManager Crisis Gating)
 11. Portfolio Optimization & Execution:
-    a. Hierarchical Risk Parity (HRP) & Ledoit-Wolf Covariance Shrinkage
-    b. EVT-CVaR Tail Risk Budgeting & Leland No-Trade Buffer Bands
-    c. Execution OMS 6-Safety Gates & Slippage Feedback Loop (`trade_logs.db`)
+    a. Hierarchical Risk Parity (HRP), Ledoit-Wolf Covariance Shrinkage & Black-Litterman
+    b. EVT-CVaR Tail Risk Budgeting & Leland No-Trade Buffer Bands (새 진입/전량 청산 바이패스)
+    c. Execution OMS 7-Safety Gates, Almgren-Chriss Slicing & Slippage Feedback Loop (`trade_logs.db`)
 12. Save predictions to DB & 31-Strategy Ensemble Output + Strategy Data Coverage Report
 13. Save output files & Update GitHub Pages HTML Report (KST Timezone)
 ```
@@ -82,7 +83,7 @@
 flowchart TB
     subgraph Data ["Data Storage & Orchestration Layer"]
         DB[("StockPriceDB / MarketIndicatorStorage\n(SQLite WAL, Write Lock Mutex)")]
-        EData["Earnings & Fundamental Fetcher\n(Rate-limit Retry, 60d Filing Lag)"]
+        EData["Earnings & Fundamental Fetcher\n(Adaptive Retry, Dynamic Market Filing Lag)")]
     end
 
     subgraph Strategies ["31-Strategy Multi-Factor Engine"]
@@ -121,10 +122,11 @@ flowchart TB
 
     subgraph Control ["Regime & Risk Control Layer"]
         RegimeEngine["2D Market Regime Detector\n(6-Regime Matrix)"]
-        RiskEngine["RiskManager & CrisisDetector\n(VIX/USDKRW Threshold Gating)"]
+        RiskEngine["RiskManager & CrisisDetector\n(VIX Velocity & Term Structure Gating)"]
     end
 
     subgraph DynamicEnsemble ["Ensemble & Optimization Engine"]
+        ScoreNorm["CrossSectionalScoreNormalizer\n(Percentile Rank / Winsorized CDF)"]
         Calibrator["Isotonic Calibrator"]
         EnsembleEng["EnsembleScoringEngine\n(Dynamic Weights, Gram-Schmidt & PCA-ZCA Whitening)"]
         MicroCost["Microstructure Cost Model\n(STT, SEC, Spread, Market Impact)"]
@@ -134,11 +136,12 @@ flowchart TB
     subgraph Execution ["Execution & Output Layer"]
         ReportGen["GitHub Pages Generator (index.html)"]
         TxtOutputs["Pipeline Text & Coverage Reports"]
-        OMS["Execution OMS Engine (trade_logs.db, 6 Safety Gates)"]
+        OMS["Execution OMS Engine (trade_logs.db, 7 Safety Gates, Almgren-Chriss)"]
     end
 
     Data --> Strategies
-    Strategies --> Calibrator
+    Strategies --> ScoreNorm
+    ScoreNorm --> Calibrator
     Calibrator --> EnsembleEng
     RegimeEngine --> EnsembleEng
     RiskEngine --> EnsembleEng
@@ -154,16 +157,19 @@ flowchart TB
 | Path | 목적 |
 |------|------|
 | `trading_system/run_pipeline.py` | 통합 파이프라인 오케스트레이션 |
-| `src/ai/prediction_model.py` | OnDevicePredictionModel: 회귀 + surge + lead-lag + 60d filing lag + memory optimization |
+| `src/ai/prediction_model.py` | OnDevicePredictionModel: 회귀 + surge + lead-lag + 동적 filing lag + 메모리 최적화 |
+| `src/ai/score_normalizer.py` | CrossSectionalScoreNormalizer: Percentile Rank / Winsorized Gaussian CDF 횡단면 정규화 |
 | `src/ai/ensemble_scorer.py` | EnsembleScoringEngine: 31대 전략 앙상블 + 2D 레짐 + Decision Rationale + 순예상수익률 정렬 + 미시구조 거래비용 |
 | `src/ai/factor_orthogonalizer.py` | FactorOrthogonalizerEngine: PCA-ZCA symmetric whitening & Gram-Schmidt decorrelation |
 | `src/ai/factor_suppression.py` | FactorSuppressionEngine: VIF & 2D 레짐 기반 팩터 노이즈 억제 |
-| `src/analysis/coverage_analyzer.py` | StrategyCoverageAnalyzer: 31대 전략 커버리지 및 데이터 결측(Missingness) 정밀 분석 |
-| `src/analysis/portfolio_optimizer.py` | PortfolioOptimizer: HRP (Hierarchical Risk Parity) & Ledoit-Wolf 공분산 축소 |
+| `src/analysis/coverage_analyzer.py` | StrategyCoverageAnalyzer: 31대 전략 커버리지 및 최빈 데이터 결측(Missingness) 정밀 분석 |
+| `src/analysis/portfolio_optimizer.py` | PortfolioOptimizer: HRP (Hierarchical Risk Parity), Black-Litterman & Ledoit-Wolf 공분산 축소 |
 | `src/risk/portfolio_allocator.py` | PortfolioAllocator: EVT-CVaR 극단값 꼬리위험 예산 & Leland 동적 버퍼 밴드 |
-| `src/risk/risk_manager.py` | RiskManager & CrisisDetector: 거시 위기 단계 판정 및 앙상블 점수 자동 제어 |
-| `src/execution/order_manager.py` | ExecutionOMSEngine: 6대 주문 안전 게이트 & 주문 생성 |
+| `src/risk/risk_manager.py` | RiskManager & CrisisDetector: 거시 위기 단계 판정 및 VIX 속도/기간구조 기반 완충 제어 |
+| `src/execution/order_manager.py` | ExecutionOMSEngine: 7대 주문 안전 게이트, Almgren-Chriss 트랜치 분할 & 주문 생성 |
 | `src/execution/slippage_feedback.py` | SlippageFeedbackEngine: 실체결 슬리피지 기반 비용 모델 파라미터 적응 보정 |
+| `src/execution/almgren_chriss.py` | AlmgrenChrissScheduler: 충격과 타이밍 리스크를 최소화하는 최적 집행 스케줄러 |
+| `src/execution/turnover_optimizer.py` | TurnoverOptimizer: 진입/청산 바이패스 지원 회전율 정규화기 |
 | `src/core/event_driven.py` | EventDrivenEngine: 공시/실적 깜짝실적/자사주 촉매 수치화 |
 | `src/core/mq_factor.py` | MQFactorEngine: 12M-1M 모멘텀 - 1M 반전 노이즈 제거 + 펀더멘탈 퀄리티 |
 | `src/core/iv_skew.py` | IVSkewEngine: 옵션 풋/콜 IV Skew & 비율 역발상 점수 |
@@ -192,7 +198,8 @@ flowchart TB
 | `src/ai/vcp_ml_predictor.py` | 시장별 VCP XGBoost surge 분류기 |
 | `src/ai/optuna_tuner.py` | OptunaStrategyTuner: 5일 전방 수익률 기반 HPO 최적화 |
 | `src/data_layer/indicator_storage.py` | MarketIndicatorStorage: SQLite WAL 매니저 & 지표/펀더멘탈 DB |
-| `src/data_layer/earnings_data.py` | Rate-limit retry + progress logging fundamental fetch |
+| `src/data_layer/earnings_data.py` | Dynamic market filing lag + rate-limit retry fundamental fetch |
+| `src/data_layer/dart_corp_mapper.py` | DARTCorpMapper: DART 8자리 고유번호와 6자리 상장 종목코드 매핑 |
 | `src/persistence/database.py` | StockPriceDB: OHLCV 캐시 + 쓰기 뮤텍스 lock |
 | `src/config.py` | TradingConfig (.env 기반 설정, 거래비용/유동성 파라미터) |
 
@@ -249,5 +256,7 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 | R9 | 2026-07-30 | 금융전문가 집단 종합 진단 (Phase 1-4): 17대 전략 앙상블 완결 (ARM, CARD, LATR 추가), 재무 60일 Filing Lag, Lead-Lag US Lag Shift, Stat-Arb Log 공적분, RIM/LATR/Optuna 수식 보정, STT/Spread/Market Impact 비용 모델, RiskManager 파이프라인 연동 |
 | R10 | 2026-07-30 | 고도화 로드맵 구현 완결: Risk Parity & Covariance Shrinkage 포트폴리오 최적화, 업종/팩터 중립화 제약 조건, Execution OMS 엔진 & trade_logs.db 실시간 슬리피지/Tracking Error 모니터링 연동 |
 | R11 | 2026-08-10 | 31대 전략 다변화 확장 (Supply Chain, FinBERT Sentiment, Factor Neutralizer, Vol Targeting, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Efficiency, Gamma Squeeze, Insider Buying, Tone Drift, HFT) 및 EVT-CVaR, Leland No-Trade 버퍼 밴드 통합 |
-| R12 | 2026-08-17 | 엔드투엔드 파이프라인 30개 이슈 감사 및 수정 완료, 단일 `tests/` 디렉토리 통합(1,124+ 테스트 100% 통과), GHA 5-matrix 워크플로우 안정화, GitHub Pages 대시보드 UX 전면 개편 |
+| R12 | 2026-08-17 | 엔드투엔드 파이프라인 30개 이슈 감사 및 수정 완료, 단일 `tests/` 디렉토리 통합, GHA 5-matrix 워크플로우 안정화, GitHub Pages 대시보드 UX 전면 개편 |
+| R13 | 2026-08-22 | 6차 고도화 완결 (V6-01 ~ V6-35, F01 ~ F10): 31대 전략 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 결측 전략 제로 가중치 재정규화, 시장별 동적 Filing Lag (KRX 45d / US 40d), 층화 샘플링, 적응형 타임아웃, VIX 기간구조 완충, Almgren-Chriss 최적 집행 및 단일 `tests/` 스위트 1,569+ 전수 테스트 100% 통과 |
+
 

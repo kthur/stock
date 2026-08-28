@@ -916,12 +916,12 @@ class ExecutionOMSEngine:
                 close_col = "Close" if "Close" in p_df.columns else ("close" if "close" in p_df.columns else None)
                 if high_col and low_col and close_col:
                     high_20 = float(p_df[high_col].tail(20).max())
-                    h = pd.to_numeric(p_df[high_col], errors='coerce')
-                    l = pd.to_numeric(p_df[low_col], errors='coerce')
-                    c = pd.to_numeric(p_df[close_col], errors='coerce')
-                    tr1 = (h - l).abs()
-                    tr2 = (h - c.shift(1)).abs()
-                    tr3 = (l - c.shift(1)).abs()
+                    h_s = pd.to_numeric(p_df[high_col], errors='coerce')
+                    l_s = pd.to_numeric(p_df[low_col], errors='coerce')
+                    c_s = pd.to_numeric(p_df[close_col], errors='coerce')
+                    tr1 = (h_s - l_s).abs()
+                    tr2 = (h_s - c_s.shift(1)).abs()
+                    tr3 = (l_s - c_s.shift(1)).abs()
                     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
                     atr_val = tr.tail(14).dropna().mean()
                     atr = float(atr_val) if (pd.notna(atr_val) and atr_val > 0) else curr_p * 0.02
@@ -1033,7 +1033,15 @@ class AlmgrenChrissScheduler:
         spr = spread if (spread is not None and spread > 0) else max(tp * 0.002, 1.0)
         p_bid = bid_price if (bid_price is not None and bid_price > 0) else (tp - spr / 2.0)
         p_ask = ask_price if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
-        p_mid = (p_bid + p_ask) / 2.0
+
+        urgency = max(0.0, min(1.0, float(alpha_urgency)))
+        act = str(action).upper().strip()
+        if act in ("BUY", "BID"):
+            peg_price = p_bid + urgency * (p_ask - p_bid)
+            return float(min(peg_price, p_ask))
+        else:
+            peg_price = p_ask - urgency * (p_ask - p_bid)
+            return float(max(peg_price, p_bid))
 
 
 class GatheralMarketImpactKernel:

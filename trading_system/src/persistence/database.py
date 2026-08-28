@@ -531,7 +531,7 @@ class StockPriceDB:
         self.db_path = Path(db_path)
         self.logger = logger
         self._local = threading.local()
-        self._all_conns = set()
+        self._all_conns: set[sqlite3.Connection] = set()
         self._conns_lock = threading.Lock()
         self._init_db()
 
@@ -646,7 +646,7 @@ class StockPriceDB:
                 lo = float(row[low_pos + 1]) if low_pos is not None else 0.0
                 cl = float(row[close_pos + 1]) if close_pos is not None else 0.0
                 vol_f = float(row[vol_pos + 1]) if vol_pos is not None else 0.0
-                
+
                 if not math.isfinite(vol_f):
                     vol_f = 0.0
                 vol = int(vol_f) if (math.isfinite(vol_f) and vol_f >= 0) else 0

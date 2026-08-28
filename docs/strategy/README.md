@@ -49,7 +49,7 @@ flowchart TD
     subgraph DataLayer ["1. 데이터 인프라 레이어 (SQLite WAL & Write Mutex)"]
         D1[5개 시장 OHLCV 시계열 DB]
         D2[글로벌 매크로 지표 DB VIX/금리/환율/유가]
-        D3[DART / SEC 재무 및 공시 DB 60일 Filing Lag]
+        D3["DART / SEC 재무 및 공시 DB\n(시장별 법정 Filing Lag KRX 45d, US 40d)"]
     end
 
     subgraph StrategyEngines ["2. 31대 다변화 팩터 & 머신러닝 엔진"]
@@ -61,20 +61,20 @@ flowchart TD
         S6["리스크/필터 엔진군 (Factor Neutral / Vol Target / Trend Eff / Reversal / LATR)"]
     end
 
-    subgraph EnsembleLayer ["3. 동적 앙상블 & 레짐 적응 레이어"]
-        E1[2D Dual US/KR 시장 레짐 감지기]
-        E2[PCA-ZCA Whitening & Gram-Schmidt 직교화]
-        E3[VIF 다중공선성 억제 & Soft Crisis Gating]
-        E4[2nd Stage Stacking MetaEnsembleLearner]
+    subgraph EnsembleLayer ["3. 횡단면 정규화 & 동적 앙상블 레이어"]
+        E1[CrossSectionalScoreNormalizer 횡단면 정규화]
+        E2[결측 전략 동적 제로 가중치 재정규화]
+        E3[2D Dual US/KR 시장 레짐 감지기]
+        E4[PCA-ZCA Whitening & Gram-Schmidt 직교화]
         E5[실체결 슬리피지 피드백 & 미시구조 거래비용 차감]
     end
 
     subgraph PortfolioExecution ["4. 포트폴리오 최적화 & 실행 OMS"]
         P1[HRP Hierarchical Risk Parity]
-        P2[Ledoit-Wolf Tail Stressed 공분산 축소]
+        P2[Black-Litterman & Ledoit-Wolf 공분산 축소]
         P3[EVT-CVaR 극단값 꼬리위험 예산]
         P4[Leland No-Trade Buffer Bands]
-        P5[6대 주문 안전 게이트 OMS]
+        P5[7대 주문 안전 게이트 OMS & Almgren-Chriss]
     end
 
     DataLayer --> StrategyEngines
@@ -100,8 +100,10 @@ flowchart TD
 ## 4. 관련 핵심 소스 코드 (Core Source Code Links)
 
 - **전략 레지스트리**: [`src/core/strategy_registry.py`](file:///d:/Finance/code/stock/trading_system/src/core/strategy_registry.py)
+- **횡단면 정규화 엔진**: [`src/ai/score_normalizer.py`](file:///d:/Finance/code/stock/trading_system/src/ai/score_normalizer.py)
 - **앙상블 스코어러**: [`src/ai/ensemble_scorer.py`](file:///d:/Finance/code/stock/trading_system/src/ai/ensemble_scorer.py)
-- **메타 스태킹 앙상블**: [`src/ai/meta_ensemble_learner.py`](file:///d:/Finance/code/stock/trading_system/src/ai/meta_ensemble_learner.py)
 - **팩터 직교화 엔진**: [`src/ai/factor_orthogonalizer.py`](file:///d:/Finance/code/stock/trading_system/src/ai/factor_orthogonalizer.py)
 - **포트폴리오 할당기**: [`src/risk/portfolio_allocator.py`](file:///d:/Finance/code/stock/trading_system/src/risk/portfolio_allocator.py)
-- **실행 OMS 엔진**: [`src/execution/oms_engine.py`](file:///d:/Finance/code/stock/trading_system/src/execution/oms_engine.py)
+- **실행 OMS 엔진**: [`src/execution/order_manager.py`](file:///d:/Finance/code/stock/trading_system/src/execution/order_manager.py)
+- **Almgren-Chriss 집행기**: [`src/execution/almgren_chriss.py`](file:///d:/Finance/code/stock/trading_system/src/execution/almgren_chriss.py)
+

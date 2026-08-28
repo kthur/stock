@@ -128,11 +128,28 @@ class CrossSectionalScoreNormalizer:
                 else:
                     method_clean = method.lower()
                     if method_clean in ('rank_percentile', 'percentile_rank', 'rank'):
-                        # (Rank - 0.5) / N uniformly distributed in (0, 1)
-                        # Use 'min' ranking for ties to avoid artificially boosting zero-signal blocks
-                        rank_s = pd.Series(vals, index=s.loc[valid_mask].index).rank(ascending=True, method='min')
+                        # (Rank - 0.5) / N uniformly distributed in (0, 1) with standard 'average' tie handling
+                        rank_s = pd.Series(vals, index=s.loc[valid_mask].index).rank(ascending=True, method='average')
                         norm_vals = ((rank_s - 0.5) / float(n_valid)).clip(0.005, 0.995)
-                        norm_df.loc[valid_mask, col] = norm_vals.values
+
+                        # If a large inactive block of exact zeros exists in a non-negative sparse factor (>20% of universe, N >= 10), isolate and assign neutral midpoint
+                        is_exact_zero = (vals == 0.0)
+                        if (
+                            n_valid >= 10
+                            and (vals >= 0.0).all()
+                            and is_exact_zero.any()
+                            and not is_exact_zero.all()
+                            and (is_exact_zero.sum() / float(n_valid)) > 0.20
+                        ):
+                            nz_mask = ~is_exact_zero
+                            if nz_mask.sum() > 1:
+                                nz_vals = vals[nz_mask]
+                                nz_rank = pd.Series(nz_vals).rank(ascending=True, method='average')
+                                nz_norm = ((nz_rank - 0.5) / float(len(nz_vals))).clip(0.005, 0.995)
+                                norm_vals = np.full(n_valid, 0.50, dtype=np.float64)
+                                norm_vals[nz_mask] = nz_norm.values
+
+                        norm_df.loc[valid_mask, col] = norm_vals.values if isinstance(norm_vals, pd.Series) else norm_vals
                     elif method_clean in ('winsorized_zscore', 'zscore'):
                         q01 = np.percentile(vals, 1.0)
                         q99 = np.percentile(vals, 99.0)

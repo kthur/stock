@@ -7,12 +7,13 @@
 ## 1. 기본 원칙
 
 | 항목 | 값 |
-|------|----|
+|------|------|
 | 실매매 기본값 | **비활성** (`REALTIME_TRADE_ENABLED` 미설정 = DRY_RUN) |
 | 실매매 활성 조건 | `REALTIME_TRADE_ENABLED=true` + 브로커 실연결 + 비시뮬레이션 |
 | 주문 금액 상한 | `REALTIME_MAX_ORDER_VALUE_KRW` (기본 5,000만 원/건) |
 | 위기 게이트 | CrisisLevel.SEVERE → 신규 주문 계획 전체 차단 |
 | 킬 스위치 | `KILL_SWITCH` 파일 또는 `KILL_SWITCH=1` env |
+| 7대 안전 게이트 | SEVERE 위기 차단, 킬 스위치, 티커 정규식, 가격 이상치, 10주 라운딩, 포지션 캡, 순알파 허들 |
 
 실매매를 켜기 전에 아래 **체크리스트**를 통과해야 한다.
 
@@ -21,7 +22,7 @@
 ## 2. 파이프라인 실행
 
 ```bash
-# 정기 배치 (31대 전략 학습 + 추론 + 2D 앙상블 + HRP 포트폴리오 최적화 + 리포트 생성)
+# 정기 배치 (31대 전략 학습 + 추론 + 횡단면 정규화 + 2D 앙상블 + HRP 포트폴리오 최적화 + 리포트 생성)
 .venv/Scripts/python.exe trading_system/run_pipeline.py
 
 # 훈련 스킵 (기존 모델 재사용 — 빠른 재추론)
@@ -100,6 +101,7 @@ Remove-Item trading_system\KILL_SWITCH
 - [ ] `REALTIME_MAX_ORDER_VALUE_KRW` 상한 확인
 - [ ] `KILL_SWITCH` 파일이 없어야 실거래 가능 (있으면 계획 생성 자체가 차단)
 - [ ] VIX/USDKRW 지표가 최근(7일 이내)인가 — 크라이시스 게이트 입력이므로
+- [ ] 통화 변환 분모(FX Denominator) 검증: US 주식 주문 시 USD 환산 단가 정상 여부
 - [ ] 주문수량: KRX 10주 단위 반올림, US 1주 단위. `quantity<=0`이면 계획 자체를 생성하지 않음
 
 ---
@@ -124,7 +126,7 @@ Remove-Item trading_system\KILL_SWITCH
 |------|-----------|------|
 | 유니버스 신선도 | `get_universe_max_age_days()` | ≤ 30일 (기본 `universe_refresh_days`) |
 | 지표 최신일 | `SELECT MAX(date) FROM market_indicators WHERE name='VIX'` | 7일 이내 |
-| 펀더멘탈 분기 여부 | fundamentals 테이블 `fiscal_period` | `quarterly` 우선 (annual은 fallback), 60일 Filing Lag 적용 |
+| 펀더멘탈 분기 여부 | fundamentals 테이블 `fiscal_period` | `quarterly` 우선 (annual은 fallback), 동적 Filing Lag (KRX 45d, US 40d) 적용 |
 | 가격 조정 컨벤션 | Tier1(yfinance)=조정, Tier2~4=비조정 → 분할 역조정 적용됨 | 최근 가격 수준 보존 |
 | order_plans 수량 | `SELECT symbol, quantity, target_amount, target_price FROM order_plans` | KRX 10주 배수, US 1주 |
 

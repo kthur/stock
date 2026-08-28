@@ -60,19 +60,19 @@ class PortfolioAllocator:
                  kelly_fraction: float = 0.5):
         s_single = float(max_single_position) if (max_single_position is not None and np.isfinite(max_single_position)) else 0.15
         s_single = s_single / 100.0 if s_single > 1.0 else s_single
-        self.max_single_position = max(0.01, min(1.0, s_single))
+        self.max_single_position = max(0.0, min(1.0, s_single))
 
         s_min_single = float(min_single_position) if (min_single_position is not None and np.isfinite(min_single_position)) else 0.02
         s_min_single = s_min_single / 100.0 if s_min_single > 1.0 else s_min_single
-        self.min_single_position = max(0.001, min(1.0, s_min_single))
+        self.min_single_position = max(0.0, min(1.0, s_min_single))
 
         s_tot = float(max_total_allocation) if (max_total_allocation is not None and np.isfinite(max_total_allocation)) else 0.85
         s_tot = s_tot / 100.0 if s_tot > 1.0 else s_tot
-        self.max_total_allocation = max(0.05, min(1.0, s_tot))
+        self.max_total_allocation = max(0.0, min(1.0, s_tot))
 
         s_sec = float(max_sector_exposure) if (max_sector_exposure is not None and np.isfinite(max_sector_exposure)) else 0.30
         s_sec = s_sec / 100.0 if s_sec > 1.0 else s_sec
-        self.max_sector_exposure = max(0.05, min(1.0, s_sec))
+        self.max_sector_exposure = max(0.0, min(1.0, s_sec))
 
         self.target_horizon = max(1, int(target_horizon)) if target_horizon is not None else 20
         self.use_kelly = bool(use_kelly)
@@ -230,8 +230,8 @@ class PortfolioAllocator:
             DataFrame with columns ['symbol', 'market', 'predicted_return', 'volatility',
                                     'raw_score', 'weight', 'market_budget', 'allocation_amount']
         """
-        if predictions_df.empty or not prices_dict:
-            logger.warning("Empty predictions or prices_dict. Allocation skipped.")
+        if predictions_df.empty or not prices_dict or self.max_total_allocation <= 0.0 or self.max_single_position <= 0.0:
+            logger.warning("Empty predictions, prices_dict, or zero allocation limit. Allocation skipped.")
             return pd.DataFrame()
 
         if use_kelly is None:
@@ -314,11 +314,18 @@ class PortfolioAllocator:
             else:
                 cost = 0.005
 
-            # C1 FIX: Adaptively align cost units with pred_ret scale:
-            # If pred_ret <= 1.0 (decimal, e.g. 0.15), use cost directly (0.005).
-            # If pred_ret > 1.0 (percentage, e.g. 15.0), scale cost to percentage (0.5).
-            eff_cost = cost if pred_ret <= 1.0 else (cost * 100.0)
-            net_pred_ret = pred_ret - eff_cost
+            # Avoid double-deducting friction costs if input is already net expected return
+            is_net = (
+                'ensemble_expected_return' in predictions_df.columns
+                or getattr(self, '_is_already_net', False)
+                or 20 in predictions_df.columns
+                or '20' in predictions_df.columns
+            )
+            if is_net:
+                net_pred_ret = pred_ret
+            else:
+                eff_cost = cost if pred_ret <= 1.0 else (cost * 100.0)
+                net_pred_ret = pred_ret - eff_cost
             if net_pred_ret <= 0:
                 continue
 
@@ -431,14 +438,15 @@ class PortfolioAllocator:
             max_top_n = 30           # 강세장: 최상위 유망주 20~30개 적극 배분으로 수익률 극대화
             effective_min_pos = 0.005 # 최소 투자비중 0.5%로 완화하여 유망 종목 폭넓게 포착
             effective_max_alloc = max(self.max_total_allocation, 0.98) # Cash Drag Eliminator
-        elif "SIDEWAYS" in regime_str or regime == 1:
-            max_top_n = 15           # 횡보장: 12~15개 종목 안정적 분산
-            effective_min_pos = 0.01  # 최소 투자비중 1.0%
-            effective_max_alloc = self.max_total_allocation
-        else:
+        elif "BEAR" in regime_str or regime == 0 or "CRISIS" in regime_str:
             max_top_n = 8            # 약세장/위기: 방어주 5~8개로 엄격하게 압축하여 손실 방어
             effective_min_pos = 0.02  # 최소 투자비중 2.0%
             effective_max_alloc = min(self.max_total_allocation, 0.50)
+        else:
+            # 횡보장 / 기본 미지정 레짐: 안정적 분산 및 사용자가 지정한 max_total_allocation 준수
+            max_top_n = 20
+            effective_min_pos = 0.01
+            effective_max_alloc = self.max_total_allocation
 
         # Select top candidates based on regime dynamics
         df_candidates = df_candidates.sort_values('raw_score', ascending=False).head(max_top_n).copy()

@@ -100,7 +100,7 @@ class EventDrivenEngine(BaseStrategyEngine):
                 end = datetime.now().strftime('%Y-%m-%d')
             url = f"https://efts.sec.gov/LATEST/search-index?q=%22{ticker}%22&dateRange=custom&startdt={start}&enddt={end}&forms=8-K"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
                 data = json.loads(resp.read().decode('utf-8'))
                 hits = data.get('hits', {}).get('hits', [])
                 results = []
@@ -223,7 +223,7 @@ class EventDrivenEngine(BaseStrategyEngine):
                             else:
                                 weight = 0.70
 
-                        # Time decay: 10-day half-life decay
+                        # Time decay: exact 10-day half-life decay (exp(-days * ln(2) / half_life))
                         days_diff = 0
                         if clean_as_of and rcept_dt and len(clean_as_of) == 8 and len(rcept_dt) == 8:
                             try:
@@ -232,7 +232,7 @@ class EventDrivenEngine(BaseStrategyEngine):
                                 days_diff = max(0, int((d_as_of - d_rcept).days))
                             except Exception:
                                 days_diff = 0
-                        time_decay = float(np.exp(-days_diff / 10.0))
+                        time_decay = float(np.exp(-days_diff * np.log(2.0) / 10.0))
                         current_delta = scores_map[sym] - 0.50
                         filing_delta = (weight - 0.50) * time_decay
                         # Compound multi-filing impact with soft hyperbolic saturation

@@ -395,10 +395,10 @@ class VCPSurgePredictor:
 
             n_splits = 3
             dt_split = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=20)
-            splits = list(dt_split.split(m_df, dates=m_df['date'].values))
+            splits = list(dt_split.split(m_df))
             if not splits or len(splits[-1][1]) < 20:
                 dt_split = DateAwareTimeSeriesSplit(n_splits=2, gap=10)
-                splits = list(dt_split.split(m_df, dates=m_df['date'].values))
+                splits = list(dt_split.split(m_df))
 
             if splits:
                 last_train, last_val = splits[-1]

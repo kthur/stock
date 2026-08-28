@@ -86,3 +86,43 @@ Integrity mode: development
 - [ ] Preserves all existing system constraints (KST timezone, 5-market multi-asset universe, SQLite WAL integrity, 6 OMS safety gates).
 - [ ] Generates a structured markdown report ready for implementation by engineering and quant teams.
 </USER_REQUEST>
+
+## 2026-08-27T13:17:32Z
+
+<USER_REQUEST>
+Perform a comprehensive, end-to-end quantitative trading system diagnostic and author an exhaustive Return Maximization Master Report for the 5-market (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ) automated trading codebase at `d:\Finance\code\stock`.
+
+Working directory: `d:/Finance/code/stock`
+Integrity mode: development
+
+## Requirements
+
+### R1. Full-Stack Quantitative Architecture & Signal Diagnostic
+Conduct an exhaustive code-level and mathematical audit across all system layers:
+- **AI Prediction Models:** Multi-horizon regression (XGBoost, LightGBM, CatBoost), Surge classifier, and Strict Causal LSTM sequence modeling.
+- **31 Strategy Engines:** Individual signal-to-noise ratio, factor quality, data dependency, and market coverage.
+- **2D Regime & Dynamic Ensemble Engine:** Gram-Schmidt / Löwdin orthogonalization, VIF collinearity suppression, zero-centered expected return scaling, and meta-learner stacking.
+- **Risk Management & Execution OMS:** EVT-CVaR tail-risk budgeting, dynamic cash buffer gating, Kyle/Almgren-Chriss transaction cost friction model, and 6-gate execution safety.
+
+### R2. Mathematical Optimization & Parameter Recalibration Specifications
+Detail the exact mathematical formulations, loss functions, hyperparameter search spaces, and weighting schemes required to eliminate alpha dilution and maximize risk-adjusted returns (CAGR, Sharpe ratio, Sortino ratio).
+
+### R3. Comprehensive Return Maximization Master Report Deliverable
+Synthesize all findings into a structured, production-grade markdown report (`comprehensive_return_maximization_master_report.md`) detailing:
+1. Executive Summary & Core Performance Bottlenecks.
+2. Layer-by-Layer Mathematical & Code Diagnostics.
+3. 31-Strategy Efficacy Matrix (High-Conviction Alpha vs. Noise Damping).
+4. Concrete Implementation Roadmap with Prioritized Phases (P0 ~ P3).
+5. Projected Performance Metrics (Baseline vs. Optimized CAGR, Sharpe, MDD, Win Rate).
+
+## Acceptance Criteria
+
+### Diagnostic Depth & Precision
+- [ ] Every system layer (AI models, 31 strategies, ensemble scoring, risk engine, OMS) is evaluated with concrete code references and mathematical formulas.
+- [ ] Explicit signal classification (Strong Alpha, Moderate, Weak, Noise) is provided for all 31 strategies.
+
+### Actionability & Return Impact
+- [ ] Concrete, reproducible formulas and parameter values are specified for expected return calculation, factor weights, and risk thresholds.
+- [ ] Concrete baseline vs. projected performance metrics (CAGR, Sharpe Ratio, MDD) are modeled and compared against quantitative industry standards.
+- [ ] Output report is generated as a structured, standalone markdown document.
+</USER_REQUEST>

@@ -135,7 +135,10 @@ class DateAwareTimeSeriesSplit:
         self.n_splits = max(1, n_splits)
         self.gap = max(0, gap)
 
-    def split(self, df_or_dates: Any, y: Any = None, groups: Any = None):
+    def split(self, df_or_dates: Any, y: Any = None, groups: Any = None, **kwargs):
+        if 'dates' in kwargs and kwargs['dates'] is not None:
+            df_or_dates = kwargs['dates']
+
         if isinstance(df_or_dates, pd.DataFrame):
             if 'date' in df_or_dates.columns:
                 dates = pd.to_datetime(df_or_dates['date']).values
@@ -1545,11 +1548,8 @@ class OnDevicePredictionModel:
             if len(group_sorted) < seq_len:
                 continue
 
-            # Extract multi-feature array if feature columns exist, otherwise fall back to returns
-            feat_cols = [c for c in group_sorted.columns if c in getattr(self, 'feature_cols', []) or (c not in ['date', 'symbol', 'market', target_col, '_vol_scale'] and pd.api.types.is_numeric_dtype(group_sorted[c]))]
-            if len(feat_cols) > 1:
-                seq_features = group_sorted[feat_cols].fillna(0.0).values
-            elif 'ret_1d' in group_sorted.columns:
+            # Strict causal 1D sequence of daily returns (preventing future target leakage & matching inference shape)
+            if 'ret_1d' in group_sorted.columns:
                 seq_features = np.expand_dims(group_sorted['ret_1d'].fillna(0.0).values, axis=-1)
             elif 'close' in group_sorted.columns:
                 seq_features = np.expand_dims(group_sorted['close'].pct_change().fillna(0.0).values, axis=-1)
@@ -2568,10 +2568,14 @@ class OnDevicePredictionModel:
                                 sym = symbols_list[idx_val]
                                 df_price = prices_dict.get(sym)
                                 if df_price is not None and len(df_price) >= 20:
-                                    close_series = df_price['Close']
-                                    if isinstance(close_series, pd.DataFrame):
-                                        close_series = close_series.iloc[:, 0]
-                                    ret_seq = close_series.pct_change().dropna().tail(20).values
+                                    close_col = 'Close' if 'Close' in df_price.columns else ('close' if 'close' in df_price.columns else None)
+                                    if close_col is not None:
+                                        close_series = df_price[close_col]
+                                        if isinstance(close_series, pd.DataFrame):
+                                            close_series = close_series.iloc[:, 0]
+                                        ret_seq = close_series.pct_change().dropna().tail(20).values
+                                    else:
+                                        ret_seq = np.array([])
                                     if len(ret_seq) == 20:
                                         valid_indices.append(i)
                                         seq_list.append(ret_seq.reshape(20, 1))

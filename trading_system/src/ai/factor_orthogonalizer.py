@@ -222,14 +222,15 @@ class FactorOrthogonalizerEngine:
         # Eigen-decomposition of symmetric correlation matrix
         eigenvalues, eigenvectors = np.linalg.eigh(C_sym.astype(np.float64))
 
-        # Continuous Ridge Regularization & Floor to prevent null-space amplification (N < K)
-        pos_eigs = eigenvalues[eigenvalues > 1e-4]
-        mean_eig = float(np.mean(pos_eigs)) if len(pos_eigs) > 0 else 1.0
-        ridge_floor = max(0.05 * mean_eig, self.ridge_epsilon, 1e-3)
-        lambdas_reg = np.maximum(eigenvalues, ridge_floor)
+        # Smooth Spectral Tikhonov / ESRW Whitening Operator:
+        # For large lambda: w_i ≈ 1 / sqrt(lambda) (standard whitening)
+        # For small lambda (null-space noise): w_i = sqrt(lambda) / (lambda + epsilon_ridge) -> 0 (smoothly damped)
+        lambdas_clean = np.maximum(eigenvalues, 0.0)
+        ridge_eps = float(np.clip(self.ridge_epsilon, 1e-4, 1e-3))
+        whitening_filter = np.sqrt(lambdas_clean) / (lambdas_clean + ridge_eps)
 
-        # Compute ZCA whitening operator: C^(-1/2) = V * diag(lambda^(-1/2)) * V^T
-        inv_sqrt_lambda = np.diag(1.0 / np.sqrt(lambdas_reg))
+        # Compute ZCA whitening operator: C^(-1/2) = V * diag(whitening_filter) * V^T
+        inv_sqrt_lambda = np.diag(whitening_filter)
         C_inv_sqrt = np.dot(eigenvectors, np.dot(inv_sqrt_lambda, eigenvectors.T))
 
         # Positive diagonal alignment constraint to ensure positive factor self-affinity

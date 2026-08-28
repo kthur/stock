@@ -1,14 +1,14 @@
 # 주식 자동매매 시스템 전체 구조 및 알고리즘 명세서
 
-> **Version**: 5.0  
-> **Last Updated**: 2026-08-17 (KST)  
+> **Version**: 6.5 (Production Standard)  
+> **Last Updated**: 2026-08-22 (KST)  
 > **Python**: 3.10+  
 > **Database**: SQLite (WAL & Thread-safe Write Mutex)
 
 > [!IMPORTANT]
 > 이 문서는 현재 운영 중인 통합 프로덕션 아키텍처를 설명합니다:
-> - **31대 다변화 파이프라인 아키텍처** (`run_pipeline.py`): 31대 ML/시계열DL/규칙/수급/옵션/이벤트/공급망/FinBERT감성/Fama-French 5-Factor/변동성타겟팅/미시구조 팩터 전략 앙상블, 2D 시장 레짐 판정, 포트폴리오 최적화(HRP & EVT-CVaR), 실전 미시구조 거래비용 모델 및 RiskManager 위기 제어 파이프라인
-> - **이벤트 기반 자율 매매 아키텍처** (`trading_system.py`, `src/execution/`): 실시간 오더북/OMS 및 체결 슬리피지 피드백 엔진 (`trade_logs.db`)
+> - **31대 다변화 파이프라인 아키텍처** (`run_pipeline.py`): 31대 ML/시계열DL/규칙/수급/옵션/이벤트/공급망/FinBERT감성/Fama-French 5-Factor/변동성타겟팅/미시구조 팩터 전략 앙상블, 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 2D 시장 레짐 판정, 포트폴리오 최적화(HRP, Black-Litterman & EVT-CVaR), 실전 미시구조 거래비용 모델 및 RiskManager 위기 제어 파이프라인
+> - **이벤트 기반 자율 매매 및 Execution OMS** (`trading_system.py`, `src/execution/`): 7대 주문 안전 게이트, Almgren-Chriss 최적 집행 트랜치 스케줄러, 실시간 오더북 및 체결 슬리피지 피드백 엔진 (`trade_logs.db`)
 
 ---
 
@@ -40,18 +40,20 @@
 ### 1.1 목적
 
 한국 주식(KOSPI, KOSDAQ) 및 미국 주식(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장을 대상으로 하는 **기관급 통합 정량적(Quantitative) 트레이딩 및 AI 예측 시스템**입니다.
-실시간 매크로/펀더멘탈/시세 수집 → 31대 알파 팩터 산출 → 통계적 직교화 및 2D 레짐 앙상블 → HRP/EVT-CVaR 포트폴리오 최적화 → 거래비용 차감 → 6대 안전 게이트 주문 실행 → 슬리피지 피드백 루프의 전 과정을 완전 자동화합니다.
+실시간 매크로/펀더멘탈/시세 수집 → 31대 알파 팩터 산출 → 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`) → 통계적 직교화 및 2D 레짐 앙상블 → HRP/Black-Litterman/EVT-CVaR 포트폴리오 최적화 → 거래비용 차감 → 7대 안전 게이트 & Almgren-Chriss 주문 실행 → 슬리피지 피드백 루프의 전 과정을 완전 자동화합니다.
 
 ### 1.2 핵심 특징
 
 | 특징 | 설명 |
 |------|------|
 | **31대 다변화 전략** | GBDT 회귀/분류, 시계열 LSTM, 공적분 차익거래, 펀더멘탈(RIM/발생액/밸류업), 수급/오더북, 옵션 IV/Gamma, 감성(FinBERT), Fama-French 중립화 등 다각화 |
-| **통계적 위생 (Hygiene)** | PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화, VIF 팩터 노이즈 억제, 결측 적응형 재정규화 |
+| **횡단면 점수 정규화** | `CrossSectionalScoreNormalizer` (Percentile Rank / Winsorized Gaussian CDF $[0, 1]$ 매핑) 및 결측 전략 동적 제로 가중치 재정규화 |
+| **통계적 위생 (Hygiene)** | PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화, VIF 팩터 노이즈 억제 |
 | **2D 시장 레짐 동적 앙상블** | 6대 국면(Bull/Sideways/Bear x Low/High Vol) 실시간 판정 및 전략 가중치 동적 재할당 |
-| **포트폴리오 최적화** | Hierarchical Risk Parity (HRP) + Ledoit-Wolf 공분산 축소 + EVT-CVaR 꼬리위험 예산 + Leland No-Trade 버퍼 밴드 |
-| **실전 미시구조 거래비용** | 한국 STT(0.15%/0.18%), 미국 SEC 수수료, 동적 스프레드, Kyle 제곱근 시장충격 차감 |
-| **Execution OMS & 피드백** | 6대 안전 게이트(Severe 위기 차단, 킬 스위치 등) + `trade_logs.db` 실체결 슬리피지 파라미터 적응 루프 |
+| **포트폴리오 최적화** | Hierarchical Risk Parity (HRP) + Ledoit-Wolf 공분산 축소 + Black-Litterman $C^1$ 스무딩 + EVT-CVaR 꼬리위험 예산 + Leland No-Trade 버퍼 밴드 |
+| **실전 미시구조 거래비용** | 한국 STT(0.15%/0.18%), 미국 SEC 수수료, 동적 스프레드, Kyle/Almgren-Chriss 제곱근 시장충격 차감 |
+| **Execution OMS & 피드백** | 7대 안전 게이트(Severe 위기 차단, 킬 스위치 등) + Almgren-Chriss 트랜치 스케줄러 + `trade_logs.db` 실체결 슬리피지 파라미터 적응 루프 |
+| **데이터 무결성** | 시장별 법정 Filing Lag(KRX 45일, US 40일/실공시일 우선), 층화 샘플링(Stratified Sampling), 적응형 타임아웃 & 지터 백오프 |
 | **SQLite WAL 동시성 보호** | WAL 저널 모드, busy_timeout 5,000ms, `threading.Lock()` 쓰기 뮤텍스 완비 |
 
 ---
@@ -76,6 +78,7 @@
     │  2. GlobalMarketClient                 │
     │     VIX, TNX, USDKRW, SP500, DXY,     │
     │     WTI, Gold, KOSPI, KOSDAQ 수집       │
+    │     (적응형 타임아웃 8s/15s + 지터 백오프)│
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
@@ -90,9 +93,9 @@
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
-    │  5-6. 학습 데이터 준비                  │
-    │   ThreadPoolExecutor (CPU 코어 수)      │
-    │   + 60일 Filing Lag 적용 펀더멘탈        │
+    │  5-6. 학습 데이터 준비 (층화 샘플링)   │
+    │   Market x Sector x Cap 층화 샘플링     │
+    │   + 동적 Filing Lag (KRX 45d, US 40d)  │
     │   + float32 메모리 다운캐스팅           │
     └────────────────────┬───────────────────┘
                          │
@@ -127,10 +130,12 @@
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
-    │  11. 2D 레짐 앙상블 & 포트폴리오 배분   │
-    │      PCA-ZCA Whitening & Gram-Schmidt   │
+    │  11. 횡단면 정규화 & 2D 레짐 앙상블     │
+    │      CrossSectionalScoreNormalizer      │
+    │      + 결측 전략 제로 가중치 재정규화   │
+    │      + PCA-ZCA Whitening & Gram-Schmidt │
     │      + 미시구조 거래비용 차감           │
-    │      + HRP & EVT-CVaR 자산 배분         │
+    │      + HRP, Black-Litterman & EVT-CVaR  │
     │      + Leland No-Trade 버퍼 밴드 필터   │
     └────────────────────┬───────────────────┘
                          │
@@ -145,9 +150,10 @@
 
 | 컨텍스트 | 방식 | 용도 |
 |----------|------|------|
-| 데이터 수집 | `ThreadPoolExecutor(max_workers=32)` | 네트워크 I/O 병렬 fetch, 5초 타임아웃 |
+| 데이터 수집 | `ThreadPoolExecutor(max_workers=32)` | 네트워크 I/O 병렬 fetch, 소스별 적응형 타임아웃(8s/15s) |
 | 피처 계산 | `ThreadPoolExecutor(max_workers=CPU*2)` | CPU 바운드 기술적 지표 & 피처 추출 |
-| 펀더멘탈 수집 | `threading.Thread` (백그라운드) | 60일 Filing Lag 적용 비동기 배치 수집 |
+| 펀더멘탈 수집 | `threading.Thread` (백그라운드) | 동적 Filing Lag 적용 비동기 배치 수집 |
+
 | 모델 학습 | `ProcessPoolExecutor` / `ThreadPoolExecutor` | 시장별 GBDT / ML 독립 훈련 |
 | DB 동시성 제어 | `threading.Lock()` 쓰기 뮤텍스 | SQLite WAL 모드 다중 스레드 충돌 원천 방지 |
 
@@ -1262,7 +1268,10 @@ mypy src/
 ---
 
 > **문서 이력**
+> - 2026-08-22: v6.5 — 6차 고도화 완결 (V6-01~V6-35, F01~F10): 31대 전략 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 결측 전략 동적 제로 가중치 재정규화, 시장별 법정 Filing Lag(KRX 45d, US 40d), 층화 샘플링(Stratified Sampling), 적응형 타임아웃 & 지터 백오프, VIX 기간구조 완충 게이팅, Almgren-Chriss 최적 집행 스케줄러, 7대 주문 안전 게이트 및 1,569+ 전수 테스트 100% 통과 반영
+> - 2026-08-17: v5.0 — 31대 전략 다변화 확장 (Supply Chain, FinBERT Sentiment, Style Neutralizer, Vol Target, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Eff, Gamma Squeeze, Insider Buying, Tone Drift, Darkpool HFT), HRP 및 EVT-CVaR 포트폴리오 최적화, Leland No-Trade 버퍼 밴드, 단일 `tests/` 통합(1,124+ 테스트)
 > - 2026-06-27: v4.0 — 자율 주식 거래 에이전트(Autonomous Trading Agent) 도입, 5대 규칙 적용 및 4대 퀀트 고도화(ATR 트레일링 스탑, 상관관계 분산, 위기 리스크 캡, 실효 비용 내재화) 반영
 > - 2026-06-21: v3.0 — 펀더멘탈 데이터 캐싱, WAL 및 Thread Lock 동시성 해결 등 Known Issues 개선 반영
 > - 2026-06-12: v2.0 — 추세 추종 오버라이드, XGBoost 예측 시스템, 텔레그램 /predict /dashboard 추가 반영
 > - 초기 작성: v1.0
+

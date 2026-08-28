@@ -256,7 +256,7 @@ class EnsembleScoringEngine:
             'vcp_rule': 0.01,
             'vcp_ml': 0.02,
             'lstm': 0.03,
-            'stat_arb': 0.08,
+            'stat_arb': 0.09,
             'sector_rotation': 0.03,
             'rim_valuation': 0.08,
             'event_driven': 0.03,
@@ -271,7 +271,7 @@ class EnsembleScoringEngine:
             'supply_chain': 0.01,
             'sentiment': 0.03,
             'factor_neutralized': 0.03,
-            'vol_target': 0.06,
+            'vol_target': 0.07,
             'microstructure': 0.01,
             'accruals_quality': 0.04,
             'short_squeeze': 0.01,
@@ -289,9 +289,9 @@ class EnsembleScoringEngine:
             'vcp_rule': 0.03,
             'vcp_ml': 0.04,
             'lstm': 0.04,
-            'stat_arb': 0.07,
-            'sector_rotation': 0.04,
-            'rim_valuation': 0.05,
+            'stat_arb': 0.06,
+            'sector_rotation': 0.03,
+            'rim_valuation': 0.04,
             'event_driven': 0.04,
             'mq_factor': 0.04,
             'iv_skew': 0.01,
@@ -300,7 +300,7 @@ class EnsembleScoringEngine:
             'arm_factor': 0.02,
             'card_factor': 0.04,
             'latr_factor': 0.04,
-            'inst_foreign_sector': 0.05,
+            'inst_foreign_sector': 0.04,
             'supply_chain': 0.02,
             'sentiment': 0.04,
             'factor_neutralized': 0.04,
@@ -322,22 +322,22 @@ class EnsembleScoringEngine:
             'vcp_rule': 0.03,
             'vcp_ml': 0.04,
             'lstm': 0.04,
-            'stat_arb': 0.07,
+            'stat_arb': 0.06,
             'sector_rotation': 0.04,
             'rim_valuation': 0.04,
             'event_driven': 0.04,
             'mq_factor': 0.04,
             'iv_skew': 0.02,
             'order_flow': 0.04,
-            'short_term_reversal': 0.04,
+            'short_term_reversal': 0.03,
             'arm_factor': 0.02,
-            'card_factor': 0.04,
+            'card_factor': 0.03,
             'latr_factor': 0.04,
             'inst_foreign_sector': 0.04,
             'supply_chain': 0.02,
             'sentiment': 0.04,
             'factor_neutralized': 0.04,
-            'vol_target': 0.04,
+            'vol_target': 0.03,
             'microstructure': 0.02,
             'accruals_quality': 0.03,
             'short_squeeze': 0.02,
@@ -350,23 +350,23 @@ class EnsembleScoringEngine:
         },
         'BULL_LOW_VOL': {  # sum = 1.00
             'regression': 0.04,
-            'surge': 0.07,
+            'surge': 0.06,
             'lead_lag': 0.03,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.06,
+            'vcp_ml': 0.05,
             'lstm': 0.04,
             'stat_arb': 0.03,
             'sector_rotation': 0.05,
             'rim_valuation': 0.03,
             'event_driven': 0.04,
-            'mq_factor': 0.05,
+            'mq_factor': 0.04,
             'iv_skew': 0.01,
             'order_flow': 0.04,
             'short_term_reversal': 0.03,
             'arm_factor': 0.03,
             'card_factor': 0.03,
             'latr_factor': 0.03,
-            'inst_foreign_sector': 0.05,
+            'inst_foreign_sector': 0.04,
             'supply_chain': 0.04,
             'sentiment': 0.04,
             'factor_neutralized': 0.04,
@@ -383,10 +383,10 @@ class EnsembleScoringEngine:
         },
         'BULL_HIGH_VOL': {  # sum = 1.00
             'regression': 0.04,
-            'surge': 0.08,
+            'surge': 0.07,
             'lead_lag': 0.03,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.06,
+            'vcp_ml': 0.05,
             'lstm': 0.04,
             'stat_arb': 0.03,
             'sector_rotation': 0.04,
@@ -399,16 +399,16 @@ class EnsembleScoringEngine:
             'arm_factor': 0.02,
             'card_factor': 0.03,
             'latr_factor': 0.03,
-            'inst_foreign_sector': 0.05,
-            'supply_chain': 0.04,
+            'inst_foreign_sector': 0.04,
+            'supply_chain': 0.03,
             'sentiment': 0.04,
             'factor_neutralized': 0.03,
             'vol_target': 0.02,
             'microstructure': 0.03,
             'accruals_quality': 0.02,
-            'short_squeeze': 0.04,
+            'short_squeeze': 0.03,
             'valueup_catalyst': 0.02,
-            'trend_efficiency': 0.04,
+            'trend_efficiency': 0.03,
             'gamma_squeeze': 0.03,
             'insider_buying': 0.03,
             'darkpool': 0.03,
@@ -1642,10 +1642,11 @@ class EnsembleScoringEngine:
                 target_col = exp_cols[0] if exp_cols else None
 
             if target_col is not None and target_col in reg_df_copy.columns:
-                raw_vals = pd.to_numeric(reg_df_copy[target_col], errors='coerce').fillna(0.0)
-                has_pct = (raw_vals.abs() > 1.0).any()
-                frac_vals = raw_vals / 100.0 if has_pct else raw_vals
-                reg_df_copy['reg_score'] = (0.50 + frac_vals / (2.0 * 0.20)).clip(0.0, 1.0)
+                raw_vals = pd.to_numeric(reg_df_copy[target_col], errors='coerce')
+                valid_m = raw_vals.notna() & np.isfinite(raw_vals)
+                # Element-wise scaling: if value is in percentage form (|v| > 1.0), divide by 100.0
+                frac_vals = pd.Series(np.where(raw_vals.abs() > 1.0, raw_vals / 100.0, raw_vals), index=raw_vals.index)
+                reg_df_copy['reg_score'] = np.where(valid_m, (0.50 + frac_vals / (2.0 * 0.20)).clip(0.0, 1.0), np.nan)
             else:
                 reg_df_copy['reg_score'] = np.nan
 
@@ -1745,10 +1746,11 @@ class EnsembleScoringEngine:
             target_col = 'lstm_score' if 'lstm_score' in l_df.columns else ('expected_return' if 'expected_return' in l_df.columns else None)
             if target_col and target_col in l_df.columns:
                 if target_col == 'expected_return':
-                    raw_vals = pd.to_numeric(l_df[target_col], errors='coerce').fillna(0.0)
-                    has_pct = (raw_vals.abs() > 1.0).any()
-                    frac_vals = raw_vals / 100.0 if has_pct else raw_vals
-                    l_df['lstm_score'] = (0.50 + frac_vals / (2.0 * 0.20)).clip(0.0, 1.0)
+                    raw_vals = pd.to_numeric(l_df[target_col], errors='coerce')
+                    valid_m = raw_vals.notna() & np.isfinite(raw_vals)
+                    # Element-wise scaling: if value is in percentage form (|v| > 1.0), divide by 100.0
+                    frac_vals = pd.Series(np.where(raw_vals.abs() > 1.0, raw_vals / 100.0, raw_vals), index=raw_vals.index)
+                    l_df['lstm_score'] = np.where(valid_m, (0.50 + frac_vals / (2.0 * 0.20)).clip(0.0, 1.0), np.nan)
                 else:
                     l_df['lstm_score'] = l_df[target_col].clip(0.0, 1.0)
 
@@ -2285,10 +2287,17 @@ class EnsembleScoringEngine:
                         valid_weight_series[vm] += 1.0
 
         # Dynamic re-normalization over active strategies (Active weights sum to 100%)
-        has_valid = valid_weight_series > 0
+        has_pre_ensemble = 'ensemble_score' in merged.columns and merged['ensemble_score'].notna().any()
+        if has_pre_ensemble:
+            has_valid = (valid_weight_series > 0) | (merged['ensemble_score'].notna() & (merged['ensemble_score'] > 0.0))
+        else:
+            has_valid = valid_weight_series > 0
         safe_valid_weight = valid_weight_series.replace(0.0, 1.0)
         # Fall back to 0.0 for symbols with no active strategy data
-        raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
+        if has_pre_ensemble and not (valid_weight_series > 0).any():
+            raw_linear_score = pd.to_numeric(merged['ensemble_score'], errors='coerce').fillna(0.0).clip(0.0, 1.0)
+        else:
+            raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
         linear_score = raw_linear_score.copy()
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
@@ -2319,12 +2328,26 @@ class EnsembleScoringEngine:
                 merged['fast_alpha_intraday_eligible'] = (merged['fast_alpha_score'] >= 0.70)
 
             # Multi-Horizon Strategy Alpha Sleeve Tagging (Fast: 1-3d, Medium: 5-20d, Slow: 30-90d)
-            s_slow_arr = np.nan_to_num(s_slow if s_slow is not None else 0.0, nan=0.0)
-            s_med_arr = np.nan_to_num(s_med if s_med is not None else 0.0, nan=0.0)
-            s_fast_arr = np.nan_to_num(s_fast if s_fast is not None else 0.0, nan=0.0)
+            n_rows = len(merged)
+            def _align_tier_arr(arr):
+                if arr is None:
+                    return np.zeros(n_rows, dtype=float)
+                a = np.asarray(arr, dtype=float).ravel()
+                a = np.nan_to_num(a, nan=0.0)
+                if len(a) != n_rows:
+                    if len(a) == 0:
+                        return np.zeros(n_rows, dtype=float)
+                    res = np.zeros(n_rows, dtype=float)
+                    res[:min(len(a), n_rows)] = a[:min(len(a), n_rows)]
+                    return res
+                return a
+
+            s_slow_arr = _align_tier_arr(s_slow)
+            s_med_arr = _align_tier_arr(s_med)
+            s_fast_arr = _align_tier_arr(s_fast)
             tier_matrix = np.column_stack([s_slow_arr, s_med_arr, s_fast_arr])
             sleeve_labels = ['SLOW', 'MEDIUM', 'FAST']
-            max_idx = np.argmax(tier_matrix, axis=1)
+            max_idx = np.argmax(tier_matrix, axis=1) if len(tier_matrix) > 0 else np.array([], dtype=int)
             merged['alpha_sleeve'] = [sleeve_labels[i] for i in max_idx]
 
             has_any_tier = any(c in merged.columns for c in ['slow_alpha_score', 'medium_alpha_score', 'fast_alpha_score'])
@@ -2479,15 +2502,16 @@ class EnsembleScoringEngine:
             except Exception as _be:
                 logger.debug(f"Convex multi-signal synergy boost bypassed: {_be}")
 
-        # Phase 2-D: Top-Decile Convex Alpha Booster (Grinold Law Alpha Preserver)
-        strategy_score_cols = [sc for _, sc in strategy_cols if sc in merged.columns]
-        blended_score = self.apply_top_decile_convex_boost(
-            scores_df=merged,
-            strategy_cols=strategy_score_cols,
-            base_scores=blended_score,
-            top_k=3,
-            lambda_boost=0.35
-        )
+        # Phase 2-D: Top-Decile Convex Alpha Booster (Grinold Law Alpha Preserver) for real universes (len >= 5)
+        if len(merged) >= 5:
+            strategy_score_cols = [sc for _, sc in strategy_cols if sc in merged.columns]
+            blended_score = self.apply_top_decile_convex_boost(
+                scores_df=merged,
+                strategy_cols=strategy_score_cols,
+                base_scores=blended_score,
+                top_k=3,
+                lambda_boost=0.35
+            )
 
         merged['ensemble_score'] = blended_score
         if (~has_valid).any():
@@ -2854,7 +2878,7 @@ class EnsembleScoringEngine:
                         row_s = top_candidates[top_candidates['symbol'] == sym].iloc[0]
                         exp_r_daily = float(row_s.get('ensemble_expected_return', 0.0)) / (20.0 * 100.0)
                         import hashlib
-                        sym_seed = int(hashlib.md5(str(sym).encode('utf-8')).hexdigest()[:8], 16) % (2**31)
+                        sym_seed = int(hashlib.md5(str(sym).encode('utf-8'), usedforsecurity=False).hexdigest()[:8], 16) % (2**31)  # nosec B324
                         sym_rng = np.random.RandomState(sym_seed)
                         idio_noise = sym_rng.normal(0.0, 0.015, n_periods)
                         ret_dict[sym] = exp_r_daily + 0.8 * mkt_returns + idio_noise

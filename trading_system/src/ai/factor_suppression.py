@@ -53,7 +53,7 @@ def solve_single_stage_entropy_allocation(
     w_clean = np.where(np.isfinite(w), w, w_min)
     w_clean = np.maximum(w_clean, w_min)
     w_clean = w_clean / np.sum(w_clean)
-    return w_clean
+    return np.asarray(w_clean, dtype=np.float64)
 
 
 class RegimeFactorSuppressionEngine:
@@ -267,7 +267,14 @@ class RegimeFactorSuppressionEngine:
                 strats = [s for s in base_weights.keys() if s in corr_matrix.columns]
                 missing_strats = [s for s in base_weights.keys() if s not in corr_matrix.columns]
                 if len(strats) >= 2 and not missing_strats:
-                    w0_vec = np.array([float(base_weights[s]) for s in strats], dtype=np.float64)
+                    penalties = self.compute_penalties(
+                        corr_matrix=corr_matrix,
+                        regime_label=regime_label,
+                        theta=eff_theta,
+                        lambda_penalty=eff_lambda,
+                        vif_dict=vif_dict
+                    )
+                    w0_vec = np.array([float(base_weights[s] * penalties.get(s, 1.0)) for s in strats], dtype=np.float64)
                     w0_sum = float(np.sum(w0_vec))
                     w0_vec = w0_vec / max(w0_sum, 1e-8)
                     R_sub = corr_matrix.loc[strats, strats].to_numpy(dtype=np.float64)

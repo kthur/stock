@@ -10,8 +10,7 @@ from __future__ import annotations
 
 import logging
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ class CPPIDrawdownCushionEngine:
 
         effective_peak = max(current_nav, peak_nav)
         floor_nav = self.compute_drawdown_floor(effective_peak)
-        
+
         cushion = max(0.0, float((current_nav - floor_nav) / current_nav))
         curr_dd = float((effective_peak - current_nav) / effective_peak)
 
@@ -91,7 +90,7 @@ class CPPIDrawdownCushionEngine:
 
         vol = max(annual_volatility, 0.04)
         excess_return = max(0.0, expected_return_annual - risk_free_rate)
-        
+
         # Kelly-adjusted Sharpe loading
         sharpe_loading = excess_return / (vol ** 2) if vol > 0 else 1.0
         # CPPI Cushion exposure

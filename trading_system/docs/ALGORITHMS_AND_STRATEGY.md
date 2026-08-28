@@ -1,7 +1,7 @@
 # 🧠 31대 다변화 전략 및 퀀트 알고리즘 완전 명세서
 
-> **Version**: 5.0  
-> **Last Updated**: 2026-08-17 (KST)  
+> **Version**: 6.5 (Production Standard)  
+> **Last Updated**: 2026-08-22 (KST)  
 > **Source Modules**: `trading_system/src/core/*.py`, `src/ai/`, `src/risk/`, `src/execution/`  
 > **Target Universe**: 한국(KOSPI, KOSDAQ) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장
 
@@ -15,11 +15,11 @@
 4. [모멘텀 & 퀀트 팩터 엔진 (전략 11~18)](#4-모멘텀--퀀트-팩터-엔진-전략-1118)
 5. [공급망, 감성 & 대체 데이터 엔진 (전략 19~23)](#5-공급망-감성--대체-데이터-엔진-전략-1923)
 6. [회계 품질 & 특수 촉매 엔진 (전략 24~31)](#6-회계-품질--특수-촉매-엔진-전략-2431)
-7. [통계적 직교화 및 팩터 억제 (Statistical Hygiene)](#7-통계적-직교화-및-팩터-억제-statistical-hygiene)
+7. [횡단면 점수 정규화 및 통계적 위생 (Cross-Sectional Hygiene)](#7-횡단면-점수-정규화-및-통계적-위생-cross-sectional-hygiene)
 8. [2D 시장 레짐 & 동적 앙상블 가중치](#8-2d-시장-레짐--동적-앙상블-가중치)
 9. [포트폴리오 최적화 & EVT-CVaR 꼬리위험 예산](#9-포트폴리오-최적화--evt-cvar-꼬리위험-예산)
 10. [실전 미시구조 거래비용 및 슬리피지 피드백](#10-실전-미시구조-거래비용-및-슬리피지-피드백)
-11. [Execution OMS 6대 주문 안전 게이트](#11-execution-oms-6대-주문-안전-게이트)
+11. [Execution OMS 7대 주문 안전 게이트 & Almgren-Chriss](#11-execution-oms-7대-주문-안전-게이트--almgren-chriss)
 
 ---
 
@@ -96,7 +96,7 @@
 ### 3.1 전략 7: Stat-Arb Log Cointegration (`stat_arb.py`)
 - **Engle-Granger 2단계 회귀**: raw price $P$ 대신 Log 가격 $\ln P$를 사용하여 스케일 불변성 확보:
   $$\ln P_{A, t} = \alpha + \beta \ln P_{B, t} + \epsilon_t$$
-- **ADF 공적분 검정**: 잔차 $\epsilon_t$에 대해 ADF 검정 통과($p < 0.05$) 및 반감기(Half-Life) $\tau \in [3, 30]$일 필터링.
+- **ADF 공적분 검정**: 잔차 $\epsilon_t$에 대해 ADF 검정 통과($p < 0.05$) 및 반감기(Half-Life) $\tau \in [3, 30]$일 필터링. 가짜 벤치마크 페어 생성을 차단하고 순수 유의 페어만 선별.
 - **신호**: 잔차 Z-score $Z_t = \frac{\epsilon_t - \mu_\epsilon}{\sigma_\epsilon} < -2.0$ 시 매수 진입.
 
 ### 3.2 전략 8: Sector Rotation Relative Momentum (`sector_rotation.py`)
@@ -108,7 +108,7 @@
 - **보정 사항**: 자기자본비용 $k_e$ 할인 시 Terminal Value 중복 할인 오류 제거, 음수 영업이익/순이익 기업 필터링.
 
 ### 3.4 전략 10: Event-Driven Catalyst Engine (`event_driven.py`)
-- OpenDART 실시간 공시(유상증자, 무상증자, 전환사채, 주주총회, 자사주 취득/소각) 파싱.
+- OpenDART 실시간 공시(유상증자, 무상증자, 전환사채, 주주총회, 자사주 취득/소각) 파싱 (`DARTCorpMapper` 8자리 매핑).
 - 컨센서스 대비 어닝 서프라이즈 $>15\%$, 일일 거래량 $3\times$ 서지 결합 촉매 스코어링.
 
 ---
@@ -149,18 +149,23 @@
 
 ---
 
-## 7. 통계적 직교화 및 팩터 억제 (Statistical Hygiene)
+## 7. 횡단면 점수 정규화 및 통계적 위생 (Cross-Sectional Hygiene)
 
-### 7.1 PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화
+### 7.1 `CrossSectionalScoreNormalizer`
+- 31개 전략의 출력 점수 분포 차이로 인한 앙상블 왜곡을 방지하기 위해 시장별 횡단면 정규화 적용:
+  $$S_{\text{norm}, i, k} = \frac{\operatorname{Rank}(s_{i, k}) - 0.5}{N_{\text{valid}}}$$
+- 또는 Winsorized Gaussian CDF 변환:
+  $$Z_{i, k} = \operatorname{clip}\left(\frac{s_{i, k} - \mu_k}{\sigma_k}, -3.0, 3.0\right), \quad S_{\text{norm}, i, k} = \Phi(Z_{i, k})$$
+
+### 7.2 결측 전략 동적 제로 가중치 재정규화 (Dynamic Zero-Weighting)
+- 특정 종목 $i$에 대해 결측된 전략 $k \notin \text{Active}_i$의 가중치를 0으로 처리하고, 활성 전략 집합에 대해 가중치를 재분배:
+  $$\tilde{w}_{i, k} = \begin{cases} \frac{w_k}{\sum_{m \in \text{Active}_i} w_m} & \text{if } k \in \text{Active}_i \\ 0.0 & \text{otherwise} \end{cases}$$
+- 인위적인 0.50 기본값 대체를 완전 배제하여 예측 왜곡을 제거.
+
+### 7.3 PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화
 - **PCA-ZCA 대칭 화이트닝**:
   $$C = V \Lambda V^T, \quad C^{-1/2} = V \Lambda^{-1/2} V^T, \quad X_{\text{decorr}} = \bar{X} \cdot C^{-1/2}$$
   - 순서 편향 없이 모든 팩터 간 상관관계를 $0.0$으로 정규 직교화.
-- **순차 Gram-Schmidt**: 레짐 가중치 순으로 정렬 후 선행 요인에 대한 사영(Projection) 성분 제거.
-
-### 7.2 결측 적응형 동적 재정규화 (Missingness-Aware Renormalization)
-- 특정 종목에 데이터(옵션, 재무 등)가 결측된 경우, 유효한 전략 집합 $V_i$에 대해 가중치를 재스케일링:
-  $$S_{\text{linear}, i} = \frac{\sum_{k \in V_i} w_k \cdot s_{k, i}}{\sum_{k \in V_i} w_k}$$
-- 커버리지 비율 $\frac{|V_i|}{K} < 0.40$ 미달 시 신뢰도 페널티 부과.
 
 ---
 
@@ -180,8 +185,9 @@
 ## 9. 포트폴리오 최적화 & EVT-CVaR 꼬리위험 예산
 
 ### 9.1 Hierarchical Risk Parity (HRP) & Ledoit-Wolf 축소
-- 자산 간 상관거리 $d_{ij} = \sqrt{\frac{1 - \rho_{ij}}{2}}$ 기반 계층적 군집 트리(Tree) 생성.
+- 자산 간 상관거리 $d_{ij} = \sqrt{\frac{1 - \rho_{ij}}{2}}$ 기반 계층적 군집 트리 생성.
 - Ledoit-Wolf 수축 공분산 행렬 $\Sigma_{\text{shrunk}} = (1 - \delta)\Sigma + \delta \nu I$ ($\delta = 0.15$)을 적용하여 역행렬 불안정성 제거.
+- **Black-Litterman $C^1$ 스무딩**: 시장 균형 수익률과 전략 알파 전망을 결합.
 
 ### 9.2 EVT-CVaR 3단계 계층 예산
 - Peaks-Over-Threshold (POT) 기반 Generalized Pareto Distribution (GPD) 적합 $\to$ Cornish-Fisher $\to$ Empirical 3단계 폴백으로 95% CVaR 산출 및 포트폴리오 꼬리위험 통제.
@@ -189,6 +195,7 @@
 ### 9.3 Leland 동적 No-Trade 버퍼 밴드
 - 불필요한 잦은 매매를 방지하기 위해 종목별 마찰비용과 변동성을 반영한 버퍼 밴드 $\delta_i \in [0.5\%, 5.0\%]$ 적용:
   $$w_{i, \text{current}} \in [w_{i, \text{target}} - \delta_i, \; w_{i, \text{target}} + \delta_i] \implies \text{HOLD}$$
+- 단, 신규 진입($w_{\text{curr}}=0$) 및 전량 청산($w_{\text{targ}}=0$) 시에는 버퍼 억제 없이 즉시 실행.
 
 ---
 
@@ -204,11 +211,17 @@
 
 ---
 
-## 11. Execution OMS 6대 주문 안전 게이트
+## 11. Execution OMS 7대 주문 안전 게이트 & Almgren-Chriss
 
+### 11.1 7대 안전 게이트
 1. **Gate 1 (거시 위기 게이트)**: `CrisisLevel.SEVERE` 판정 시 신규 매수 주문 100% 차단.
 2. **Gate 2 (하드웨어 킬 스위치)**: `KILL_SWITCH` 파일 또는 환경변수 감지 시 모든 신규 주문 즉시 차단.
 3. **Gate 3 (심볼 정규식 검증)**: 유효하지 않은 문자열(JSON dict 문자열, 공백 등) 차단.
 4. **Gate 4 (가격 유효 경계)**: $1.0 \le P \le 100,000,000$ 범위 외 주문 거부.
-5. **Gate 5 (단위 라운딩)**: 한국 시장 10주 단위 (소수점 주문 불가) 자동 라운딩.
+5. **Gate 5 (단위 라운딩)**: 한국 시장 10주 단위 (소수점 주문 불가) 자동 라운딩, 미국 1주 단위.
 6. **Gate 6 (포지션 집중도 상한)**: 단일 종목 최대 비중 10% (집중 허용 시 20%), 단일 섹터 최대 25% 하드 캡.
+7. **Gate 7 (순알파 허들 검증)**: 거래비용 차감 후 순예상수익률이 양수($\text{Net Alpha} > 0$)인 주문만 승인.
+
+### 11.2 Almgren-Chriss 최적 집행 스케줄러
+- 거래량과 변동성을 고려하여 시장 충격과 타이밍 위험을 최소화하는 비선형 트랜치 분할 스케줄링 적용.
+

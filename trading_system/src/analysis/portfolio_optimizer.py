@@ -138,6 +138,7 @@ def calculate_black_litterman_weights(
     meta_convictions: np.ndarray | None = None,
     symbols: Optional[list] = None,
     sectors: Optional[list] = None,
+    regime: Optional[Any] = None,
 ) -> np.ndarray:
     """
     Computes optimal portfolio weights using the Black-Litterman model.
@@ -146,9 +147,21 @@ def calculate_black_litterman_weights(
     Uncertainty: Omega = diagonal of cov_matrix * omega_scale
     Updates expected returns and covariance matrix, then solves for tangency portfolio.
     Combines market equilibrium prior returns with strategy views and dynamic meta conviction.
+    Supports 2D Regime-Adaptive Bayesian Uncertainty adjustment.
     """
     if cov_matrix is None or predicted_returns is None:
         return np.array([])
+
+    # 2D Regime-Adaptive Bayesian Prior / View Uncertainty adjustment
+    regime_str = str(regime).upper() if regime is not None else ""
+    if "BEAR" in regime_str or "CRISIS" in regime_str:
+        # In crisis/bear, discount views and anchor more to equilibrium prior
+        tau = (tau or 0.05) * 0.50
+        omega_scale = (omega_scale or 0.1) * 2.0
+    elif "BULL" in regime_str:
+        # In bull markets, give higher weight to predictive views
+        tau = (tau or 0.05) * 1.50
+        omega_scale = (omega_scale or 0.1) * 0.70
 
     tau = max(1e-4, float(tau)) if (tau is not None and np.isfinite(tau)) else 0.05
     omega_scale = max(1e-4, float(omega_scale)) if (omega_scale is not None and np.isfinite(omega_scale)) else 0.1

@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import logging
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Any, Union
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ class BayesianSMCParticleFilter:
         self.n_particles = n_particles
         self.drift_vol = drift_volatility
         self.jump_prob = jump_probability
-        
+
         # Particle states: [mu_i, sigma_i, is_crisis_i]
         self._particles_mu = np.random.normal(0.08, 0.04, n_particles)
         self._particles_sigma = np.random.uniform(0.10, 0.25, n_particles)
@@ -64,16 +63,18 @@ class BayesianSMCParticleFilter:
 
             # Jump injection
             jumps = np.random.rand(self.n_particles) < self.jump_prob
-            sigma_p[jumps] *= np.random.uniform(1.30, 2.0, size=np.sum(jumps))
+            n_jumps = int(np.sum(jumps))
+            if n_jumps > 0:
+                sigma_p[jumps] *= np.random.uniform(1.30, 2.0, size=n_jumps)
 
             # 2. Measurement Likelihood: Gaussian PDF on daily return
             dt_sigma = sigma_p / np.sqrt(252.0)
             dt_mu = mu_p / 252.0
-            
+
             # Log-likelihood to prevent underflow
             z_scores = (r_t - dt_mu) / np.maximum(dt_sigma, 1e-4)
             log_lik = -0.5 * (z_scores ** 2) - np.log(np.maximum(dt_sigma, 1e-4))
-            
+
             # Update log-weights
             log_w = np.log(np.maximum(w, 1e-12)) + log_lik
             # Softmax normalization
@@ -88,7 +89,7 @@ class BayesianSMCParticleFilter:
                 u = (np.arange(self.n_particles) + np.random.rand()) / self.n_particles
                 idx = np.searchsorted(cum_w, u)
                 idx = np.clip(idx, 0, self.n_particles - 1)
-                
+
                 mu_p = mu_p[idx]
                 sigma_p = sigma_p[idx]
                 w = np.ones(self.n_particles) / float(self.n_particles)

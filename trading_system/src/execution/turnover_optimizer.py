@@ -20,7 +20,6 @@ class TurnoverOptimizer:
     """Filters target portfolio allocations against current holdings to reduce turnover."""
 
     def __init__(self, turnover_threshold_pct: float = 0.05, min_rebalance_delta_krw: float = 50000.0) -> None:
-        import math
         try:
             safe_thresh = float(turnover_threshold_pct) if (turnover_threshold_pct is not None and math.isfinite(float(turnover_threshold_pct))) else 0.05
         except (ValueError, TypeError):
@@ -46,7 +45,6 @@ class TurnoverOptimizer:
         Returns:
             Dict of symbol -> {'target_weight': float, 'action': 'HOLD'|'BUY'|'SELL', 'delta_amount': float}.
         """
-        import math
         try:
             cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
         except (ValueError, TypeError):

@@ -121,11 +121,11 @@ class VolTargetingEngine(BaseStrategyEngine):
                     h_col = "High" if "High" in df_p.columns else ("high" if "high" in df_p.columns else None)
                     l_col = "Low" if "Low" in df_p.columns else ("low" if "low" in df_p.columns else None)
                     if h_col and l_col:
-                        h = pd.to_numeric(df_p[h_col].tail(30), errors='coerce').dropna()
-                        l = pd.to_numeric(df_p[l_col].tail(30), errors='coerce').dropna()
-                        common_idx = h.index.intersection(l.index)
+                        high_series = pd.to_numeric(df_p[h_col].tail(30), errors='coerce').dropna()
+                        low_series = pd.to_numeric(df_p[l_col].tail(30), errors='coerce').dropna()
+                        common_idx = high_series.index.intersection(low_series.index)
                         if len(common_idx) >= 15:
-                            h_sub, l_sub = h.loc[common_idx], l.loc[common_idx]
+                            h_sub, l_sub = high_series.loc[common_idx], low_series.loc[common_idx]
                             hl_ratio = (h_sub / np.maximum(l_sub, 1e-8)).clip(lower=1.0)
                             log_hl_sq = (np.log(hl_ratio) ** 2)
                             parkinson_var = float(log_hl_sq.mean() / (4.0 * np.log(2.0)))

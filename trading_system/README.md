@@ -8,13 +8,13 @@
 
 | 문서 | 설명 |
 |------|------|
-| [ALGORITHMS_AND_STRATEGY.md](docs/ALGORITHMS_AND_STRATEGY.md) | **31대 다변화 전략 완전 알고리즘 명세** (GBDT 회귀, Surge, Lead-Lag, VCP, Strict Causal LSTM, Stat-Arb, Sector, RIM, Event, MQ, IV Skew, Order Flow, Reversal, ARM, CARD, LATR, Inst & Foreign, Supply Chain, Sentiment, Style Neutralizer, Vol Target, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Efficiency, Gamma Squeeze, Insider Buying, Tone Drift, Darkpool HFT) |
-| [SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) | 시스템 아키텍처, 2D 시장 레짐, 통계적 직교화, 포트폴리오 최적화(HRP/EVT-CVaR), 미시구조 거래비용, DB 스키마 |
+| [ALGORITHMS_AND_STRATEGY.md](docs/ALGORITHMS_AND_STRATEGY.md) | **31대 다변화 전략 완전 알고리즘 명세** (GBDT 회귀, Surge, Lead-Lag, VCP, Strict Causal LSTM, Stat-Arb, Sector, RIM, Event, MQ, IV Skew, Order Flow, Reversal, ARM, CARD, LATR, Inst & Foreign, Supply Chain, Sentiment, Style Neutralizer, Vol Target, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Efficiency, Gamma Squeeze, Insider Buying, Tone Drift, Darkpool HFT, 횡단면 정규화) |
+| [SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) | 시스템 아키텍처, 2D 시장 레짐, 통계적 직교화, 포트폴리오 최적화(HRP/EVT-CVaR/Black-Litterman), 미시구조 거래비용, DB 스키마 |
 | [CONFIGURATION_REFERENCE.md](docs/CONFIGURATION_REFERENCE.md) | `.env` 환경 변수 및 설정 파라미터 완전 참조 |
 | [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | 시스템 정밀 감사 해결 내역 및 개선 로드맵 |
 | [IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md) | 시스템 아키텍처 및 성능 최적화 개선 계획 |
-| [OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md) | 실거래 운영 절차, 6대 주문 안전 게이트, 킬 스위치(Kill Switch) 및 장애 대응 런북 |
-| [TEST_GUIDE.md](docs/TEST_GUIDE.md) | 통합 테스트 스위트(`tests/`) 및 pytest 실행 가이드 |
+| [OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md) | 실거래 운영 절차, 7대 주문 안전 게이트, Almgren-Chriss 트랜치, 킬 스위치(Kill Switch) 및 장애 대응 런북 |
+| [TEST_GUIDE.md](docs/TEST_GUIDE.md) | 통합 테스트 스위트(`tests/`) 및 1,569+ pytest 실행 가이드 |
 
 ---
 
@@ -45,7 +45,7 @@ copy trading_system\.env.example trading_system\.env
 
 ### 1. 통합 예측 파이프라인 (핵심)
 
-31대 전략 모델을 기반으로 한국(KOSPI, KOSDAQ) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장의 예측 결과를 생성하고 2D 시장 레짐 기반 동적 앙상블, 포트폴리오 최적화(HRP & EVT-CVaR), 미시구조 거래비용 차감을 수행합니다.
+31대 전략 모델을 기반으로 한국(KOSPI, KOSDAQ) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장의 예측 결과를 생성하고 2D 시장 레짐 기반 동적 앙상블, 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 포트폴리오 최적화(HRP, Black-Litterman & EVT-CVaR), 미시구조 거래비용 차감을 수행합니다.
 
 #### CLI 옵션
 
@@ -61,7 +61,7 @@ copy trading_system\.env.example trading_system\.env
 |------|------|------|
 | `--target {KOSPI,KOSDAQ,NASDAQ,RUSSELL2000,KRX,SP500}` | 특정 시장만 추론 (학습은 전 유니버스 유지) | `--target KOSPI` |
 | `--skip-training` | 기존 저장 모델 재사용 (학습 건너뛰기 — 빠른 재추론) | `--skip-training` |
-| `--debug` | 시장별 3종목만 샘플 — 동작 빠른 검증 | `--debug` |
+| `--debug` | 시장별 3종목 샘플링 — 동작 빠른 검증 | `--debug` |
 
 ```powershell
 # 예시 조합
@@ -77,7 +77,7 @@ copy trading_system\.env.example trading_system\.env
 | 파일 | 설명 |
 |------|------|
 | `ensemble_predictions.txt` | **31대 전략 동적 앙상블 TOP 100** 및 Decision Rationale (KST) |
-| `strategy_data_coverage_report.txt` | **31대 전략별 데이터 커버리지 & 결측 사유 비율 분석 보고서** |
+| `strategy_data_coverage_report.txt` | **31대 전략별 데이터 커버리지 & 최빈 결측 사유 비율 분석 보고서** |
 | `pipeline_result.txt` | GBDT 회귀 모델 horizon별 예상수익률 TOP10 요약 |
 | `pipeline_result.csv` | 전체 종목 회귀 예측값 원본 (기계 가독) |
 | `surge_predictions.txt` | Surge 분류기 horizon별 20%↑ 급등 확률 TOP20 |

@@ -876,7 +876,9 @@ class MarketIndicatorStorage:
                         name = info.get('name', sym)
                         chg = info.get('change_pct', 0.0)
                         if self._indicator_value_ok(sym, name, p):
-                            rows.append((d_str, sym, name, float(p), float(chg) if (chg is not None and math.isfinite(float(chg))) else 0.0))
+                            p_float = float(p) if (p is not None and math.isfinite(float(p))) else 0.0
+                            chg_float = float(chg) if (chg is not None and math.isfinite(float(chg))) else 0.0
+                            rows.append((d_str, sym, name, p_float, chg_float))
                     elif isinstance(info, (int, float)) and math.isfinite(float(info)):
                         if self._indicator_value_ok(sym, sym, info):
                             rows.append((d_str, sym, sym, float(info), 0.0))

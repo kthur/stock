@@ -1,7 +1,6 @@
 # mypy: ignore-errors
 import os
 import sys
-import subprocess
 
 # PyTorch WinError 1114 DLL Loading Crash bypass
 if "torch" not in sys.modules:
@@ -9,19 +8,11 @@ if "torch" not in sys.modules:
     if os.getenv("BYPASS_TORCH", "").lower() == "false":
         should_bypass = False
     elif not should_bypass:
-        is_test = "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv)
-        if is_test:
-            try:
-                res = subprocess.run(
-                    [sys.executable, "-c", "import torch"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=15
-                )
-                if res.returncode != 0:
-                    should_bypass = True
-            except Exception:
-                should_bypass = True
+        try:
+            import torch  # noqa: F401
+            should_bypass = False
+        except Exception:
+            should_bypass = True
 
     if should_bypass:
         import types
@@ -39,6 +30,12 @@ if "torch" not in sys.modules:
                 return 0.0
             def __getitem__(self, item):
                 return self
+            def size(self, *args, **kwargs):
+                return 1
+            def float(self):
+                return self
+            def unsqueeze(self, *args, **kwargs):
+                return self
         class DummyNoGrad:
             def __enter__(self):
                 return self
@@ -54,6 +51,14 @@ if "torch" not in sys.modules:
         mock_torch.save = lambda *a, **k: None
         mock_torch.load = lambda *a, **k: {}
         mock_torch.randperm = lambda n: [0] * n
+        mock_torch.randn = lambda *a, **k: DummyTensor()
+        mock_torch.zeros = lambda *a, **k: DummyTensor()
+        mock_torch.arange = lambda *a, **k: DummyTensor()
+        mock_torch.exp = lambda *a, **k: DummyTensor()
+        mock_torch.sin = lambda *a, **k: DummyTensor()
+        mock_torch.cos = lambda *a, **k: DummyTensor()
+        mock_torch.float = float
+        mock_torch.long = int
         mock_torch.is_mocked = True
 
         mock_cuda = types.ModuleType("torch.cuda")
@@ -89,13 +94,26 @@ if "torch" not in sys.modules:
                 return self
             def train(self, *args, **kwargs):
                 return self
-        mock_nn = types.ModuleType("torch.nn")
-        mock_nn.Module = DummyModule
+            def register_buffer(self, *args, **kwargs):
+                pass
 
+        class MockNNModule(types.ModuleType):
+            def __getattr__(self, name):
+                if name.startswith('__'):
+                    raise AttributeError(name)
+                return DummyModule
+
+        mock_nn = MockNNModule("torch.nn")
+        mock_nn.Module = DummyModule
         mock_nn.Sequential = DummyModule
         mock_nn.Linear = DummyModule
         mock_nn.ReLU = DummyModule
         mock_nn.LSTM = DummyModule
+        mock_nn.Dropout = DummyModule
+        mock_nn.LayerNorm = DummyModule
+        mock_nn.MultiheadAttention = DummyModule
+        mock_nn.TransformerEncoder = DummyModule
+        mock_nn.TransformerEncoderLayer = DummyModule
 
         class DummyLoss(DummyModule):
             def __call__(self, *args, **kwargs):
@@ -113,7 +131,6 @@ if "torch" not in sys.modules:
         mock_optim.Adam = DummyOptimizer
         mock_torch.optim = mock_optim
         sys.modules["torch.optim"] = mock_optim
-
 
         mock_sb3 = types.ModuleType("stable_baselines3")
         class DummyPPO:

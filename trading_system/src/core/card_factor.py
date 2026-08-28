@@ -159,7 +159,7 @@ class CARDFactorEngine(BaseStrategyEngine):
                         fx_60 = indicator_df.get('usdkrw_change', indicator_df.get('usdkrw_pct', pd.Series(0.0, index=indicator_df.index))).tail(60) / 100.0
                         wti_60 = indicator_df.get('wti_change', indicator_df.get('wti_pct', pd.Series(0.0, index=indicator_df.index))).tail(60) / 100.0
                         vix_60 = indicator_df.get('vix_change', indicator_df.get('vix_pct', pd.Series(0.0, index=indicator_df.index))).tail(60) / 100.0
-                        
+
                         df_ols = pd.DataFrame({'R': ret_60, 'FX': fx_60, 'WTI': wti_60, 'VIX': vix_60}).dropna()
                         if len(df_ols) >= 30:
                             import statsmodels.api as sm
@@ -168,7 +168,7 @@ class CARDFactorEngine(BaseStrategyEngine):
                             macro_impact = (model.params.get('FX', 0.0) * usdkrw_chg + model.params.get('WTI', 0.0) * wti_chg - model.params.get('VIX', 0.0) * vix_pct_shock)
                     except Exception:
                         pass
-                
+
                 if macro_impact is None:
                     sec_str = str(sec).lower()
                     if any(kw in sec_str for kw in ['energy', 'oil', 'gas', 'chem', '정유', '화학', '에너지']):

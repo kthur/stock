@@ -964,6 +964,78 @@ class PortfolioAllocator:
 
         return scaled_weights
 
+    def allocate_confidence_adaptive_kelly(
+        self,
+        expected_returns: pd.Series,
+        volatilities: Optional[pd.Series] = None,
+        conviction_scores: Optional[pd.Series] = None,
+        max_weight: Optional[float] = None,
+        kelly_fraction: float = 0.5,
+        target_annual_vol: float = 0.15
+    ) -> Dict[str, float]:
+        """
+        Machine-Learned Conviction-Adaptive Kelly Allocation:
+        f^*_i = clip( (p_i * (b_i + 1) - 1) / b_i * kelly_fraction, 0.0, max_weight )
+        where:
+          - p_i (dynamic win rate) is estimated from conviction score & normalized alpha [0.40 ~ 0.80].
+          - b_i (payoff ratio) is estimated from expected return / downside volatility.
+        """
+        if expected_returns is None or expected_returns.empty:
+            return {}
+
+        symbols = list(expected_returns.index)
+        n = len(symbols)
+        cap = float(max_weight or self.default_max_weight)
+
+        rets = expected_returns.values.astype(float)
+        if np.nanmean(np.abs(rets)) > 0.50:
+            rets = rets / 100.0
+
+        if volatilities is not None and not volatilities.empty:
+            vols = volatilities.reindex(symbols).fillna(0.02).values.astype(float)
+        else:
+            vols = np.full(n, 0.02)
+
+        if conviction_scores is not None and not conviction_scores.empty:
+            convs = conviction_scores.reindex(symbols).fillna(0.50).values.astype(float)
+        else:
+            convs = np.full(n, 0.50)
+
+        raw_kelly = np.zeros(n, dtype=float)
+        for i in range(n):
+            mu_i = rets[i]
+            vol_i = max(vols[i], 1e-4)
+            c_i = float(np.clip(convs[i], 0.0, 1.0))
+
+            if mu_i <= 0:
+                raw_kelly[i] = 0.0
+                continue
+
+            # Dynamic Win Rate: p in [0.40, 0.80] based on model conviction
+            p_i = 0.50 + 0.25 * (c_i - 0.50) * 2.0
+            p_i = float(np.clip(p_i, 0.40, 0.80))
+
+            # Dynamic Payoff Ratio: b = expected_gain / expected_loss proxy
+            ann_mu = mu_i * (252.0 / self.target_horizon)
+            ann_vol = vol_i * np.sqrt(252.0)
+            b_i = float(np.clip(ann_mu / max(ann_vol, 0.05), 0.5, 4.0))
+
+            # Kelly optimal fraction
+            f_star = (p_i * (b_i + 1.0) - 1.0) / b_i
+            f_scaled = max(0.0, f_star) * float(kelly_fraction)
+            raw_kelly[i] = min(f_scaled, cap)
+
+        tot_k = np.sum(raw_kelly)
+        if tot_k <= 0:
+            return {}
+
+        if tot_k > 1.0:
+            final_w = raw_kelly / tot_k
+        else:
+            final_w = raw_kelly
+
+        return {s: float(w) for s, w in zip(symbols, final_w) if w > 1e-4}
+
     # =========================================================================
     # OBJECTIVE 2: DYNAMIC LELAND BAND-BASED REBALANCING & MICROSTRUCTURE COSTS
     # =========================================================================

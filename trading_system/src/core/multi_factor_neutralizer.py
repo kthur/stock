@@ -119,7 +119,7 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                         df.loc[missing_mask, col] = df.loc[missing_mask, "symbol"].map(
                             lambda s: fundamentals_dict.get(s, {}).get(col, np.nan)
                         )
-            
+
             # 5-4. Sector-grouped median imputation for PBR/ROE
             if "sector" in df.columns or "sector_code" in df.columns:
                 sec_col = "sector" if "sector" in df.columns else "sector_code"

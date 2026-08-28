@@ -258,7 +258,12 @@ class CrisisDetector:
                 if self.crisis_level == CrisisLevel.NONE:
                     self.crisis_level = CrisisLevel.WATCH
             elif isinstance(vix, (float, int)) and not np.isnan(vix):
-                is_rebounding = len(self._dd_history) >= 2 and self._dd_history[-1] < 0.05 and dd_score < 0.30
+                is_rebounding = (
+                    len(self._dd_history) >= 2
+                    and max(self._dd_history) >= 0.05
+                    and self._dd_history[-1] < 0.05
+                    and dd_score < 0.30
+                )
                 if vix >= 40.0:
                     self.crisis_level = CrisisLevel.ACTIVE if is_rebounding else CrisisLevel.SEVERE
                 elif vix >= 30.0:

@@ -1,6 +1,6 @@
 # 📈 Stock Trading System — 통합 주식 자동매매 및 예측 파이프라인
 
-한국(KOSPI/KOSDAQ/KONEX) 및 미국(S&P 500/NASDAQ/RUSSELL 2000) 시장의 **3,379개 종목**을 대상으로 **31대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영하고 2D 시장 레짐 기반 동적 앙상블, 리스크 관리 및 포트폴리오 최적화를 구동하는 통합 예측 및 자율 매매 파이프라인입니다.
+한국(KOSPI/KOSDAQ/KONEX) 및 미국(S&P 500/NASDAQ/RUSSELL 2000) 시장의 **3,379개 종목**을 대상으로 **31대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영하고 2D 시장 레짐 기반 동적 앙상블, 리스크 관리 및 포트폴리오 최적화를 구동하는 기관급 통합 정량적(Quantitative) 예측 및 자율 매매 파이프라인입니다.
 
 자동 업데이트되는 라이브 웹 대시보드: **[https://kthur.github.io/stock/](https://kthur.github.io/stock/)**
 
@@ -12,8 +12,8 @@
 flowchart TD
     subgraph DataLayer ["1. 데이터 레이어 (Data & Feature Layer)"]
         FDR["FinanceDataReader\n(KOSPI, KOSDAQ, KONEX, S&P 500, NASDAQ, RUSSELL 2000)"]
-        YF["yfinance / FRED\n(VIX, TNX, USDKRW, Oil, Gold, DXY)"]
-        DART["DART / SEC / Consensus / Options\n(재무 60d Lag, 공시, 풋콜 IV, 컨센서스)"]
+        YF["yfinance / FRED / ECOS\n(VIX, TNX, USDKRW, Oil, Gold, DXY / 적응형 지수 백오프)"]
+        DART["DART / SEC / Consensus / Options\n(시장별 동적 Filing Lag: KRX 45d, US 40d / 풋콜 IV)"]
         
         DB[("StockPriceDB & MarketIndicatorStorage\n(SQLite WAL Engine, Thread-safe Write Lock Mutex)")]
         
@@ -57,19 +57,21 @@ flowchart TD
         S31["31. High-Frequency Execution 마이크로스프레드"]
     end
 
-    subgraph RiskRegime ["3. 시장 레짐 & 통계적 직교화 (Regime & Statistical Hygiene)"]
+    subgraph NormalizationRegime ["3. 횡단면 정규화 & 시장 레짐 (Normalization & Regime Layer)"]
+        Norm["CrossSectionalScoreNormalizer\n(Percentile Rank & Winsorized Gaussian CDF [0, 1])"]
         Regime["2D Market Regime Detector\n(수익률 & 변동성 6대 레짐: Bull/Sideways/Bear x Low/High Vol)"]
         Ortho["Factor Decorrelation & Whitening\n(PCA-ZCA Whitening & Gram-Schmidt Decorrelation)"]
-        Risk["RiskManager & CrisisDetector\n(거시 위기 4단계 / VIX·USDKRW 유동성 게이팅)"]
+        Risk["RiskManager & CrisisDetector\n(거시 위기 4단계 / VIX 기간구조 & 속도 완충 게이팅)"]
     end
 
     subgraph EnsembleOpt ["4. 동적 앙상블 & 포트폴리오 최적화 (Ensemble & Portfolio Allocation)"]
         Calib["Isotonic & Platt Calibration\n(확률 단조 보정 & Winsorization)"]
-        Ensemble["EnsembleScoringEngine\n(31대 전략 동적 가중치 + 결측 적응형 재정규화)"]
-        Cost["미시구조 거래비용 모델\n(STT 세금, SEC Fee, 동적 스프레드, Kyle 시장충격)"]
-        Alloc["Hierarchical Risk Parity (HRP) & EVT-CVaR\n(Ledoit-Wolf Shrinkage, Leland No-Trade Buffer Bands)"]
+        Ensemble["EnsembleScoringEngine\n(31대 전략 동적 가중치 + 결측 적응형 제로가중 재정규화)"]
+        Cost["미시구조 거래비용 모델\n(STT 세금, SEC Fee, 동적 스프레드, Kyle/Almgren 시장충격)"]
+        Alloc["Hierarchical Risk Parity (HRP) & EVT-CVaR\n(Ledoit-Wolf Shrinkage, Black-Litterman, Leland Bands)"]
         
         Calib --> Ensemble
+        Norm --> Ensemble
         Regime --> Ensemble
         Ortho --> Ensemble
         Risk --> Ensemble
@@ -80,7 +82,7 @@ flowchart TD
     subgraph OutputExecution ["5. 파이프라인 출력 & 실행 (Output & Execution OMS)"]
         Files["TXT/CSV 예측 리포트 (KST)\n(ensemble_predictions.txt, coverage_report.txt 외)"]
         Dash["GitHub Pages HTML 대시보드\n(index.html - 31개 전략 탭, 시나리오 시뮬레이터)"]
-        OMS["Execution OMS Engine & Slippage Feedback\n(6 Safety Gates, Kill Switch, trade_logs.db)"]
+        OMS["Execution OMS Engine & Slippage Feedback\n(7 Safety Gates, Almgren-Chriss Slicing, Kill Switch, trade_logs.db)"]
         
         Alloc --> Files
         Alloc --> Dash
@@ -89,6 +91,7 @@ flowchart TD
 
     DB --> AlphaEngine
     AlphaEngine --> Calib
+    AlphaEngine --> Norm
 ```
 
 ---
@@ -133,20 +136,27 @@ flowchart TD
 
 ## 🛡️ 시스템 아키텍처 및 퀀트 엔지니어링 핵심
 
-### 1. 2D 레짐 & 통계적 직교화 (Statistical Hygiene)
+### 1. 횡단면 점수 정규화 & 통계적 위생 (Cross-Sectional Hygiene)
+- **`CrossSectionalScoreNormalizer`**: 31개 전략의 출력 점수(회귀 수익률, 분류 확률, 공적분 Z-Score, 가치평가 할인율 등) 간 스케일 불일치를 방지하기 위해 Percentile Rank 및 Winsorized Gaussian CDF 정규화를 적용하여 균일한 분산의 $[0.0, 1.0]$ 스케일로 투영합니다.
+- **결측 적응형 제로 가중치 (Missing Strategy Zero-Weighting)**: 산출 불가 전략에 임의의 기본값(0.50 등)을 채워넣지 않고, 해당 종목에서 해당 전략 가중치를 0으로 배제한 뒤 활성 전략 가중치를 정확히 재정규화($\sum_{k \in \text{Active}} \tilde{w}_{i,k} = 1.0$)합니다.
 - **2D 시장 레짐 매트릭스**: KOSPI/S&P500 20일 추세($\pm 1\%$)와 20일 변동성(15%/25%)을 결합한 6대 레짐(`BULL_LOW_VOL`, `BULL_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BEAR_LOW_VOL`, `BEAR_HIGH_VOL`)을 실시간 판정하여 전략 가중치를 동적으로 할당합니다.
-- **다중공선성 제거 & 팩터 직교화**: 상관관계 높은 알파 신호의 과적합을 방지하기 위해 **PCA-ZCA 대칭 화이트닝(Symmetric Whitening)** 및 **Gram-Schmidt 직교화**를 적용합니다.
-- **결측 적응형 재정규화 (Missingness-Aware Renormalization)**: 옵션/재무 데이터 등이 누락된 종목에 대해 유효한 신호만으로 가중치를 동적으로 재정규화하며, 커버리지 비율($<40\%$) 미달 시 페널티를 적용합니다.
+- **다중공선성 제거 & 팩터 직교화**: **PCA-ZCA 대칭 화이트닝(Symmetric Whitening)** 및 **Gram-Schmidt 직교화**를 적용하여 알파 신호의 중복 과적합을 방지합니다.
 
-### 2. 포트폴리오 최적화 & 미시구조 거래비용
-- **Hierarchical Risk Parity (HRP)**: Lopez de Prado의 머신러닝 계층적 트리 클러스터링과 Ledoit-Wolf 공분산 축소($\delta=0.15$)를 결합하여 안정적인 위험 배분을 수행합니다.
+### 2. 데이터 파이프라인 무결성 (Data Integrity)
+- **동적 시장별 Filing Lag**: 일률적 60일 지연 대신 시장 규정(KRX 45일, US 40일)과 공시 확인 시점(`filing_date`, `rcept_dt`)을 우선 반영하여 룩어헤드 바이어스를 원천 차단하면서도 실적 모멘텀을 적시에 반영합니다.
+- **층화 샘플링 (Stratified Sampling)**: 학습 데이터 준비(`prepare_training_data`) 시 단순 무작위 추출 대신 Market × Sector × Market-Cap Quantile 다차원 층화 샘플링을 적용하여 대형주/주도주 누락을 방지합니다.
+- **적응형 네트워크 타임아웃**: 전역 소켓 락을 제거하고 데이터 소스(FRED, ECOS, DART, yfinance)별 개별 타임아웃 및 지터(Jitter) 지수 백오프 재시도를 적용합니다.
+
+### 3. 포트폴리오 최적화 & 미시구조 거래비용
+- **Hierarchical Risk Parity (HRP) & Black-Litterman**: 머신러닝 계층적 클러스터링과 Ledoit-Wolf 공분산 축소($\delta=0.15$), Black-Litterman $C^1$ 스무딩을 결합하여 안정적인 위험 배분을 수행합니다.
 - **EVT-CVaR 극단값 꼬리위험 예산**: Generalized Pareto Distribution (GPD) Peaks-Over-Threshold (POT) 3단계 계층 구조로 95% CVaR를 엄밀하게 계산합니다.
-- **Leland 동적 No-Trade 버퍼 밴드**: 불필요한 리밸런싱 턴오버를 줄이기 위해 종목별 거래비용과 변동성을 고려한 버퍼 밴드($\delta_i \in [0.5\%, 5.0\%]$)를 적용, 거래 비용을 60% 이상 절감합니다.
+- **Leland 동적 No-Trade 버퍼 밴드**: 종목별 거래비용과 변동성을 고려한 버퍼 밴드($\delta_i \in [0.5\%, 5.0\%]$)를 적용하여 리밸런싱 비용을 60% 이상 절감합니다. 신규 진입($w_{\text{curr}}=0$) 및 전량 청산($w_{\text{targ}}=0$) 시에는 즉시 바이패스 실행합니다.
 - **실전 미시구조 비용 차감**: KOSPI 0.15% / KOSDAQ 0.18% 증권거래세, US SEC 수수료, 동적 스프레드, Kyle/Almgren-Chriss 제곱근 시장 충격 모델을 차감하여 **순예상수익률(Net Expected Return)**을 산출합니다.
 
-### 3. Execution OMS & 6대 안전 게이트
+### 4. Execution OMS & 7대 안전 게이트
+- **Almgren-Chriss 최적 집행 트랜치**: 시장 충격과 타이밍 리스크를 최소화하는 비선형 TWAP/VWAP 주문 분할 스케줄링.
+- **7대 주문 안전 게이트**: 거시 위기 SEVERE 단계 매수 차단, 킬 스위치(Kill Switch) 하드웨어 차단, 심볼 정규식 검증, 가격 이상치 필터, 10주 단위 라운딩, 단일 포지션 상한(10%/20%), 순알파 허들 검증.
 - **실시간 슬리피지 피드백**: `trade_logs.db`에 기록된 체결 오차를 분석하여 비용 승수($k_{\text{cost}}$) 및 충격 지수($\alpha$)를 자동 피드백 보정합니다.
-- **6대 주문 안전 게이트**: 거시 위기 SEVERE 단계 매수 차단, 킬 스위치(Kill Switch) 하드웨어 차단, 심볼 정규식 검증, 가격 이상치 필터, 10주 단위 라운딩, 단일 포지션 상한(10%/20%)을 적용합니다.
 
 ---
 
@@ -155,7 +165,7 @@ flowchart TD
 - **KST (Asia/Seoul, UTC+9) 표준화**:
   - GHA Workflow (`pipeline.yml`), 파이프라인 및 HTML 대시보드 타임스탬프가 **KST** 기준으로 통일 표기됩니다.
 - **Strategy Data Coverage & Missingness Analyzer**:
-  - `StrategyCoverageAnalyzer` 모듈이 31대 전략별 정상 스코어 산출 종목 수 및 결측 사유(`INSUFFICIENT_PRICE_HISTORY`, `NO_FUNDAMENTAL_DATA`, `LOW_EARNINGS_QUALITY`, `NO_OPTIONS_CHAIN`, `NO_COINTEGRATED_PAIR` 등)를 추적하여 `strategy_data_coverage_report.txt`로 생성합니다.
+  - `StrategyCoverageAnalyzer` 모듈이 31대 전략별 정상 스코어 산출 종목 수 및 최빈 결측 사유(`INSUFFICIENT_PRICE_HISTORY`, `NO_FUNDAMENTAL_DATA`, `LOW_EARNINGS_QUALITY`, `NO_OPTIONS_CHAIN`, `NO_COINTEGRATED_PAIR` 등)를 추적하여 `strategy_data_coverage_report.txt`로 생성합니다.
 
 ---
 
@@ -164,7 +174,7 @@ flowchart TD
 ### 1. 환경 구성
 
 ```powershell
-# 프로젝트 루트에서
+# 프로젝트 루트에서 가상환경 구성
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r trading_system/requirements.txt
@@ -187,7 +197,7 @@ copy trading_system\.env.example trading_system\.env
 # 기존 모델 재사용 (학습 건너뛰기 — 빠른 재예측)
 .venv\Scripts\python trading_system/run_pipeline.py --skip-training
 
-# 디버그 모드 (시장별 3종목만 샘플 — 빠른 동작 검증)
+# 디버그 모드 (시장별 3종목 샘플링 — 빠른 동작 검증)
 .venv\Scripts\python trading_system/run_pipeline.py --debug
 ```
 
@@ -209,7 +219,7 @@ copy trading_system\.env.example trading_system\.env
 | 파일 | 형식 | 설명 |
 |------|------|------|
 | `ensemble_predictions.txt` | 텍스트 요약 | **31대 전략 동적 앙상블 TOP 100** 및 Decision Rationale (KST) |
-| `strategy_data_coverage_report.txt` | 텍스트 보고서 | **31대 전략 데이터 커버리지 & 결측 사유 분석** |
+| `strategy_data_coverage_report.txt` | 텍스트 보고서 | **31대 전략 데이터 커버리지 & 최빈 결측 사유 분석** |
 | `pipeline_result.txt` | 텍스트 요약 | XGBoost 회귀 모델 시장별/horizon별 예상수익률 TOP10 |
 | `pipeline_result.csv` | CSV | 전체 종목 원본 예측 데이터 (기계 가독) |
 | `surge_predictions.txt` | 텍스트 | 4개 horizon별 20%↑ 급등 확률 TOP20 |
@@ -239,7 +249,7 @@ copy trading_system\.env.example trading_system\.env
 ## 🧪 테스트 스위트 실행
 
 ```powershell
-# 통합 단일 tests/ 디렉토리 기준 1,124+ 전체 pytest 실행
+# 통합 단일 tests/ 디렉토리 기준 1,569+ 전체 pytest 실행 (100% PASS)
 .venv\Scripts\python -m pytest tests/ -v
 ```
 

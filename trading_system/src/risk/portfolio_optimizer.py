@@ -258,7 +258,7 @@ class PortfolioOptimizer:
             try:
                 from src.risk.portfolio_allocator import PortfolioAllocator
             except ImportError:
-                from trading_system.src.risk.portfolio_allocator import PortfolioAllocator
+                from trading_system.src.risk.portfolio_allocator import PortfolioAllocator  # type: ignore[no-redef]
             allocator = PortfolioAllocator()
             returns_matrix = returns_sub.values
 

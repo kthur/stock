@@ -431,7 +431,7 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                         latest_bs = bs_statements[0]
                         cash_obj = latest_bs.get("cashAndCashEquivalents", latest_bs.get("cash", {}))
                         cash_equivalents = float(cash_obj.get("raw", 0.0)) if isinstance(cash_obj, dict) else 0.0
-                        
+
                         debt_obj = latest_bs.get("totalDebt", {})
                         if debt_obj and isinstance(debt_obj, dict) and "raw" in debt_obj:
                             total_debt = float(debt_obj.get("raw", 0.0))
