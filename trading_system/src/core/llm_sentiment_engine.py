@@ -364,6 +364,40 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
                     score = float(np.clip(0.5 + res.sentiment_score * 0.4, 0.0, 1.0))
                     score = score if np.isfinite(score) else 0.5
 
+            # 3. Check SQLite storage cache if available
+            if pd.isna(score) and self.db_storage:
+                try:
+                    cached = self.db_storage.get_filing_sentiment(sym) or self.db_storage.get_filing_sentiment(sym.zfill(6))
+                    if cached:
+                        c_score = cached.get('composite_sentiment_score') or cached.get('sentiment_score')
+                        if c_score is not None:
+                            score = float(np.clip(c_score, 0.0, 1.0))
+                except Exception:
+                    pass
+
+            # 4. Check price-reaction overnight gap & trend sentiment proxy if prices_dict available
+            if pd.isna(score) and isinstance(prices_dict, dict) and bool(prices_dict):
+                p_df = prices_dict.get(sym)
+                if p_df is None:
+                    p_df = prices_dict.get(sym.zfill(6))
+                if p_df is None:
+                    p_df = prices_dict.get(sym.lstrip('0'))
+                if isinstance(p_df, pd.DataFrame) and len(p_df) >= 2:
+                    c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
+                    o_col = 'Open' if 'Open' in p_df.columns else ('open' if 'open' in p_df.columns else None)
+                    if c_col and o_col:
+                        try:
+                            last_c = float(p_df[c_col].dropna().iloc[-1])
+                            prev_c = float(p_df[c_col].dropna().iloc[-2])
+                            last_o = float(p_df[o_col].dropna().iloc[-1])
+                            if prev_c > 0 and last_o > 0 and np.isfinite(last_c) and np.isfinite(prev_c) and np.isfinite(last_o):
+                                gap = (last_o / prev_c) - 1.0
+                                trend = (last_c / last_o) - 1.0
+                                raw_sent = 0.50 + float(np.clip(1.5 * gap + 1.0 * trend, -0.40, 0.40))
+                                score = float(np.clip(raw_sent, 0.05, 0.95))
+                        except Exception:
+                            pass
+
             results.append({
                 "symbol": sym,
                 "name": name,

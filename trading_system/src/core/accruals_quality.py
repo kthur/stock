@@ -93,7 +93,7 @@ class AccrualsQualityEngine(BaseStrategyEngine):
         df_rows = pd.DataFrame(rows, index=sym_strs)
 
         net_inc = pd.to_numeric(
-            df_rows.get('net_income', df_rows.get('net_profit', pd.Series(np.nan, index=sym_strs))),
+            df_rows.get('net_income', df_rows.get('net_income_y', df_rows.get('net_income_x', df_rows.get('net_profit', pd.Series(np.nan, index=sym_strs))))),
             errors='coerce'
         )
         ocf = pd.to_numeric(
@@ -107,7 +107,10 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             ca_change = pd.to_numeric(df_rows.get('current_assets_change', pd.Series(0.0, index=sym_strs)), errors='coerce').fillna(0.0)
             cl_change = pd.to_numeric(df_rows.get('current_liabilities_change', pd.Series(0.0, index=sym_strs)), errors='coerce').fillna(0.0)
             deprec = pd.to_numeric(df_rows.get('depreciation', pd.Series(0.0, index=sym_strs)), errors='coerce').fillna(0.0)
-            op_inc = pd.to_numeric(df_rows.get('operating_income', df_rows.get('ebit', pd.Series(np.nan, index=sym_strs))), errors='coerce')
+            op_inc = pd.to_numeric(
+                df_rows.get('operating_income', df_rows.get('operating_income_y', df_rows.get('operating_income_x', df_rows.get('ebit', pd.Series(np.nan, index=sym_strs))))),
+                errors='coerce'
+            )
 
             # Traditional Balance Sheet Accruals OCF proxy: OCF ≈ Operating Income + Depreciation - ΔWorking Capital
             wc_change = ca_change - cl_change
@@ -115,7 +118,7 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             ocf = pd.Series(np.where(missing_ocf_mask & op_inc.notna(), bs_ocf_est, ocf), index=sym_strs)
 
         assets = pd.to_numeric(
-            df_rows.get('total_assets', df_rows.get('assets', df_rows.get('book_value', pd.Series(np.nan, index=sym_strs)))),
+            df_rows.get('total_assets', df_rows.get('assets', df_rows.get('book_value', df_rows.get('book_value_y', df_rows.get('book_value_x', pd.Series(np.nan, index=sym_strs)))))),
             errors='coerce'
         )
 

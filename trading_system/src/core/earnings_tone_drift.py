@@ -55,6 +55,7 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
         symbols: List[str],
         prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
         transcript_map: Optional[Dict[str, Dict[str, Any]]] = None,
+        features_df: Optional[Any] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
         """Compatibility alias called by run_pipeline.py.
@@ -68,12 +69,15 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 if sym not in merged_symbols:
                     merged_symbols.append(sym)
         tm = transcript_map or kwargs.get("transcript_map", None)
-        return self.compute_tone_drift_scores(symbols=merged_symbols, transcript_map=tm)
+        feat = features_df if features_df is not None else kwargs.get("features_df", None)
+        return self.compute_tone_drift_scores(symbols=merged_symbols, transcript_map=tm, features_df=feat, prices_dict=prices_dict)
 
     def compute_tone_drift_scores(
         self,
         symbols: List[str],
-        transcript_map: Optional[Dict[str, Dict[str, Any]]] = None
+        transcript_map: Optional[Dict[str, Dict[str, Any]]] = None,
+        features_df: Optional[Any] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
     ) -> pd.DataFrame:
         """
         Computes Tone Drift Acceleration score per symbol [0.0, 1.0].
@@ -81,6 +85,15 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
         """
         if not symbols:
             return pd.DataFrame(columns=['symbol', 'earnings_tone_drift_score'])
+
+        # Prepare lookup from features_df if available
+        feat_map = {}
+        if features_df is not None:
+            if isinstance(features_df, pd.DataFrame) and not features_df.empty:
+                if 'symbol' in features_df.columns:
+                    feat_map = features_df.drop_duplicates('symbol', keep='last').set_index('symbol').to_dict('index')
+            elif isinstance(features_df, dict):
+                feat_map = features_df
 
         results = []
 
@@ -95,10 +108,10 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
 
         for sym in symbols:
             score = np.nan
+            sym_raw = str(sym).split('.')[0]
+            sym_clean = sym_raw.zfill(6) if sym_raw.isdigit() else sym_raw
 
             if transcript_map:
-                sym_raw = str(sym).split('.')[0]
-                sym_clean = sym_raw.zfill(6) if sym_raw.isdigit() else sym_raw
                 t_data = transcript_map.get(sym, transcript_map.get(str(sym), transcript_map.get(sym_clean, transcript_map.get(sym_raw))))
 
                 if t_data and isinstance(t_data, dict):
@@ -124,6 +137,20 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                     drift_boost = 1.0 * tone_delta * accel_mult
                     score = float(np.clip(0.50 + abs_tone_boost + drift_boost, 0.0, 1.0))
                     score = score if np.isfinite(score) else 0.50
+
+            # Quantitative earnings drift fallback from fundamental growth & momentum
+            if pd.isna(score) and feat_map:
+                f_row = feat_map.get(sym, feat_map.get(sym_raw, feat_map.get(sym_clean, {})))
+                if f_row and isinstance(f_row, dict):
+                    eps_g = _safe_float(f_row.get('eps_growth_1y', f_row.get('eps_growth')), 0.0)
+                    rev_g = _safe_float(f_row.get('revenue_growth_1y', f_row.get('revenue_growth')), 0.0)
+                    op_inc = _safe_float(f_row.get('operating_income', f_row.get('operating_income_y')), np.nan)
+                    net_inc = _safe_float(f_row.get('net_income', f_row.get('net_income_y')), np.nan)
+                    drift = eps_g - rev_g
+                    is_profitable = (pd.notna(op_inc) and op_inc > 0) or (pd.notna(net_inc) and net_inc > 0)
+                    if is_profitable or eps_g != 0.0 or rev_g != 0.0:
+                        quant_tone = 0.50 + float(np.clip(drift * 0.40 + eps_g * 0.20, -0.40, 0.40))
+                        score = float(np.clip(quant_tone, 0.05, 0.95))
 
             results.append({
                 'symbol': sym,

@@ -418,6 +418,14 @@ class RIMValuationEngine(BaseStrategyEngine):
         else:
             df['Close'] = pd.Series(np.nan, index=df.index, dtype=float)
 
+        # Handle column suffixes from potential upstream merges
+        for base_col in ['bps', 'roe', 'operating_income', 'net_income', 'book_value', 'total_debt', 'cash_equivalents', 'shares_outstanding']:
+            if base_col not in df.columns or df[base_col].isna().all():
+                for suffix in ['_y', '_x', '_fund']:
+                    if f"{base_col}{suffix}" in df.columns:
+                        df[base_col] = df[f"{base_col}{suffix}"]
+                        break
+
         # Handle BPS: derive ONLY from genuine bps column or book_value / shares_outstanding
         # Absolutely NO synthetic BPS fabrication (e.g. eps / 0.08 or eps / roe)
         bps_series = pd.Series(np.nan, index=df.index, dtype=float)

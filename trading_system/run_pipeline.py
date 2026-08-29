@@ -2733,12 +2733,19 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                         # - book_value: normalize_roe() needs book_value for op_income/book_value ratio
                         # - total_debt, cash_equivalents, shares_outstanding: holding-co net-debt deduction
                         merge_cols = ['symbol', 'bps', 'roe', 'operating_income', 'net_income', 'book_value']
-                        for _extra_col in ['total_debt', 'cash_equivalents', 'shares_outstanding']:
+                        for _extra_col in ['total_debt', 'cash_equivalents', 'shares_outstanding', 'eps_growth_1y', 'revenue_growth_1y']:
                             if _extra_col in fund_df.columns:
                                 merge_cols.append(_extra_col)
                         merge_cols = list(dict.fromkeys(merge_cols))  # deduplicate, preserve order
+
+                        # Cleanly drop existing overlapping columns from df_rim_input before merge to avoid _x/_y suffixes
+                        cols_to_merge = [c for c in merge_cols if c in fund_df.columns]
+                        for c in cols_to_merge:
+                            if c != 'symbol' and c in df_rim_input.columns:
+                                df_rim_input = df_rim_input.drop(columns=[c])
+
                         df_rim_input = df_rim_input.merge(
-                            fund_df[[c for c in merge_cols if c in fund_df.columns]], on='symbol', how='left'
+                            fund_df[cols_to_merge], on='symbol', how='left'
                         )
                         # Pass name for holding-company name-pattern detection (지주·홀딩스 등)
                         if 'name' not in df_rim_input.columns and 'name' in universe.columns:
@@ -3333,10 +3340,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             for s_k, s_val in sentiment_map.items():
                 s_score = s_val if isinstance(s_val, (int, float)) else getattr(s_val, 'sentiment_score', 0.5)
                 t_map[s_k] = {'previous_quarter_tone': 0.5, 'current_quarter_tone': s_score}
+        _fund_input = df_rim_input if 'df_rim_input' in locals() else None
         earnings_tone_drift_df = tone_engine.calculate_scores(
             universe['symbol'].tolist(),
             prices_dict=infer_data_dict,
             transcript_map=t_map if t_map else None,
+            features_df=_fund_input,
         )
         logger.info(f"[Strategy 30] Earnings Tone Drift computed: {len(earnings_tone_drift_df)} rows")
         _save_strategy_predictions_report(
@@ -3366,6 +3375,60 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         logger.warning(f"Darkpool score computation failed: {_dp_e}")
         darkpool_df = pd.DataFrame()
 
+    # Strategy 32: Dual Correction Strategy Engine
+    try:
+        from src.core.dual_correction import DualCorrectionEngine
+        dc_engine = DualCorrectionEngine(cfg)
+        dual_correction_df = dc_engine.compute_scores(
+            prices_dict=infer_data_dict,
+            regime=current_2d_regime
+        )
+        logger.info(f"[Strategy 32] Dual Correction computed: {len(dual_correction_df)} rows")
+        _save_strategy_predictions_report(
+            dual_correction_df, "dual_correction_score",
+            "Strategy 32: Dual Correction Predictions",
+            "dual_correction_predictions.txt", score_header="Dual Score", header_width=16
+        )
+    except Exception as _dc_e:
+        logger.warning(f"Dual correction strategy computation failed: {_dc_e}")
+        dual_correction_df = pd.DataFrame()
+
+    # Strategy 33: Index Rebalance Structural Flow Engine
+    try:
+        from src.core.index_rebalance import IndexRebalanceEngine
+        ir_engine = IndexRebalanceEngine()
+        index_rebalance_df = ir_engine.compute_scores(
+            prices_dict=infer_data_dict,
+            universe=universe
+        )
+        logger.info(f"[Strategy 33] Index Rebalance computed: {len(index_rebalance_df)} rows")
+        _save_strategy_predictions_report(
+            index_rebalance_df, "index_rebalance_score",
+            "Strategy 33: Index Rebalance Predictions",
+            "index_rebalance_predictions.txt", score_header="Rebal Score", header_width=16
+        )
+    except Exception as _ir_e:
+        logger.warning(f"Index rebalance strategy computation failed: {_ir_e}")
+        index_rebalance_df = pd.DataFrame()
+
+    # Strategy 34: Overnight Gap Reversal Engine
+    try:
+        from src.core.overnight_gap_reversal import OvernightGapReversalEngine
+        ogr_engine = OvernightGapReversalEngine(cfg)
+        overnight_gap_df = ogr_engine.calculate_scores(
+            universe['symbol'].tolist(),
+            prices_dict=infer_data_dict
+        )
+        logger.info(f"[Strategy 34] Overnight Gap Reversal computed: {len(overnight_gap_df)} rows")
+        _save_strategy_predictions_report(
+            overnight_gap_df, "overnight_gap_score",
+            "Strategy 34: Overnight Gap Reversal Predictions",
+            "overnight_gap_predictions.txt", score_header="Gap Score", header_width=16
+        )
+    except Exception as _ogr_e:
+        logger.warning(f"Overnight gap reversal strategy computation failed: {_ogr_e}")
+        overnight_gap_df = pd.DataFrame()
+
     # Strategy 6: Strict Causal LSTM deep learning predictions
     logger.info("Computing Strategy 6: Strict Causal LSTM predictions...")
     try:
@@ -3390,6 +3453,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         'trend_efficiency': trend_efficiency_df, 'gamma_squeeze': gamma_squeeze_df,
         'insider_buying': insider_buying_df, 'darkpool': darkpool_df,
         'earnings_tone_drift': earnings_tone_drift_df,
+        'dual_correction': dual_correction_df,
+        'index_rebalance': index_rebalance_df,
+        'overnight_gap_reversal': overnight_gap_df,
     }
     _active_strats = [name for name, df in _all_strategy_dfs.items() if df is not None and not (isinstance(df, pd.DataFrame) and df.empty)]
     _strat_coverage = len(_active_strats) / len(_all_strategy_dfs)

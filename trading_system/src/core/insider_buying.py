@@ -46,27 +46,28 @@ class InsiderBuyingEngine(BaseStrategyEngine):
         indicators_df: Optional[pd.DataFrame] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        symbols = kwargs.get("symbols")
+        symbols = kwargs.pop("symbols", None)
         if not symbols and isinstance(prices_dict, dict):
             symbols = list(prices_dict.keys())
         elif not symbols and isinstance(prices_dict, (list, tuple, set)):
             symbols = list(prices_dict)
         symbols = symbols or []
-        filings = kwargs.get("insider_filings") or kwargs.get("dart_disclosures") or kwargs.get("disclosures") or kwargs.get("filings")
-        return self.compute_insider_buying_scores(symbols=symbols, insider_filings=filings, **kwargs)
+        filings = kwargs.pop("insider_filings", None) or kwargs.pop("dart_disclosures", None) or kwargs.pop("disclosures", None) or kwargs.pop("filings", None)
+        return self.compute_insider_buying_scores(symbols=symbols, insider_filings=filings, prices_dict=prices_dict, **kwargs)
 
     def calculate_scores(self, symbols: List[str], prices_dict: Optional[Dict[str, pd.DataFrame]] = None, **kwargs: Any) -> pd.DataFrame:
-        filings = kwargs.get("insider_filings") or kwargs.get("dart_disclosures") or kwargs.get("disclosures") or kwargs.get("filings")
-        return self.compute_insider_buying_scores(symbols=symbols, insider_filings=filings, **kwargs)
+        filings = kwargs.pop("insider_filings", None) or kwargs.pop("dart_disclosures", None) or kwargs.pop("disclosures", None) or kwargs.pop("filings", None)
+        return self.compute_insider_buying_scores(symbols=symbols, insider_filings=filings, prices_dict=prices_dict, **kwargs)
 
     def compute_insider_buying_scores(
         self,
         symbols: List[str],
         insider_filings: Optional[List[Dict[str, Any]]] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
         **kwargs: Any
     ) -> pd.DataFrame:
         if insider_filings is None:
-            insider_filings = kwargs.get("dart_disclosures") or kwargs.get("disclosures") or kwargs.get("filings")
+            insider_filings = kwargs.pop("dart_disclosures", None) or kwargs.pop("disclosures", None) or kwargs.pop("filings", None)
         """
         Computes Insider Net Buying score per symbol [0.0, 1.0].
         Returns DataFrame with ['symbol', 'insider_buying_score'].

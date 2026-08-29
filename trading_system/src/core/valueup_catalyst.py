@@ -81,23 +81,31 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
             row = fund_map.get(sym_str, fund_map.get(sym_str.zfill(6), {}))
 
             pbr = row.get('pbr', row.get('price_to_book', np.nan))
-            bps = row.get('bps', np.nan)
-            cash = row.get('cash', row.get('cash_equivalents', row.get('cash_and_equivalents', np.nan)))
+            bps = row.get('bps', row.get('bps_y', row.get('bps_x', np.nan)))
+            if pd.isna(bps) or (pd.notna(bps) and float(bps) <= 0):
+                bv = row.get('book_value', row.get('book_value_y', row.get('book_value_x', np.nan)))
+                sh = row.get('shares_outstanding', row.get('shares_outstanding_y', row.get('shares_outstanding_x', np.nan)))
+                if pd.notna(bv) and pd.notna(sh) and float(bv) > 0 and float(sh) > 0:
+                    bps = float(bv) / float(sh)
+
+            cash = row.get('cash', row.get('cash_equivalents', row.get('cash_and_equivalents', row.get('cash_equivalents_y', row.get('cash_equivalents_x', np.nan)))))
             mcap = row.get('market_cap', row.get('marcap', np.nan))
             div_yield = row.get('dividend_yield', row.get('div_yield', 0.0))
 
-            # If PBR is missing, estimate from price / BPS if price is available
-            if pd.isna(pbr) and pd.notna(bps) and float(bps) > 0 and prices_dict:
-                p_df = prices_dict.get(sym_str, prices_dict.get(sym))
-                if isinstance(p_df, pd.DataFrame) and not p_df.empty:
-                    close_col = 'close' if 'close' in p_df.columns else ('Close' if 'Close' in p_df.columns else None)
-                    if close_col and close_col in p_df.columns:
-                        c_series = p_df[close_col].dropna()
-                        if not c_series.empty:
-                            last_price = float(c_series.iloc[-1])
-                            bps_f = float(bps)
-                            if bps_f > 0 and np.isfinite(bps_f) and np.isfinite(last_price):
-                                pbr = last_price / max(bps_f, 1.0)
+            # If PBR is missing, estimate from price / BPS if price is available (from row or prices_dict)
+            if pd.isna(pbr) and pd.notna(bps) and float(bps) > 0:
+                last_price = row.get('Close', row.get('close', row.get('price', np.nan)))
+                if (pd.isna(last_price) or float(last_price) <= 0) and prices_dict:
+                    p_df = prices_dict.get(sym_str, prices_dict.get(sym))
+                    if isinstance(p_df, pd.DataFrame) and not p_df.empty:
+                        close_col = 'close' if 'close' in p_df.columns else ('Close' if 'Close' in p_df.columns else None)
+                        if close_col and close_col in p_df.columns:
+                            c_series = p_df[close_col].dropna()
+                            if not c_series.empty:
+                                last_price = float(c_series.iloc[-1])
+                bps_f = float(bps)
+                if pd.notna(last_price) and float(last_price) > 0 and bps_f > 0 and np.isfinite(bps_f) and np.isfinite(float(last_price)):
+                    pbr = float(last_price) / max(bps_f, 1.0)
 
             if pd.notna(pbr):
                 pbr_val = float(pbr)

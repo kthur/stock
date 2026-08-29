@@ -3179,8 +3179,6 @@ class OnDevicePredictionModel:
         if lead_matrix:
             for leader, followers in lead_matrix.items():
                 leader_ret = today_returns.get(leader, 0.0)
-                if leader_ret <= 0.001:
-                    continue
                 follower_iterable = followers.items() if isinstance(followers, dict) else followers
                 for item in follower_iterable:
                     if isinstance(item, (tuple, list)) and len(item) == 2:
@@ -3188,31 +3186,22 @@ class OnDevicePredictionModel:
                     else:
                         follower, corr = str(item), 1.0
                     weight = leader_ret * corr
-                    follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, weight)
+                    score = float(np.clip(0.50 + weight * 5.0, 0.05, 0.95))
+                    follower_scores[follower] = max(follower_scores.get(follower, 0.0), score)
 
-        if not follower_scores:
-            logger.info("Lead-lag: calculating fallback follower scores")
-            if hasattr(self, 'lead_lag_matrix') and self.lead_lag_matrix:
-                for leader, followers in self.lead_lag_matrix.items():
-                    follower_iterable = followers.items() if isinstance(followers, dict) else followers
-                    for item in follower_iterable:
-                        if isinstance(item, (tuple, list)) and len(item) == 2:
-                            follower, corr = str(item[0]), float(item[1])
-                        else:
-                            follower, corr = str(item), 1.0
-                        follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, corr)
-            for sym, df in prices_dict.items():
-                if symbols is not None and sym not in symbols:
-                    continue
-                if sym not in follower_scores and df is not None and len(df) >= 2:
-                    c = df['Close'] if 'Close' in df.columns else (df['close'] if 'close' in df.columns else None)
-                    if c is not None:
-                        if isinstance(c, pd.DataFrame):
-                            c = c.iloc[:, 0]
-                        c = c.dropna()
-                        if len(c) >= 2:
-                            ret_1d = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
-                            follower_scores[sym] = float(np.clip(0.50 + 2.5 * ret_1d, 0.05, 0.95))
+        # Full-universe coverage fallback: assign score for any symbols in prices_dict
+        for sym, df in prices_dict.items():
+            if symbols is not None and sym not in symbols:
+                continue
+            if sym not in follower_scores and df is not None and len(df) >= 2:
+                c = df['Close'] if 'Close' in df.columns else (df['close'] if 'close' in df.columns else None)
+                if c is not None:
+                    if isinstance(c, pd.DataFrame):
+                        c = c.iloc[:, 0]
+                    c = c.dropna()
+                    if len(c) >= 2:
+                        ret_1d = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
+                        follower_scores[sym] = float(np.clip(0.50 + 2.5 * ret_1d, 0.05, 0.95))
 
         if not follower_scores:
             return pd.DataFrame()

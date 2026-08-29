@@ -1034,9 +1034,9 @@ class ExecutionOMSEngine:
             return trailing_plans
 
         regime_params = self.get_regime_timing_parameters(regime)
-        tp_t1 = regime_params.get('tp_tier1', 0.08)
-        tp_t2 = regime_params.get('tp_tier2', 0.15)
-        tp_t3 = regime_params.get('tp_tier3', 0.25)
+        tp_t2 = profit_take_threshold if profit_take_threshold is not None else regime_params.get('tp_tier2', 0.15)
+        tp_t1 = min(regime_params.get('tp_tier1', 0.08), tp_t2 * 0.7)
+        tp_t3 = max(0.25, tp_t2 + 0.15)
         sl_mult = regime_params.get('sl_atr_mult', 1.5)
         ts_mult = regime_params.get('ts_atr_mult', atr_multiplier)
         max_holding_days = regime_params.get('max_holding_days', 30)

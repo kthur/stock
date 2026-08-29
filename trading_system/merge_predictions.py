@@ -738,6 +738,9 @@ def main():
     merge_generic_strategy_files(result_dir, target_dirs, "insider_buying_predictions.txt", "Executive & Insider Buying Catalyst Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "hft_order_flow_predictions.txt", "HFT Order Flow & Dark Pool Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "earnings_tone_drift_predictions.txt", "Earnings Tone Drift NLP Quant Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "dual_correction_predictions.txt", "Dual Correction Strategy Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "index_rebalance_predictions.txt", "Index Rebalance Structural Flow Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "overnight_gap_predictions.txt", "Overnight Gap Reversal Predictions")
 
     print("All prediction files successfully merged.")
 
