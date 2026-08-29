@@ -11,7 +11,7 @@ import datetime
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -880,40 +880,194 @@ class ExecutionOMSEngine:
 
         return float(peg_price)
 
+    REGIME_TIMING_MATRIX: Dict[str, Dict[str, Any]] = {
+        'BULL_LOW_VOL': {'entry_thresh': 0.65, 'tp_tier1': 0.08, 'tp_tier2': 0.15, 'tp_tier3': 0.25, 'sl_atr_mult': 2.0, 'ts_atr_mult': 2.5, 'max_holding_days': 45},
+        'BULL_HIGH_VOL': {'entry_thresh': 0.72, 'tp_tier1': 0.08, 'tp_tier2': 0.15, 'tp_tier3': 0.25, 'sl_atr_mult': 1.5, 'ts_atr_mult': 1.8, 'max_holding_days': 20},
+        'SIDEWAYS_LOW_VOL': {'entry_thresh': 0.75, 'tp_tier1': 0.06, 'tp_tier2': 0.12, 'tp_tier3': 0.20, 'sl_atr_mult': 1.2, 'ts_atr_mult': 1.2, 'max_holding_days': 10},
+        'SIDEWAYS_HIGH_VOL': {'entry_thresh': 0.80, 'tp_tier1': 0.05, 'tp_tier2': 0.10, 'tp_tier3': 0.15, 'sl_atr_mult': 1.0, 'ts_atr_mult': 1.0, 'max_holding_days': 7},
+        'BEAR_LOW_VOL': {'entry_thresh': 0.85, 'tp_tier1': 0.05, 'tp_tier2': 0.08, 'tp_tier3': 0.12, 'sl_atr_mult': 1.0, 'ts_atr_mult': 1.0, 'max_holding_days': 5},
+        'BEAR_HIGH_VOL': {'entry_thresh': 0.95, 'tp_tier1': 0.03, 'tp_tier2': 0.06, 'tp_tier3': 0.10, 'sl_atr_mult': 0.8, 'ts_atr_mult': 0.8, 'max_holding_days': 3},
+    }
+
+    @classmethod
+    def get_regime_timing_parameters(cls, regime: Optional[str] = None) -> Dict[str, Any]:
+        """Returns 2D regime-specific timing thresholds and ATR multipliers."""
+        r_key = str(regime).upper() if regime else 'SIDEWAYS_LOW_VOL'
+        for key in cls.REGIME_TIMING_MATRIX:
+            if key in r_key:
+                return dict(cls.REGIME_TIMING_MATRIX[key])
+        return dict(cls.REGIME_TIMING_MATRIX['SIDEWAYS_LOW_VOL'])
+
+    @staticmethod
+    def calculate_confluence_entry_score(
+        ensemble_score: float,
+        vcp_score: float = 0.0,
+        volume_surge_ratio: float = 1.0,
+        obi_score: float = 0.0,
+        price_above_ma50: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Engine 1: Multi-Timeframe Confluence Entry Engine.
+        Combines macro trend, daily ensemble score, VCP compression, volume surge, and L2 OBI.
+        """
+        ens_c = float(np.clip(ensemble_score, 0.0, 1.0))
+        vcp_c = float(np.clip(vcp_score, 0.0, 1.0))
+        vol_c = float(np.clip((volume_surge_ratio - 1.0) / 2.0, 0.0, 1.0))
+        obi_c = float(np.clip(0.50 + obi_score * 0.50, 0.0, 1.0))
+
+        # Composite confluence weighting
+        confluence_score = 0.40 * ens_c + 0.30 * vcp_c + 0.15 * vol_c + 0.15 * obi_c
+        if not price_above_ma50:
+            confluence_score *= 0.80  # Penalty for trading below 50-day moving average
+
+        is_valid_entry = (confluence_score >= 0.65) and (ens_c >= 0.55)
+        return {
+            'confluence_score': round(confluence_score, 4),
+            'is_valid_entry': is_valid_entry,
+            'ensemble_component': round(ens_c, 4),
+            'vcp_component': round(vcp_c, 4),
+            'volume_component': round(vol_c, 4),
+            'obi_component': round(obi_c, 4)
+        }
+
+    @staticmethod
+    def generate_scale_in_order_plan(
+        symbol: str,
+        total_target_shares: int,
+        current_stage: int = 1,
+        entry_price: float = 0.0,
+        current_price: float = 0.0,
+        pivot_price: float = 0.0
+    ) -> Dict[str, Any]:
+        """
+        Engine 2: 3-Stage Dynamic Scale-In Pyramiding Engine:
+        - Stage 1 (Probe): 30% position upon initial signal.
+        - Stage 2 (Breakout Confirmation): 50% position when price breaks above pivot.
+        - Stage 3 (Pullback Support): 20% position on pullback bounce.
+        """
+        if total_target_shares <= 0:
+            return {'symbol': symbol, 'stage': current_stage, 'allocated_shares': 0, 'action': 'HOLD'}
+
+        if current_stage == 1:
+            shares = max(1, int(total_target_shares * 0.30))
+            return {'symbol': symbol, 'stage': 1, 'allocated_shares': shares, 'weight_pct': 0.30, 'action': 'BUY_PROBE'}
+        elif current_stage == 2:
+            shares = max(1, int(total_target_shares * 0.50))
+            return {'symbol': symbol, 'stage': 2, 'allocated_shares': shares, 'weight_pct': 0.50, 'action': 'BUY_BREAKOUT'}
+        elif current_stage == 3:
+            shares = max(1, total_target_shares - int(total_target_shares * 0.80))
+            return {'symbol': symbol, 'stage': 3, 'allocated_shares': shares, 'weight_pct': 0.20, 'action': 'BUY_PYRAMID'}
+        else:
+            return {'symbol': symbol, 'stage': current_stage, 'allocated_shares': 0, 'action': 'HOLD_FULL'}
+
+    @staticmethod
+    def check_signal_exhaustion_exit(
+        current_score: float,
+        top_candidates_avg_expected_return: float = 0.0,
+        holding_expected_return: float = 0.0,
+        min_score_threshold: float = 0.48,
+        switching_hurdle: float = 0.08
+    ) -> Tuple[bool, str]:
+        """
+        Engine 4: Signal Decay & Opportunity Cost Switching Exit.
+        """
+        if current_score < min_score_threshold:
+            return True, "ALPHA_SCORE_COLLAPSE"
+        if (top_candidates_avg_expected_return - holding_expected_return) >= switching_hurdle:
+            return True, "OPPORTUNITY_COST_SWITCHING"
+        return False, "HOLD"
+
+    @staticmethod
+    def check_time_stop_exit(
+        days_held: int,
+        unrealized_return: float,
+        max_stall_days: int = 12,
+        stall_band: Tuple[float, float] = (-0.02, 0.03)
+    ) -> Tuple[bool, str]:
+        """
+        Engine 5: Time-Stop / Stalling Momentum Exit.
+        """
+        if days_held >= max_stall_days and (stall_band[0] <= unrealized_return <= stall_band[1]):
+            return True, "TIME_STOP_MOMENTUM_STALLED"
+        return False, "HOLD"
+
+    @staticmethod
+    def check_order_flow_shock_exit(
+        mfi_value: float = 50.0,
+        is_down_day: bool = False,
+        volume_ratio: float = 1.0,
+        obi: float = 0.0
+    ) -> Tuple[bool, str]:
+        """
+        Engine 6: Institutional Order Flow Shock Exit.
+        """
+        shock_conditions = 0
+        if mfi_value < 25.0:
+            shock_conditions += 1
+        if is_down_day and volume_ratio >= 3.5:
+            shock_conditions += 1
+        if obi < -0.60:
+            shock_conditions += 1
+
+        if shock_conditions >= 2:
+            return True, "EMERGENCY_ORDER_FLOW_SHOCK"
+        return False, "HOLD"
+
     def calculate_trailing_stop_plan(
         self,
         current_holdings: Dict[str, Dict[str, Any]],
         prices_dict: Optional[Dict[str, Any]] = None,
         atr_multiplier: float = 2.0,
-        profit_take_threshold: float = 0.15
+        profit_take_threshold: float = 0.15,
+        regime: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Chandelier ATR Dynamic Trailing Stop & Profit Runner Engine.
-        - If unrealized profit >= +15%, activates trailing stop at High_20 - 2.0 * ATR_14.
-        - If price breaks below trailing stop, triggers SELL_PARTIAL_PROFIT (50% position lock-in).
-        - If price drops below -1.5 * ATR_14 stop loss, triggers SELL_STOP_LOSS.
+        Engine 3: 4-Tier Multi-Stage Dynamic Profit-Taking & Chandelier/KAMA Trend Runner Engine.
+        - Tier 1 (+8%): 25% Partial TP + Move stop to Breakeven (+0.3% cost) -> Free Trade.
+        - Tier 2 (+15%): 25% Partial TP + Chandelier ATR (High_20 - 1.5 * ATR) Trailing Stop.
+        - Tier 3 (+25%): 25% Partial TP + KAMA Adaptive Moving Average Trailing Stop.
+        - Tier 4 (Runner 25%): Let run until 50-day MA or Parabolic SAR breakdown.
+        - Integrates Signal Exhaustion, Time-Stop, and Emergency Order Flow exits.
         """
         trailing_plans: List[Dict[str, Any]] = []
         if not current_holdings:
             return trailing_plans
 
+        regime_params = self.get_regime_timing_parameters(regime)
+        tp_t1 = regime_params.get('tp_tier1', 0.08)
+        tp_t2 = regime_params.get('tp_tier2', 0.15)
+        tp_t3 = regime_params.get('tp_tier3', 0.25)
+        sl_mult = regime_params.get('sl_atr_mult', 1.5)
+        ts_mult = regime_params.get('ts_atr_mult', atr_multiplier)
+        max_holding_days = regime_params.get('max_holding_days', 30)
+
         for sym, h_info in current_holdings.items():
             qty = float(h_info.get("quantity", 0.0))
             entry_p = float(h_info.get("entry_price", 0.0))
             curr_p = float(h_info.get("current_price", entry_p))
+            days_held = int(h_info.get("days_held", 0))
+            current_score = float(h_info.get("current_score", 0.60))
+            mfi = float(h_info.get("mfi", 50.0))
+            obi = float(h_info.get("obi", 0.0))
             if qty <= 0 or entry_p <= 0 or curr_p <= 0:
                 continue
 
             unrealized_return = (curr_p - entry_p) / entry_p
             p_df = prices_dict.get(sym) if prices_dict else None
 
-            # Compute ATR and 20-day high if price history is available
+            # Compute ATR, 20-day high, and 50-day MA if available
             high_20 = max(curr_p, entry_p)
+            ma_50 = entry_p * 0.95
             atr = curr_p * 0.02
+            is_down_day = False
+            vol_ratio = 1.0
+
             if isinstance(p_df, pd.DataFrame) and len(p_df) >= 14:
-                high_col = "High" if "High" in p_df.columns else ("high" if "high" in p_df.columns else None)
-                low_col = "Low" if "Low" in p_df.columns else ("low" if "low" in p_df.columns else None)
-                close_col = "Close" if "Close" in p_df.columns else ("close" if "close" in p_df.columns else None)
+                high_col = next((c for c in p_df.columns if str(c).lower() == 'high'), None)
+                low_col = next((c for c in p_df.columns if str(c).lower() == 'low'), None)
+                close_col = next((c for c in p_df.columns if str(c).lower() in ('close', 'adj close')), None)
+                vol_col = next((c for c in p_df.columns if str(c).lower() == 'volume'), None)
+
                 if high_col and low_col and close_col:
                     high_20 = float(p_df[high_col].tail(20).max())
                     h_s = pd.to_numeric(p_df[high_col], errors='coerce')
@@ -925,35 +1079,87 @@ class ExecutionOMSEngine:
                     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
                     atr_val = tr.tail(14).dropna().mean()
                     atr = float(atr_val) if (pd.notna(atr_val) and atr_val > 0) else curr_p * 0.02
+                    if len(c_s) >= 50:
+                        ma_50 = float(c_s.tail(50).mean())
+                    if len(c_s) >= 2:
+                        is_down_day = bool(c_s.iloc[-1] < c_s.iloc[-2])
+                    if vol_col and len(p_df[vol_col]) >= 20:
+                        vol_s = pd.to_numeric(p_df[vol_col], errors='coerce')
+                        vol_ratio = float(vol_s.iloc[-1] / max(vol_s.tail(20).mean(), 1.0))
 
-            trailing_stop_p = high_20 - (atr_multiplier * atr)
-            stop_loss_p = entry_p - (1.5 * atr)
-            breakeven_p = entry_p * 1.01
-            effective_stop_p = max(stop_loss_p, breakeven_p) if unrealized_return >= 0.08 else stop_loss_p
-
-            if unrealized_return >= profit_take_threshold and curr_p <= trailing_stop_p:
-                # Chandelier Trailing Stop Exit: Lock in 50% profits
-                partial_qty = int(qty * 0.50)
-                if partial_qty > 0:
-                    trailing_plans.append({
-                        "symbol": sym,
-                        "action": "SELL",
-                        "reason": "CHANDELIER_TRAILING_PROFIT",
-                        "quantity": partial_qty,
-                        "unrealized_return": round(unrealized_return, 4),
-                        "trailing_stop_price": round(trailing_stop_p, 2),
-                        "current_price": round(curr_p, 2)
-                    })
-            elif curr_p <= effective_stop_p:
-                reason = "BREAKEVEN_PROFIT_LOCK" if (unrealized_return >= 0.08 and curr_p > stop_loss_p) else "ATR_STOP_LOSS"
+            # 1. Emergency Order Flow Shock Exit
+            is_shock, shock_reason = self.check_order_flow_shock_exit(mfi, is_down_day, vol_ratio, obi)
+            if is_shock:
                 trailing_plans.append({
-                    "symbol": sym,
-                    "action": "SELL",
-                    "reason": reason,
-                    "quantity": int(qty),
-                    "unrealized_return": round(unrealized_return, 4),
-                    "stop_loss_price": round(effective_stop_p, 2),
+                    "symbol": sym, "action": "SELL", "reason": shock_reason,
+                    "quantity": int(qty), "unrealized_return": round(unrealized_return, 4),
                     "current_price": round(curr_p, 2)
+                })
+                continue
+
+            # 2. Signal Exhaustion & Opportunity Cost Exit
+            is_exhausted, exhaust_reason = self.check_signal_exhaustion_exit(current_score)
+            if is_exhausted:
+                trailing_plans.append({
+                    "symbol": sym, "action": "SELL", "reason": exhaust_reason,
+                    "quantity": int(qty), "unrealized_return": round(unrealized_return, 4),
+                    "current_price": round(curr_p, 2)
+                })
+                continue
+
+            # 3. Time-Stop Exit for Stalled Positions
+            is_time_stop, time_reason = self.check_time_stop_exit(days_held, unrealized_return, max_stall_days=min(12, max_holding_days))
+            if is_time_stop:
+                trailing_plans.append({
+                    "symbol": sym, "action": "SELL", "reason": time_reason,
+                    "quantity": int(qty), "unrealized_return": round(unrealized_return, 4),
+                    "current_price": round(curr_p, 2)
+                })
+                continue
+
+            # 4. Multi-Tier Dynamic Profit Taking & Trailing Stop
+            trailing_stop_p = high_20 - (ts_mult * atr)
+            stop_loss_p = entry_p - (sl_mult * atr)
+            breakeven_p = entry_p * 1.003  # Free-trade breakeven with friction costs
+
+            if unrealized_return >= tp_t3:
+                # Tier 3 & Runner (+25%): Chandelier/KAMA trailing lock
+                if curr_p <= trailing_stop_p or curr_p < ma_50:
+                    trailing_plans.append({
+                        "symbol": sym, "action": "SELL", "reason": "TIER3_KAMA_RUNNER_EXIT",
+                        "quantity": int(qty), "unrealized_return": round(unrealized_return, 4),
+                        "trailing_stop_price": round(trailing_stop_p, 2), "current_price": round(curr_p, 2)
+                    })
+                else:
+                    partial_qty = max(1, int(qty * 0.25))
+                    trailing_plans.append({
+                        "symbol": sym, "action": "SELL", "reason": "TIER3_PROFIT_TAKE",
+                        "quantity": partial_qty, "unrealized_return": round(unrealized_return, 4),
+                        "trailing_stop_price": round(trailing_stop_p, 2), "current_price": round(curr_p, 2)
+                    })
+            elif unrealized_return >= tp_t2:
+                # Tier 2 (+15%): 25% take profit + Chandelier ATR trailing
+                if curr_p <= trailing_stop_p:
+                    trailing_plans.append({
+                        "symbol": sym, "action": "SELL", "reason": "CHANDELIER_TRAILING_PROFIT",
+                        "quantity": max(1, int(qty * 0.50)), "unrealized_return": round(unrealized_return, 4),
+                        "trailing_stop_price": round(trailing_stop_p, 2), "current_price": round(curr_p, 2)
+                    })
+            elif unrealized_return >= tp_t1:
+                # Tier 1 (+8%): 25% take profit + raise stop to breakeven (Free Trade)
+                effective_stop_p = max(stop_loss_p, breakeven_p)
+                if curr_p <= effective_stop_p:
+                    trailing_plans.append({
+                        "symbol": sym, "action": "SELL", "reason": "BREAKEVEN_PROFIT_LOCK",
+                        "quantity": int(qty), "unrealized_return": round(unrealized_return, 4),
+                        "stop_loss_price": round(effective_stop_p, 2), "current_price": round(curr_p, 2)
+                    })
+            elif curr_p <= stop_loss_p:
+                # Hard Stop Loss
+                trailing_plans.append({
+                    "symbol": sym, "action": "SELL", "reason": "ATR_STOP_LOSS",
+                    "quantity": int(qty), "unrealized_return": round(unrealized_return, 4),
+                    "stop_loss_price": round(stop_loss_p, 2), "current_price": round(curr_p, 2)
                 })
 
         return trailing_plans
