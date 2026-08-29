@@ -113,6 +113,7 @@ class StrategyRegistry:
             "src.core.gamma_squeeze",
             "src.core.insider_buying",
             "src.core.earnings_tone_drift",
+            "src.core.dual_correction",
         ]
         for modname in core_modules:
             try:

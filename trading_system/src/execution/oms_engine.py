@@ -1049,8 +1049,18 @@ class ExecutionOMSEngine:
             current_score = float(h_info.get("current_score", 0.60))
             mfi = float(h_info.get("mfi", 50.0))
             obi = float(h_info.get("obi", 0.0))
+            correction_phase = str(h_info.get("correction_phase", "")).upper()
             if qty <= 0 or entry_p <= 0 or curr_p <= 0:
                 continue
+
+            # Phase-adaptive stop loss adjustments
+            local_sl_mult = sl_mult
+            local_ts_mult = ts_mult
+            if correction_phase == 'TIME_CONSOLIDATION':
+                local_sl_mult = min(local_sl_mult, 0.9)  # Ultra-tight stop on base breakdowns
+                local_ts_mult = min(local_ts_mult, 1.2)
+            elif correction_phase == 'PRICE_PULLBACK':
+                local_sl_mult = max(local_sl_mult, 1.3)  # Wider room for Fibonacci swing bounces
 
             unrealized_return = (curr_p - entry_p) / entry_p
             p_df = prices_dict.get(sym) if prices_dict else None
@@ -1118,8 +1128,8 @@ class ExecutionOMSEngine:
                 continue
 
             # 4. Multi-Tier Dynamic Profit Taking & Trailing Stop
-            trailing_stop_p = high_20 - (ts_mult * atr)
-            stop_loss_p = entry_p - (sl_mult * atr)
+            trailing_stop_p = high_20 - (local_ts_mult * atr)
+            stop_loss_p = entry_p - (local_sl_mult * atr)
             breakeven_p = entry_p * 1.003  # Free-trade breakeven with friction costs
 
             if unrealized_return >= tp_t3:
