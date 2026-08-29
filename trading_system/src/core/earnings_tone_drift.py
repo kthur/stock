@@ -48,7 +48,8 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
     ) -> pd.DataFrame:
         symbols = list(prices_dict.keys()) if prices_dict else []
         transcript_map = kwargs.get("transcript_map", None)
-        return self.compute_tone_drift_scores(symbols=symbols, transcript_map=transcript_map)
+        features_df = kwargs.get("features_df", fundamentals_dict)
+        return self.compute_tone_drift_scores(symbols=symbols, transcript_map=transcript_map, features_df=features_df, prices_dict=prices_dict)
 
     def calculate_scores(
         self,
@@ -151,6 +152,37 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                     if is_profitable or eps_g != 0.0 or rev_g != 0.0:
                         quant_tone = 0.50 + float(np.clip(drift * 0.40 + eps_g * 0.20, -0.40, 0.40))
                         score = float(np.clip(quant_tone, 0.05, 0.95))
+
+            # Post-Earnings Announcement Drift (PEAD) price momentum fallback when prices_dict is provided
+            if pd.isna(score) and prices_dict and isinstance(prices_dict, dict) and bool(prices_dict):
+                p_df = prices_dict.get(sym)
+                if p_df is None:
+                    p_df = prices_dict.get(sym_raw)
+                if p_df is None:
+                    p_df = prices_dict.get(sym_clean)
+                if isinstance(p_df, pd.DataFrame) and len(p_df) >= 5:
+                    c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
+                    if c_col:
+                        c_s = p_df[c_col].dropna().astype(float)
+                        if len(c_s) >= 5:
+                            last_c = float(c_s.iloc[-1])
+                            c_20 = float(c_s.iloc[-min(len(c_s), 21)])
+                            r_20d = (last_c / max(c_20, 1e-5)) - 1.0
+
+                            c_60 = float(c_s.iloc[-min(len(c_s), 61)])
+                            r_60d = (last_c / max(c_60, 1e-5)) - 1.0
+
+                            delta_mom = r_20d - (1.0 / 3.0) * r_60d
+
+                            c_5 = float(c_s.iloc[-min(len(c_s), 6)])
+                            r_5d = (last_c / max(c_5, 1e-5)) - 1.0
+                            acc_5d = r_5d - 0.25 * r_20d
+
+                            sma20 = float(c_s.tail(20).mean())
+                            vr_rel = (last_c - sma20) / max(sma20, 1e-5)
+
+                            pead_tone = 0.50 + 0.35 * delta_mom + 0.25 * acc_5d + 0.20 * vr_rel
+                            score = float(np.clip(pead_tone, 0.05, 0.95))
 
             results.append({
                 'symbol': sym,

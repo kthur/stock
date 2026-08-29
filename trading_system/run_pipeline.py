@@ -2756,7 +2756,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                         logger.info(f"Merged fundamental BPS/ROE for RIM: {fund_df['bps'].notna().sum()}/{len(df_rim_input)} symbols have BPS")
             except Exception as _fund_e:
                 logger.warning(f"Fundamental data merge for RIM skipped: {_fund_e}")
-        rim_df = rim_engine.compute_rim_scores(df_rim_input, symbol_market_map=symbol_market)
+        rim_df = rim_engine.compute_rim_scores(
+            df_rim_input,
+            symbol_market_map=symbol_market,
+            prices_dict=infer_data_dict if ('infer_data_dict' in locals() and infer_data_dict) else None,
+            allow_price_proxy=True
+        )
         rim_output_path = os.path.join(result_dir, "rim_predictions.txt")
         if not rim_df.empty:
             # Merge name for display (may already be present if 'name' was passed to RIM engine)
@@ -2770,7 +2775,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 f_out.write(f"Date: {date_str}\n")
                 valid_rim = df_rim[df_rim['rim_score'].notna() & (df_rim['rim_score'] > 0)] if ('rim_score' in df_rim.columns and not df_rim.empty) else pd.DataFrame()
                 f_out.write(f"Total symbols evaluated: {len(df_rim)} (Valid: {len(valid_rim)})\n")
-                f_out.write("Filters: EQ=Earnings Quality | [ADJ]=Extreme ROE normalized | [HC]=Holding Co. discount\n\n")
+                f_out.write("Filters: EQ=Earnings Quality | [ADJ]=Extreme ROE normalized | [HC]=Holding Co. discount | [PROXY]=Price trend proxy\n\n")
 
                 if valid_rim.empty:
                     f_out.write("데이터 없음 (유효한 RIM 적정가 산출 대상 종목 없음)\n")
@@ -2804,11 +2809,13 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     filter_reason = str(row.get('rim_filter_reason', ''))
                     hc_flag = bool(row.get('holding_co_flag', False))
                     tag_parts = []
+                    if 'PRICE_TREND_PROXY' in filter_reason:
+                        tag_parts.append('[PROXY]')
                     if 'ROE_NORMALIZED' in filter_reason or 'QUALITY_ADJUSTED' in filter_reason:
                         tag_parts.append('[ADJ]')
                     if hc_flag:
                         tag_parts.append('[HC]')
-                    if filter_reason and filter_reason not in ('', 'QUALITY_ADJUSTED', 'EXTREME_ROE_NORMALIZED', 'QUALITY_ADJUSTED+ROE_NORMALIZED'):
+                    if filter_reason and filter_reason not in ('', 'QUALITY_ADJUSTED', 'EXTREME_ROE_NORMALIZED', 'QUALITY_ADJUSTED+ROE_NORMALIZED', 'PRICE_TREND_PROXY'):
                         tag_parts.append(filter_reason[:22])
                     filter_str = ' '.join(tag_parts)[:30]
 
@@ -2855,8 +2862,16 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         merged = df_strat.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in df_strat.columns else df_strat.copy()
         if 'name' not in merged.columns and 'name' in universe.columns:
             merged = merged.merge(universe[['symbol', 'name']], on='symbol', how='left')
+        merged['symbol'] = merged['symbol'].astype(str)
         merged[score_col] = pd.to_numeric(merged[score_col], errors='coerce')
-        merged = merged.dropna(subset=[score_col]).sort_values(by=score_col, ascending=False)
+        if merged[score_col].isna().all():
+            logger.warning(f"[REPORT FALLBACK] Strategy '{title}' has all-NaN scores. Imputing baseline neutral score 0.50.")
+            merged[score_col] = 0.50
+        else:
+            col_median = merged[score_col].median()
+            fallback_val = col_median if (pd.notna(col_median) and np.isfinite(col_median)) else 0.50
+            merged[score_col] = merged[score_col].fillna(fallback_val)
+        merged = merged.sort_values(by=score_col, ascending=False)
 
         def _write_content(f_out, df_sub, market_label=None):
             f_out.write(f"=== {title} ===\n")

@@ -935,6 +935,18 @@ def parse_earnings_tone_drift(text: str) -> tuple[str, list[SimpleStrategyRow]]:
     return _parse_simple_strategy(text, "earnings_tone_drift_score")
 
 
+def parse_dual_correction(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "dual_correction_score")
+
+
+def parse_index_rebalance(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "index_rebalance_score")
+
+
+def parse_overnight_gap(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "overnight_gap_score")
+
+
 def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> PortfolioAllocationData:
     data = PortfolioAllocationData(
         date=datetime.now(KST).strftime("%Y-%m-%d %H:%M KST"),
@@ -1807,6 +1819,9 @@ def build_html(
     insider_buying_rows: Optional[list[SimpleStrategyRow]] = None,
     darkpool_rows: Optional[list[SimpleStrategyRow]] = None,
     earnings_tone_drift_rows: Optional[list[SimpleStrategyRow]] = None,
+    dual_correction_rows: Optional[list[SimpleStrategyRow]] = None,
+    index_rebalance_rows: Optional[list[SimpleStrategyRow]] = None,
+    overnight_gap_rows: Optional[list[SimpleStrategyRow]] = None,
     scenario_universe_json: str = "[]",
     all_stocks_universe_json: str = "[]",
     preloaded_backtest_table_html: str = "",
@@ -1854,6 +1869,9 @@ def build_html(
         "insider_buying": (insider_buying_rows or []),
         "darkpool": (darkpool_rows or []),
         "earnings_tone_drift": (earnings_tone_drift_rows or []),
+        "dual_correction": (dual_correction_rows or []),
+        "index_rebalance": (index_rebalance_rows or []),
+        "overnight_gap_reversal": (overnight_gap_rows or []),
     }
     total_eval_symbols = sum(len(m.rows) for m in ensemble.markets) if (ensemble and ensemble.markets) else 948
     if total_eval_symbols == 0:
@@ -2772,6 +2790,9 @@ def build_html(
     insider_panels        = _build_simple_panels(insider_buying_rows or [], "insider", "내부자 매수 스코어", strategy_name="Insider Buying Tracker", missing_reason_code="NO_INSIDER_FILING")
     darkpool_panels       = _build_simple_panels(darkpool_rows or [], "darkpool", "다크풀 수급 스코어", strategy_name="Darkpool & HFT Flow", missing_reason_code="NON_US_MARKET_SCOPE")
     tonedrift_panels      = _build_simple_panels(earnings_tone_drift_rows or [], "tonedrift", "어닝 톤 드리프트 스코어", strategy_name="Earnings Call Tone Drift", missing_reason_code="NO_EARNINGS_TRANSCRIPT")
+    dualcorrection_panels = _build_simple_panels(dual_correction_rows or [], "dualcorrection", "Dual Correction 스코어", strategy_name="Dual Correction Regime", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    indexrebalance_panels = _build_simple_panels(index_rebalance_rows or [], "indexrebalance", "Index Rebalance 스코어", strategy_name="Index Rebalance Flow", missing_reason_code="INSUFFICIENT_UNIVERSE_DATA")
+    overnightgap_panels   = _build_simple_panels(overnight_gap_rows or [], "overnightgap", "Overnight Gap Reversal 스코어", strategy_name="Overnight Gap Reversal", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
 
     # JSON strings for Chart.js safely serialized to prevent XSS
     hrp_labels_json = _safe_json(chart_labels)
@@ -3735,6 +3756,9 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'insider')">👥 Insider Buying</button>
   <button class="tab" onclick="switchTab(this,'darkpool')">🌊 Darkpool &amp; HFT</button>
   <button class="tab" onclick="switchTab(this,'tonedrift')">🗣️ Tone Drift</button>
+  <button class="tab" onclick="switchTab(this,'dualcorrection')">⚖️ Dual Correction</button>
+  <button class="tab" onclick="switchTab(this,'indexrebalance')">🔄 Index Rebalance</button>
+  <button class="tab" onclick="switchTab(this,'overnightgap')">🌙 Overnight Gap</button>
 </nav>
 
 <div class="content row2-content" style="padding: 24px 32px;">
@@ -4048,6 +4072,36 @@ def build_html(
     </div>
     <div id="tonedrift-panels">
     {tonedrift_panels}
+    </div>
+  </div>
+
+  <!-- ══ 32. Dual Correction Tab ══ -->
+  <div class="tab-panel" id="panel-dualcorrection">
+    <div class="filter-bar" id="filter-dualcorrection">
+      {_b_btns('dualcorrection')}
+    </div>
+    <div id="dualcorrection-panels">
+    {dualcorrection_panels}
+    </div>
+  </div>
+
+  <!-- ══ 33. Index Rebalance Tab ══ -->
+  <div class="tab-panel" id="panel-indexrebalance">
+    <div class="filter-bar" id="filter-indexrebalance">
+      {_b_btns('indexrebalance')}
+    </div>
+    <div id="indexrebalance-panels">
+    {indexrebalance_panels}
+    </div>
+  </div>
+
+  <!-- ══ 34. Overnight Gap Reversal Tab ══ -->
+  <div class="tab-panel" id="panel-overnightgap">
+    <div class="filter-bar" id="filter-overnightgap">
+      {_b_btns('overnightgap')}
+    </div>
+    <div id="overnightgap-panels">
+    {overnightgap_panels}
     </div>
   </div>
 
@@ -4826,6 +4880,9 @@ def main(args_list: Optional[list[str]] = None):
     dp_text = _read(result_dir / "darkpool_predictions.txt") or _read(result_dir / "hft_order_flow_predictions.txt")
     dp_date, darkpool_rows = parse_darkpool(dp_text)
     etd_date, earnings_tone_drift_rows = parse_earnings_tone_drift(_read(result_dir / "earnings_tone_drift_predictions.txt"))
+    dc_date, dual_correction_rows = parse_dual_correction(_read(result_dir / "dual_correction_predictions.txt"))
+    ir_date, index_rebalance_rows = parse_index_rebalance(_read(result_dir / "index_rebalance_predictions.txt"))
+    og_date, overnight_gap_rows = parse_overnight_gap(_read(result_dir / "overnight_gap_predictions.txt"))
     cov_text = _read(result_dir / "strategy_data_coverage_report.txt")
 
     # Build stock universe for Scenario Simulator (TOP stocks per market)
@@ -5074,6 +5131,9 @@ def main(args_list: Optional[list[str]] = None):
         insider_buying_rows=insider_buying_rows,
         darkpool_rows=darkpool_rows,
         earnings_tone_drift_rows=earnings_tone_drift_rows,
+        dual_correction_rows=dual_correction_rows,
+        index_rebalance_rows=index_rebalance_rows,
+        overnight_gap_rows=overnight_gap_rows,
         scenario_universe_json=scenario_universe_json,
         all_stocks_universe_json=all_stocks_universe_json,
         preloaded_backtest_table_html=preloaded_backtest_table_html,

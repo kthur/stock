@@ -92,11 +92,19 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
             mcap = row.get('market_cap', row.get('marcap', np.nan))
             div_yield = row.get('dividend_yield', row.get('div_yield', 0.0))
 
+            def _get_p_df(p_dict, *keys):
+                if not p_dict or not isinstance(p_dict, dict):
+                    return None
+                for k in keys:
+                    if k is not None and k in p_dict:
+                        return p_dict[k]
+                return None
+
             # If PBR is missing, estimate from price / BPS if price is available (from row or prices_dict)
             if pd.isna(pbr) and pd.notna(bps) and float(bps) > 0:
                 last_price = row.get('Close', row.get('close', row.get('price', np.nan)))
                 if (pd.isna(last_price) or float(last_price) <= 0) and prices_dict:
-                    p_df = prices_dict.get(sym_str, prices_dict.get(sym))
+                    p_df = _get_p_df(prices_dict, sym_str, sym, sym_str.zfill(6), sym_str.split('.')[0])
                     if isinstance(p_df, pd.DataFrame) and not p_df.empty:
                         close_col = 'close' if 'close' in p_df.columns else ('Close' if 'Close' in p_df.columns else None)
                         if close_col and close_col in p_df.columns:
@@ -144,6 +152,11 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                     cash_ratio = max(0.0, net_cash) / mcap_norm
 
                 div_val = float(div_yield) if (pd.notna(div_yield) and np.isfinite(float(div_yield))) else 0.0
+                if div_val <= 0.0:
+                    dps = row.get('dividend_per_share', row.get('dps', 0.0))
+                    p_curr = row.get('Close', row.get('close', np.nan))
+                    if pd.notna(dps) and pd.notna(p_curr) and float(p_curr) > 0 and float(dps) > 0:
+                        div_val = float(dps) / float(p_curr)
                 if div_val > 1.0:  # Percentage format e.g. 3.5 -> 0.035
                     div_val /= 100.0
 
@@ -156,7 +169,46 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 raw_score = pbr_factor * roe_boost * (1.0 + np.clip(cash_ratio, 0.0, 1.0) * 1.5 + np.clip(div_val, 0.0, 0.10) * 5.0)
                 scores[sym_str] = float(np.clip(raw_score, 0.0, 50.0)) if np.isfinite(raw_score) else np.nan
             else:
-                scores[sym_str] = np.nan
+                # Level 2 Fallback Proxy: 200d SMA Valuation & 52-Week Discount Proxy
+                if prices_dict and isinstance(prices_dict, dict) and bool(prices_dict):
+                    p_df = _get_p_df(prices_dict, sym_str, sym, sym_str.zfill(6), sym_str.split('.')[0])
+                    if isinstance(p_df, pd.DataFrame) and not p_df.empty:
+                        close_col = 'close' if 'close' in p_df.columns else ('Close' if 'Close' in p_df.columns else None)
+                        if close_col and close_col in p_df.columns:
+                            c_series = p_df[close_col].dropna().astype(float)
+                            if not c_series.empty:
+                                last_c = float(c_series.iloc[-1])
+                                sma200 = float(c_series.tail(200).mean()) if len(c_series) >= 20 else last_c
+                                vr = last_c / max(sma200, 1e-5)
+                                pbr_factor_proxy = float(np.clip(1.5 - 0.5 * vr, 0.2, 1.8))
+
+                                tail252 = c_series.tail(252)
+                                min_c = float(tail252.min())
+                                max_c = float(tail252.max())
+                                range_pos = 0.5 if max_c == min_c else float((last_c - min_c) / max(max_c - min_c, 1e-5))
+                                range_pos = float(np.clip(range_pos, 0.0, 1.0))
+
+                                # Check dividend per share or book value from row if present
+                                dps = row.get('dividend_per_share', row.get('dps', 0.0))
+                                div_boost = 0.0
+                                if pd.notna(dps) and float(dps) > 0 and last_c > 0:
+                                    div_boost = min(float(dps) / last_c, 0.10) * 5.0
+
+                                bv_val = row.get('book_value', np.nan)
+                                bv_boost = 0.0
+                                if pd.notna(bv_val) and float(bv_val) > 0:
+                                    bv_boost = 0.10
+
+                                raw_score_proxy = pbr_factor_proxy * (1.0 + 0.30 * (1.0 - range_pos) + div_boost + bv_boost)
+                                scores[sym_str] = float(np.clip(raw_score_proxy, 0.0, 50.0))
+                            else:
+                                scores[sym_str] = np.nan
+                        else:
+                            scores[sym_str] = np.nan
+                    else:
+                        scores[sym_str] = np.nan
+                else:
+                    scores[sym_str] = np.nan
 
         df_out = pd.DataFrame(list(scores.items()), columns=['symbol', 'raw_score'])
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
@@ -172,8 +224,7 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'valueup_catalyst_score'] = 0.50
         else:
-            default_val = 0.50 if len(df_out) == 1 else np.nan
-            df_out['valueup_catalyst_score'] = default_val
+            df_out['valueup_catalyst_score'] = np.nan
 
         df_out['valueup_catalyst_score'] = pd.to_numeric(df_out['valueup_catalyst_score'], errors='coerce')
 

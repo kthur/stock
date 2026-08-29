@@ -375,26 +375,48 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
                 except Exception:
                     pass
 
-            # 4. Check price-reaction overnight gap & trend sentiment proxy if prices_dict available
+            # 4. Check multi-horizon price/volume momentum sentiment proxy if prices_dict available
             if pd.isna(score) and isinstance(prices_dict, dict) and bool(prices_dict):
                 p_df = prices_dict.get(sym)
                 if p_df is None:
                     p_df = prices_dict.get(sym.zfill(6))
                 if p_df is None:
                     p_df = prices_dict.get(sym.lstrip('0'))
+                if p_df is None:
+                    p_df = prices_dict.get(sym.split('.')[0])
                 if isinstance(p_df, pd.DataFrame) and len(p_df) >= 2:
                     c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
                     o_col = 'Open' if 'Open' in p_df.columns else ('open' if 'open' in p_df.columns else None)
-                    if c_col and o_col:
+                    v_col = 'Volume' if 'Volume' in p_df.columns else ('volume' if 'volume' in p_df.columns else None)
+                    if c_col:
                         try:
-                            last_c = float(p_df[c_col].dropna().iloc[-1])
-                            prev_c = float(p_df[c_col].dropna().iloc[-2])
-                            last_o = float(p_df[o_col].dropna().iloc[-1])
-                            if prev_c > 0 and last_o > 0 and np.isfinite(last_c) and np.isfinite(prev_c) and np.isfinite(last_o):
-                                gap = (last_o / prev_c) - 1.0
-                                trend = (last_c / last_o) - 1.0
-                                raw_sent = 0.50 + float(np.clip(1.5 * gap + 1.0 * trend, -0.40, 0.40))
-                                score = float(np.clip(raw_sent, 0.05, 0.95))
+                            c_s = p_df[c_col].dropna().astype(float)
+                            if len(c_s) >= 2:
+                                last_c = float(c_s.iloc[-1])
+                                prev_c = float(c_s.iloc[-2])
+                                last_o = float(p_df[o_col].dropna().iloc[-1]) if (o_col and not p_df[o_col].dropna().empty) else prev_c
+                                if prev_c > 0 and last_o > 0 and np.isfinite(last_c) and np.isfinite(prev_c):
+                                    gap = (last_o / prev_c) - 1.0
+                                    trend = (last_c / last_o) - 1.0 if last_o > 0 else 0.0
+
+                                    # Multi-horizon returns
+                                    r_5d = (last_c / float(c_s.iloc[-min(len(c_s), 6)])) - 1.0 if len(c_s) >= 2 else 0.0
+                                    r_20d = (last_c / float(c_s.iloc[-min(len(c_s), 21)])) - 1.0 if len(c_s) >= 2 else 0.0
+
+                                    # Volume surge multiplier
+                                    vol_mult = 1.0
+                                    if v_col:
+                                        v_s = p_df[v_col].dropna().astype(float)
+                                        if len(v_s) >= 5:
+                                            avg_v = float(v_s.tail(20).mean())
+                                            last_v = float(v_s.iloc[-1])
+                                            if avg_v > 0:
+                                                vr = last_v / avg_v
+                                                vol_mult = float(np.sqrt(np.clip(vr, 0.5, 3.0)))
+
+                                    signal = (1.5 * gap + 1.0 * trend + 1.2 * r_5d + 0.8 * r_20d) * vol_mult
+                                    raw_sent = 0.50 + float(np.clip(signal, -0.40, 0.40))
+                                    score = float(np.clip(raw_sent, 0.05, 0.95))
                         except Exception:
                             pass
 

@@ -80,10 +80,68 @@ class AccrualsQualityEngine(BaseStrategyEngine):
                     fund_map = deduped.set_index('symbol').to_dict(orient='index')
 
         sym_strs = [str(s) for s in symbols]
+
+        def _get_p_df(p_dict, *keys):
+            if not p_dict or not isinstance(p_dict, dict):
+                return None
+            for k in keys:
+                if k is not None and k in p_dict:
+                    return p_dict[k]
+            return None
+
+        def _compute_price_flow_proxy(sym_str: str) -> float:
+            if not prices_dict or not isinstance(prices_dict, dict):
+                return np.nan
+            p_df = _get_p_df(prices_dict, sym_str, sym_str.zfill(6), sym_str.split('.')[0])
+            if p_df is None or not isinstance(p_df, pd.DataFrame) or len(p_df) < 5:
+                return np.nan
+            c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
+            if not c_col:
+                return np.nan
+            c_s = p_df[c_col].dropna().astype(float)
+            if len(c_s) < 5:
+                return np.nan
+            n_bars = min(len(c_s), 20)
+            tail_df = p_df.iloc[-n_bars:]
+            c_tail = tail_df[c_col].astype(float)
+            v_col = 'Volume' if 'Volume' in tail_df.columns else ('volume' if 'volume' in tail_df.columns else None)
+            v_tail = tail_df[v_col].astype(float) if v_col else pd.Series(1.0, index=tail_df.index)
+            h_col = 'High' if 'High' in tail_df.columns else ('high' if 'high' in tail_df.columns else None)
+            l_col = 'Low' if 'Low' in tail_df.columns else ('low' if 'low' in tail_df.columns else None)
+            h_tail = tail_df[h_col].astype(float) if h_col else c_tail
+            l_tail = tail_df[l_col].astype(float) if l_col else c_tail
+
+            hl_diff = h_tail - l_tail
+            mfm = np.where(hl_diff > 1e-5, ((c_tail - l_tail) - (h_tail - c_tail)) / hl_diff, np.sign(c_tail.diff().fillna(0.0)))
+            mfv = mfm * v_tail
+            cmf = float(mfv.sum() / max(v_tail.sum(), 1e-5))
+            cmf = float(np.clip(cmf, -1.0, 1.0))
+
+            c_arr = c_tail.to_numpy()
+            net_change = abs(c_arr[-1] - c_arr[0])
+            total_path = np.sum(np.abs(np.diff(c_arr)))
+            ker = float(net_change / max(total_path, 1e-5))
+            ker = float(np.clip(ker, 0.0, 1.0))
+
+            rets = np.diff(c_arr) / np.maximum(c_arr[:-1], 1e-5)
+            vol20 = float(np.std(rets) * np.sqrt(252)) if len(rets) > 1 else 0.20
+
+            raw_proxy = 0.50 + 0.25 * cmf + 0.20 * ker - 0.20 * min(vol20, 1.0)
+            return float(np.clip(raw_proxy, 0.05, 0.95))
+
         if not fund_map:
-            default_val = 0.50 if len(sym_strs) == 1 else np.nan
-            df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': default_val})
-            return df_acc[['symbol', 'accruals_quality_score']]
+            if prices_dict is not None and isinstance(prices_dict, dict) and bool(prices_dict):
+                if len(sym_strs) == 1:
+                    return pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': [0.50]})
+                proxy_vals = [_compute_price_flow_proxy(s) for s in sym_strs]
+                df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': proxy_vals})
+                val_mask = df_acc['accruals_quality_score'].notna()
+                if val_mask.sum() > 1:
+                    df_acc.loc[val_mask, 'accruals_quality_score'] = df_acc.loc[val_mask, 'accruals_quality_score'].rank(pct=True).clip(0.05, 0.95)
+                return df_acc[['symbol', 'accruals_quality_score']]
+            else:
+                df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': np.nan})
+                return df_acc[['symbol', 'accruals_quality_score']]
 
         rows = []
         for sym_str in sym_strs:
@@ -145,7 +203,9 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             high_quality_mask = base_score >= 0.85
             enhanced_score = np.where(high_quality_mask, (base_score * 1.08).clip(0.05, 0.98), base_score)
             # Distress check: Cash-burning loss-making firms cannot receive high accruals quality alpha
-            is_distressed = ((net_inc < 0) & (ocf < 0)).reindex(df_acc.index).fillna(False).loc[valid_mask]
+            net_arr = net_inc.to_numpy()
+            ocf_arr = ocf.to_numpy()
+            is_distressed = ((net_arr < 0) & (ocf_arr < 0))[valid_mask.to_numpy()]
             enhanced_score = np.where(is_distressed, np.minimum(0.30, enhanced_score), enhanced_score)
             df_acc.loc[valid_mask, 'accruals_quality_score'] = enhanced_score
         elif valid_mask.sum() == 1:
@@ -153,6 +213,15 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             df_acc.loc[valid_mask, 'accruals_quality_score'] = min(0.50 + bonus, 0.95)
         else:
             df_acc['accruals_quality_score'] = np.nan
+
+        # For remaining missing rows, compute price flow proxy if prices_dict is provided
+        missing_scores = df_acc['accruals_quality_score'].isna()
+        if missing_scores.any() and prices_dict is not None and isinstance(prices_dict, dict) and bool(prices_dict):
+            for idx in df_acc[missing_scores].index:
+                s = str(df_acc.loc[idx, 'symbol'])
+                px_val = _compute_price_flow_proxy(s)
+                if pd.notna(px_val):
+                    df_acc.loc[idx, 'accruals_quality_score'] = px_val
 
         df_acc['accruals_quality_score'] = df_acc['accruals_quality_score'].astype(float)
 

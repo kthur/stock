@@ -22,7 +22,7 @@ ALL_31_STRATEGIES = [
 _STRATEGY_COUNT = len(ALL_31_STRATEGIES)
 
 KNOWN_MARKETS = [
-    "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ",
+    "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "KONEX",
     "CHINA_SSE", "CHINA_SZSE", "JAPAN_TSE", "INDIA_NSE",
     "EUROPE_STOXX", "VIETNAM_HOSE", "TAIWAN_TWSE",
     "AUSTRALIA_ASX", "BRAZIL_B3", "HKEX", "SINGAPORE_SGX", "CANADA_TSX",
@@ -84,6 +84,67 @@ def merge_pipeline_result(result_dir: Path, target_dirs: dict) -> None:
             out.write("데이터 없음\n")
 
 
+def _extract_ensemble_market_section(content: str, market: str) -> str:
+    """Extract [{market}] section robustly across varying header divider styles and boundaries."""
+    if not content or "데이터 없음" in content or "No data" in content:
+        return ""
+
+    normalized = content.replace("\r\n", "\n")
+
+    # Primary Pattern: Flexible header divider with === or --- or none, market tag, optional lower divider
+    pattern_primary = (
+        rf"(?:^[ \t]*[=\-]{{3,}}[^\n]*\n)?"
+        rf"^[ \t]*\[{re.escape(market)}\][^\n]*\n"
+        rf"(?:^[ \t]*[=\-]{{3,}}[^\n]*\n)?"
+        rf"(.*?)"
+        rf"(?=\n[ \t]*[=\-]{{3,}}\s*\n\[|\n[ \t]*\[[A-Za-z0-9_]+\]\s+Top|\n--- Data Quality|\n--- Applied|\n--- Executive|\n=== Dynamic|\Z)"
+    )
+    m = re.search(pattern_primary, normalized, re.DOTALL | re.MULTILINE)
+    if m:
+        body = m.group(1).strip()
+        for footer_marker in ["--- Data Quality", "--- Applied", "--- Executive", "=== Dynamic"]:
+            f_idx = body.find(footer_marker)
+            if f_idx != -1:
+                body = body[:f_idx].strip()
+        if body:
+            header = f"=========================================\n[{market}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n========================================="
+            return f"{header}\n{body}"
+
+    # Secondary Pattern: Line-by-line state machine parser
+    lines = normalized.splitlines()
+    in_section = False
+    captured_lines: list[str] = []
+    for line in lines:
+        l_str = line.strip()
+        if re.match(rf"^\[{re.escape(market)}\]\s+Top", l_str, re.IGNORECASE) or l_str == f"[{market}]":
+            in_section = True
+            continue
+        elif in_section:
+            if (
+                (re.match(r"^\[[A-Za-z0-9_]+\]\s+Top", l_str) and not re.match(rf"^\[{re.escape(market)}\]\s+Top", l_str, re.IGNORECASE))
+                or l_str.startswith("--- Data Quality")
+                or l_str.startswith("--- Applied")
+                or l_str.startswith("--- Executive")
+                or l_str.startswith("=== Dynamic")
+            ):
+                break
+            if not captured_lines and l_str.startswith("==="):
+                continue
+            captured_lines.append(line)
+
+    if captured_lines:
+        body = "\n".join(captured_lines).strip()
+        for footer_marker in ["--- Data Quality", "--- Applied", "--- Executive", "=== Dynamic"]:
+            f_idx = body.find(footer_marker)
+            if f_idx != -1:
+                body = body[:f_idx].strip()
+        if body:
+            header = f"=========================================\n[{market}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n========================================="
+            return f"{header}\n{body}"
+
+    return ""
+
+
 def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
     merged_path = result_dir / "ensemble_predictions.txt"
     print(f"Merging ensemble_predictions.txt -> {merged_path}")
@@ -94,7 +155,7 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
     if existing_merged.exists():
         c_exist = get_file_content(existing_merged)
         idx_exist = c_exist.find("=========================================")
-        if idx_exist != -1 and ("--- Applied" in c_exist[:idx_exist] or "--- Executive" in c_exist[:idx_exist]):
+        if idx_exist != -1 and ("--- Applied" in c_exist[:idx_exist] or "--- Executive" in c_exist[:idx_exist] or "[2D Market Regime" in c_exist[:idx_exist]):
             header = c_exist[:idx_exist].strip() + "\n\n"
 
     # 2. Check individual market files for full weights header
@@ -104,7 +165,7 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
             if file_path.exists():
                 content = get_file_content(file_path)
                 idx = content.find("=========================================")
-                if idx != -1 and ("--- Applied" in content[:idx] or "--- Executive" in content[:idx]):
+                if idx != -1 and ("--- Applied" in content[:idx] or "--- Executive" in content[:idx] or "[2D Market Regime" in content[:idx]):
                     header = content[:idx].strip() + "\n\n"
                     break
 
@@ -125,40 +186,44 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
         header = f"=== Dynamic Multi-Strategy Ensemble Predictions ({_STRATEGY_COUNT} Strategies) ===\nDate: {kst_now}\n\n"
 
     sections_written = 0
+    sections_list: list[str] = []
+
+    markets_to_merge = [m for m in KNOWN_MARKETS if m in target_dirs] or [m for m in target_dirs] or KNOWN_MARKETS
+
+    for market in markets_to_merge:
+        mkt_dir = target_dirs.get(market)
+        candidate_paths: list[Path] = []
+        if mkt_dir is not None:
+            candidate_paths.append(mkt_dir / f"ensemble_predictions_{market}.txt")
+        candidate_paths.append(result_dir / f"ensemble_predictions_{market}.txt")
+        if existing_merged.exists():
+            candidate_paths.append(existing_merged)
+        for other_m, other_dir in target_dirs.items():
+            if other_dir != mkt_dir:
+                candidate_paths.append(other_dir / f"ensemble_predictions_{other_m}.txt")
+
+        extracted_section = ""
+        for cp in candidate_paths:
+            if cp.exists():
+                c = get_file_content(cp)
+                sect = _extract_ensemble_market_section(c, market)
+                if sect:
+                    extracted_section = sect
+                    break
+
+        if extracted_section:
+            sections_list.append(extracted_section)
+            sections_written += 1
+        else:
+            print(f"  Warning: Could not extract section [{market}] from available files")
+
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
-
-        for market in KNOWN_MARKETS:
-            mkt_dir = target_dirs.get(market)
-            if mkt_dir is None:
-                continue
-            file_path = mkt_dir / f"ensemble_predictions_{market}.txt"
-            if not file_path.exists():
-                file_path = result_dir / f"ensemble_predictions_{market}.txt"
-            if not file_path.exists():
-                continue
-
-            content = get_file_content(file_path)
-            if "데이터 없음" in content or "No data" in content:
-                continue
-            # Extract section — flexible whitespace and newline handling
-            pattern = rf"(==={{10,}}\s*\n\[{re.escape(market)}\][^\n]*\n==={{10,}}\s*\n.*?)(?=\n==={{10,}}|\Z)"
-            match = re.search(pattern, content, re.DOTALL)
-            if match:
-                out.write(match.group(1).strip() + "\n\n")
-                sections_written += 1
-            else:
-                # Fallback matching with relaxed newlines
-                normalized_content = content.replace("\r\n", "\n")
-                match = re.search(pattern, normalized_content, re.DOTALL)
-                if match:
-                    out.write(match.group(1).strip() + "\n\n")
-                    sections_written += 1
-                else:
-                    print(f"  Warning: Could not extract section [{market}] from {file_path}")
-
         if sections_written == 0:
             out.write("데이터 없음\n")
+        else:
+            for s in sections_list:
+                out.write(s + "\n\n")
 
 
 def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
@@ -170,7 +235,6 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
         file_path = path / f"surge_predictions_{market}.txt"
         if file_path.exists():
             content = get_file_content(file_path)
-            # Header ends before first ======= block
             idx = content.find("=" * 10)
             if idx != -1:
                 header = content[:idx].strip() + "\n\n"
@@ -180,7 +244,7 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
         header = f"=== Surge Detection Results (>= 20% return) ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
     horizons = ["1", "3", "5", "20"]
-    markets = [m for m in KNOWN_MARKETS if m in target_dirs] or KNOWN_MARKETS
+    markets = [m for m in KNOWN_MARKETS if m in target_dirs] or [m for m in target_dirs] or KNOWN_MARKETS
 
     sections_written = 0
     buffer = [header]
@@ -188,37 +252,49 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
     for hz in horizons:
         for mkt in markets:
             mkt_dir = target_dirs.get(mkt)
-            if mkt_dir is None:
-                continue
-            file_path = mkt_dir / f"surge_predictions_{mkt}.txt"
-            if not file_path.exists():
-                file_path = result_dir / "surge_predictions.txt"
-            if not file_path.exists():
-                continue
+            candidate_paths = []
+            if mkt_dir is not None:
+                candidate_paths.append(mkt_dir / f"surge_predictions_{mkt}.txt")
+            candidate_paths.append(result_dir / f"surge_predictions_{mkt}.txt")
+            candidate_paths.append(result_dir / "surge_predictions.txt")
 
-            content = get_file_content(file_path)
-            if "데이터 없음" in content or "No data" in content:
-                continue
+            match_text = ""
+            for cp in candidate_paths:
+                if not cp.exists():
+                    continue
+                content = get_file_content(cp)
+                if not content or "데이터 없음" in content or "No data" in content:
+                    continue
 
-            # Match: ====...\n[Nd일] MARKET Top ...\n====...\n<body>
-            pattern = (
-                rf"(==={{10,}}\s*\n"
-                rf"\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+Top[^\n]*\n"
-                rf"==={{10,}}\s*\n"
-                rf".*?)"
-                rf"(?=\n==={{10,}}|\Z)"
-            )
-            match = re.search(pattern, content, re.DOTALL)
-            if not match:
-                # Fallback to normalized content
-                normalized_content = content.replace("\r\n", "\n")
-                match = re.search(pattern, normalized_content, re.DOTALL)
+                pattern = (
+                    rf"(?:^[ \t]*[=\-]{{3,}}[^\n]*\n)?"
+                    rf"^[ \t]*\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+Top[^\n]*\n"
+                    rf"(?:^[ \t]*[=\-]{{3,}}[^\n]*\n)?"
+                    rf"(.*?)"
+                    rf"(?=\n[ \t]*[=\-]{{3,}}\s*\n\[|\n[ \t]*\[\d+일\]|\Z)"
+                )
+                m = re.search(pattern, content, re.DOTALL | re.MULTILINE)
+                if m:
+                    b_text = m.group(1).strip()
+                    hdr = f"=========================================\n[{hz}일] {mkt} Top 20 Surge Predictions (>= 20% Return Probability)\n========================================="
+                    match_text = f"{hdr}\n{b_text}"
+                    break
+                else:
+                    pattern_legacy = (
+                        rf"(==={{10,}}\s*\n"
+                        rf"\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+Top[^\n]*\n"
+                        rf"==={{10,}}\s*\n"
+                        rf".*?)"
+                        rf"(?=\n==={{10,}}|\Z)"
+                    )
+                    m_leg = re.search(pattern_legacy, content, re.DOTALL)
+                    if m_leg:
+                        match_text = m_leg.group(1).strip()
+                        break
 
-            if match:
-                buffer.append(match.group(1).strip() + "\n\n")
+            if match_text:
+                buffer.append(match_text + "\n\n")
                 sections_written += 1
-            else:
-                print(f"  Warning: [{hz}일] {mkt} section not found in {file_path.name}")
 
     if sections_written == 0:
         buffer.append("데이터 없음\n")
@@ -425,14 +501,35 @@ def merge_generic_strategy_files(result_dir: Path, target_dirs: dict, filename: 
         all_fallbacks_self_ref = False
         content = get_file_content(file_path)
         for line in content.splitlines():
-            if line.startswith("===") or line.startswith("Date:") or line.startswith("Total symbols") or not line.strip():
+            line_str = line.strip()
+            if line_str.startswith("===") or line_str.startswith("Date:") or line_str.startswith("Total symbols") or line_str.startswith("Total cointegrated") or not line_str:
                 continue
-            if "데이터 없음" in line or "No data" in line:
+            if "데이터 없음" in line_str or "No data" in line_str:
                 continue
-            # Header lines (Filters:, column headers with Rank, divider dashes)
-            if line.startswith("Filters:") or line.startswith("Rank ") or line.startswith("---") or line.startswith("───"):
-                prefix = line[:5]
-                if not any(h.startswith(prefix) for h in header_lines):
+            # Header lines (Filters:, column headers with Rank, Pair, No., Symbol, divider dashes)
+            is_header = (
+                line_str.startswith("Filters:")
+                or line_str.startswith("Rank ")
+                or line_str.startswith("Rank\t")
+                or line_str == "Rank"
+                or line_str.startswith("Pair ")
+                or line_str.startswith("Pair\t")
+                or line_str == "Pair"
+                or line_str.startswith("No. ")
+                or line_str.startswith("No.\t")
+                or line_str == "No."
+                or line_str.startswith("No\t")
+                or line_str.startswith("Symbol ")
+                or line_str.startswith("Symbol\t")
+                or line_str == "Symbol"
+                or line_str.startswith("---")
+                or line_str.startswith("───")
+                or line_str.startswith("===")
+                or line_str.startswith("═══")
+            )
+            if is_header:
+                prefix = line_str[:5]
+                if not any(h.strip().startswith(prefix) for h in header_lines):
                     header_lines.append(line + "\n")
                 continue
             data_lines.append(line + "\n")
@@ -674,31 +771,93 @@ def merge_coverage_report(result_dir: Path, target_dirs: dict) -> None:
         out.write("\n\n".join(sections) + "\n")
 
 
+KNOWN_STRATEGY_PREFIXES = [
+    "pipeline_result", "surge_predictions", "ensemble_predictions", "vcp_ml_predictions",
+    "vcp_patterns", "lead_lag_predictions", "strategy_data_coverage_report",
+    "portfolio_allocation", "backtest_summary", "lstm_predictions", "sector_predictions",
+    "rim_predictions", "event_driven_predictions", "mq_factor_predictions",
+    "iv_skew_predictions", "order_flow_predictions", "short_term_reversal_predictions",
+    "stat_arb_predictions", "arm_factor_predictions", "card_factor_predictions",
+    "latr_factor_predictions", "inst_foreign_sector_predictions", "supply_chain_predictions",
+    "sentiment_predictions", "factor_neutralized_predictions", "vol_target_predictions",
+    "microstructure_predictions", "accruals_quality_predictions", "short_squeeze_predictions",
+    "valueup_catalyst_predictions", "trend_efficiency_predictions", "gamma_squeeze_predictions",
+    "insider_buying_predictions", "hft_order_flow_predictions", "darkpool_predictions",
+    "earnings_tone_drift_predictions", "dual_correction_predictions",
+    "index_rebalance_predictions", "overnight_gap_predictions"
+]
+
+
+def discover_target_markets(base_dir: Path, result_dir: Path) -> dict[str, Path]:
+    """Discover all present market targets across dedicated split dirs and result_dir.
+
+    Robust against any present market artifact (*_{m}.txt or *_{m}.json), dedicated
+    artifact directories (artifacts_in/result-{m}, result_{m}, result_split), and
+    dynamically discovered market suffixes.
+    """
+    target_dirs: dict[str, Path] = {}
+
+    # 1. Check dedicated split folders
+    candidate_locations = [base_dir, base_dir / "artifacts_in", base_dir.parent / "artifacts_in"]
+    for loc in candidate_locations:
+        if not loc.exists():
+            continue
+        for m in KNOWN_MARKETS:
+            for folder_name in [
+                f"result_{m}", f"result-{m}",
+                f"result_split_{m}", f"result_split-{m}",
+                f"market_{m}", f"market-{m}"
+            ]:
+                split_path = loc / folder_name
+                if split_path.is_dir() and any(split_path.iterdir()):
+                    target_dirs[m] = split_path
+                    break
+
+    # 2. Multi-probe checking in result_dir for KNOWN_MARKETS
+    if result_dir.exists():
+        for m in KNOWN_MARKETS:
+            if m not in target_dirs:
+                probes = [
+                    result_dir / f"surge_predictions_{m}.txt",
+                    result_dir / f"pipeline_result_{m}.txt",
+                    result_dir / f"ensemble_predictions_{m}.txt",
+                    result_dir / f"rim_predictions_{m}.txt",
+                    result_dir / f"sentiment_predictions_{m}.txt",
+                    result_dir / f"backtest_summary_{m}.json",
+                    result_dir / f"portfolio_allocation_{m}.txt",
+                    result_dir / f"strategy_data_coverage_report_{m}.txt",
+                ]
+                if any(p.exists() for p in probes) or any(result_dir.glob(f"*_{m}.txt")) or any(result_dir.glob(f"*_{m}.json")):
+                    target_dirs[m] = result_dir
+
+        # 3. Dynamic discovery for custom or unlisted markets matching known strategy patterns
+        excluded_market_names = {
+            "RESULT", "PREDICTIONS", "REPORT", "SUMMARY", "METRICS",
+            "ALLOCATION", "DATA", "SNAPSHOT", "HISTORY", "LOG", "STATUS",
+            "COMPARISON", "PATTERNS", "BLACK_LITTERMAN", "LITTERMAN", "HRP"
+        }
+        for f in result_dir.iterdir():
+            if f.is_file() and f.suffix in [".txt", ".json"]:
+                for prefix in KNOWN_STRATEGY_PREFIXES:
+                    if f.stem.startswith(f"{prefix}_"):
+                        mkt_candidate = f.stem[len(prefix) + 1:].upper()
+                        if (
+                            mkt_candidate
+                            and mkt_candidate not in excluded_market_names
+                            and mkt_candidate not in target_dirs
+                            and (mkt_candidate in KNOWN_MARKETS or (mkt_candidate.isalnum() and len(mkt_candidate) <= 12))
+                        ):
+                            target_dirs[mkt_candidate] = result_dir
+
+    return target_dirs
+
+
 def main():
     base_dir = Path(__file__).resolve().parent
     result_dir = base_dir / "result"
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    markets = KNOWN_MARKETS
-    target_dirs: dict[str, Path] = {}
-    for m in markets:
-        # Prefer market-specific split directory; fall back to unified result dir
-        split_path = base_dir / f"result_{m}"
-        if split_path.exists() and any(split_path.iterdir()):
-            target_dirs[m] = split_path
-        elif result_dir.exists():
-            # Check if market-suffixed files exist inside result_dir itself
-            probe = result_dir / f"surge_predictions_{m}.txt"
-            if probe.exists():
-                target_dirs[m] = result_dir
-
-    if not target_dirs:
-        print("Warning: No per-market result directories found. Checking result/ for suffix files.")
-        for m in markets:
-            probe = result_dir / f"pipeline_result_{m}.txt"
-            if probe.exists():
-                target_dirs[m] = result_dir
-
+    target_dirs = discover_target_markets(base_dir, result_dir)
     print(f"Target directories: { {k: str(v) for k, v in target_dirs.items()} }")
 
     merge_pipeline_result(result_dir, target_dirs)
@@ -711,7 +870,7 @@ def main():
     merge_portfolio_allocation(result_dir, target_dirs)
     merge_backtest_summary(result_dir, target_dirs)
 
-    # Merge remaining strategy individual outputs (all 31 strategies)
+    # Merge remaining strategy individual outputs (all 31 strategies + darkpool aliases + extended)
     merge_generic_strategy_files(result_dir, target_dirs, "lstm_predictions.txt", "Strict Causal LSTM Time-Series Deep Learning Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "sector_predictions.txt", "Sector Rotation Momentum & Macro Sensitivity Report")
     merge_generic_strategy_files(result_dir, target_dirs, "rim_predictions.txt", "RIM Intrinsic Valuation Predictions")
@@ -737,6 +896,7 @@ def main():
     merge_generic_strategy_files(result_dir, target_dirs, "gamma_squeeze_predictions.txt", "Options Gamma Squeeze Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "insider_buying_predictions.txt", "Executive & Insider Buying Catalyst Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "hft_order_flow_predictions.txt", "HFT Order Flow & Dark Pool Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "darkpool_predictions.txt", "Dark Pool & Off-Exchange Volume Divergence Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "earnings_tone_drift_predictions.txt", "Earnings Tone Drift NLP Quant Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "dual_correction_predictions.txt", "Dual Correction Strategy Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "index_rebalance_predictions.txt", "Index Rebalance Structural Flow Predictions")

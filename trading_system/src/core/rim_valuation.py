@@ -369,6 +369,8 @@ class RIMValuationEngine(BaseStrategyEngine):
         us10y_yield: Optional[float] = None,
         vix_val: Optional[float] = None,
         credit_spread: Optional[float] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        allow_price_proxy: bool = False,
     ) -> pd.DataFrame:
         """
         Computes RIM intrinsic values and percentile scores using finite-horizon decaying ROE model
@@ -483,7 +485,54 @@ class RIMValuationEngine(BaseStrategyEngine):
         # Capital Impairment (자본잠식) Detection
         df.loc[has_negative_equity & (df['rim_filter_reason'] == ''), 'rim_filter_reason'] = 'CAPITAL_IMPAIRMENT'
 
-        # Missing Fundamentals (재무데이터미비) Detection
+        # Missing Fundamentals (재무데이터미비) / Price Trend Proxy Valuation Anchor
+        missing_fund_mask = df['bps'].isna() & (df['rim_filter_reason'] == '') & (~has_negative_equity)
+        if (prices_dict is not None or allow_price_proxy) and missing_fund_mask.any():
+            for idx in df[missing_fund_mask].index:
+                row = df.loc[idx]
+                sym = str(row.get('symbol', ''))
+                sym_clean = sym.split('.')[0]
+                p_df = None
+                if prices_dict and isinstance(prices_dict, dict):
+                    p_df = prices_dict.get(sym)
+                    if p_df is None:
+                        p_df = prices_dict.get(sym_clean)
+                    if p_df is None:
+                        p_df = prices_dict.get(sym_clean.zfill(6))
+
+                p_val = row.get('Close', np.nan)
+                if (pd.isna(p_val) or p_val <= 0) and isinstance(p_df, pd.DataFrame) and not p_df.empty:
+                    c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
+                    if c_col and not p_df[c_col].dropna().empty:
+                        p_val = float(p_df[c_col].dropna().iloc[-1])
+                        df.loc[idx, 'Close'] = p_val
+
+                sma_val = None
+                if isinstance(p_df, pd.DataFrame) and not p_df.empty:
+                    c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
+                    if c_col:
+                        c_series = p_df[c_col].dropna().astype(float)
+                        if len(c_series) >= 20:
+                            sma_val = float(c_series.tail(200).mean())
+                        elif len(c_series) >= 5:
+                            sma_val = float(c_series.mean())
+
+                if sma_val is None or pd.isna(sma_val) or sma_val <= 0:
+                    s_cand = row.get('sma_200') if 'sma_200' in df.columns else (row.get('sma_60') if 'sma_60' in df.columns else None)
+                    if pd.notna(s_cand) and float(s_cand) > 0:
+                        sma_val = float(s_cand)
+                    elif allow_price_proxy and pd.notna(p_val) and p_val > 0:
+                        sma_val = float(p_val)
+
+                if sma_val is not None and pd.notna(sma_val) and sma_val > 0 and pd.notna(p_val) and p_val > 0:
+                    v0_proxy = float(sma_val * 1.05)
+                    disc_proxy = float((v0_proxy - p_val) / p_val)
+                    disc_proxy = float(np.clip(disc_proxy, -0.90, 5.00))
+                    df.loc[idx, 'intrinsic_value'] = v0_proxy
+                    df.loc[idx, 'discount_ratio'] = disc_proxy
+                    df.loc[idx, 'rim_filter_reason'] = 'PRICE_TREND_PROXY'
+
+        # Flag remaining missing fundamentals
         missing_fund = df['bps'].isna() & (df['rim_filter_reason'] == '')
         df.loc[missing_fund, 'rim_filter_reason'] = 'MISSING_FUNDAMENTALS'
 
@@ -653,6 +702,13 @@ class RIMValuationEngine(BaseStrategyEngine):
             r = row.get('roe', np.nan)
             is_hc = bool(row.get('holding_co_flag', False))
             nd_per_share = float(row.get('net_debt_per_share', 0.0) or 0.0)
+            reason = str(row.get('rim_filter_reason', ''))
+
+            if reason == 'PRICE_TREND_PROXY':
+                v0_list.append(row.get('intrinsic_value', np.nan))
+                discount_list.append(row.get('discount_ratio', np.nan))
+                bps_adj_list.append(np.nan)
+                continue
 
             if pd.isna(b) or b <= 0 or pd.isna(r):
                 v0_list.append(np.nan)
@@ -701,11 +757,12 @@ class RIMValuationEngine(BaseStrategyEngine):
             'MISSING_FUNDAMENTALS', 'CAPITAL_IMPAIRMENT',
             'LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE', 'OPERATING_LOSS'
         ])
+        is_proxy = df['rim_filter_reason'] == 'PRICE_TREND_PROXY'
         if 'bps' in df.columns:
             bps_numeric = pd.to_numeric(df['bps'], errors='coerce')
-            invalid_mask = invalid_mask | bps_numeric.isna() | (bps_numeric <= 0)
+            invalid_mask = (invalid_mask | bps_numeric.isna() | (bps_numeric <= 0)) & (~is_proxy)
         else:
-            invalid_mask = pd.Series(True, index=df.index)
+            invalid_mask = pd.Series(True, index=df.index) & (~is_proxy)
 
         # Distressed companies or missing BPS have NaN discount ratio so they do not pollute percentile ranking
         df.loc[invalid_mask, 'discount_ratio'] = np.nan
@@ -713,12 +770,12 @@ class RIMValuationEngine(BaseStrategyEngine):
         df.loc[invalid_mask, 'rim_score'] = np.nan
 
         # Rank valid stocks per market
-        valid_mask = ~invalid_mask
+        valid_mask = (~invalid_mask) & df['discount_ratio'].notna()
         if valid_mask.any():
             df.loc[valid_mask, 'rim_score'] = df[valid_mask].groupby('market')['discount_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
 
             # Margin of safety acceleration for high-quality value stocks (Discount >= 30% and ROE >= required_return)
-            mos_mask = valid_mask & (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08)
+            mos_mask = valid_mask & (~is_proxy) & (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08)
             if mos_mask.any():
                 df.loc[mos_mask, 'rim_score'] = (df.loc[mos_mask, 'rim_score'] * 1.05).clip(0.0, 1.0)
 
@@ -785,7 +842,9 @@ class RIMValuationEngine(BaseStrategyEngine):
                     vix = float(indicators_df['vix'].iloc[-1])
                 except Exception:
                     pass
-            return self.compute_rim_scores(features_df, us10y_yield=us10y, vix_val=vix)
+            allow_proxy = bool(prices_dict) or kwargs.get("allow_price_proxy", False)
+            p_dict = prices_dict if isinstance(prices_dict, dict) else None
+            return self.compute_rim_scores(features_df, us10y_yield=us10y, vix_val=vix, prices_dict=p_dict, allow_price_proxy=allow_proxy)
         except Exception as e:
             logger.warning(f"[RIMValuationEngine] compute_scores failed: {e}")
             return pd.DataFrame(columns=["symbol", "rim_score"])
