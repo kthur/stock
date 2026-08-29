@@ -177,7 +177,7 @@ class LeadLagStrategyAdapter(BaseStrategyEngine):
     StrategyMeta(
         strategy_id="vcp_rule",
         display_name="VCP Rule Pattern",
-        score_column="vcp_score",
+        score_column="vcp_rule_score",
         category="technical",
         output_file="vcp_patterns.txt",
         default_regime_weights={
@@ -201,7 +201,7 @@ class VCPRuleStrategyAdapter(BaseStrategyEngine):
     ) -> pd.DataFrame:
         if self.model_instance is not None and hasattr(self.model_instance, "compute_scores"):
             return self.model_instance.compute_scores(prices_dict=prices_dict, **kwargs)
-        return pd.DataFrame(columns=["symbol", "vcp_score"])
+        return pd.DataFrame(columns=["symbol", "vcp_rule_score"])
 
 
 @register_strategy(

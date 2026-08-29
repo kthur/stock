@@ -711,14 +711,14 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
         # Rank Symbol Name Market Price Intrinsic Discount ROE_raw ROE_adj EQ Filter RIM_Score
         m12 = re.match(
             r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000|KONEX|[A-Za-z0-9_]+)\s+"
-            r"([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+"
-            r"([-+\d.nanNaN%]+|N/A)\s+([-+\d.nanNaN%]+|N/A)\s+([-+\d.nanNaN%]+|N/A)"
-            r"(?:\s+(.*?))?\s+([-+\d.nanNaN%]+)$",
+            r"([-\d.]+|N/A|-|nan|NaN)\s+([-\d.]+|N/A|-|nan|NaN)\s+([-+\d.%]+|N/A|-|nan%|NaN%)\s+"
+            r"([-+\d.%]+|N/A|-|nan%|NaN%)\s+([-+\d.%]+|N/A|-|nan%|NaN%)\s+([-+\d.%]+|N/A|-|nan%|NaN%)"
+            r"(?:\s+(.*?))?\s+([-+\d.%]+|N/A|-|nan%|NaN%)$",
             line
         )
         if m12:
             val_str = m12.group(12).strip()
-            score_val = val_str if (val_str.endswith("%") or val_str.lower() == "nan" or val_str == "N/A") else val_str + "%"
+            score_val = val_str if (val_str.endswith("%") or val_str.lower() in ("nan", "n/a", "-")) else (val_str + "%" if val_str != "N/A" else "N/A")
             filter_str = (m12.group(11) or "").strip()
             rows.append(RimRow(
                 rank=int(m12.group(1)),
@@ -737,10 +737,10 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
             ))
             continue
         # 2. Match 9-column format: Rank Symbol Name Market Price Intrinsic Discount EQ RIM_Score
-        m9 = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+(\S+)\s+([-+\d.nanNaN%]+)$", line)
+        m9 = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.]+|N/A|-|nan|NaN)\s+([-\d.]+|N/A|-|nan|NaN)\s+([-+\d.%]+|N/A|-|nan%|NaN%)\s+(\S+)\s+([-+\d.%]+|N/A|-|nan%|NaN%)$", line)
         if m9:
             val_str = m9.group(9).strip()
-            score_val = val_str if (val_str.endswith("%") or val_str.lower() == "nan" or val_str == "N/A") else val_str + "%"
+            score_val = val_str if (val_str.endswith("%") or val_str.lower() in ("nan", "n/a", "-")) else (val_str + "%" if val_str != "N/A" else "N/A")
             rows.append(RimRow(
                 rank=int(m9.group(1)),
                 symbol=m9.group(2),
@@ -755,10 +755,10 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
             ))
             continue
         # 3. Fallback to 8-column format: Rank Symbol Name Market Price Intrinsic Discount RIM_Score
-        m8 = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+([-+\d.nanNaN%]+)$", line)
+        m8 = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.]+|N/A|-|nan|NaN)\s+([-\d.]+|N/A|-|nan|NaN)\s+([-+\d.%]+|N/A|-|nan%|NaN%)\s+([-+\d.%]+|N/A|-|nan%|NaN%)$", line)
         if m8:
             val_str = m8.group(8).strip()
-            score_val = val_str if (val_str.endswith("%") or val_str.lower() == "nan" or val_str == "N/A") else val_str + "%"
+            score_val = val_str if (val_str.endswith("%") or val_str.lower() in ("nan", "n/a", "-")) else (val_str + "%" if val_str != "N/A" else "N/A")
             rows.append(RimRow(
                 rank=int(m8.group(1)),
                 symbol=m8.group(2),
@@ -1234,6 +1234,313 @@ def make_stock_link(symbol: str, market: str) -> str:
         return f'<a href="https://finance.yahoo.com/quote/{clean_sym}" target="_blank" class="stock-link">{clean_sym}</a>'
 
 
+@dataclass
+class StrategyHealthInfo:
+    strategy_id: str
+    num: int
+    name_ko: str
+    category: str
+    tab_id: str
+    valid_count: int
+    missing_count: int
+    coverage_pct: float
+    status: str          # "HEALTHY" (>=70%), "PARTIAL" (10~69%), "FALLBACK" (1~9%), "NO_DATA" (0%)
+    primary_reason: str
+    reason_label_ko: str
+
+
+def format_metric_cell(
+    val: Any,
+    kind: str = "text",             # "score", "pct", "currency", "text", "badge", "int"
+    null_label: str = "N/A",
+    highlight_positive: bool = True
+) -> str:
+    """
+    Universal table cell sanitizer.
+    Guarantees that raw 'nan', 'NaN', 'None', 'undefined', 'null', '' are NEVER emitted into HTML.
+    Returns appropriately styled HTML spans.
+    """
+    if val is None:
+        return f'<span class="badge-na">{null_label}</span>'
+
+    val_str = str(val).strip()
+    val_clean = val_str.lower().rstrip("%")
+
+    # Detect invalid strings
+    if val_clean in ("nan", "none", "undefined", "null", "", "-"):
+        return f'<span class="badge-na">{null_label}</span>'
+
+    # Detect explicit status tags
+    if any(k in val_str for k in ["데이터 수집필요", "수집필요", "미수집"]):
+        return f'<span class="badge-need-data">{html.escape(val_str)}</span>'
+    if any(k in val_str for k in ["재무데이터미비", "재무미비", "손실", "자본잠식", "필터", "MISSING_FUNDAMENTALS", "CAPITAL_IMPAIRMENT", "LOW_EARNINGS_QUALITY", "PREFERRED_SHARE", "OPERATING_LOSS"]):
+        return f'<span class="badge-filtered">{html.escape(val_str)}</span>'
+    if "대체" in val_str or "기본값" in val_str:
+        return f'<span class="badge-fallback">{html.escape(val_str)}</span>'
+
+    # Formatted numeric types
+    if kind in ("score", "pct"):
+        num = safe_float(val_str)
+        sign = "+" if (num > 0 and kind == "pct" and not val_str.startswith("+")) else ""
+        disp = f"{sign}{num:.1f}%" if "%" in val_str or kind == "pct" else f"{num:.1f}%"
+        color_cls = "pos" if (highlight_positive and num > 0) else ("neg" if num < 0 else "")
+        return f'<span class="{color_cls}">{disp}</span>'
+
+    if kind == "currency":
+        num = safe_float(val_str)
+        return f'{num:,.0f}' if num == int(num) else f'{num:,.2f}'
+
+    if kind == "badge":
+        return f'<span class="badge">{html.escape(val_str)}</span>'
+
+    return html.escape(val_str)
+
+
+def build_tab_status_banner(
+    strategy_name: str,
+    market: str,
+    status_type: str = "empty",  # "empty", "no_pairs", "partial", "info", "options_us_only"
+    reason_code: str = "",
+    coverage_pct: float = 0.0
+) -> str:
+    """
+    Generates an informative notice/warning banner within strategy tab panels.
+    """
+    if status_type == "no_pairs":
+        return f"""
+        <div class="strategy-status-banner banner-info">
+          <div class="banner-icon">⚖️</div>
+          <div class="banner-content">
+            <div class="banner-title">통계적 유의 공적분 페어 스캔 완료 (Statistical Cointegration Filter)</div>
+            <div class="banner-desc">
+              현재 ADF 단위근 검정(p &lt; 0.05) 및 잔차 Z-Score 조건을 엄격히 만족하는 실제 공적분 페어가 없습니다.<br>
+              인위적인 가짜 벤치마크 페어를 생성하지 않으며, 앙상블 엔진에서 Stat-Arb 비중을 안전하게 타 알파 전략 및 현금으로 재정규화(Re-normalization)합니다.
+            </div>
+          </div>
+        </div>"""
+
+    if status_type == "options_us_only":
+        return f"""
+        <div class="strategy-status-banner banner-warning">
+          <div class="banner-icon">📊</div>
+          <div class="banner-content">
+            <div class="banner-title">옵션 체인 데이터 제공 범위 안내 (US Options Scope)</div>
+            <div class="banner-desc">
+              <strong>{html.escape(market)}</strong> 시장은 개별 주식 옵션 체인 데이터 유동성 제한으로 인해 파생 전략 신호가 산출되지 않습니다.
+              미국 시장(SP500, NASDAQ) 옵션 체인 분석 결과를 확인하세요.
+            </div>
+          </div>
+        </div>"""
+
+    if status_type == "empty":
+        reason_disp = f" (사유: <code>{html.escape(reason_code)}</code>)" if reason_code else ""
+        return f"""
+        <div class="strategy-status-banner banner-warning">
+          <div class="banner-icon">⚠️</div>
+          <div class="banner-content">
+            <div class="banner-title">{html.escape(strategy_name)} 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
+            <div class="banner-desc">
+              <strong>{html.escape(market)}</strong> 시장의 <strong>{html.escape(strategy_name)}</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다.{reason_disp}<br>
+              앙상블 엔진에서는 해당 전략의 가중치를 <strong>0.0%로 배제</strong>하고 활성 전략 가중치로 자동 재정규화하여 안정성을 보장합니다.
+            </div>
+          </div>
+        </div>"""
+
+    return ""
+
+
+def parse_strategy_coverage_report(
+    cov_text: str,
+    parsed_strategies_map: Optional[dict[str, list]] = None,
+    total_symbols_fallback: int = 948
+) -> tuple[int, list[StrategyHealthInfo]]:
+    """
+    Parses strategy_data_coverage_report.txt or falls back to dynamically calculating
+    valid/missing counts from parsed strategy row lists.
+    """
+    STRATEGY_METADATA = [
+        ("regression", 1, "XGBoost 회귀", "AI 예측", "regression"),
+        ("surge", 2, "Surge 분류기", "AI 예측", "surge"),
+        ("lead_lag", 3, "Lead-Lag 후행주", "모멘텀/수급", "leadlag"),
+        ("vcp_rule", 4, "VCP 패턴 (Rule)", "기술적 패턴", "vcp"),
+        ("vcp_ml", 5, "VCP ML 급등예측", "AI 예측", "vcpml"),
+        ("lstm", 6, "Strict Causal LSTM", "딥러닝", "lstm"),
+        ("stat_arb", 7, "Stat-Arb 차익거래", "차익거래", "stat-arb"),
+        ("sector_rotation", 8, "Sector Rotation", "모멘텀/수급", "sector"),
+        ("rim_valuation", 9, "RIM Valuation", "가치평가", "rim"),
+        ("event_driven", 10, "Event-Driven 촉매", "촉매/공시", "event"),
+        ("mq_factor", 11, "MQ Factor (퀄리티)", "퀄리티", "mq"),
+        ("iv_skew", 12, "Options IV Skew", "파생/역발상", "iv"),
+        ("order_flow", 13, "Order Flow 수급", "수급/유동성", "flow"),
+        ("short_term_reversal", 14, "ST Reversal 단기반등", "평균회귀", "reversal"),
+        ("arm_factor", 15, "ARM Factor (컨센서스)", "컨센서스", "arm"),
+        ("card_factor", 16, "CARD Factor (크로스에셋)", "크로스에셋", "card"),
+        ("latr_factor", 17, "LATR Factor (꼬리위험)", "꼬리위험", "latr"),
+        ("inst_foreign_sector", 18, "외인/투신 수급", "수급/유동성", "ifs"),
+        ("supply_chain", 19, "Supply Chain 공급망", "공급망", "supplychain"),
+        ("sentiment", 20, "NLP Sentiment (감성)", "NLP 감성", "sentiment"),
+        ("factor_neutralized", 21, "Factor Neutralized", "순수 알파", "neutralized"),
+        ("vol_target", 22, "Vol Targeting", "변동성 관리", "voltarget"),
+        ("microstructure", 23, "Microstructure 호가", "미시구조", "microstructure"),
+        ("accruals_quality", 24, "Accruals Quality (발생액)", "회계 품질", "accruals"),
+        ("short_squeeze", 25, "Short Squeeze 촉매", "공매도", "shortsqueeze"),
+        ("valueup_catalyst", 26, "Value-Up Yield (주주환원)", "주주환원", "valueup"),
+        ("trend_efficiency", 27, "Trend Efficiency 추세", "추세 필터", "trendeff"),
+        ("gamma_squeeze", 28, "Gamma Squeeze (감마)", "파생/옵션", "gammasqueeze"),
+        ("insider_buying", 29, "Insider Buying (내부자)", "내부자", "insider"),
+        ("darkpool", 30, "Darkpool & HFT Flow", "고빈도/다크풀", "darkpool"),
+        ("earnings_tone_drift", 31, "Tone Drift 어닝어조", "NLP 어조", "tonedrift"),
+    ]
+
+    REASON_KO_MAP = {
+        "INSUFFICIENT_PRICE_HISTORY": "과거 주가 데이터 부족",
+        "NO_FUNDAMENTAL_DATA": "재무제표 데이터 수집 대기",
+        "LOW_EARNINGS_QUALITY": "이익 품질 필터 제외 (적자/저품질)",
+        "NO_OPTIONS_CHAIN": "옵션 체인 데이터 미제공 (미국 외)",
+        "NON_US_MARKET_SCOPE": "미국 시장 전용 팩터",
+        "NO_COINTEGRATED_PAIR": "통계적 유의 공적분 페어 미발견",
+        "NO_CORPORATE_FILING": "공시 데이터 미수집 / 미제출",
+        "NO_INSIDER_FILING": "내부자 거래 공시 미발생",
+        "NO_EARNINGS_TRANSCRIPT": "실적 발표 컨퍼런스콜 텍스트 미제공",
+        "NO_LEAD_LAG_LEADER": "업종 주도주 시차 상관성 미충족",
+        "NO_SUPPLY_CHAIN_MAPPING": "공급망 네트워크 맵핑 미등록",
+        "STRATEGY_SIGNAL_NEUTRAL": "중립 신호 (조건 미부합)",
+        "None (100% Valid)": "전체 종목 정상 산출",
+    }
+
+    cov_dict = {}
+    total_symbols = total_symbols_fallback
+    if cov_text:
+        for line in cov_text.splitlines():
+            line_s = line.strip()
+            if line_s.startswith("Total Evaluated Symbols:"):
+                m_tot = re.search(r"(\d+)", line_s)
+                if m_tot:
+                    total_symbols = int(m_tot.group(1))
+            parts = line_s.split()
+            if len(parts) >= 4 and parts[1].isdigit() and parts[2].isdigit() and "%" in parts[3]:
+                s_id = parts[0]
+                v_cnt = int(parts[1])
+                m_cnt = int(parts[2])
+                cov_pct = float(parts[3].replace("%", ""))
+                reason = " ".join(parts[4:]) if len(parts) > 4 else "None (100% Valid)"
+                cov_dict[s_id] = (v_cnt, m_cnt, cov_pct, reason)
+
+    items: list[StrategyHealthInfo] = []
+    for s_id, num, name_ko, cat, tab_id in STRATEGY_METADATA:
+        if s_id in cov_dict:
+            v_cnt, m_cnt, cov_pct, reason = cov_dict[s_id]
+        elif parsed_strategies_map and s_id in parsed_strategies_map:
+            rows_list = parsed_strategies_map.get(s_id, [])
+            v_cnt = len(rows_list) if rows_list else 0
+            m_cnt = max(0, total_symbols - v_cnt)
+            cov_pct = round((v_cnt / total_symbols * 100.0), 1) if total_symbols > 0 else 0.0
+            reason = "None (100% Valid)" if cov_pct >= 90 else "INSUFFICIENT_PRICE_HISTORY"
+        else:
+            v_cnt = 0
+            m_cnt = total_symbols
+            cov_pct = 0.0
+            reason = "NO_FUNDAMENTAL_DATA" if ("rim" in s_id or "mq" in s_id or "accruals" in s_id) else "INSUFFICIENT_PRICE_HISTORY"
+
+        if cov_pct >= 70.0:
+            status = "HEALTHY"
+        elif cov_pct >= 10.0:
+            status = "PARTIAL"
+        elif cov_pct > 0.0:
+            status = "FALLBACK"
+        else:
+            status = "NO_DATA"
+
+        reason_ko = REASON_KO_MAP.get(reason, reason)
+        items.append(StrategyHealthInfo(
+            strategy_id=s_id,
+            num=num,
+            name_ko=name_ko,
+            category=cat,
+            tab_id=tab_id,
+            valid_count=v_cnt,
+            missing_count=m_cnt,
+            coverage_pct=cov_pct,
+            status=status,
+            primary_reason=reason,
+            reason_label_ko=reason_ko
+        ))
+
+    return total_symbols, items
+
+
+def build_strategy_health_monitor_html(total_symbols: int, health_items: list[StrategyHealthInfo]) -> str:
+    """Renders the Strategy Data Status Summary Card & Health Monitor at the top of the dashboard."""
+    healthy_cnt = sum(1 for item in health_items if item.status == "HEALTHY")
+    partial_cnt = sum(1 for item in health_items if item.status == "PARTIAL")
+    fallback_cnt = sum(1 for item in health_items if item.status == "FALLBACK")
+    nodata_cnt = sum(1 for item in health_items if item.status == "NO_DATA")
+    avg_cov = sum(item.coverage_pct for item in health_items) / len(health_items) if health_items else 0.0
+
+    cards_html = []
+    for item in health_items:
+        if item.status == "HEALTHY":
+            status_badge = f'<span class="badge-healthy">🟢 정상 ({item.coverage_pct:.1f}%)</span>'
+            bar_color = "#2ea043"
+        elif item.status == "PARTIAL":
+            status_badge = f'<span class="badge-partial">🟡 부분 ({item.coverage_pct:.1f}%)</span>'
+            bar_color = "#d29922"
+        elif item.status == "FALLBACK":
+            status_badge = f'<span class="badge-fallback">🟠 대체 ({item.coverage_pct:.1f}%)</span>'
+            bar_color = "#38bdf8"
+        else:
+            status_badge = '<span class="badge-need-data">🔴 수집필요 (0.0%)</span>'
+            bar_color = "#f85149"
+
+        bar_w = max(4, int(item.coverage_pct))
+        cards_html.append(f"""
+        <div class="health-card" onclick="switchTabById('{item.tab_id}')" title="클릭하여 {item.name_ko} 탭으로 바로 이동">
+          <div class="health-card-header">
+            <span class="health-card-title">{item.num}. {item.name_ko}</span>
+            {status_badge}
+          </div>
+          <div class="health-bar-track">
+            <div class="health-bar-fill" style="width:{bar_w}%; background:{bar_color};"></div>
+          </div>
+          <div class="health-card-meta">
+            <span>유효 {item.valid_count:,} / 결측 {item.missing_count:,}</span>
+            <span class="health-reason" title="{html.escape(item.primary_reason)}">{html.escape(item.reason_label_ko)}</span>
+          </div>
+        </div>""")
+
+    cards_str = "\n".join(cards_html)
+
+    return f"""
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- 31대 전략 데이터 수집 및 건전성 모니터 (Health Monitor) -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="health-monitor-section">
+      <div class="health-monitor-header" onclick="toggleSection('health-monitor-body', 'health-icon')">
+        <div class="health-header-left">
+          <span class="health-header-icon">🩺</span>
+          <h2 class="health-header-title">Strategy Data Health Monitor (31대 전략 데이터 수집 현황 &amp; 건전성 모니터)</h2>
+          <div class="health-summary-pills">
+            <span class="health-pill pill-healthy">🟢 정상 {healthy_cnt}</span>
+            <span class="health-pill pill-partial">🟡 부분 {partial_cnt}</span>
+            <span class="health-pill pill-fallback">🟠 대체 {fallback_cnt}</span>
+            <span class="health-pill pill-nodata">🔴 미비 {nodata_cnt}</span>
+            <span class="health-pill pill-avg">📊 평균 커버리지: {avg_cov:.1f}%</span>
+          </div>
+        </div>
+        <span id="health-icon" class="health-toggle-btn">▼ 접기</span>
+      </div>
+      <div id="health-monitor-body" class="health-monitor-body">
+        <div class="health-guide-text">
+          💡 각 전략 카드를 클릭하면 해당 개별 전략 상세 탭으로 자동 이동합니다. 데이터 결측 또는 수집 대기 전략은 앙상블 엔진에서 <strong>자동 제로 가중치(0.0%)</strong> 처리되어 포트폴리오 왜곡을 원천 방지합니다.
+        </div>
+        <div class="health-grid">
+          {cards_str}
+        </div>
+      </div>
+    </div>
+    """
+
+
 def build_history_section(result_dir: Path) -> str:
     """Build HTML for the Pipeline Run History & Comparison tab panel."""
     import html as _html
@@ -1510,8 +1817,53 @@ def build_html(
     backtest_rows_html: str = "",
     backtest_note_html: str = "",
     history_html: str = "",
+    strategy_coverage_report_text: str = "",
 ) -> str:
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
+
+    # Map parsed strategy rows for dynamic coverage fallback
+    parsed_strategies_map = {
+        "regression": [r for sec in (reg_sections or []) for r in sec.rows],
+        "surge": [r for sec in (surge_sections or []) for r in sec.rows],
+        "lead_lag": (follower_rows or []),
+        "vcp_rule": (vcp_rows or []),
+        "vcp_ml": [r for sec in (vcp_ml_sections or []) for r in sec.rows],
+        "lstm": (lstm_rows or []),
+        "stat_arb": (stat_arb_rows or []),
+        "sector_rotation": (sector_rows or []),
+        "rim_valuation": (rim_rows or []),
+        "event_driven": (event_rows or []),
+        "mq_factor": (mq_rows or []),
+        "iv_skew": (iv_rows or []),
+        "order_flow": (flow_rows or []),
+        "short_term_reversal": (reversal_rows or []),
+        "arm_factor": (arm_rows or []),
+        "card_factor": (card_rows or []),
+        "latr_factor": (latr_rows or []),
+        "inst_foreign_sector": (ifs_rows or []),
+        "supply_chain": (supply_chain_rows or []),
+        "sentiment": (sentiment_rows or []),
+        "factor_neutralized": (factor_neutralized_rows or []),
+        "vol_target": (vol_target_rows or []),
+        "microstructure": (microstructure_rows or []),
+        "accruals_quality": (accruals_quality_rows or []),
+        "short_squeeze": (short_squeeze_rows or []),
+        "valueup_catalyst": (valueup_catalyst_rows or []),
+        "trend_efficiency": (trend_efficiency_rows or []),
+        "gamma_squeeze": (gamma_squeeze_rows or []),
+        "insider_buying": (insider_buying_rows or []),
+        "darkpool": (darkpool_rows or []),
+        "earnings_tone_drift": (earnings_tone_drift_rows or []),
+    }
+    total_eval_symbols = sum(len(m.rows) for m in ensemble.markets) if (ensemble and ensemble.markets) else 948
+    if total_eval_symbols == 0:
+        total_eval_symbols = 948
+    total_symbols_cov, health_items = parse_strategy_coverage_report(
+        cov_text=strategy_coverage_report_text,
+        parsed_strategies_map=parsed_strategies_map,
+        total_symbols_fallback=total_eval_symbols
+    )
+    health_monitor_html = build_strategy_health_monitor_html(total_symbols_cov, health_items)
     def resolve_regime_info(reg_name: str, fallback_label: str = "BULL_LOW_VOL") -> tuple[str, str]:
         r = (reg_name or "").strip().upper()
         if r in REGIME_INFO:
@@ -1639,39 +1991,39 @@ def build_html(
               <td class="rank sticky-col sticky-rank">#{erow.rank}</td>
               <td class="symbol sticky-col sticky-symbol">{symbol_link}</td>
               <td class="name sticky-col sticky-name">{html.escape(erow.name)}<span class="row-chevron" aria-hidden="true">›</span></td>
-              <td class="score">{erow.score}</td>
-              <td class="{rc}">{ret_disp}</td>
-              <td class="col-strat">{erow.reg}</td>
-              <td class="col-strat">{erow.surge}</td>
-              <td class="col-strat">{erow.lead_lag}</td>
-              <td class="col-strat">{erow.vcp_rule}</td>
-              <td class="col-strat">{erow.vcp_ml}</td>
-              <td class="col-strat">{erow.lstm}</td>
-              <td class="col-strat">{erow.stat_arb}</td>
-              <td class="col-strat">{erow.sector_rotation}</td>
-              <td class="col-strat">{erow.rim_valuation}</td>
-              <td class="col-strat">{erow.event_driven}</td>
-              <td class="col-strat">{erow.mq_factor}</td>
-              <td class="col-strat">{erow.iv_skew}</td>
-              <td class="col-strat">{erow.order_flow}</td>
-              <td class="col-strat">{erow.short_term_reversal}</td>
-              <td class="col-strat">{erow.arm_factor}</td>
-              <td class="col-strat">{erow.card_factor}</td>
-              <td class="col-strat">{erow.latr_factor}</td>
-              <td class="col-strat">{erow.inst_foreign_sector}</td>
-              <td class="col-strat">{erow.supply_chain}</td>
-              <td class="col-strat">{erow.sentiment}</td>
-              <td class="col-strat">{erow.factor_neutralized}</td>
-              <td class="col-strat">{erow.vol_target}</td>
-              <td class="col-strat">{erow.microstructure}</td>
-              <td class="col-strat">{erow.accruals_quality}</td>
-              <td class="col-strat">{erow.short_squeeze}</td>
-              <td class="col-strat">{erow.valueup_catalyst}</td>
-              <td class="col-strat">{erow.trend_efficiency}</td>
-              <td class="col-strat">{erow.gamma_squeeze}</td>
-              <td class="col-strat">{erow.insider_buying}</td>
-              <td class="col-strat">{erow.darkpool}</td>
-              <td class="col-strat">{erow.earnings_tone_drift}</td>
+              <td class="score">{format_metric_cell(erow.score, kind="score")}</td>
+              <td class="{rc}">{format_metric_cell(ret_disp, kind="pct")}</td>
+              <td class="col-strat">{format_metric_cell(erow.reg, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.surge, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.lead_lag, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.vcp_rule, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.vcp_ml, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.lstm, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.stat_arb, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.sector_rotation, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.rim_valuation, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.event_driven, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.mq_factor, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.iv_skew, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.order_flow, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.short_term_reversal, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.arm_factor, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.card_factor, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.latr_factor, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.inst_foreign_sector, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.supply_chain, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.sentiment, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.factor_neutralized, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.vol_target, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.microstructure, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.accruals_quality, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.short_squeeze, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.valueup_catalyst, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.trend_efficiency, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.gamma_squeeze, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.insider_buying, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.darkpool, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.earnings_tone_drift, kind="score")}</td>
             </tr>"""
 
                 cards_html += f"""
@@ -1898,13 +2250,15 @@ def build_html(
 
     def _macro_cell(label: str, value: str, fallback: str, cls: str = "") -> str:
         marker = ""
-        if value:
-            try:
-                if abs(safe_float(value) - safe_float(fallback)) < 1e-9 and safe_float(fallback) != 0.0:
-                    marker = '<span class="fallback-badge">기본값</span>'
-            except Exception:
-                marker = ""
-        return f'<div class="macro-item"><span class="ml">{label}</span><span class="mv {cls}">{value or "N/A"}{marker}</span></div>'
+        val_clean = str(value or "").strip()
+        if not val_clean or val_clean.lower() in ("nan", "none", "null", "undefined", "n/a", "-"):
+            return f'<div class="macro-item"><span class="ml">{label}</span><span class="mv {cls}"><span class="badge-na">N/A</span></span></div>'
+        try:
+            if abs(safe_float(val_clean) - safe_float(fallback)) < 1e-9 and safe_float(fallback) != 0.0:
+                marker = '<span class="fallback-badge">기본값</span>'
+        except Exception:
+            marker = ""
+        return f'<div class="macro-item"><span class="ml">{label}</span><span class="mv {cls}">{html.escape(val_clean)}{marker}</span></div>'
 
     tooltip_text = (
         '<strong>🇺🇸/🇰🇷 한·미 증시 동조화(Coupling) / 디커플링(Decoupling) 지표</strong><br>'
@@ -2240,6 +2594,7 @@ def build_html(
 
     # ── Tab: Stat-Arb ──
     stat_arb_rows_html = ""
+    stat_arb_banner = ""
     if stat_arb_rows:
         for sa_r in stat_arb_rows:
             z_val = safe_float(sa_r.z_score)
@@ -2253,6 +2608,7 @@ def build_html(
               <td><span class="badge">{sa_r.signal}</span></td>
             </tr>"""
     else:
+        stat_arb_banner = build_tab_status_banner(strategy_name="Stat-Arb Cointegration", market="전체", status_type="no_pairs")
         stat_arb_rows_html = '<tr><td colspan="5" class="empty">조건을 만족하는 공적분 페어가 없습니다</td></tr>'
 
     # ── Tab: Sector Rotation ──
@@ -2293,34 +2649,42 @@ def build_html(
     rim_panels = ""
     for mkt in active_markets_ordered:
         flag = MARKET_FLAGS.get(mkt, "")
-        rows_html = ""
         mkt_rim_rows = [rim_r for rim_r in (rim_rows or []) if rim_r.market == mkt]
+        banner_html = ""
         if mkt_rim_rows:
+            rows_html = ""
             for rim_r in mkt_rim_rows:
                 symbol_link = make_stock_link(rim_r.symbol, mkt)
-                disc_class = "pos" if safe_float(rim_r.discount) > 0 else "neg"
-                filter_disp = html.escape(rim_r.filter_tags) if rim_r.filter_tags else "-"
-                score_display = rim_r.rim_score or rim_r.score
+                p_cell = format_metric_cell(rim_r.price, kind="currency")
+                iv_cell = format_metric_cell(rim_r.intrinsic_value, kind="currency")
+                disc_cell = format_metric_cell(rim_r.discount, kind="pct")
+                roe_raw_cell = format_metric_cell(rim_r.roe_raw, kind="pct", highlight_positive=False)
+                roe_adj_cell = format_metric_cell(rim_r.roe_adj, kind="pct", highlight_positive=False)
+                eq_cell = format_metric_cell(rim_r.eq, kind="pct", highlight_positive=False)
+                filter_disp = format_metric_cell(rim_r.filter_tags, kind="badge") if rim_r.filter_tags else '<span class="badge-na">-</span>'
+                score_display = format_metric_cell(rim_r.rim_score or rim_r.score, kind="score")
                 rows_html += f"""
             <tr>
               <td class="rank">#{rim_r.rank}</td>
               <td class="symbol">{symbol_link}</td>
               <td class="name">{html.escape(rim_r.name)}</td>
-              <td>{rim_r.price}</td>
-              <td class="pos">{rim_r.intrinsic_value}</td>
-              <td class="{disc_class}">{rim_r.discount}</td>
-              <td>{rim_r.roe_raw}</td>
-              <td>{rim_r.roe_adj}</td>
-              <td>{rim_r.eq}</td>
+              <td>{p_cell}</td>
+              <td class="pos">{iv_cell}</td>
+              <td>{disc_cell}</td>
+              <td>{roe_raw_cell}</td>
+              <td>{roe_adj_cell}</td>
+              <td>{eq_cell}</td>
               <td>{filter_disp}</td>
               <td class="score">{score_display}</td>
             </tr>"""
         else:
-            rows_html = '<tr><td colspan="11" class="empty">데이터 없음</td></tr>'
+            banner_html = build_tab_status_banner(strategy_name="RIM 가치평가 (Residual Income Model)", market=mkt, status_type="empty", reason_code="NO_FUNDAMENTAL_DATA")
+            rows_html = '<tr><td colspan="11" class="empty">데이터 없음 (재무데이터 미비 또는 적격 RIM 대상 종목 없음)</td></tr>'
 
         rim_panels += f"""
     <div class="market-panel" data-market="{mkt}">
       <h3 class="market-title">{flag} {mkt}</h3>
+      {banner_html}
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -2338,30 +2702,42 @@ def build_html(
         col_header: str,
         score_attr: str = "score",
         score_class: str = "pos",
+        strategy_name: str = "",
+        missing_reason_code: str = "",
     ) -> str:
         panels_html = ""
         for mkt in active_markets_ordered:
             flag = MARKET_FLAGS.get(mkt, "")
             mkt_rows = [r for r in (rows_list or []) if r.market == mkt]
-            rows_html = ""
+            banner_html = ""
             if mkt_rows:
+                rows_html = ""
                 for row in mkt_rows:
                     sym_link = make_stock_link(row.symbol, mkt)
                     score_val = getattr(row, score_attr, row.score)
+                    score_cell = format_metric_cell(score_val, kind="score")
                     rows_html += f"""
             <tr>
               <td class="rank">#{row.rank}</td>
               <td class="symbol">{sym_link}</td>
               <td class="name">{html.escape(row.name)}</td>
               <td>{MARKET_FLAGS.get(row.market, "")} {row.market}</td>
-              <td class="{score_class}">{score_val}</td>
+              <td class="{score_class}">{score_cell}</td>
             </tr>"""
             else:
+                st_name = strategy_name or col_header
+                banner_html = build_tab_status_banner(
+                    strategy_name=st_name,
+                    market=mkt,
+                    status_type="empty",
+                    reason_code=missing_reason_code or "INSUFFICIENT_PRICE_HISTORY",
+                )
                 rows_html = '<tr><td colspan="5" class="empty">데이터 없음</td></tr>'
 
             panels_html += f"""
     <div class="market-panel" data-market="{mkt}">
       <h3 class="market-title">{flag} {mkt}</h3>
+      {banner_html}
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -2373,29 +2749,29 @@ def build_html(
     </div>"""
         return panels_html
 
-    lstm_panels  = _build_simple_panels(lstm_rows or [],   "lstm",  "LSTM 스코어")
-    event_panels = _build_simple_panels(event_rows or [], "event", "이벤트 스코어")
-    mq_panels    = _build_simple_panels(mq_rows or [],    "mq",    "MQ 스코어")
-    iv_panels    = _build_simple_panels(iv_rows or [],    "iv",    "IV Skew 스코어")
-    flow_panels  = _build_simple_panels(flow_rows or [],  "flow",  "수급 스코어")
-    reversal_panels = _build_simple_panels(reversal_rows or [], "reversal", "반전 스코어")
-    arm_panels    = _build_simple_panels(arm_rows or [],    "arm",    "ARM 스코어")
-    card_panels   = _build_simple_panels(card_rows or [],   "card",   "CARD 스코어")
-    latr_panels   = _build_simple_panels(latr_rows or [],   "latr",   "LATR 스코어")
-    ifs_panels    = _build_simple_panels(ifs_rows or [],    "ifs",    "외인/투신 수급 스코어")
-    supplychain_panels = _build_simple_panels(supply_chain_rows or [], "supplychain", "밸류체인 스코어")
-    sentiment_panels   = _build_simple_panels(sentiment_rows or [],   "sentiment",   "NLP 감성 스코어")
-    neutralized_panels = _build_simple_panels(factor_neutralized_rows or [], "neutralized", "순수 알파 스코어")
-    voltarget_panels   = _build_simple_panels(vol_target_rows or [],   "voltarget",   "변동성 타겟 스코어")
-    microstructure_panels = _build_simple_panels(microstructure_rows or [], "microstructure", "미시구조 스코어")
-    accruals_panels       = _build_simple_panels(accruals_quality_rows or [], "accruals", "회계 품질 스코어")
-    shortsqueeze_panels   = _build_simple_panels(short_squeeze_rows or [], "shortsqueeze", "숏스퀴즈 스코어")
-    valueup_panels        = _build_simple_panels(valueup_catalyst_rows or [], "valueup", "Value-Up 스코어")
-    trendeff_panels       = _build_simple_panels(trend_efficiency_rows or [], "trendeff", "추세 효율성 스코어")
-    gammasqueeze_panels   = _build_simple_panels(gamma_squeeze_rows or [], "gammasqueeze", "감마 스퀴즈 스코어")
-    insider_panels        = _build_simple_panels(insider_buying_rows or [], "insider", "내부자 매수 스코어")
-    darkpool_panels       = _build_simple_panels(darkpool_rows or [], "darkpool", "다크풀 수급 스코어")
-    tonedrift_panels      = _build_simple_panels(earnings_tone_drift_rows or [], "tonedrift", "어닝 톤 드리프트 스코어")
+    lstm_panels  = _build_simple_panels(lstm_rows or [],   "lstm",  "LSTM 스코어", strategy_name="Strict Causal LSTM", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    event_panels = _build_simple_panels(event_rows or [], "event", "이벤트 스코어", strategy_name="Event-Driven 촉매", missing_reason_code="NO_CORPORATE_FILING")
+    mq_panels    = _build_simple_panels(mq_rows or [],    "mq",    "MQ 스코어", strategy_name="Momentum Quality Factor", missing_reason_code="NO_FUNDAMENTAL_DATA")
+    iv_panels    = _build_simple_panels(iv_rows or [],    "iv",    "IV Skew 스코어", strategy_name="Options IV Skew", missing_reason_code="NO_OPTIONS_CHAIN")
+    flow_panels  = _build_simple_panels(flow_rows or [],  "flow",  "수급 스코어", strategy_name="Order Flow Imbalance", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    reversal_panels = _build_simple_panels(reversal_rows or [], "reversal", "반전 스코어", strategy_name="Short-Term Reversal", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    arm_panels    = _build_simple_panels(arm_rows or [],    "arm",    "ARM 스코어", strategy_name="Analyst Revision Momentum", missing_reason_code="NO_FUNDAMENTAL_DATA")
+    card_panels   = _build_simple_panels(card_rows or [],   "card",   "CARD 스코어", strategy_name="Cross-Asset Regime Divergence", missing_reason_code="STRATEGY_SIGNAL_NEUTRAL")
+    latr_panels   = _build_simple_panels(latr_rows or [],   "latr",   "LATR 스코어", strategy_name="Liquidity-Adjusted Tail Risk", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    ifs_panels    = _build_simple_panels(ifs_rows or [],    "ifs",    "외인/투신 수급 스코어", strategy_name="외인/투신 수급 강도", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    supplychain_panels = _build_simple_panels(supply_chain_rows or [], "supplychain", "밸류체인 스코어", strategy_name="Supply Chain Momentum", missing_reason_code="NO_SUPPLY_CHAIN_MAPPING")
+    sentiment_panels   = _build_simple_panels(sentiment_rows or [],   "sentiment",   "NLP 감성 스코어", strategy_name="NLP Sentiment Engine", missing_reason_code="NO_CORPORATE_FILING")
+    neutralized_panels = _build_simple_panels(factor_neutralized_rows or [], "neutralized", "순수 알파 스코어", strategy_name="Factor Neutralized Alpha", missing_reason_code="STRATEGY_SIGNAL_NEUTRAL")
+    voltarget_panels   = _build_simple_panels(vol_target_rows or [],   "voltarget",   "변동성 타겟 스코어", strategy_name="Volatility Targeting", missing_reason_code="STRATEGY_SIGNAL_NEUTRAL")
+    microstructure_panels = _build_simple_panels(microstructure_rows or [], "microstructure", "미시구조 스코어", strategy_name="Microstructure Imbalance", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    accruals_panels       = _build_simple_panels(accruals_quality_rows or [], "accruals", "회계 품질 스코어", strategy_name="Accruals Quality Anomaly", missing_reason_code="NO_FUNDAMENTAL_DATA")
+    shortsqueeze_panels   = _build_simple_panels(short_squeeze_rows or [], "shortsqueeze", "숏스퀴즈 스코어", strategy_name="Short Squeeze Catalyst", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    valueup_panels        = _build_simple_panels(valueup_catalyst_rows or [], "valueup", "Value-Up 스코어", strategy_name="Value-Up & Shareholder Yield", missing_reason_code="NO_FUNDAMENTAL_DATA")
+    trendeff_panels       = _build_simple_panels(trend_efficiency_rows or [], "trendeff", "추세 효율성 스코어", strategy_name="Kaufman Trend Efficiency", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    gammasqueeze_panels   = _build_simple_panels(gamma_squeeze_rows or [], "gammasqueeze", "감마 스퀴즈 스코어", strategy_name="Options Gamma Squeeze", missing_reason_code="NO_OPTIONS_CHAIN")
+    insider_panels        = _build_simple_panels(insider_buying_rows or [], "insider", "내부자 매수 스코어", strategy_name="Insider Buying Tracker", missing_reason_code="NO_INSIDER_FILING")
+    darkpool_panels       = _build_simple_panels(darkpool_rows or [], "darkpool", "다크풀 수급 스코어", strategy_name="Darkpool & HFT Flow", missing_reason_code="NON_US_MARKET_SCOPE")
+    tonedrift_panels      = _build_simple_panels(earnings_tone_drift_rows or [], "tonedrift", "어닝 톤 드리프트 스코어", strategy_name="Earnings Call Tone Drift", missing_reason_code="NO_EARNINGS_TRANSCRIPT")
 
     # JSON strings for Chart.js safely serialized to prevent XSS
     hrp_labels_json = _safe_json(chart_labels)
@@ -2447,6 +2823,48 @@ def build_html(
   .ml {{ color: var(--muted); font-size: 12px; }}
   .mv {{ font-weight: 600; font-size: 13px; }}
   .fallback-badge {{ margin-left: 6px; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; color: #d29922; border: 1px solid rgba(210, 153, 34, 0.5); background: rgba(210, 153, 34, 0.12); }}
+  .badge-na {{ display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #8b949e; background: rgba(139, 148, 158, 0.15); border: 1px solid rgba(139, 148, 158, 0.3); }}
+  .badge-need-data {{ display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #f85149; background: rgba(248, 81, 73, 0.15); border: 1px solid rgba(248, 81, 73, 0.4); }}
+  .badge-filtered {{ display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #d29922; background: rgba(210, 153, 34, 0.15); border: 1px solid rgba(210, 153, 34, 0.4); }}
+  .badge-fallback {{ display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #38bdf8; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); }}
+  .badge-healthy {{ display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #2ea043; background: rgba(46, 160, 67, 0.15); border: 1px solid rgba(46, 160, 67, 0.4); }}
+  .badge-partial {{ display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #d29922; background: rgba(210, 153, 34, 0.15); border: 1px solid rgba(210, 153, 34, 0.4); }}
+
+  /* Health Monitor Section */
+  .health-monitor-section {{ margin: 16px 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }}
+  .health-monitor-header {{ display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: linear-gradient(90deg, #161b22 0%, #1f2937 100%); cursor: pointer; border-bottom: 1px solid var(--border); }}
+  .health-header-left {{ display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }}
+  .health-header-icon {{ font-size: 18px; }}
+  .health-header-title {{ font-size: 15px; font-weight: 700; color: var(--text); }}
+  .health-summary-pills {{ display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-left: 8px; }}
+  .health-pill {{ font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 12px; border: 1px solid; }}
+  .pill-healthy {{ color: #2ea043; border-color: rgba(46, 160, 67, 0.5); background: rgba(46, 160, 67, 0.1); }}
+  .pill-partial {{ color: #d29922; border-color: rgba(210, 153, 34, 0.5); background: rgba(210, 153, 34, 0.1); }}
+  .pill-fallback {{ color: #38bdf8; border-color: rgba(56, 189, 248, 0.5); background: rgba(56, 189, 248, 0.1); }}
+  .pill-nodata {{ color: #f85149; border-color: rgba(248, 81, 73, 0.5); background: rgba(248, 81, 73, 0.1); }}
+  .pill-avg {{ color: #58a6ff; border-color: rgba(88, 166, 255, 0.5); background: rgba(88, 166, 255, 0.1); }}
+  .health-toggle-btn {{ font-size: 12px; color: var(--accent); font-weight: 600; }}
+  .health-monitor-body {{ padding: 16px 20px; background: #0d1117; }}
+  .health-guide-text {{ font-size: 12px; color: var(--muted); margin-bottom: 14px; padding: 8px 12px; background: var(--surface2); border-radius: 6px; border-left: 3px solid var(--accent); }}
+  .health-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }}
+  .health-card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; transition: all .15s ease-in-out; }}
+  .health-card:hover {{ transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 4px 10px rgba(0,0,0,0.4); }}
+  .health-card-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }}
+  .health-card-title {{ font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }}
+  .health-bar-track {{ height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 6px; }}
+  .health-bar-fill {{ height: 100%; border-radius: 2px; transition: width .3s ease; }}
+  .health-card-meta {{ display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }}
+  .health-reason {{ max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+
+  /* Status Banners */
+  .strategy-status-banner {{ display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; line-height: 1.5; border: 1px solid; }}
+  .banner-icon {{ font-size: 20px; line-height: 1; flex-shrink: 0; }}
+  .banner-content {{ flex: 1; }}
+  .banner-title {{ font-weight: 700; margin-bottom: 2px; }}
+  .banner-desc {{ opacity: 0.9; font-size: 12px; }}
+  .banner-warning {{ background: rgba(210, 153, 34, 0.12); border-color: rgba(210, 153, 34, 0.4); color: #f0c674; }}
+  .banner-info {{ background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: #7dd3fc; }}
+  .banner-success {{ background: rgba(46, 160, 67, 0.12); border-color: rgba(46, 160, 67, 0.4); color: #86efac; }}
 
   /* Tooltip Component */
   .tooltip-wrapper {{
@@ -2943,6 +3361,7 @@ def build_html(
   </div>
 </div>
 
+{health_monitor_html}
 
 <!-- ══════════════════════════════════════════════════════ -->
 <!-- Row 1: 상단 코어 시스템 (전략 가중치 + 메인 시스템 탭) -->
@@ -3379,6 +3798,7 @@ def build_html(
   <!-- ══ Stat-Arb Tab ══ -->
   <div class="tab-panel" id="panel-stat-arb">
     <div class="section-title">⚖️ Cointegrated Stat-Arb Pairs &amp; Mean-Reversion Signals (Strategy 7)</div>
+    {stat_arb_banner}
     <div class="market-panel">
       <div class="table-wrap">
         <table>
@@ -3695,6 +4115,17 @@ function switchTab(btn, id) {{
   container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('panel-' + id);
   if (panel) panel.classList.add('active');
+}}
+
+function switchTabById(tabId) {{
+  let targetBtn = document.querySelector(`button[onclick*="'${{tabId}}'"]`);
+  if (!targetBtn) {{
+    targetBtn = document.getElementById(`tab-${{tabId}}`);
+  }}
+  if (targetBtn) {{
+    targetBtn.click();
+    targetBtn.scrollIntoView({{ behavior: 'smooth', block: 'nearest', inline: 'center' }});
+  }}
 }}
 
 function filterMarket(btn, group) {{
@@ -4210,8 +4641,12 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   
   document.getElementById('drawer-stock-name').textContent = name || symbol;
   document.getElementById('drawer-stock-meta').textContent = `${{symbol}} • ${{market}}`;
-  document.getElementById('drawer-score').textContent = score || 'N/A';
-  document.getElementById('drawer-return').textContent = expectedReturn || 'N/A';
+  
+  const scoreDisp = (!score || score.toLowerCase().includes('nan') || score === 'None') ? 'N/A' : score;
+  const returnDisp = (!expectedReturn || expectedReturn.toLowerCase().includes('nan') || expectedReturn === 'None') ? 'N/A' : expectedReturn;
+
+  document.getElementById('drawer-score').textContent = scoreDisp;
+  document.getElementById('drawer-return').textContent = returnDisp;
   
   const naverLink = document.getElementById('drawer-naver-link');
   if (naverLink) {{
@@ -4227,18 +4662,24 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
     try {{
       const factors = JSON.parse(decodeURIComponent(factorObjStr));
       let html = '';
-      for (const [key, val] of Object.entries(factors)) {{
-        const numVal = parseFloat(val) || 0;
-        const barW = Math.min(100, Math.max(0, numVal));
-        const color = numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e');
+      for (const [key, rawVal] of Object.entries(factors)) {{
+        let valStr = (rawVal === null || rawVal === undefined) ? 'N/A' : String(rawVal).trim();
+        let isNaNVal = valStr.toLowerCase().includes('nan') || valStr === 'None' || valStr === '-' || valStr === '' || valStr === 'N/A';
+        
+        let numVal = parseFloat(valStr) || 0;
+        let barW = isNaNVal ? 0 : Math.min(100, Math.max(0, numVal));
+        let badgeHtml = isNaNVal
+          ? '<span class="badge-na">N/A</span>'
+          : `<span style="color:${{numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e')}}; font-weight:700;">${{valStr}}</span>`;
+        
         html += `
           <div style="background:var(--surface2); padding:9px 12px; border-radius:6px; border:1px solid var(--border);">
             <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;">
               <span style="color:var(--text); font-weight:500;">${{key}}</span>
-              <span style="color:${{color}}; font-weight:700;">${{val}}</span>
+              ${{badgeHtml}}
             </div>
             <div style="height:5px; background:var(--border); border-radius:3px; overflow:hidden;">
-              <div style="height:100%; width:${{barW}}%; background:${{color}}; border-radius:3px;"></div>
+              <div style="height:100%; width:${{barW}}%; background:${{numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e')}}; border-radius:3px;"></div>
             </div>
           </div>`;
       }}
@@ -4385,6 +4826,7 @@ def main(args_list: Optional[list[str]] = None):
     dp_text = _read(result_dir / "darkpool_predictions.txt") or _read(result_dir / "hft_order_flow_predictions.txt")
     dp_date, darkpool_rows = parse_darkpool(dp_text)
     etd_date, earnings_tone_drift_rows = parse_earnings_tone_drift(_read(result_dir / "earnings_tone_drift_predictions.txt"))
+    cov_text = _read(result_dir / "strategy_data_coverage_report.txt")
 
     # Build stock universe for Scenario Simulator (TOP stocks per market)
     from src.core.sector_rotation import SectorRotationEngine
@@ -4642,6 +5084,7 @@ def main(args_list: Optional[list[str]] = None):
         backtest_rows_html=backtest_rows_html,
         backtest_note_html=backtest_note_html,
         history_html=history_html,
+        strategy_coverage_report_text=cov_text,
     )
 
 

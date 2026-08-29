@@ -1,22 +1,22 @@
-# BRIEFING — 2026-08-27T13:18:00Z
+# BRIEFING — 2026-08-29T07:47:00Z
 
 ## Mission
-Perform a comprehensive, end-to-end quantitative trading system diagnostic and author an exhaustive Return Maximization Master Report (`comprehensive_return_maximization_master_report.md`) across AI prediction models, 31 strategy engines, 2D regime dynamic ensemble, risk management & OMS, with mathematical optimization formulas and prioritized roadmap (P0~P3) for 5 markets.
+Ensure all 31 quantitative strategies and 5 markets produce valid, non-corrupted output data in the stock trading pipeline, fix RIM valuation NaN outputs with clear status flags, enhance GitHub Pages dashboard with data availability badges and N/A indicators, and verify 100% test pass.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: d:\Finance\code\stock\.agents
-- Orchestrator: 65fc2186-7935-46e7-8cea-fbf0cfe4a77f (Claimed Victory)
-- Victory Auditor: 5c41e58b-af42-4d33-90c8-20d203559aca (Running)
+- Orchestrator: 843bb1aa-4e9d-4138-a7fc-e610a60e5688 (Claimed Victory)
+- Victory Auditor: cc7e7e3b-1733-4a45-a6d5-78ca4eee36e3 (Auditing)
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
 - Must route according to Routing Decision Table (General -> teamwork_preview_orchestrator)
-- Ensure all 3 requirements (R1-R3) and acceptance criteria are satisfied with production-grade depth, concrete formulas, 31-strategy efficacy matrix, and standalone markdown deliverable
+- Ensure all requirements (R1: 31-Strategy Pipeline Data Quality, R2: RIM Valuation Engine Fix, R3: GitHub Pages Dashboard Missingness & Health Status) and Acceptance Criteria are verified
 
 ## User Context
-- **Last user request**: Comprehensive quantitative trading system diagnostic and authoring of `comprehensive_return_maximization_master_report.md`.
+- **Last user request**: 31-Strategy pipeline data quality & normalization audit, RIM valuation engine NaN fix, and GitHub Pages dashboard missingness status & health badges.
 - **Pending clarifications**: none
 - **Delivered results**: [none for current mission]
 
@@ -30,8 +30,12 @@ Perform a comprehensive, end-to-end quantitative trading system diagnostic and a
 
 ## Artifact Index
 - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` — Authoritative verbatim user request
-- `d:\Finance\code\stock\comprehensive_return_maximization_master_report.md` — Comprehensive Return Maximization Master Report (91 KB deliverable)
-- `d:\Finance\code\stock\.agents\orchestrator_return_max\handoff.md` — Orchestrator handoff report
-- `d:\Finance\code\stock\.agents\orchestrator_return_max\GATE_STATUS.md` — Multi-agent gate status report
-- `d:\Finance\code\stock\.agents\victory_auditor_master_report\audit_report.md` — Forensic Victory Audit report
-- `d:\Finance\code\stock\.agents\victory_auditor_master_report\handoff.md` — Victory Auditor handoff report
+- `d:\Finance\code\stock\.agents\BRIEFING.md` — Sentinel working memory and state
+- `d:\Finance\code\stock\.agents\orchestrator_data_integrity\handoff.md` — Orchestrator handoff report
+- `d:\Finance\code\stock\.agents\victory_auditor_data_integrity\audit_report.md` — Forensic Victory Audit report
+- `d:\Finance\code\stock\.agents\victory_auditor_data_integrity\handoff.md` — Victory Auditor handoff report
+- `d:\Finance\code\stock\trading_system\src\core\rim_valuation.py` — Fixed RIM valuation engine
+- `d:\Finance\code\stock\trading_system\run_pipeline.py` — Pipeline execution & formatted text outputs
+- `d:\Finance\code\stock\trading_system\src\analysis\coverage_analyzer.py` — 31-strategy coverage & missingness analyzer
+- `d:\Finance\code\stock\trading_system\generate_report.py` — Dashboard generator with Health Monitor
+- `d:\Finance\code\stock\gh-pages\index.html` — Updated NaN-free interactive HTML dashboard (1,822 KB)

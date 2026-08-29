@@ -1,17 +1,17 @@
-﻿## 2026-08-27T13:25:18Z
-You are Challenger 1 for Quantitative Empirical & Numerical Stress-Testing.
-Your working directory is: d:\Finance\code\stock\.agents\challenger_1.
-Please read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md.
+## 2026-08-28T23:03:00Z
+You are Challenger 1 (RIM & Coverage Edge Case Challenger).
 
-Your objective is to stress-test the mathematical formulas, metrics, and quantitative consistency in:
-d:\Finance\code\stock\comprehensive_return_maximization_master_report.md
+Read `ORIGINAL_REQUEST.md` at `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` and the Worker handoff report at `d:\Finance\code\stock\.agents\worker_data_integrity\handoff.md`.
 
-Tasks:
-1. Verify the numerical consistency of the baseline vs projected performance tables across SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ, and Consolidated Portfolio.
-2. Verify the return attribution decomposition (does the sum of component alpha gains match the +8.4% net CAGR improvement?).
-3. Verify the mathematical behavior of the Asymmetric Pseudo-Huber loss first and second derivatives (dL/d_yhat, d2L/d_yhat2) under both extreme positive jumps (y >> yhat) and extreme negative crashes (y << yhat).
-4. Verify the Clayton copula tail dependence parameter formulation (lambda_L = 2^(-1/theta)).
+Adversarially challenge and stress-test the implementation:
+1. Test `rim_valuation.py` with extreme inputs:
+   - Stocks with `bps = 0`, `bps = -500.0`, `bps = np.nan`, `bps = None`, string `"N/A"`, empty DataFrame.
+   - Verify that `rim_filter_reason` is accurately assigned (`MISSING_FUNDAMENTALS` or `CAPITAL_IMPAIRMENT`) and `rim_score` / `discount_ratio` / `intrinsic_value` are set to `np.nan`.
+   - Verify that `_write_rim_file` in `run_pipeline.py` formats these cases as `"N/A"` or writes the empty state notice with ZERO occurrences of `"nan%"` or `"nan"`.
+2. Test `coverage_analyzer.py` with Korean tickers with suffixes (`'005930.KS'`, `'035720.KQ'`), US tickers (`'AAPL'`, `'MSFT'`), and non-numeric codes.
+   - Verify that symbol normalization works and missingness reasons are accurately classified.
+3. Write and execute test/stress scripts using Python in `.venv\Scripts\python.exe` or pytest to empirically confirm correctness.
 
-Deliverable:
-Write a stress-test verification report at d:\Finance\code\stock\.agents\challenger_1\challenge.md and handoff at d:\Finance\code\stock\.agents\challenger_1\handoff.md.
-Provide an explicit verdict: APPROVE or REQUEST_CHANGES. Send a completion message when finished.
+Your working directory is `d:\Finance\code\stock\.agents\challenger_1`.
+Write your verdict and stress-test results to `d:\Finance\code\stock\.agents\challenger_1\handoff.md`.
+Use `send_message` to notify the orchestrator when finished.

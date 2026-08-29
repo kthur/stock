@@ -104,6 +104,17 @@ def _is_holding_company(name: Optional[str], sector_code: Optional[str]) -> bool
     return False
 
 
+def _safe_float(val: Any) -> Optional[float]:
+    """Defensively parse a value to float, returning None if invalid or non-finite."""
+    if val is None:
+        return None
+    try:
+        v = float(val)
+        return v if np.isfinite(v) else None
+    except (ValueError, TypeError):
+        return None
+
+
 from src.core.base_strategy import BaseStrategyEngine
 from src.core.strategy_registry import register_strategy, StrategyMeta
 
@@ -410,12 +421,19 @@ class RIMValuationEngine(BaseStrategyEngine):
         # Handle BPS: derive ONLY from genuine bps column or book_value / shares_outstanding
         # Absolutely NO synthetic BPS fabrication (e.g. eps / 0.08 or eps / roe)
         bps_series = pd.Series(np.nan, index=df.index, dtype=float)
+        has_negative_equity = pd.Series(False, index=df.index)
+
         if 'bps' in df.columns:
-            bps_col = pd.to_numeric(df['bps'], errors='coerce').replace([np.inf, -np.inf, 0.0], np.nan)
+            bps_col = pd.to_numeric(df['bps'], errors='coerce')
+            has_negative_equity = has_negative_equity | (bps_col.notna() & (bps_col <= 0))
+            bps_col = bps_col.replace([np.inf, -np.inf, 0.0], np.nan)
             bps_series = bps_col.copy()
 
         if 'book_value' in df.columns:
-            bv = pd.to_numeric(df['book_value'], errors='coerce').replace([np.inf, -np.inf, 0.0], np.nan)
+            bv = pd.to_numeric(df['book_value'], errors='coerce')
+            has_negative_equity = has_negative_equity | (bv.notna() & (bv <= 0))
+            bv = bv.replace([np.inf, -np.inf, 0.0], np.nan)
+            df['book_value'] = bv
             shares = (
                 pd.to_numeric(df['shares_outstanding'], errors='coerce').fillna(0.0)
                 if 'shares_outstanding' in df.columns
@@ -438,7 +456,10 @@ class RIMValuationEngine(BaseStrategyEngine):
         else:
             df['roe'] = pd.Series(np.nan, index=df.index)
 
-        df['roe'] = df['roe'].replace([np.inf, -np.inf], np.nan).fillna(self.default_required_return)
+        df['roe'] = df['roe'].replace([np.inf, -np.inf], np.nan)
+        # Fill with default required return ONLY for rows with genuine positive equity / fundamentals
+        valid_fund_mask = df['bps'].notna() & (df['bps'] > 0) & (~has_negative_equity)
+        df.loc[valid_fund_mask & df['roe'].isna(), 'roe'] = self.default_required_return
         # Store true raw ROE BEFORE any clipping — needed for normalize_roe() to detect extreme values
         df['roe_raw'] = df['roe'].copy()
         # Initial safety clip: prevents numerical overflow in downstream ops.
@@ -448,8 +469,16 @@ class RIMValuationEngine(BaseStrategyEngine):
         # ── Earnings Quality Filter (이익의 질 필터) ────────────────────────────
         # 순이익이 영업이익보다 크게 높으면(일회성 이익 포함) ROE를 감쇠하고,
         # 영업손실(-) & 순이익 양수(+): 전적으로 일회성/영업외 이익 → RIM 부적합
-        df['earnings_quality'] = 1.0
+        df['earnings_quality'] = np.where(valid_fund_mask, 1.0, np.nan)
         df['rim_filter_reason'] = ''
+
+        # Capital Impairment (자본잠식) Detection
+        df.loc[has_negative_equity & (df['rim_filter_reason'] == ''), 'rim_filter_reason'] = 'CAPITAL_IMPAIRMENT'
+
+        # Missing Fundamentals (재무데이터미비) Detection
+        missing_fund = df['bps'].isna() & (df['rim_filter_reason'] == '')
+        df.loc[missing_fund, 'rim_filter_reason'] = 'MISSING_FUNDAMENTALS'
+
         has_op_inc = 'operating_income' in df.columns
         has_net_inc = 'net_income' in df.columns
 
@@ -464,6 +493,10 @@ class RIMValuationEngine(BaseStrategyEngine):
                 if has_net_inc
                 else pd.Series(np.nan, index=df.index)
             )
+            if has_op_inc:
+                df['operating_income'] = op_inc
+            if has_net_inc:
+                df['net_income'] = net_inc
 
             # earnings_quality: 0.0 ~ 1.0 (영업이익/순이익 비율, 음수 순이익은 1.0 보존)
             with np.errstate(divide='ignore', invalid='ignore'):
@@ -472,9 +505,9 @@ class RIMValuationEngine(BaseStrategyEngine):
                 eq_ratio = np.where(
                     (net_arr > 0) & ~np.isnan(op_arr),
                     np.clip(op_arr / net_arr, 0.0, 1.0),
-                    1.0,
+                    np.where(valid_fund_mask, 1.0, np.nan),
                 )
-            df['earnings_quality'] = eq_ratio
+            df['earnings_quality'] = np.where(valid_fund_mask, eq_ratio, np.nan)
 
             # 영업손실(-) 또는 순손실(-): 사업 본연의 수익성이 훼손된 기업 → RIM 점수 왜곡 방지를 위해 무효화
             op_loss = (op_inc < 0) | (net_inc < 0)
@@ -485,17 +518,30 @@ class RIMValuationEngine(BaseStrategyEngine):
 
             df.loc[op_loss, 'rim_filter_reason'] = 'OPERATING_LOSS'
             df.loc[suspicious, 'rim_filter_reason'] = 'LOW_EARNINGS_QUALITY'
-            df.loc[low_quality & ~suspicious & ~op_loss, 'rim_filter_reason'] = 'QUALITY_ADJUSTED'
+            df.loc[low_quality & ~suspicious & ~op_loss & (df['rim_filter_reason'] == ''), 'rim_filter_reason'] = 'QUALITY_ADJUSTED'
             # 이익의 질이 낮은 종목만 ROE 감쇠 (정상 기업 ROE 불변)
-            df.loc[low_quality & ~op_loss, 'roe'] = df.loc[low_quality & ~op_loss, 'roe'] * eq_ratio[(low_quality & ~op_loss).to_numpy()]
+            valid_low_q = (low_quality & ~op_loss & valid_fund_mask).to_numpy()
+            df.loc[valid_low_q, 'roe'] = df.loc[valid_low_q, 'roe'] * eq_ratio[valid_low_q]
             # 영업손실 또는 순손실 → 지속가능 이익 없음으로 간주
             df.loc[op_loss | suspicious, 'roe'] = 0.0
+
+        # Leave metrics as NaN for missing fundamentals and capital impairment
+        df.loc[df['rim_filter_reason'].isin(['MISSING_FUNDAMENTALS', 'CAPITAL_IMPAIRMENT']), ['earnings_quality', 'roe', 'roe_raw']] = np.nan
 
         # ── Extreme ROE Normalization (Value Trap 방지) ─────────────────────────
         # 조건: ROE > 20%(EXTREME_ROE_THRESHOLD) & EQ < 0.4(EXTREME_EQ_THRESHOLD)
         # → 영업이익 기반 ROE로 대체 + 절대 상한 25%(ABSOLUTE_ROE_CAP) 강제 적용
         df['roe_normalized'] = False  # 정규화 적용 여부 플래그
         has_bv = 'book_value' in df.columns
+
+        def _safe_float(val):
+            if val is None:
+                return None
+            try:
+                v = float(val)
+                return v if np.isfinite(v) else None
+            except (ValueError, TypeError):
+                return None
 
         def _apply_roe_normalization(row) -> tuple:
             # Use roe_raw (original, pre-EQ-filter value) so Stage 1 correctly detects
@@ -506,10 +552,10 @@ class RIMValuationEngine(BaseStrategyEngine):
             bv_val = row.get('book_value', None) if has_bv else None
 
             roe_out, normalized = self.normalize_roe(
-                roe_raw=float(roe_raw_val) if pd.notna(roe_raw_val) else row['roe'],
-                earnings_quality=float(eq) if pd.notna(eq) else 1.0,
-                operating_income=float(op_inc_val) if (op_inc_val is not None and pd.notna(op_inc_val)) else None,
-                book_value=float(bv_val) if (bv_val is not None and pd.notna(bv_val)) else None,
+                roe_raw=_safe_float(roe_raw_val) if pd.notna(roe_raw_val) else row['roe'],
+                earnings_quality=_safe_float(eq) if pd.notna(eq) else 1.0,
+                operating_income=_safe_float(op_inc_val),
+                book_value=_safe_float(bv_val),
             )
             # The normalized ROE replaces the current working roe (already EQ-decayed).
             # Take the minimum to be conservative: don't allow normalize_roe to *increase* roe.
@@ -521,7 +567,7 @@ class RIMValuationEngine(BaseStrategyEngine):
             return final_roe, normalized
 
         # Only apply to rows that are not already invalidated
-        valid_for_norm = ~df['rim_filter_reason'].isin(['OPERATING_LOSS', 'LOW_EARNINGS_QUALITY'])
+        valid_for_norm = ~df['rim_filter_reason'].isin(['OPERATING_LOSS', 'LOW_EARNINGS_QUALITY', 'MISSING_FUNDAMENTALS', 'CAPITAL_IMPAIRMENT', 'PREFERRED_SHARE'])
         if valid_for_norm.any():
             norm_results = df[valid_for_norm].apply(_apply_roe_normalization, axis=1)
             df.loc[valid_for_norm, 'roe'] = norm_results.apply(lambda x: x[0])
@@ -578,57 +624,52 @@ class RIMValuationEngine(BaseStrategyEngine):
         n_op_loss = int(df['rim_filter_reason'].eq('OPERATING_LOSS').sum())
         n_suspicious = int(df['rim_filter_reason'].eq('LOW_EARNINGS_QUALITY').sum())
         n_adjusted = int(df['rim_filter_reason'].str.startswith('QUALITY_ADJUSTED').sum())
-        n_preferred = int(df['rim_filter_reason'].eq('PREFERRED_SHARE').sum())
-        if n_op_loss or n_suspicious or n_adjusted or n_preferred or n_normalized:
-            logger.info(
-                f"RIM filters: {n_op_loss} operating loss, {n_suspicious} low quality (NaN), "
-                f"{n_adjusted} ROE-quality-adjusted, {n_normalized} extreme-ROE-normalized, "
-                f"{n_preferred} preferred shares invalidated"
-            )
+        n_pref = int(df['rim_filter_reason'].eq('PREFERRED_SHARE').sum())
+        n_missing = int(df['rim_filter_reason'].eq('MISSING_FUNDAMENTALS').sum())
+        n_impairment = int(df['rim_filter_reason'].eq('CAPITAL_IMPAIRMENT').sum())
+        logger.info(
+            f"RIM filters applied: {n_op_loss} operating loss, {n_suspicious} low quality, "
+            f"{n_adjusted} quality adjusted, {n_pref} preferred share, {n_missing} missing fundamentals, {n_impairment} capital impairment"
+        )
 
-        # ── Intrinsic Value Calculation ───────────────────────────────────────
+        # ── Compute Intrinsic Value V0 ─────────────────────────────────────────
         v0_list = []
         discount_list = []
         bps_adj_list = []
 
-        for row in df.itertuples(index=False):
-            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df.columns, row))
-            if r_dict.get('rim_filter_reason') == 'PREFERRED_SHARE':
+        # Market-specific risk-free rate and ERP
+        for _, row in df.iterrows():
+            mkt = row.get('market', 'KOSPI')
+            p = row.get('Close', np.nan)
+            b = row.get('bps', np.nan)
+            r = row.get('roe', np.nan)
+            is_hc = bool(row.get('holding_co_flag', False))
+            nd_per_share = float(row.get('net_debt_per_share', 0.0) or 0.0)
+
+            if pd.isna(b) or b <= 0 or pd.isna(r):
                 v0_list.append(np.nan)
                 discount_list.append(np.nan)
                 bps_adj_list.append(np.nan)
                 continue
 
-            mkt = r_dict.get('market', 'KOSPI')
-            if us10y_yield is not None or vix_val is not None:
-                r_e = self.derive_required_return(mkt, us10y_yield=us10y_yield, vix_val=vix_val, credit_spread=credit_spread)
-            elif required_return is not None and required_return > 0:
-                r_e = required_return
+            r_e = self.derive_required_return(
+                market=mkt,
+                us10y_yield=us10y_yield,
+                vix_val=vix_val,
+                credit_spread=credit_spread,
+            ) if (us10y_yield is not None or vix_val is not None) else (
+                required_return if (required_return is not None and required_return > 0) else self.default_required_return
+            )
+
+            # Raw RIM intrinsic value (with normalized ROE already applied)
+            v0_raw = self.calculate_intrinsic_value(b, r, required_return=r_e)
+
+            # Holding company SOTP discount
+            if is_hc and pd.notna(v0_raw) and pd.notna(b) and b > 0:
+                b_adj, v0 = self.apply_holding_company_discount(b, v0_raw, nd_per_share)
             else:
-                r_e = self.default_required_return
-
-            b_val = r_dict.get('bps')
-            r_val = r_dict.get('roe')
-            p_val = r_dict.get('Close')
-            b = float(b_val) if (b_val is not None and pd.notna(b_val) and np.isfinite(b_val)) else np.nan
-            r = float(r_val) if (r_val is not None and pd.notna(r_val) and np.isfinite(r_val)) else r_e
-            p = float(p_val) if (p_val is not None and pd.notna(p_val) and np.isfinite(p_val)) else np.nan
-            nd_ps = float(r_dict.get('net_debt_per_share', 0.0) or 0.0)
-
-            if np.isnan(b) or b <= 0:
-                v0 = np.nan
-                b_adj = np.nan
-            else:
-                # Raw RIM intrinsic value (with normalized ROE already applied)
-                v0_raw = self.calculate_intrinsic_value(b, r, required_return=r_e)
-
-                # Holding company SOTP discount
-                is_hc = bool(r_dict.get('holding_co_flag', False))
-                if is_hc and pd.notna(v0_raw) and pd.notna(b) and b > 0:
-                    b_adj, v0 = self.apply_holding_company_discount(b, v0_raw, nd_ps)
-                else:
-                    b_adj = b
-                    v0 = v0_raw
+                b_adj = b
+                v0 = v0_raw
 
             v0_list.append(v0)
             bps_adj_list.append(b_adj)
@@ -648,7 +689,10 @@ class RIMValuationEngine(BaseStrategyEngine):
 
         # ── Percentile Scoring ────────────────────────────────────────────────
         # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market with boundary clipping
-        invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE', 'OPERATING_LOSS'])
+        invalid_mask = df['rim_filter_reason'].isin([
+            'MISSING_FUNDAMENTALS', 'CAPITAL_IMPAIRMENT',
+            'LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE', 'OPERATING_LOSS'
+        ])
         if 'bps' in df.columns:
             bps_numeric = pd.to_numeric(df['bps'], errors='coerce')
             invalid_mask = invalid_mask | bps_numeric.isna() | (bps_numeric <= 0)
@@ -658,20 +702,23 @@ class RIMValuationEngine(BaseStrategyEngine):
         # Distressed companies or missing BPS have NaN discount ratio so they do not pollute percentile ranking
         df.loc[invalid_mask, 'discount_ratio'] = np.nan
         df.loc[invalid_mask, 'intrinsic_value'] = np.nan
+        df.loc[invalid_mask, 'rim_score'] = np.nan
 
         # Rank valid stocks per market
-        df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
+        valid_mask = ~invalid_mask
+        if valid_mask.any():
+            df.loc[valid_mask, 'rim_score'] = df[valid_mask].groupby('market')['discount_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
 
-        # Margin of safety acceleration for high-quality value stocks (Discount >= 30% and ROE >= required_return)
-        mos_mask = (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08) & (~invalid_mask)
-        if mos_mask.any():
-            df.loc[mos_mask, 'rim_score'] = (df.loc[mos_mask, 'rim_score'] * 1.05).clip(0.0, 1.0)
+            # Margin of safety acceleration for high-quality value stocks (Discount >= 30% and ROE >= required_return)
+            mos_mask = valid_mask & (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08)
+            if mos_mask.any():
+                df.loc[mos_mask, 'rim_score'] = (df.loc[mos_mask, 'rim_score'] * 1.05).clip(0.0, 1.0)
 
-        # 영업손실, 순손실, 일회성 이익 의존, 우선주 및 자본잠식 종목은 RIM 점수 무효화 (NaN 유지)
+        # 영업손실, 순손실, 일회성 이익 의존, 우선주, 자본잠식 및 결측 종목은 RIM 점수 무효화 (NaN 유지)
         # → 앙상블에서 자동 제외되고 가중치가 재정규화된다.
         if invalid_mask.any():
             df.loc[invalid_mask, ['rim_score', 'discount_ratio', 'intrinsic_value']] = np.nan
-            logger.info(f"RIM scores invalidated for {int(invalid_mask.sum())} symbols (distress, low quality or preferred share)")
+            logger.info(f"RIM scores invalidated for {int(invalid_mask.sum())} symbols (distress, low quality, missing fundamentals or preferred share)")
 
         out_cols = [
             'symbol', 'market', 'Close', 'bps', 'bps_adjusted',

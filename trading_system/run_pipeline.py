@@ -2761,24 +2761,39 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             def _write_rim_file(f_out, df_rim):
                 f_out.write("=== Strategy 9: RIM (Residual Income Model) Valuation Predictions ===\n")
                 f_out.write(f"Date: {date_str}\n")
-                f_out.write(f"Total symbols evaluated: {len(df_rim)}\n")
+                valid_rim = df_rim[df_rim['rim_score'].notna() & (df_rim['rim_score'] > 0)] if ('rim_score' in df_rim.columns and not df_rim.empty) else pd.DataFrame()
+                f_out.write(f"Total symbols evaluated: {len(df_rim)} (Valid: {len(valid_rim)})\n")
                 f_out.write("Filters: EQ=Earnings Quality | [ADJ]=Extreme ROE normalized | [HC]=Holding Co. discount\n\n")
+
+                if valid_rim.empty:
+                    f_out.write("데이터 없음 (유효한 RIM 적정가 산출 대상 종목 없음)\n")
+                    return
+
                 f_out.write(
                     f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}"
                     f"{'Price':<12}{'Intrinsic V0':<14}{'Discount %':<12}"
                     f"{'ROE_raw':<9}{'ROE_adj':<9}{'EQ':<6}{'Filter':<32}{'RIM Score':<12}\n"
                 )
                 f_out.write("-" * 142 + "\n")
-                for rank, (_, row) in enumerate(df_rim.head(100).iterrows(), 1):
+                for rank, (_, row) in enumerate(valid_rim.head(100).iterrows(), 1):
                     name_str = str(row.get('name', 'Unknown'))[:18] if pd.notna(row.get('name')) else "Unknown"
+                    price_val = row.get('Close', np.nan)
+                    price_str = f"{price_val:<12.2f}" if pd.notna(price_val) and np.isfinite(price_val) else f"{'N/A':<12}"
+
+                    intrinsic = row.get('intrinsic_value', np.nan)
+                    intrinsic_str = f"{intrinsic:<14.2f}" if pd.notna(intrinsic) and np.isfinite(intrinsic) else f"{'N/A':<14}"
+
                     disc_val = row.get('discount_ratio', np.nan)
-                    disc_str = f"{disc_val*100:>9.1f}%" if pd.notna(disc_val) else "       nan%"
-                    eq = row.get('earnings_quality', 1.0)
-                    eq_str = f"{eq*100:.0f}%" if pd.notna(eq) else "N/A"
+                    disc_str = f"{disc_val*100:>9.1f}%" if pd.notna(disc_val) and np.isfinite(disc_val) else "      N/A"
+
                     roe_raw = row.get('roe_raw', np.nan)
                     roe_adj = row.get('roe', np.nan)
-                    roe_raw_str = f"{roe_raw*100:.1f}%" if pd.notna(roe_raw) else "  N/A"
-                    roe_adj_str = f"{roe_adj*100:.1f}%" if pd.notna(roe_adj) else "  N/A"
+                    roe_raw_str = f"{roe_raw*100:>7.1f}%" if pd.notna(roe_raw) and np.isfinite(roe_raw) else "    N/A"
+                    roe_adj_str = f"{roe_adj*100:>7.1f}%" if pd.notna(roe_adj) and np.isfinite(roe_adj) else "    N/A"
+
+                    eq = row.get('earnings_quality', np.nan)
+                    eq_str = f"{eq*100:>5.0f}%" if pd.notna(eq) and np.isfinite(eq) else "  N/A"
+
                     filter_reason = str(row.get('rim_filter_reason', ''))
                     hc_flag = bool(row.get('holding_co_flag', False))
                     tag_parts = []
@@ -2786,17 +2801,17 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                         tag_parts.append('[ADJ]')
                     if hc_flag:
                         tag_parts.append('[HC]')
-                    if filter_reason not in ('', 'QUALITY_ADJUSTED', 'EXTREME_ROE_NORMALIZED', 'QUALITY_ADJUSTED+ROE_NORMALIZED'):
+                    if filter_reason and filter_reason not in ('', 'QUALITY_ADJUSTED', 'EXTREME_ROE_NORMALIZED', 'QUALITY_ADJUSTED+ROE_NORMALIZED'):
                         tag_parts.append(filter_reason[:22])
                     filter_str = ' '.join(tag_parts)[:30]
+
                     rim_score_val = row.get('rim_score', np.nan)
-                    rim_score_str = f"{rim_score_val*100:.1f}%" if pd.notna(rim_score_val) else "   nan%"
-                    intrinsic = row.get('intrinsic_value', np.nan)
-                    intrinsic_str = f"{intrinsic:<14.2f}" if pd.notna(intrinsic) else f"{'nan':<14}"
+                    rim_score_str = f"{rim_score_val*100:>9.1f}%" if pd.notna(rim_score_val) and np.isfinite(rim_score_val) else "      N/A"
+
                     f_out.write(
                         f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['market']:<10}"
-                        f"{row['Close']:<12.2f}{intrinsic_str}{disc_str}"
-                        f"{roe_raw_str:>8} {roe_adj_str:>8} {eq_str:>5}  {filter_str:<32}{rim_score_str:>10}\n"
+                        f"{price_str}{intrinsic_str}{disc_str}"
+                        f" {roe_raw_str} {roe_adj_str} {eq_str}  {filter_str:<32}{rim_score_str}\n"
                     )
 
             with open(rim_output_path, "w", encoding="utf-8") as f:

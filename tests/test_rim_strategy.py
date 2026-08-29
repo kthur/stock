@@ -511,4 +511,53 @@ Rank Symbol    Name                Market    Price       Intrinsic V0  Discount 
     assert "Russell Small" in html_out
 
 
+def test_rim_defensive_coercion_and_safe_float():
+    """Verify that dirty string values in operating_income, net_income, and book_value are coerced safely."""
+    engine = RIMValuationEngine(default_required_return=0.08)
 
+    df = pd.DataFrame([
+        {
+            'symbol': 'DIRTY_VALS',
+            'market': 'KOSPI',
+            'Close': 10000.0,
+            'book_value': '50000.0',
+            'shares_outstanding': 1000.0,
+            'operating_income': '1000.0',
+            'net_income': '1200.0',
+            'roe': 0.15,
+        },
+        {
+            'symbol': 'DIRTY_NA',
+            'market': 'KOSPI',
+            'Close': 10000.0,
+            'book_value': 'N/A',
+            'shares_outstanding': 1000.0,
+            'operating_income': 'null',
+            'net_income': 'None',
+            'roe': 0.10,
+        },
+        {
+            'symbol': 'EXTREME_DIRTY_BV',
+            'market': 'KOSPI',
+            'Close': 10000.0,
+            'book_value': '100000.0',
+            'bps': 100.0,
+            'shares_outstanding': 1000.0,
+            'operating_income': '5000.0',
+            'net_income': '50000.0',
+            'roe': 0.50,  # Extreme ROE with low EQ (5000/50000 = 0.1 < 0.4)
+        },
+    ])
+
+    res = engine.compute_rim_scores(df).set_index('symbol')
+
+    # DIRTY_VALS: valid string numbers safely coerced and scored
+    assert not np.isnan(res.loc['DIRTY_VALS', 'rim_score'])
+    assert res.loc['DIRTY_VALS', 'rim_filter_reason'] == ''
+
+    # DIRTY_NA: 'N/A' book_value converted to NaN -> MISSING_FUNDAMENTALS
+    assert np.isnan(res.loc['DIRTY_NA', 'rim_score'])
+    assert res.loc['DIRTY_NA', 'rim_filter_reason'] == 'MISSING_FUNDAMENTALS'
+
+    # EXTREME_DIRTY_BV: extreme ROE normalized using coerced book_value
+    assert res.loc['EXTREME_DIRTY_BV', 'roe_normalized'] == True

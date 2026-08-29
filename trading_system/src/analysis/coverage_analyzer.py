@@ -42,12 +42,17 @@ class StrategyCoverageAnalyzer:
         ]
 
         sym_str = str(sym)
+        base_sym = sym_str.split('.')[0]
+        base_sym_z = base_sym.zfill(6) if base_sym.isdigit() else base_sym
+        candidate_keys = [sym_str, sym, base_sym, base_sym_z]
 
         # Handle Dict of DataFrames per symbol
         if isinstance(features_df, dict):
-            val = features_df.get(sym_str)
-            if val is None:
-                val = features_df.get(sym)
+            val = None
+            for k in candidate_keys:
+                if k in features_df:
+                    val = features_df[k]
+                    break
             if val is not None and isinstance(val, pd.DataFrame) and not val.empty:
                 present_cols = [c for c in fund_cols if c in val.columns]
                 if present_cols:
@@ -64,22 +69,19 @@ class StrategyCoverageAnalyzer:
 
         try:
             if 'symbol' in features_df.columns:
-                sub = features_df[features_df['symbol'].astype(str) == sym_str]
-                if sub.empty and sym_str.isdigit():
-                    sub = features_df[features_df['symbol'].astype(str) == sym_str.zfill(6)]
+                symbols_series = features_df['symbol'].astype(str)
+                sub = features_df[symbols_series.isin(candidate_keys) | (symbols_series.str.split('.').str[0] == base_sym)]
                 if sub.empty:
                     return False
                 vals = sub[present_cols].values
                 return bool(np.any(pd.notna(vals) & np.isfinite(vals)))
-            elif sym in features_df.index or sym_str in features_df.index:
-                key = sym if sym in features_df.index else sym_str
-                row_or_sub = features_df.loc[key]
-                if isinstance(row_or_sub, pd.DataFrame):
-                    vals = row_or_sub[present_cols].values
-                    return bool(np.any(pd.notna(vals) & np.isfinite(vals)))
-                elif isinstance(row_or_sub, pd.Series):
-                    vals = row_or_sub[present_cols].values
-                    return bool(np.any(pd.notna(vals) & np.isfinite(vals)))
+            else:
+                for k in candidate_keys:
+                    if k in features_df.index:
+                        row_or_sub = features_df.loc[k]
+                        if isinstance(row_or_sub, (pd.DataFrame, pd.Series)):
+                            vals = row_or_sub[present_cols].values
+                            return bool(np.any(pd.notna(vals) & np.isfinite(vals)))
         except Exception as e:
             logger.debug(f"Error checking fundamental data for {sym}: {e}")
 
@@ -153,12 +155,15 @@ class StrategyCoverageAnalyzer:
                 other_cnt = 0
                 for sym in missing_syms:
                     sym_str = str(sym)
-                    p_df = prices_dict.get(sym_str) if prices_dict else None
-                    if p_df is None and prices_dict:
-                        if sym_str.isdigit():
-                            p_df = prices_dict.get(sym_str.zfill(6))
-                        if p_df is None:
-                            p_df = prices_dict.get(sym)
+                    base_sym = sym_str.split('.')[0]
+                    base_sym_z = base_sym.zfill(6) if base_sym.isdigit() else base_sym
+
+                    p_df = None
+                    if prices_dict:
+                        for k in (sym_str, sym, base_sym, base_sym_z):
+                            if k in prices_dict:
+                                p_df = prices_dict[k]
+                                break
 
                     has_price = (p_df is not None and len(p_df) >= 20)
 
@@ -182,12 +187,28 @@ class StrategyCoverageAnalyzer:
                     options_strats = {'iv_skew', 'gamma_squeeze'}
                     us_strats = {'darkpool', 'darkpool_hft'}
                     pair_strats = {'stat_arb'}
+                    sentiment_strats = {'sentiment'}
+                    insider_strats = {'insider_buying', 'insider'}
+                    tone_strats = {'earnings_tone_drift', 'tone_drift'}
+                    lead_lag_strats = {'lead_lag'}
+                    supply_strats = {'supply_chain'}
+
                     if strat in options_strats:
                         reasons['NO_OPTIONS_CHAIN'] = other_cnt
                     elif strat in us_strats:
                         reasons['NON_US_MARKET_SCOPE'] = other_cnt
                     elif strat in pair_strats:
                         reasons['NO_COINTEGRATED_PAIR'] = other_cnt
+                    elif strat in sentiment_strats:
+                        reasons['NO_CORPORATE_FILING'] = other_cnt
+                    elif strat in insider_strats:
+                        reasons['NO_INSIDER_FILING'] = other_cnt
+                    elif strat in tone_strats:
+                        reasons['NO_EARNINGS_TRANSCRIPT'] = other_cnt
+                    elif strat in lead_lag_strats:
+                        reasons['NO_LEAD_LAG_LEADER'] = other_cnt
+                    elif strat in supply_strats:
+                        reasons['NO_SUPPLY_CHAIN_MAPPING'] = other_cnt
                     else:
                         reasons['STRATEGY_SIGNAL_NEUTRAL'] = other_cnt
 

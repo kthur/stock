@@ -1,17 +1,18 @@
-## 2026-08-27T13:25:18Z
-You are Reviewer 2 for the Return Maximization Master Report.
-Your working directory is: `d:\Finance\code\stock\.agents\reviewer_2`.
-Please read `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`.
+﻿## 2026-08-28T23:02:55Z
+You are Reviewer 2 (Dashboard & Pipeline Data Quality Reviewer).
 
-Your objective is to independently review and adversarially challenge the master report:
-`d:\Finance\code\stock\comprehensive_return_maximization_master_report.md`
+Read ORIGINAL_REQUEST.md at d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md and the Worker handoff report at d:\Finance\code\stock\.agents\worker_data_integrity\handoff.md.
 
-Check:
-1. Dynamic Ensemble & Orthogonalization: Is the Single-Stage Convex Information-Entropy Redundancy Allocation formulation rigorous? Is the diagnosis of the triple collinearity penalty accurate?
-2. Microstructure friction model: Is the criticism of fixed 50M KRW / $50k transaction cost scaling justified? Is the replacement responsive sizing formula $Q_i = w_i V_{\text{portfolio}}$ correct?
-3. 2D Regime Engine & Zero-Weight Alpha Exclusion: Are the 6 excluded strategies (`iv_skew`, `arm_factor`, `microstructure`, `short_squeeze`, `gamma_squeeze`, `darkpool`) verified to have 0.00 base weights in `src/ai/ensemble_scorer.py`?
-4. Execution OMS & Slippage Feedback: Are the 6 safety gates and realized slippage closed-loop parameters accurately analyzed?
+Review the dashboard reporting and health monitor implementation:
+1. trading_system/generate_report.py and gh-pages/index.html:
+   - Verify that the Strategy Data Status Summary Card / Health Monitor is rendered at the top with summary pills, 31 strategy cards, and click-to-tab navigation (switchTabById).
+   - Verify that all raw nan, None, null, and undefined strings are eliminated from HTML table cells and replaced with semantic badges (badge-na, badge-need-data, badge-filtered, badge-fallback, badge-healthy, badge-partial).
+   - Verify that tab status notice/warning banners are displayed when a strategy or market has 0 or incomplete data.
+   - Verify that openStockDrawer in JS handles null/NaN values safely.
+2. Run end-to-end HTML dashboard generation:
+   .venv\Scripts\python.exe trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html
+3. Inspect gh-pages/index.html to confirm zero unhandled nan text in tables and valid DOM structure.
 
-Deliverable:
-Write a thorough review report at `d:\Finance\code\stock\.agents\reviewer_2\review.md` and handoff at `d:\Finance\code\stock\.agents\reviewer_2\handoff.md`.
-Provide an explicit verdict: APPROVE or REQUEST_CHANGES. Send a completion message when finished.
+Your working directory is d:\Finance\code\stock\.agents\reviewer_2.
+Write your verdict (APPROVE or REQUEST_CHANGES) and full review report to d:\Finance\code\stock\.agents\reviewer_2\handoff.md.
+Use send_message to notify the orchestrator when finished.

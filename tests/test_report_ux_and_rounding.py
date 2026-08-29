@@ -189,3 +189,120 @@ Date: 2026-08-23 01:29 KST
     assert rows[2].name == "현대홈쇼핑"
     assert rows[2].market == "KOSPI"
 
+
+def test_format_metric_cell_nan_sanitization():
+    from trading_system.generate_report import format_metric_cell
+    # Null and NaN cases
+    assert "badge-na" in format_metric_cell(None)
+    assert "badge-na" in format_metric_cell("nan")
+    assert "badge-na" in format_metric_cell("NaN")
+    assert "badge-na" in format_metric_cell("nan%")
+    assert "badge-na" in format_metric_cell("None")
+    assert "badge-na" in format_metric_cell("undefined")
+    assert "badge-na" in format_metric_cell("null")
+    assert "badge-na" in format_metric_cell("")
+    assert "badge-na" in format_metric_cell("-")
+
+    # Semantic badges
+    assert "badge-need-data" in format_metric_cell("데이터 수집필요")
+    assert "badge-filtered" in format_metric_cell("재무데이터미비")
+    assert "badge-filtered" in format_metric_cell("MISSING_FUNDAMENTALS")
+    assert "badge-fallback" in format_metric_cell("기본값")
+
+    # Numeric and pct formatting
+    score_cell = format_metric_cell("75.4%", kind="score")
+    assert "75.4%" in score_cell
+    assert "pos" in score_cell
+
+    curr_cell = format_metric_cell(125000, kind="currency")
+    assert curr_cell == "125,000"
+
+
+def test_parse_strategy_coverage_report_full():
+    from trading_system.generate_report import parse_strategy_coverage_report
+    sample_report = """
+================================================================================
+31-Strategy Data Coverage & Missingness Audit Report (2026-08-29)
+================================================================================
+Total Evaluated Symbols: 948
+
+[Strategy Coverage Summary]
+--------------------------------------------------------------------------------
+Strategy ID                    Valid   Missing   Coverage   Primary Reason / Notes
+--------------------------------------------------------------------------------
+regression                       948         0     100.0%   None (100% Valid)
+surge                            948         0     100.0%   None (100% Valid)
+rim_valuation                      0       948       0.0%   NO_FUNDAMENTAL_DATA
+stat_arb                           0       948       0.0%   NO_COINTEGRATED_PAIR
+================================================================================
+"""
+    tot, items = parse_strategy_coverage_report(sample_report)
+    assert tot == 948
+    assert len(items) == 31
+
+    reg_item = next(i for i in items if i.strategy_id == "regression")
+    assert reg_item.status == "HEALTHY"
+    assert reg_item.valid_count == 948
+    assert reg_item.coverage_pct == 100.0
+
+    rim_item = next(i for i in items if i.strategy_id == "rim_valuation")
+    assert rim_item.status == "NO_DATA"
+    assert rim_item.primary_reason == "NO_FUNDAMENTAL_DATA"
+    assert "재무제표" in rim_item.reason_label_ko
+
+
+def test_build_strategy_health_monitor_html():
+    from trading_system.generate_report import build_strategy_health_monitor_html, StrategyHealthInfo
+    sample_items = [
+        StrategyHealthInfo("regression", 1, "XGBoost 회귀", "AI", "regression", 948, 0, 100.0, "HEALTHY", "None", "정상"),
+        StrategyHealthInfo("rim_valuation", 9, "RIM Valuation", "가치", "rim", 0, 948, 0.0, "NO_DATA", "NO_FUNDAMENTAL_DATA", "재무미비"),
+    ]
+    html = build_strategy_health_monitor_html(948, sample_items)
+    assert "health-monitor-section" in html
+    assert "Strategy Data Health Monitor" in html
+    assert "pill-healthy" in html
+    assert "switchTabById('regression')" in html
+    assert "switchTabById('rim')" in html
+
+
+def test_build_tab_status_banner():
+    from trading_system.generate_report import build_tab_status_banner
+    banner_empty = build_tab_status_banner("Test Strategy", "KOSPI", "empty", "NO_FUNDAMENTAL_DATA")
+    assert "strategy-status-banner" in banner_empty
+    assert "banner-warning" in banner_empty
+    assert "NO_FUNDAMENTAL_DATA" in banner_empty
+
+    banner_stat_arb = build_tab_status_banner("Stat-Arb", "전체", "no_pairs")
+    assert "banner-info" in banner_stat_arb
+    assert "공적분 페어" in banner_stat_arb
+
+
+def test_parse_rim_na_and_clean_formatting():
+    from trading_system.generate_report import parse_rim
+    rim_text = """
+================================================================================
+RIM (Residual Income Model) Intrinsic Value Analysis (2026-08-29)
+================================================================================
+Date: 2026-08-29
+Total symbols analyzed: 948
+Filters: ROE quality >= 0.04, positive equity, operating profit >= 0
+--------------------------------------------------------------------------------
+Rank Symbol Name Market Price Intrinsic Discount ROE(rep) ROE(adj) EQ Filter RIM_Score
+--------------------------------------------------------------------------------
+1    005930 삼성전자 KOSPI 60000 75000 +25.0% 12.5% 10.2% 85.0% - 75.0%
+2    000660 SK하이닉스 KOSPI 180000 N/A N/A N/A N/A N/A MISSING_FUNDAMENTALS N/A
+================================================================================
+"""
+    date, rows = parse_rim(rim_text)
+    assert date == "2026-08-29"
+    assert len(rows) == 2
+    assert rows[0].symbol == "005930"
+    assert rows[0].discount == "+25.0%"
+    assert rows[0].rim_score == "75.0%"
+
+    assert rows[1].symbol == "000660"
+    assert rows[1].intrinsic_value == "N/A"
+    assert rows[1].filter_tags == "MISSING_FUNDAMENTALS"
+    assert rows[1].rim_score == "N/A"
+
+
