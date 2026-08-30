@@ -79,16 +79,16 @@ def test_rim_extreme_bps_and_negative_equity():
     res = engine.compute_rim_scores(df_test).set_index('symbol')
 
     # Verify Filter Reasons
-    # Numeric zero and negative equity are accurately tagged as CAPITAL_IMPAIRMENT
-    assert res.loc['ZERO_BPS', 'rim_filter_reason'] == 'CAPITAL_IMPAIRMENT'
-    assert res.loc['ZERO_BPS_F', 'rim_filter_reason'] == 'CAPITAL_IMPAIRMENT'
+    # Strictly negative equity is accurately tagged as CAPITAL_IMPAIRMENT
     assert res.loc['NEG_BPS_500', 'rim_filter_reason'] == 'CAPITAL_IMPAIRMENT'
     assert res.loc['NEG_BPS_TINY', 'rim_filter_reason'] == 'CAPITAL_IMPAIRMENT'
     assert res.loc['NEG_INF_BPS', 'rim_filter_reason'] == 'CAPITAL_IMPAIRMENT'
     assert res.loc['NEG_BV', 'rim_filter_reason'] == 'CAPITAL_IMPAIRMENT'
-    assert res.loc['ZERO_BV', 'rim_filter_reason'] == 'CAPITAL_IMPAIRMENT'
 
-    # Non-numeric, missing, empty, or NaN inputs are accurately tagged as MISSING_FUNDAMENTALS
+    # Numeric zero, non-numeric, missing, empty, or NaN inputs are accurately tagged as MISSING_FUNDAMENTALS
+    assert res.loc['ZERO_BPS', 'rim_filter_reason'] == 'MISSING_FUNDAMENTALS'
+    assert res.loc['ZERO_BPS_F', 'rim_filter_reason'] == 'MISSING_FUNDAMENTALS'
+    assert res.loc['ZERO_BV', 'rim_filter_reason'] == 'MISSING_FUNDAMENTALS'
     assert res.loc['NAN_BPS', 'rim_filter_reason'] == 'MISSING_FUNDAMENTALS'
     assert res.loc['NONE_BPS', 'rim_filter_reason'] == 'MISSING_FUNDAMENTALS'
     assert res.loc['STR_NA_BPS', 'rim_filter_reason'] == 'MISSING_FUNDAMENTALS'
