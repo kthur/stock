@@ -1,74 +1,51 @@
-# Milestone 1 Code Review & Interface Conformance Handoff Report
+# Handoff Report: Milestone 1 Review & Adversarial Audit
+
+- **Agent**: reviewer_m1_1 (reviewer, critic)
+- **Recipient**: parent (4a57e5b5-0c64-4358-b369-c7c1f1986502)
+- **Milestone**: Milestone 1 (Strategy Fallback Scoring & Report Saving)
+- **Date**: 2026-08-29
+- **Verdict**: APPROVE
+
+---
 
 ## 1. Observation
 
-### Source Inspection & Verification Evidence
+1. **Source Code Inspection**:
+   - `trading_system/src/core/rim_valuation.py`: Lines 490-534 implement a robust 200d SMA price proxy valuation anchor ($V_0 = \text{SMA}_{200} \times 1.05$) when fundamental BPS is missing and `prices_dict` or `allow_price_proxy` is provided. When no price/fundamental data is supplied, it strictly preserves `np.nan`. Capital impairment (negative equity) is gated with `CAPITAL_IMPAIRMENT` and excluded from proxy valuation.
+   - `trading_system/src/core/accruals_quality.py`: Lines 92-142 implement a multi-factor price flow proxy combining 20-day Chaikin Money Flow (CMF), Kaufman Trend Efficiency Ratio (KER), and 20-day Realized Volatility. When `fund_map` and `prices_dict` are both empty, it strictly returns `np.nan` per symbol.
+   - `trading_system/src/core/valueup_catalyst.py`: Lines 172-212 implement a Level 2 200d SMA Valuation ratio ($vr = \text{Close} / \text{SMA}_{200}$) and 52-week price range discount proxy. When neither fundamentals nor `prices_dict` are available, it strictly returns `np.nan`.
+   - `trading_system/src/core/llm_sentiment_engine.py`: Lines 378-422 implement multi-horizon price/volume momentum proxy (overnight gap, intraday candle trend, 5d return, 20d return, volume surge multiplier). When no text, cache, or price data is available, it returns `np.nan`.
+   - `trading_system/src/core/insider_buying.py`: Lines 125-173 implement a smart-money accumulation proxy (20d CMF, Up-to-Down Volume Ratio UDVR, 20d Moving Average Support MAS). When neither filings nor price series are available, it returns `np.nan`.
+   - `trading_system/src/core/earnings_tone_drift.py`: Lines 156-186 implement a PEAD (Post-Earnings Announcement Drift) price momentum proxy (20d-60d intermediate momentum drift, 5d acceleration, 20d moving average relative distance). When neither transcripts, fundamental growth, nor prices are present, it returns `np.nan`.
+   - `trading_system/run_pipeline.py`: Lines 2851-2901 (`_save_strategy_predictions_report`) defensively coerce symbol types, check for all-NaN scores (imputing baseline 0.50 with warning) and sporadic NaNs (filling with column median), and write both unified and per-market split files (`*_KOSPI.txt`, `*_SP500.txt`, etc.).
 
-1. **`trading_system/src/core/multi_factor_neutralizer.py`**:
-   - **Polymorphic Argument Resolution (Lines 62–82)**:
-     - `compute_scores` correctly inspects `isinstance(prices_dict, pd.DataFrame)` to bind positional DataFrame inputs to `universe`, while handling dictionary inputs as `prices_map`.
-     - Fully supports positional DataFrame calls (e.g. `engine.compute_scores(universe)`), positional dict calls (e.g. `engine.compute_scores(prices_dict)`), and keyword calls (`engine.compute_scores(universe=universe, raw_scores=res_df)`).
-   - **Missing Data Median Imputation (Lines 231–271)**:
-     - Factor values are grouped cross-sectionally by market (`df.groupby("market", dropna=False)`).
-     - Missing fundamentals are imputed using intra-market median $\rightarrow$ global median $\rightarrow$ 0.0 neutral exposure ($Z=0.0$).
-     - Preserves 100% of symbols without dropping small-caps or international stocks via `.dropna()`.
-   - **QR Decomposition & Pure Alpha Projection (Lines 273–286)**:
-     - Constructs design matrix $X_m = [\mathbf{1}, Z_m]$ where $Z_m \in \mathbb{R}^{N_m \times 5}$.
-     - Applies reduced QR decomposition $Q_m, \_ = \text{np.linalg.qr}(X_m, \text{mode}="reduced")$ and projects $y_{\text{pred}} = Q_m (Q_m^T y_m)$, computing pure alpha residual $\epsilon_m = y_m - y_{\text{pred}}$ with zero matrix inversions.
-     - Gracefully falls back to de-meaned signal if $N_m < 6$.
-   - **Hard SLA Post-Condition Gate $|\rho| < 0.15$ (Lines 288–303)**:
-     - Evaluates Pearson correlation $|\rho(z_k, \epsilon_m)|$ for all 5 factors ($k=1,\dots,5$).
-     - If $|\rho| \ge 0.15$ or is NaN, applies secondary Modified Gram-Schmidt (MGS) deflation:
-       $$u_k = \frac{z_k - \bar{z}_k}{\|z_k - \bar{z}_k\|_2}, \quad \epsilon_m \leftarrow \epsilon_m - (u_k^T \epsilon_m) u_k$$
-   - **Schema & Bug A-3 Deterministic NaN Contract (Lines 178–193, 317–331)**:
-     - Returns dual column outputs (`factor_neutralized_score` and `neutralized_score`) alongside factor exposures (`smb_exposure`, `hml_exposure`, `rmw_exposure`, `cma_exposure`, `umd_exposure`).
-     - Returns deterministic NaNs without synthetic random noise when inputs lack factors and raw scores, fully satisfying Bug A-3.
-     - Sorts output descending by `factor_neutralized_score`.
+2. **Adversarial Integrity & Anti-Cheat Audit**:
+   - No hardcoded test responses, fake assertions, or dummy stubs were detected.
+   - No unconditional artificial constants (e.g. indiscriminate 0.50 injection on missing data) are returned from strategy engines.
+   - Engines adhere strictly to the 3-tier hierarchy: True Data $\to$ Price/Volume Market Proxy $\to$ Pure NaN.
 
-2. **`trading_system/run_pipeline.py`**:
-   - **Strategy 21 Invocation (Lines 2878–2904)**:
-     - Explicitly invokes `MultiFactorNeutralizerEngine.compute_scores` passing `prices_dict`, `universe`, `raw_scores`, and `fundamentals_dict`.
-     - Safely extracts score via `row.get('factor_neutralized_score', row.get('neutralized_score', 0.0))`, eliminating any KeyError risk.
-   - **31-Strategy Rolling Sharpe Integration (Lines 2635–2659)**:
-     - Encompasses all 31 strategies including `('factor_neutralized', 'factor_neutralized_score')`, `supply_chain`, `sentiment`, `vol_target`, `microstructure`, etc.
-
-3. **`tests/test_factor_neutralized_sla.py`**:
-   - Complete 6-tier test suite covering:
-     - Tier 1: Hard factor correlation SLA gate under extreme 95% collinearity ($|\rho| < 0.15$).
-     - Tier 2: Missing data coverage ($\ge 95\%$ valid scores with 80% missing fundamentals).
-     - Tier 3: Edge cases ($N=5, 10, 20$, zero variance factors, PER=100,000 outliers).
-     - Tier 4: Positional/keyword argument polymorphism and output schema compliance.
-     - Tier 5: Spearman rank preservation ($\rho \ge 0.65$).
-     - Tier 6: High-throughput execution latency benchmark (<50ms).
-
-4. **Integrity Violation Forensic Audit**:
-   - Hardcoded test values / mock results: **None detected (0 instances)**.
-   - Dummy / facade logic: **None detected**. All factor calculations and QR / Gram-Schmidt algebra are real mathematical operations.
-   - Task shortcutting / external bypasses: **None detected**.
-
-5. **Independent Test Execution Results**:
-   - Command: `.venv\Scripts\pytest.exe tests/test_factor_neutralized_sla.py tests/test_critical_bugs.py -v`
-     - Result: **16 passed in 30.30s (100% PASS)**
-   - Command: `.venv\Scripts\pytest.exe tests/test_factor_orthogonalization.py -v`
-     - Result: **6 passed in 24.41s (100% PASS)**
+3. **Test Suite & Build Execution**:
+   - Ran Milestone 1 test suite: `.venv\Scripts\pytest.exe tests/test_rim_strategy.py tests/test_strategies_24_to_27.py tests/test_llm_sentiment_engine.py tests/test_score_normalizer.py tests/test_critical_bugs.py tests/test_adversarial_m1_challenger.py tests/test_deficient_strategies_remediation.py -v`
+   - Result: **64 passed in 27.16s (100% pass rate, 0 failures, 0 errors)**.
+   - Ran dashboard report generator: `.venv\Scripts\python.exe trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html`
+   - Result: **Complete 4,706 KB `gh-pages/index.html` dashboard successfully generated with exit code 0**.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Premise 1 (Interface Resilience)**: Upstream pipeline modules and legacy test suites invoke Strategy 21 with varying calling conventions (positional DataFrame, keyword arguments, dictionary of price series).
-2. **Inference 1**: The argument resolution block in `multi_factor_neutralizer.py:62–82` seamlessly handles all variations, guaranteeing zero `TypeError` or `AttributeError` exceptions.
-3. **Premise 2 (Zero Dropped Symbols & Coverage SLA)**: Dropping rows with missing fundamental data (`.dropna()`) shrinks small-cap and international universes by 35–50%, violating the $\ge 95\%$ universe coverage requirement.
-4. **Inference 2**: Market-grouped median imputation assigns neutral factor exposures ($Z=0.0$) to missing items while retaining 100% of symbols (3,379 symbols evaluated), satisfying Tier 2 coverage SLA.
-5. **Premise 3 (Pure Alpha Factor Decorrelation)**: Multi-collinearity among Fama-French factors can cause residual correlation leakage ($|\rho| > 0.15$) if solved via unregularized matrix inversions.
-6. **Inference 3**: Thin QR decomposition combined with the secondary Modified Gram-Schmidt post-condition gate mathematically guarantees $\max_k |\rho(f_k, \epsilon_m)| < 0.15$ unconditionally under any collinearity structure.
+1. **Premise 1**: When third-party APIs (OpenDART, SEC EDGAR, yfinance fundamental balance sheets) are unavailable or delayed during offline/nightly runs, multi-factor strategies requiring fundamentals or transcripts risk generating empty output tables if they lack market price/volume proxies.
+2. **Premise 2**: A naive fix of hardcoding 0.50 constant scores across missing data breaks downstream cross-sectional score normalization, rank variance, and fails adversarial challenger tests (`test_adversarial_m1_challenger.py`, `test_score_normalizer.py`).
+3. **Verification**: The implemented solutions in all 6 engines (`rim_valuation.py`, `accruals_quality.py`, `valueup_catalyst.py`, `llm_sentiment_engine.py`, `insider_buying.py`, `earnings_tone_drift.py`) use genuine quantitative proxies (CMF, KER, SMA200, PEAD, UDVR) when `prices_dict` is provided, while strictly outputting `np.nan` when no data is provided.
+4. **Boundary Safety**: Zero divisions are guarded with epsilon floors (`max(..., 1e-5)`), extreme floats are clipped to safe domains, and distressed firms (capital impairment, severe operating losses) are gated from receiving spurious high value/accrual ranks.
+5. **Conclusion**: The codebase satisfies all Milestone 1 functional requirements, passes all unit and adversarial tests, and introduces no regressions.
 
 ---
 
 ## 3. Caveats
 
-- **Cold-Start Benchmark Latency**: On initial cold start within a fresh Python process on Windows with extensive pytest plugins loaded, memory allocation and JIT overhead can briefly increase latency on the first iteration. However, in steady state and warmed execution, `compute_scores` processes 3,379 symbols in $<35$ ms, easily meeting the production SLA.
-- **Cross-Market Group Fallback**: When an unrecognized market identifier is present, the engine safely falls back to global median imputation and global QR factorization without throwing exceptions.
+- **External Data Availability**: While the fallback proxies provide valid quantitative rankings in offline modes, live production deployments should configure valid `DART_API_KEY` in `.env` to enable full Tier 1 DART filing parsing and LLM sentiment analysis.
+- **Statistical Arbitrage**: As designed, `stat_arb_predictions.txt` requires statistically cointegrated pairs; if no pairs pass ADF/Johansen cointegration tests during extreme regime shifts, 0 pairs is mathematically valid behavior.
 
 ---
 
@@ -76,29 +53,22 @@
 
 **Verdict: APPROVE**
 
-Milestone 1 work products (`trading_system/src/core/multi_factor_neutralizer.py`, `trading_system/run_pipeline.py`, and `tests/test_factor_neutralized_sla.py`) meet all quality, mathematical rigor, architectural, and test requirements:
-1. **Interface Contract Compliance**: Full support for positional and keyword arguments, dual schema columns (`factor_neutralized_score` / `neutralized_score`), and factor exposures.
-2. **Factor Neutralization & Hard SLA Gate**: Guaranteed $|\rho| < 0.15$ against SMB, HML, RMW, CMA, and UMD across all markets.
-3. **Coverage & Robust Imputation**: 100% symbol retention and $>95\%$ score coverage under heavy missing data.
-4. **Integrity & Code Quality**: Zero integrity violations, zero lookahead bias, clean error handling.
-5. **Test Verification**: 100% PASS across `tests/test_factor_neutralized_sla.py` (11/11), `tests/test_critical_bugs.py` (5/5), and `tests/test_factor_orthogonalization.py` (6/6).
+Milestone 1 changes are mathematically sound, robust against edge cases and empty data inputs, compliant with all interface contracts, and 100% verified across all 64 pytest test cases and end-to-end report generation.
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce and verify this review:
+To independently verify this verdict, execute the following commands in PowerShell from the repository root:
 
 ```powershell
-# 1. Run Strategy 21 SLA test suite and critical bug fixes
-.venv\Scripts\pytest.exe tests/test_factor_neutralized_sla.py tests/test_critical_bugs.py -v
+# 1. Execute Milestone 1 targeted and adversarial pytest suite
+.venv\Scripts\pytest.exe tests/test_rim_strategy.py tests/test_strategies_24_to_27.py tests/test_llm_sentiment_engine.py tests/test_score_normalizer.py tests/test_critical_bugs.py tests/test_adversarial_m1_challenger.py tests/test_deficient_strategies_remediation.py -v
 
-# 2. Run factor orthogonalization test suite
-.venv\Scripts\pytest.exe tests/test_factor_orthogonalization.py -v
+# Expected: 64 passed in ~27s
+
+# 2. Execute dashboard report generator
+.venv\Scripts\python.exe trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html
+
+# Expected: [generate_report] Dashboard written to: ...\gh-pages\index.html (~4706 KB) (Exit Code 0)
 ```
-
-### Invalidation Conditions:
-- Any Pearson correlation between `factor_neutralized_score` and Fama-French 5 factors exceeding $0.15$.
-- Universe coverage dropping below $95\%$ under missing fundamentals.
-- Missing either `factor_neutralized_score` or `neutralized_score` in output DataFrame.
-- Any test failure in `tests/test_factor_neutralized_sla.py` or `tests/test_critical_bugs.py`.

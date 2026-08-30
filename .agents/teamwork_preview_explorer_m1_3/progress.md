@@ -1,13 +1,11 @@
-# Progress Log - Explorer M1-3 (Test & Quality Designer)
+# Progress - explorer_m1_3
 
-Last visited: 2026-08-14T18:28:30+09:00
+Last visited: 2026-08-29T13:38:55Z
 
-## Status
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Read ORIGINAL_REQUEST.md, PROJECT.md, and TEST_INFRA.md
-- [x] Investigated `multi_factor_neutralizer.py`, `factor_orthogonalizer.py`, and `run_pipeline.py`
-- [x] Reviewed noise filtering in Surge, VCP, Stat-Arb, and Sector Rotation
-- [x] Designed comprehensive test suite `tests/test_factor_neutralized_sla.py` (6 test classes, 18+ test methods)
-- [x] Drafted comprehensive `analysis.md`
-- [x] Drafted 5-component `handoff.md`
-- [ ] Send completion message to parent orchestrator
+- [x] Initialized DISPATCH.md, BRIEFING.md, progress.md
+- [x] Read ORIGINAL_REQUEST.md and PROJECT.md
+- [x] Investigate `_save_strategy_predictions_report()` in `trading_system/run_pipeline.py`
+- [x] Analyze NaN score handling and root cause of 0-row files (`Total symbols evaluated: 0`)
+- [x] Analyze per-market split file `<strategy>_<MARKET>.txt` generation for all 5 markets
+- [x] Formulate concrete recommendations and verification methods
+- [x] Write handoff.md and report to parent

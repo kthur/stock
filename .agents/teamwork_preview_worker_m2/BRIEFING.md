@@ -1,63 +1,53 @@
-# BRIEFING — 2026-08-21T10:37:30Z
+# BRIEFING — 2026-08-29T14:08:50Z
 
 ## Mission
-Implement and verify Domain 2 improvements (V5-07 through V5-12) for portfolio optimization, risk management, prediction time-series CV, and coverage analyzer.
+Multi-Market Merge Synchronization: Upgrade merge_predictions.py and its test suite with robust multi-probe market discovery, multi-tier ensemble section extraction, header filtering, and full 31+ strategy support.
 
 ## 🔒 My Identity
-- Archetype: worker
-- Roles: implementer, qa
-- Working directory: D:\Finance\code\stock\.agents\teamwork_preview_worker_m2\
-- Original parent: 6ca0b715-13b6-471b-8297-997f4c66f01d
-- Milestone: Domain 2 (V5-07 ~ V5-12)
+- Archetype: implementer, qa, specialist
+- Roles: [implementer, qa, specialist]
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2
+- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
+- Milestone: Milestone 2: Multi-Market Merge Synchronization
 
 ## 🔒 Key Constraints
-- Exclusive write boundaries:
-  - `trading_system/src/analysis/portfolio_optimizer.py`
-  - `trading_system/src/analysis/coverage_analyzer.py`
-  - `trading_system/src/risk/portfolio_allocator.py`
-  - `trading_system/src/risk/risk_manager.py`
-  - `trading_system/src/ai/prediction_model.py`
-- Do NOT modify files outside write boundary.
-- DO NOT cheat, hardcode test outputs, or create dummy facades.
+- Follow minimal change principle and integrity mandate (no hardcoding, no facades).
+- Python env: .venv\Scripts\python.exe and .venv\Scripts\pytest.exe.
+- Write only to own folder .agents/teamwork_preview_worker_m2/ (plus source/test files).
+- Keep BRIEFING.md under 100 lines.
 
 ## Current Parent
-- Conversation ID: 6ca0b715-13b6-471b-8297-997f4c66f01d
-- Updated: 2026-08-21T10:37:30Z
+- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
+- Updated: 2026-08-29T14:08:50Z
 
 ## Task Summary
-- **What to build**:
-  - V5-07: Black-Litterman scale alignment & quadratic utility on negative excess return (`portfolio_optimizer.py`)
-  - V5-08: Clayton copula asymmetric correlation PSD spectral projection (`portfolio_allocator.py`)
-  - V5-09: Chronological forward expanding time-series CV (`prediction_model.py`)
-  - V5-10: HRP inverse-variance cluster variance floor (`portfolio_optimizer.py`)
-  - V5-11: `np.isnan(None)` bug fix + forward-fill macro history queue synchronously (`risk_manager.py`)
-  - V5-12: Fundamental column schema alignment in `coverage_analyzer.py`
-- **Success criteria**: All tests pass cleanly, full backward compatibility, mathematically sound logic.
+- **What to build**: Robust multi-artifact market discovery, section parser for ensemble predictions, expanded header filtering, KONEX support, full 31+ strategy merging, and comprehensive tests in tests/test_merge_generic_strategies.py.
+- **Success criteria**: All tests pass, merge_predictions.py runs standalone cleanly, robust parsing without header/footer leaks.
+- **Interface contracts**: PROJECT.md, AGENTS.md
+- **Code layout**: trading_system/merge_predictions.py, tests/test_merge_generic_strategies.py
+
+## Key Decisions Made
+- Added `discover_target_markets` checking split directories, multi-probe files, and dynamic market prefixes while filtering out utility file suffixes.
+- Added `_extract_ensemble_market_section` with regex and line-by-line fallback, cleanly stripping trailing footer blocks (`--- Data Quality`, `--- Applied Strategy Weights`).
+- Added KONEX to `KNOWN_MARKETS`.
+- Expanded header line detection in `merge_generic_strategy_files` to support `Filters:`, `Rank`, `Pair`, `No.`, `Symbol`, `---`, `───`, `===`, `═══`.
+- Expanded `tests/test_merge_generic_strategies.py` with 74 tests covering 31+ strategies, discovery, and section extraction.
 
 ## Change Tracker
-- **Files modified**:
-  - `trading_system/src/analysis/portfolio_optimizer.py`: Normalized Q if percentage scale, changed negative excess return check inside objective function to per-weight evaluation, regularized HRP cluster variances (1e-4 on vol, 1e-8 on var) and clamped alpha to [0.01, 0.99].
-  - `trading_system/src/risk/portfolio_allocator.py`: Added Higham/eigendecomposition PSD spectral projection on Clayton copula correlation matrix and 1e-5 * np.eye(K) regularization on stressed cov.
-  - `trading_system/src/ai/prediction_model.py`: Fixed DateAwareTimeSeriesSplit to chronological forward expanding window `train_end_idx = (i + 1) * test_size`.
-  - `trading_system/src/risk/risk_manager.py`: Added forward-fill on None/NaN macro values to keep history queues synchronized across assets; guarded past_vix type and finiteness before evaluating vix_roc.
-  - `trading_system/src/analysis/coverage_analyzer.py`: Added normalized/engineered fundamental feature names to fund_cols and broadened strategy alias support.
-- **Build status**: PASS (82/82 portfolio/risk tests pass, 5/5 prediction model tests pass, comprehensive 6/6 verification script 100% pass)
+- **Files modified**: `trading_system/merge_predictions.py`, `tests/test_merge_generic_strategies.py`
+- **Build status**: PASS (74/74 passed)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (100%)
-- **Lint status**: Clean
-- **Tests added/modified**: Verified against comprehensive domain test suite and standalone multi-case stress script.
+- **Build/test result**: 74 passed in 15.00s (.venv\Scripts\pytest.exe tests/test_merge_generic_strategies.py tests/test_report_generator_hrp.py tests/test_challenger_rim_2_stress.py -v)
+- **Lint status**: 0 violations
+- **Tests added/modified**: 71 new/expanded unit, edge-case, and integration tests in `tests/test_merge_generic_strategies.py`
 
 ## Loaded Skills
 - None
 
-## Key Decisions Made
-- Handled edge cases for empty/None macro indicators by forward filling the latest valid observation to maintain exact lag alignment across VIX, TNX, USDKRW, WTI, and DXY.
-- Applied PSD spectral reconstruction on Clayton copula correlation matrix before reconstructing stressed covariance to prevent non-PSD breakdown on negative asset correlations.
-
 ## Artifact Index
-- `DISPATCH.md` — Assignment instructions
-- `BRIEFING.md` — Agent state memory
-- `progress.md` — Liveness heartbeat
-- `handoff.md` — Final completion report
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\DISPATCH.md
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\BRIEFING.md
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\progress.md
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md

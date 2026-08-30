@@ -1,15 +1,13 @@
-## 2026-08-06T01:04:12Z
-<USER_REQUEST>
-You are a teamwork_preview_challenger stress testing Milestone 2 (Software Architecture & Pipeline Robustness Audit).
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1.
-Read ORIGINAL_REQUEST.md at: d:\Finance\code\stock\ORIGINAL_REQUEST.md.
-Read PROJECT.md at: d:\Finance\code\stock\.agents\orchestrator_readiness_audit\PROJECT.md.
+﻿## 2026-08-29T14:09:14Z
+You are challenger_m2_1 for Milestone 2: Multi-Market Merge Synchronization.
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1
 
-Task:
-Empirically stress-test Milestone 2 performance and scalability:
-1. Benchmark `StatisticalArbitrageEngine.find_cointegrated_pairs()` across 3,379 symbols: measure total scan time (target < 5.0 seconds) and verify 100% universe coverage without symbol truncation.
-2. Benchmark `FactorOrthogonalizerEngine` across synthetic score matrices (18 strategies x 3,379 tickers): verify mean off-diagonal correlation < 0.30 and execution time < 100 ms.
-3. Test pipeline exception isolation under simulated step crashes in `run_pipeline.py`.
+Please read:
+- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+- d:\Finance\code\stock\PROJECT.md
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md
 
-Run tests and report results. Write `handoff.md` with your verdict (APPROVE or REQUEST_CHANGES). Send a message to parent when finished.
-</USER_REQUEST>
+Your task:
+1. Adversarially stress test 	rading_system/merge_predictions.py and its helper functions (discover_target_markets, _extract_ensemble_market_section, merge_generic_strategy_files, merge_surge_predictions).
+2. Stress test with edge cases: missing directories, empty files, malformed text with missing border markers, footer bleed-in, mixed Windows/Unix line endings, Korean UTF-8 text with special symbols.
+3. Record your explicit verdict (APPROVE or REQUEST_CHANGES) and test evidence in d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1\handoff.md and send a message back.

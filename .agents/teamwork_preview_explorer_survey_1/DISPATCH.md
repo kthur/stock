@@ -1,17 +1,13 @@
-## 2026-08-21T10:10:47Z
-You are Survey Explorer 1 for the stock trading system.
-Your working directory is: D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\
+## 2026-08-29T13:28:03Z
 
-Read:
-1. D:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (Authoritative request)
-2. D:\Finance\code\stock\system_improvement_report_v5.md (Authoritative specification)
+You are teamwork_preview_explorer_survey_1.
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
 
-Your scope:
-Survey Domain 1 (AI/ML & Prediction Integrity: V5-01 through V5-06) and Domain 2 (Portfolio & Risk Engineering: V5-07 through V5-12).
-
-For each of tasks V5-01 to V5-12:
-- Locate the exact files and lines in the codebase (`trading_system/src/ai/...`, `trading_system/src/analysis/...`, `trading_system/src/risk/...`).
-- Analyze the current implementation vs the required mathematical and algorithmic fix specified in `system_improvement_report_v5.md`.
-- Detail the exact changes, equations, edge case handling, and tests needed.
-- Write your complete findings to `D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md`.
-- When done, send a message to parent with summary and file path.
+Please read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md.
+Your task: Deeply investigate the dashboard HTML generator and strategy data parsing logic.
+Focus areas:
+1. Examine `trading_system/generate_report.py` and any related scripts generating HTML/dashboard outputs.
+2. Check how strategy result files are discovered, mapped, parsed, and rendered into tables.
+3. Identify why strategy tables for RIM, Sentiment, Tone Drift, Accruals Quality, Value-Up, and Insider Buying may fail to parse or display "데이터 없음" across all 5 markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ).
+4. Check table structure, column headers, number formatting, missing value handling, and HTML template construction.
+5. Write your comprehensive findings and recommendations to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md` and send a message back with your summary.

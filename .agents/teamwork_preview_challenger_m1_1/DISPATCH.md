@@ -1,18 +1,14 @@
-# Challenger M1-1 Dispatch: Empirical Stress & Extreme Collinearity Testing
+## 2026-08-29T13:49:07Z
+You are challenger_m1_1 for Milestone 1.
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_1
 
-## Objective
-Adversarially stress-test `MultiFactorNeutralizerEngine` in `trading_system/src/core/multi_factor_neutralizer.py`.
+Please read:
+- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+- d:\Finance\code\stock\PROJECT.md
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
 
-## Instructions
-1. Read `ORIGINAL_REQUEST.md` and `PROJECT.md`.
-2. Generate adversarial test harnesses:
-   - Extreme factor collinearity ($r \ge 0.999$)
-   - 95% missing fundamentals across 3,379 symbols
-   - All zero or constant inputs
-   - Single-element / tiny universes ($N=1, 2, 5$)
-   - Outliers with $10^{15}$ market cap or negative PER/ROE.
-3. Verify that in all cases, no crashes occur, output schema is intact, and $|\rho(f_k, \text{factor\_neutralized\_score})| < 0.15$ holds strictly.
-4. Report your empirical findings and verdict (APPROVE or REQUEST_CHANGES) in `handoff.md`.
-
-## 2026-08-14T10:02:27Z
-Received dispatch to adversarially stress-test `MultiFactorNeutralizerEngine` with extreme collinearity, 95% missing data, zero-variance factors, tiny universes, and extreme outliers.
+Your task:
+1. Adversarially stress test the 6 modified strategy engines (`rim_valuation.py`, `accruals_quality.py`, `valueup_catalyst.py`, `llm_sentiment_engine.py`, `insider_buying.py`, `earnings_tone_drift.py`).
+2. Test corner cases: empty prices_dict, single-day OHLCV, 0 volume, flat prices, NaN columns, infinite values, mixed symbol types (int vs str).
+3. Verify that engines do not crash with unhandled exceptions and return finite valid floats when price data is available, and np.nan when all data is missing.
+4. Record your explicit verdict (APPROVE or REQUEST_CHANGES) and test evidence in `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_1\handoff.md` and send a message back.

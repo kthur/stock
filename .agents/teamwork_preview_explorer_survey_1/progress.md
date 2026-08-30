@@ -1,13 +1,12 @@
-# Progress
+# Progress — teamwork_preview_explorer_survey_1
 
-Last visited: 2026-08-21T10:14:15Z
+Last visited: 2026-08-29T13:33:00Z
 
 ## Status
 - [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Read ORIGINAL_REQUEST.md and system_improvement_report_v5.md
-- [x] Inspected codebase for Domain 1 (V5-01 to V5-06)
-- [x] Inspected codebase for Domain 2 (V5-07 to V5-12)
-- [x] Formulated mathematical remedies, edge-case analysis, and verification plans for V5-01 through V5-12
-- [x] Wrote comprehensive 5-component handoff report to handoff.md
-- [x] Verified targeted tests for Domain 1 and 2
-- [ ] Send completion message to parent
+- [x] Investigate `trading_system/generate_report.py` structure and parsing functions
+- [x] Inspect strategy files produced by `run_pipeline.py` or existing in `trading_system/result/` or `trading_system/`
+- [x] Trace file naming, header formats, parser schemas, and missing strategies
+- [x] Check table rendering, JS interactivity, market tabs, and missing value handling
+- [x] Compile 5-component handoff report (`handoff.md`)
+- [ ] Send summary message to parent

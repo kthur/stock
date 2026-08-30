@@ -1,58 +1,41 @@
-# BRIEFING — 2026-08-21T10:13:30Z
+# BRIEFING — 2026-08-29T13:33:00Z
 
 ## Mission
-Survey Domain 1 (V5-01 to V5-06) and Domain 2 (V5-07 to V5-12) of the Stock Trading System improvement specifications, analyzing current codebase implementation against V5 specs and producing detailed architectural findings and verification plans.
+Investigate dashboard HTML generator (`generate_report.py`) and strategy data parsing logic, focusing on why strategy tables (RIM, Sentiment, Tone Drift, Accruals Quality, Value-Up, Insider Buying, etc.) fail to parse or display "데이터 없음" across the 5 markets.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: investigation, synthesis
-- Working directory: D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\
-- Original parent: 6ca0b715-13b6-471b-8297-997f4c66f01d
-- Milestone: Survey Phase (Domains 1 & 2: V5-01 through V5-12)
+- Roles: investigation, analysis, synthesis
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
+- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
+- Milestone: survey_1
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement production changes
-- Output findings in 5-Component Handoff format in handoff.md
-- Message parent upon completion
+- Read-only investigation — do NOT implement changes to source code outside .agents
+- Investigate files, line numbers, exact parsing issues, schema mismatches, and provide actionable recommendations.
 
 ## Current Parent
-- Conversation ID: 6ca0b715-13b6-471b-8297-997f4c66f01d
-- Updated: 2026-08-21T10:13:30Z
+- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
+- Updated: 2026-08-29T13:33:00Z
 
 ## Investigation State
 - **Explored paths**:
-  - `system_improvement_report_v5.md`
-  - `trading_system/src/ai/factor_orthogonalizer.py` (V5-01, V5-02)
-  - `trading_system/src/ai/factor_suppression.py` (V5-03)
-  - `trading_system/src/ai/ensemble_scorer.py` (V5-04)
-  - `trading_system/src/ai/optuna_tuner.py` (V5-05)
-  - `trading_system/src/ai/vcp_ml_predictor.py` (V5-06)
-  - `trading_system/src/analysis/portfolio_optimizer.py` (V5-07, V5-10)
-  - `trading_system/src/risk/portfolio_allocator.py` (V5-08)
-  - `trading_system/src/ai/prediction_model.py` (V5-09)
-  - `trading_system/src/risk/risk_manager.py` (V5-11)
-  - `trading_system/src/analysis/coverage_analyzer.py` (V5-12)
+  - `trading_system/generate_report.py` (lines 1-5099, parsers, `build_html`, `_parse_simple_strategy`, `parse_rim`, `format_metric_cell`, `_build_simple_panels`, `build_tab_status_banner`, JavaScript logic)
+  - `trading_system/merge_predictions.py` (merging logic, `merge_generic_strategy_files`, `merge_ensemble_predictions`, section regex extraction)
+  - `trading_system/run_pipeline.py` (strategy computation calls, `df_rim_input` generation, `_save_strategy_predictions_report`, NaN dropping behavior)
+  - Strategy engines: `src/core/llm_sentiment_engine.py`, `src/core/earnings_tone_drift.py`, `src/core/accruals_quality.py`, `src/core/valueup_catalyst.py`, `src/core/insider_buying.py`, `src/core/rim_valuation.py`
+  - Result files in `trading_system/result/` (`rim_predictions.txt`, `sentiment_predictions.txt`, `earnings_tone_drift_predictions.txt`, `accruals_quality_predictions.txt`, `valueup_catalyst_predictions.txt`, `insider_buying_predictions.txt`, `ensemble_predictions.txt`)
+  - Tests: `tests/test_report_generator_hrp.py`, `tests/test_report_ux_and_rounding.py`
 - **Key findings**:
-  - V5-01: Rank-deficient PCA-ZCA whitening explodes variance by 1000x on N < K; needs continuous ridge floor.
-  - V5-02: WLS equation omits B_weighted in normal equations; `.loc` fails on unaligned symbol indices.
-  - V5-03: Strategy aliases mapped to 'OTHER', reducing intra-cluster penalty from 2.25 to 0.50.
-  - V5-04: `_vmin_floor` computed but omitted from dict comprehension, allowing 175:1 weight divergence.
-  - V5-05: 4 VCP hyperparameters disconnected from Optuna objective loop.
-  - V5-06: Platt scaling converts probability to log-odds before applying linear calibrator, collapsing probabilities to 0.
-  - V5-07: Black-Litterman views in percentage scale distort decimal prior 100x; negative excess return maximizes volatility.
-  - V5-08: Clayton copula breaks positive semi-definiteness on negatively correlated assets; requires spectral projection.
-  - V5-09: Time-series CV split backwards in time starves early folds; requires forward expanding window.
-  - V5-10: HRP inverse-variance division by zero on zero-variance assets; requires variance floor and alpha clipping.
-  - V5-11: `np.isnan(None)` raises TypeError and asynchronous queue appends desynchronize macro histories.
-  - V5-12: Coverage analyzer schema checks raw columns, missing engineered feature columns and flagging spurious missingness.
-- **Unexplored areas**: Domains 3, 4, 5 (V5-13 through V5-32) assigned to peer survey explorers.
+  1. `generate_report.py`'s table rendering correctly groups rows by `row.market` matching `active_markets_ordered`. When rows for a market exist, interactive tables with links and formatted cells render cleanly.
+  2. When strategy output files contain 0 data rows (e.g. `Total symbols evaluated: 0`), `_parse_simple_strategy` returns `[]`, and `generate_report.py` renders `<tr><td colspan="5" class="empty">데이터 없음</td></tr>` alongside a warning banner with reason codes (`NO_CORPORATE_FILING`, `NO_FUNDAMENTAL_DATA`, `NO_INSIDER_FILING`, `NO_EARNINGS_TRANSCRIPT`).
+  3. The root cause for empty strategy files in `trading_system/result/` is upstream data missingness in `run_pipeline.py`: when external disclosure/fundamental data is absent and proxy fallbacks are not populated, strategy engines produce `np.nan` scores for all symbols. In `run_pipeline.py:2859`, `merged.dropna(subset=[score_col])` drops all rows before saving, creating files with 0 symbols.
+  4. In `merge_predictions.py`, `merge_ensemble_predictions()` relies on a strict header pattern `rf"(==={{10,}}\s*\n\[{re.escape(market)}\][^\n]*\n==={{10,}}\s*\n.*?)(?=\n==={{10,}}|\Z)"`. If single-market runs produce mismatched headers (e.g. `[KOSPI]` and `[KOSDAQ]` in `ensemble_predictions_NASDAQ.txt`), section extraction fails, leaving those markets out of `ensemble_predictions.txt` and lowering market coverage in the dashboard.
+- **Unexplored areas**: None for survey scope.
 
 ## Key Decisions Made
-- All 12 tasks (V5-01 to V5-12) fully investigated with exact file paths, line numbers, root causes, mathematical formulations, and proposed code modifications.
-- Writing comprehensive 5-component handoff report to `handoff.md`.
+- Fully documented all 5 focus areas with exact code locations, regex behavior, failure modes, and systematic recommendations.
 
 ## Artifact Index
-- D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\DISPATCH.md
-- D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\BRIEFING.md
-- D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\progress.md
-- D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md` — Final 5-component report
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\progress.md` — Progress tracker

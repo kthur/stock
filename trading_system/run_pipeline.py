@@ -2957,7 +2957,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         logger.warning(f"[PARALLEL SCORING] Pre-fetching DART filings/sentiment skipped: {_init_ev_e}")
 
     # Build filings_map for NLP Sentiment
-    filings_map = {}
+    filings_map: dict[str, str] = {}
     if eff_filings:
         for item in eff_filings:
             if isinstance(item, dict):
@@ -3211,8 +3211,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                         break
             if _scol in _df_s.columns:
                 _save_strategy_predictions_report(
-                    _df_s, _scol, spec['title'], spec['file'],
-                    score_header=spec['hdr'], header_width=spec['w']
+                    _df_s, _scol, str(spec['title']), str(spec['file']),
+                    score_header=str(spec.get('hdr', 'Score')), header_width=int(str(spec.get('w', 14)))
                 )
 
     # Assign local DataFrame variables for downstream pipeline compatibility

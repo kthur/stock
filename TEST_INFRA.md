@@ -1,37 +1,36 @@
-# E2E Test Infra: Stock Trading System (31-Factor Alpha & 2D Regime Ensemble)
+# E2E Test Infra: Dashboard Strategy Data & UI Integrity
 
 ## Test Philosophy
-- Opaque-box, requirement-driven, and white-box empirical stress testing.
-- Methodology: Category-Partition + Boundary Value Analysis + Pairwise Combinatorial Testing + Real-World Workload Testing + Adversarial Stress Testing.
+- Opaque-box, requirement-driven testing covering dashboard strategy data parsing, multi-market table rendering, schema synchronization, interactive UI/filtering, and CLI execution.
+- Methodology: Category-Partition + Boundary Value Analysis (BVA) + Pairwise Combinatorial Testing + Real-World Workload Testing.
 
-## Feature Inventory & Test Coverage Goals
-| # | Feature | Source (Requirement) | Tier 1 (Unit/Feature) | Tier 2 (Boundary/Edge) | Tier 3 (Cross-Factor) | Tier 4 (Workload/E2E) |
-|---|---------|----------------------|:---------------------:|:----------------------:|:---------------------:|:---------------------:|
-| F1 | Multi-Factor Neutralizer Interface & Imputation | ORIGINAL_REQUEST §R1 | 5 | 5 | ✓ | ✓ |
-| F2 | Fama-French 5-Factor QR Residualization | ORIGINAL_REQUEST §R1 | 5 | 5 | ✓ | ✓ |
-| F3 | Pure Alpha $\|\rho\| < 0.15$ Hard SLA Gate | ORIGINAL_REQUEST §R1 | 5 | 5 | ✓ | ✓ |
-| F4 | 31-Strategy Alpha Precision & Score Normalization | ORIGINAL_REQUEST §R1 | 5 | 5 | ✓ | ✓ |
-| F5 | 2D Regime Dynamic Exponential Sharpe Multipliers | ORIGINAL_REQUEST §R2 | 5 | 5 | ✓ | ✓ |
-| F6 | Adaptive EMA Smoothing & Downside Risk Defense | ORIGINAL_REQUEST §R2 | 5 | 5 | ✓ | ✓ |
-| F7 | Microstructure Transaction Cost Deduction | ORIGINAL_REQUEST §R2 | 5 | 5 | ✓ | ✓ |
-| F8 | Comparative Rolling Backtest Verification | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
-| F9 | Pytest Full Regression (1,569+ Tests 100% Pass) | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
-| F10 | Pipeline Execution & GitHub Pages Report Update | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
+## Feature Inventory & Test Mapping
+| # | Feature | Requirement | Tier 1 (Happy) | Tier 2 (Boundary) | Tier 3 (Pairwise) | Tier 4 (Workload) |
+|---|---------|-------------|:--------------:|:-----------------:|:-----------------:|:-----------------:|
+| 1 | Strategy Proxy Fallback Scoring | R1, R2 | 5 | 5 | ✓ | ✓ |
+| 2 | Pipeline Strategy Report Saving | R1, R2 | 5 | 5 | ✓ | ✓ |
+| 3 | Robust Market Discovery in Merger | R2 | 5 | 5 | ✓ | ✓ |
+| 4 | Ensemble Section Header Sync | R2 | 5 | 5 | ✓ | ✓ |
+| 5 | 31-Strategy File Merge Alignment | R2 | 5 | 5 | ✓ | ✓ |
+| 6 | Core 5-Market Dashboard Parity | R1, R3 | 5 | 5 | ✓ | ✓ |
+| 7 | Strategy Parser Enhancements | R1 | 5 | 5 | ✓ | ✓ |
+| 8 | Client JavaScript Hardening | R3 | 5 | 5 | ✓ | ✓ |
+| 9 | CLI Execution & Parity Test Suite | Acceptance Criteria | 5 | 5 | ✓ | ✓ |
+| 10 | Zero NaN/Mojibake & Encoding Integrity | Acceptance Criteria | 5 | 5 | ✓ | ✓ |
 
 ## Test Architecture
-- **Unified Test Directory**: `tests/` (all unit, integration, and challenger test suites consolidated into single hierarchy).
-- **Test Runner**: `.venv\Scripts\python.exe -m pytest tests/ -v --tb=short`
-- **Pass/Fail Semantics**: 100% of discovered tests (1,569+) must PASS with 0 failures, 0 errors.
-- **Factor Correlation Gate**: $\max_{k \in \{1..5\}} |\rho(f_k, \text{pure\_alpha})| < 0.15$ verified across full universe.
-- **Coverage Requirement**: $\ge 95\%$ valid scores across 3,379 symbols in `strategy_data_coverage_report.txt`.
-- **Pipeline Integrity**: `run_pipeline.py` exit code 0, all 31 strategy output files populated, `gh-pages/index.html` updated.
+- **Test Runner**: `pytest tests/` via `.venv/bin/pytest` or `.venv\Scripts\pytest.exe`.
+- **Target Suites**:
+  - `tests/test_report_generator_hrp.py`: HRP allocation parsing & HTML inclusion.
+  - `tests/test_report_ux_and_rounding.py`: Largest remainder rounding, search universe counter, table headers.
+  - `tests/test_challenger2_dashboard_parser_stress.py`: RIM multi-column formats, cell sanitizer against NaN/null/inf, zero unescaped strings.
+  - `tests/test_merge_generic_strategies.py`: Multi-market file merging, section headers, fallback handling.
+  - `tests/test_generate_report_cli.py`: New CLI execution test with `--result-dir` and `--out`.
+  - `tests/test_dashboard_strategy_parity.py`: New 31-strategy 5-market table parity and link integrity tests.
+- **Pass / Fail Semantics**: 100% test pass, exit code 0, no regressions.
 
-## Real-World Application Scenarios (Tier 4)
-| # | Scenario | Features Exercised | Complexity |
-|---|----------|--------------------|------------|
-| 1 | High-Volatility Market Crash (VIX > 30 Shock & Term Inversion) | F5, F6, F7, F9 | High |
-| 2 | Small-Cap & Microcap Extreme Missing Fundamentals (Filing Lag & Imputation) | F1, F2, F3 | High |
-| 3 | Strong Collinear Factor Drift in Bull Market | F2, F3, F4, F5 | High |
-| 4 | Multi-Horizon Cross-Market Pipeline Execution (US+KR 5 Markets) | F1, F4, F7, F10 | Extreme |
-| 5 | Rolling Multi-Factor Comparative Backtest with Dynamic Slippage Feedback | F8, F9, F10 | High |
-
+## Coverage Thresholds
+- Tier 1: ≥5 test cases per feature (happy path parsing, standard multi-market rows)
+- Tier 2: ≥5 test cases per feature (boundary/corrupt files, 0-row fallback, missing columns, signed NaNs, missing delimiters)
+- Tier 3: Pairwise combinations across 5 markets x 31 strategies x 3 file formats
+- Tier 4: Real-world workload scenarios (Full pipeline generation -> merge -> HTML report compilation -> HTML DOM structure validation)

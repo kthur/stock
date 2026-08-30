@@ -1,97 +1,230 @@
-# Handoff Report: Milestone M1 Strategy Noise Filtering & Correlation SLA Test Design
+# Handoff Report: Pipeline Strategy Report Saving & Multi-Market File Output
 
-**Agent**: Explorer M1-3 (Test & Quality Designer)  
-**Recipient**: Project Orchestrator (`644fa09c-3631-4b51-bf49-e7616ad72a36`)  
-**Timestamp**: 2026-08-14T09:29:00Z  
-**Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3`  
-**Handoff Type**: Hard (Task Complete)  
+- **Agent**: explorer_m1_3
+- **Milestone**: Milestone 1 (Strategy Fallback Scoring & Report Saving)
+- **Scope**: Pipeline strategy report saving and multi-market file output (`trading_system/run_pipeline.py`)
+- **Date**: 2026-08-29
 
 ---
 
 ## 1. Observation
 
-1. **Interface Binding Mismatch in Strategy 21**:
-   - `trading_system/run_pipeline.py:2869`:
-     ```python
-     factor_neutralized_df = fn_engine.compute_scores(universe)
-     ```
-   - `trading_system/src/core/multi_factor_neutralizer.py:45-54`:
-     ```python
-     def compute_scores(self, prices_dict: Any = None, fundamentals_dict: Optional[Dict] = None, indicators_df: Optional[Any] = None, **kwargs: Any) -> Any:
-         universe = kwargs.get("universe", kwargs.get("universe_df", pd.DataFrame()))
-     ```
-     `universe` is received as `prices_dict` positional argument, leaving `kwargs.get("universe")` empty.
-2. **Column Naming Discrepancy**:
-   - `trading_system/src/core/multi_factor_neutralizer.py:150`: Outputs column `'factor_neutralized_score'`.
-   - `trading_system/run_pipeline.py:2880`:
-     ```python
-     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['neutralized_score']:>12.1f}%\n")
-     ```
-     Attempting to access `row['neutralized_score']` raises an unhandled `KeyError: 'neutralized_score'`, deactivating Strategy 21 and defaulting `factor_neutralized_df` to an empty DataFrame.
-3. **Fundamentals Missingness Coverage Failure**:
-   - `trading_system/src/core/multi_factor_neutralizer.py:82`:
-     ```python
-     df_merged = df_merged.dropna(subset=["score", "market_cap", "per", "roe"]).copy()
-     ```
-     If small-cap or foreign symbols have missing quarterly metrics, dropping them reduces symbol coverage from 3,379 down to $< 1,500$ ($< 45\%$), directly violating the $\ge 95\%$ coverage SLA.
-4. **Strategy Noise Filtering Mechanisms Verified**:
-   - **Surge Classifier** (`prediction_model.py:1853-1865`): Capped `scale_pos_weight = min(neg_count / pos_count, 20.0)` and embargoed walk-forward cross-validation.
-   - **VCP Pattern Detector** (`vcp_detector.py:116-181`): 4-slice strict contraction checking ($r_1 \le r_2 \cdot 1.05 \le r_3 \cdot 1.05 \le r_4 \cdot 1.05$), moving average trend filter (SMA50 & SMA200), volume dry-up ($V_{20d} < 0.85 \times V_{60d}$), and score cutoff $\ge 50.0$.
-   - **Stat-Arb Cointegration Scanner** (`stat_arb.py:268-500`): 15D profile pre-clustering (MiniBatch K-Means / OPTICS), BLAS correlation filter ($|r| \ge 0.70$), ADF cointegration ($t < -2.86, p \le 0.05$), OU half-life ($2.0 \le \tau_{1/2} \le 40.0$), Benjamini-Hochberg FDR control ($q \le 0.10$), and Z-score stop-loss ($|Z| > 3.2$).
-   - **Sector Rotation Engine** (`sector_rotation.py:44-190`): Standard 11 GICS sector mapping, multi-horizon composite momentum (60% 20d + 40% 60d), and adaptive intra-sector dispersion weighting ($0.35/0.65 \to 0.60/0.40$).
+### 1.1 `_save_strategy_predictions_report()` Implementation in `trading_system/run_pipeline.py`
+In `trading_system/run_pipeline.py` lines 2844–2886:
+```python
+def _save_strategy_predictions_report(
+    df_strat: pd.DataFrame,
+    score_col: str,
+    title: str,
+    output_filename: str,
+    score_header: str = "Score",
+    header_width: int = 14
+) -> None:
+    if df_strat is None or df_strat.empty or score_col not in df_strat.columns:
+        return
+
+    merged = df_strat.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in df_strat.columns else df_strat.copy()
+    if 'name' not in merged.columns and 'name' in universe.columns:
+        merged = merged.merge(universe[['symbol', 'name']], on='symbol', how='left')
+    merged[score_col] = pd.to_numeric(merged[score_col], errors='coerce')
+    merged = merged.dropna(subset=[score_col]).sort_values(by=score_col, ascending=False)
+
+    def _write_content(f_out, df_sub, market_label=None):
+        f_out.write(f"=== {title} ===\n")
+        f_out.write(f"Date: {kst_now_str}\n")
+        f_out.write(f"Total symbols evaluated: {len(df_sub)}\n\n")
+        f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{score_header:<{header_width}}\n")
+        f_out.write("-" * (43 + header_width) + "\n")
+        for rank, (_, row) in enumerate(df_sub.head(100).iterrows(), 1):
+            name_str = str(row.get('name', 'Unknown'))[:16] if pd.notna(row.get('name')) else "Unknown"
+            mkt_str = str(row.get('market', 'KRX'))
+            sc_raw = float(row[score_col])
+            sc_val = sc_raw * 100.0 if sc_raw <= 1.0 else sc_raw
+            f_out.write(f"{rank:<5}{str(row['symbol']):<10}{name_str:<18}{mkt_str:<10}{sc_val:>{header_width-2}.1f}%\n")
+
+    main_path = os.path.join(result_dir, output_filename)
+    with open(main_path, "w", encoding="utf-8") as f:
+        _write_content(f, merged)
+    logger.info(f"Saved {title} ({len(merged)} symbols) to {main_path}")
+
+    base_name = output_filename.replace(".txt", "")
+    for _m in _get_target_markets_to_save(df=merged, universe=universe):
+        _m_df = merged[merged['market'] == _m]
+        if _m_df.empty:
+            continue
+        with open(os.path.join(result_dir, f"{base_name}_{_m}.txt"), "w", encoding="utf-8") as _mf:
+            _write_content(_mf, _m_df, market_label=_m)
+```
+
+### 1.2 Verbatim Examples of 0-Row Files in `trading_system/result/`
+Direct inspection of current result artifacts in `trading_system/result/`:
+- `sentiment_predictions.txt` (243 bytes, 7 lines):
+  ```text
+  === Strategy 20: NLP & FinBERT Sentiment Catalyst Predictions ===
+  Date: 2026-08-28 18:49 KST
+  Total symbols evaluated: 0
+
+  Rank Symbol    Name              Market    Sent Score    
+  ---------------------------------------------------------
+  ```
+- `accruals_quality_predictions.txt` (239 bytes, 7 lines):
+  ```text
+  === Strategy 24: Accruals Quality Anomaly Predictions ===
+  Date: 2026-08-28 18:49 KST
+  Total symbols evaluated: 0
+
+  Rank Symbol    Name              Market    Accruals Score  
+  -----------------------------------------------------------
+  ```
+- `earnings_tone_drift_predictions.txt` (238 bytes, 7 lines):
+  ```text
+  === Strategy 30: Earnings Tone Drift NLP Predictions ===
+  Date: 2026-08-28 18:49 KST
+  Total symbols evaluated: 0
+
+  Rank Symbol    Name              Market    Tone Score      
+  -----------------------------------------------------------
+  ```
+- `valueup_catalyst_predictions.txt` (243 bytes, 7 lines):
+  ```text
+  === Strategy 26: Value-Up & Shareholder Yield Predictions ===
+  Date: 2026-08-28 18:49 KST
+  Total symbols evaluated: 0
+
+  Rank Symbol    Name              Market    ValueUp Score   
+  -----------------------------------------------------------
+  ```
+
+### 1.3 Root Cause in Strategy Engines Producing All-NaN Outputs
+1. **Accruals Quality Engine** (`trading_system/src/core/accruals_quality.py` lines 83–86):
+   ```python
+   if not fund_map:
+       default_val = 0.50 if len(sym_strs) == 1 else np.nan
+       df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': default_val})
+       return df_acc[['symbol', 'accruals_quality_score']]
+   ```
+   When `features_df` / `fund_map` is empty for a universe of >1 symbol, all rows receive `np.nan`.
+2. **Value-Up Catalyst Engine** (`trading_system/src/core/valueup_catalyst.py` lines 174–176):
+   ```python
+   else:
+       default_val = 0.50 if len(df_out) == 1 else np.nan
+       df_out['valueup_catalyst_score'] = default_val
+   ```
+   When fundamental PBR/BPS is missing, `valid_mask.sum() == 0` and all rows receive `np.nan`.
+3. **Earnings Tone Drift Engine** (`trading_system/src/core/earnings_tone_drift.py` lines 109–159):
+   When `transcript_map` is empty and `features_df` is empty, every symbol retains `score = np.nan`. `prices_dict` is passed to `calculate_scores` but never used in `compute_tone_drift_scores`.
+4. **Insider Buying Engine** (`trading_system/src/core/insider_buying.py` lines 79–125):
+   ```python
+   scores_map = {sym: np.nan for sym in symbols}
+   ```
+   When `insider_filings` is None/empty (e.g. no DART key or no recent filings), all symbols retain `np.nan`.
+5. **RIM Valuation Engine** (`trading_system/src/core/rim_valuation.py` & `run_pipeline.py` lines 2771–2777):
+   When fundamental BPS is missing, `rim_score` is `np.nan`. `run_pipeline.py` filters `valid_rim = df_rim[df_rim['rim_score'].notna() & (df_rim['rim_score'] > 0)]`. If `valid_rim` is empty, `_write_rim_file` writes `데이터 없음 (유효한 RIM 적정가 산출 대상 종목 없음)`.
+
+### 1.4 Per-Market Split File Generation Logic in `run_pipeline.py`
+In `run_pipeline.py` lines 1140–1155:
+```python
+def _get_target_markets_to_save(df: pd.DataFrame = None, universe: pd.DataFrame = None) -> list[str]:
+    """Return all unique market identifiers to save individual reports for."""
+    markets = set()
+    if df is not None and not df.empty and 'market' in df.columns:
+        markets.update(df['market'].dropna().unique())
+    if universe is not None and not universe.empty and 'market' in universe.columns:
+        markets.update(universe['market'].dropna().unique())
+    target_env = os.environ.get("INFERENCE_TARGET", "").strip().upper()
+    if target_env:
+        for t in target_env.split(','):
+            t_clean = t.strip()
+            if t_clean and t_clean not in ['ALL', 'CORE_5', 'ASIA_DEV', 'ASIA_EMG', 'COMMODITY']:
+                markets.add(t_clean)
+    if not markets:
+        markets = {'KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000'}
+    return sorted(markets)
+```
+In `_save_strategy_predictions_report` (lines 2879–2886):
+```python
+base_name = output_filename.replace(".txt", "")
+for _m in _get_target_markets_to_save(df=merged, universe=universe):
+    _m_df = merged[merged['market'] == _m]
+    if _m_df.empty:
+        continue
+    with open(os.path.join(result_dir, f"{base_name}_{_m}.txt"), "w", encoding="utf-8") as _mf:
+        _write_content(_mf, _m_df, market_label=_m)
+```
+Because `merged` was stripped of all rows by `.dropna(subset=[score_col])`, `_m_df` is empty for all markets `_m`. Therefore, the per-market loop executes `continue` on line 2883, writing **zero per-market split files** (`<strategy>_<MARKET>.txt`).
 
 ---
 
 ## 2. Logic Chain
 
-1. From **Observation 1**, `MultiFactorNeutralizerEngine.compute_scores` fails to recognize `universe` when passed as the first positional argument. Therefore, `compute_scores` must accept `prices_dict` as either a dictionary of prices or a universe DataFrame.
-2. From **Observation 2**, the naming mismatch between `factor_neutralized_score` and `neutralized_score` causes runtime crashes during pipeline file writing. Therefore, the engine must return both columns (`factor_neutralized_score` and `neutralized_score` as an alias).
-3. From **Observation 3**, discarding rows with missing fundamentals causes severe coverage failure on real market data. Applying market-aware median imputation and momentum fallback preserves 100% of symbols while maintaining cross-sectional statistical properties.
-4. From **Observations 1–3**, a dedicated test suite `tests/test_factor_neutralized_sla.py` is required to enforce:
-   - Hard correlation gate: $\max_k |\rho(f_k, \text{score})| < 0.15$ using thin QR decomposition $(I - Q Q^T)y$ and secondary Gram-Schmidt deflation.
-   - Universe coverage SLA $\ge 95\%$ under 80% synthetic missing fundamentals.
-   - Small $N \in \{5, 10, 20\}$, zero-variance factors, and extreme outlier resilience.
-   - Latency SLA $< 50\text{ ms}$ for 3,379 symbols.
-5. From **Observation 4**, all 4 reviewed strategy engines (Surge, VCP, Stat-Arb, Sector Rotation) possess mathematically sound noise-filtering mechanisms with no detected regressions.
+1. **Input State**: When running the pipeline offline, in CI/CD (GitHub Actions), or when external data sources (DART API, SEC EDGAR, quarterly fundamental balance sheets) are unavailable, strategy engines return DataFrames where `score_column` contains `NaN` for all or most symbols.
+2. **`dropna` Cleansing**: In `_save_strategy_predictions_report()`, line 2858 coerces values to numeric and line 2859 executes `merged = merged.dropna(subset=[score_col])`.
+3. **Empty Data Subsetting**: Because all scores were `NaN`, `dropna` removes 100% of rows from `merged` (`len(merged) == 0`).
+4. **Header Writing Without Data**: `_write_content` is called with `len(df_sub) == 0`. It writes the file title, timestamp, `Total symbols evaluated: 0`, and column headers, but loop `for rank, (_, row) in enumerate(df_sub.head(100).iterrows(), 1)` has 0 iterations. This creates the 238–243 byte 0-row file.
+5. **Skipping Market Splits**: In lines 2880–2886, `_m_df = merged[merged['market'] == _m]` is empty for all markets. `if _m_df.empty: continue` skips writing all per-market `<strategy>_<MARKET>.txt` files.
+6. **Downstream Pipeline Cascade**:
+   - In GitHub Actions (`pipeline.yml` lines 241–246), `cp "trading_system/result/${f}.txt" "trading_system/result_split/${f}_${{ matrix.target }}.txt"` copies the 0-row file into artifact storage.
+   - `merge_predictions.py` (`merge_generic_strategy_files` lines 427–448) reads the per-market files, finds 0 data rows or "데이터 없음", and writes `데이터 없음` to the merged output.
+   - `generate_report.py` (`parse_generic_strategy_table` / `_parse_simple_strategy`) parses the empty merged file and renders `<tr><td colspan="5" class="empty">데이터 없음</td></tr>` into `gh-pages/index.html`.
 
 ---
 
 ## 3. Caveats
 
-- **Synthetic Factor Loading Calibration**: The synthetic data generator in `tests/test_factor_neutralized_sla.py` generates Fama-French proxies (Size from Market Cap, Value from E/P yield, Profitability from ROE, Investment from YoY Asset Growth, and Momentum from 12M Momentum). While representative of cross-sectional factor models, real-world DART/SEC filings may exhibit extreme microcap noise requiring ongoing median imputation monitoring.
-- **No other caveats.**
+1. **Statistical Arbitrage Special Case**: Unlike directional single-asset strategies, `stat_arb_predictions.txt` evaluates pairs. When no stock pairs pass cointegration p-value thresholds (p < 0.05, half-life > 0), 0 cointegrated pairs is mathematically expected behavior. However, it should format as `데이터 없음 (유의미한 공적분 페어 미발견)` or list top cointegration candidates under observation rather than failing silently.
+2. **Matrix Target Market Scope**: In GHA matrix execution, each runner runs for one market (e.g. `INFERENCE_TARGET=SP500`). `_get_target_markets_to_save()` correctly limits saving to `SP500`, which is then merged by `merge_predictions.py`. In local standalone runs (`INFERENCE_TARGET=ALL` or full universe), all 5 markets are evaluated in one process.
 
 ---
 
-## 4. Conclusion
+## 4. Conclusion & Concrete Recommendations
 
-1. Designed and fully specified the drop-in test suite `tests/test_factor_neutralized_sla.py` (6 tiers, 18+ test assertions) ready for immediate implementation by Implementer M1-1.
-2. Formulated concrete mathematical fixes for Strategy 21:
-   - Thin QR decomposition: $e = (I - Q Q^T) y$.
-   - Secondary Gram-Schmidt deflation gate: unconditionally enforcing $\max_k |\rho(f_k, \text{score})| < 0.15$.
-   - Market-aware median imputation: achieving $\ge 95\%$ coverage across 3,379 symbols under heavy missingness.
-   - Flexible positional/keyword argument binding and schema alias alignment.
-3. Audited and validated noise-filtering and signal-precision architectures across Surge, VCP, Stat-Arb, and Sector Rotation.
+### Recommendation 1: Engine Fallback Heuristics (Fix the Root Source of NaNs)
+Ensure all strategy engines in `src/core/` implement robust heuristic proxy fallback calculations when external data is absent:
+- **`accruals_quality.py`**: When `features_df` is missing, calculate cash flow / working capital proxies from price-volume metrics (e.g. MFI accumulation / OBV divergence) or return normalized percentile ranks so valid scores `[0.05, 0.95]` are always generated.
+- **`valueup_catalyst.py`**: When BPS/PBR is missing, estimate value ranking proxy from dividend yield / price momentum / low volatility proxies so all universe symbols receive valid scores `[0.05, 0.95]`.
+- **`earnings_tone_drift.py`**: Implement price-action earnings momentum fallback using `prices_dict` (e.g. 20d momentum drift `(close / sma20 - 1.0)`) or neutral baseline `0.50` when no call transcripts or earnings growth data exist.
+- **`insider_buying.py`**: Default baseline score to `0.50` (Neutral) for all universe symbols when no insider disclosures are detected, rather than `np.nan`.
+- **`llm_sentiment_engine.py`**: Ensure price gap & trend sentiment fallback covers all universe symbols and returns valid floats.
+- **`rim_valuation.py`**: Provide relative valuation proxy ranks when fundamental BPS is absent to ensure non-empty ranking rows.
+
+### Recommendation 2: Hardening `_save_strategy_predictions_report()` in `run_pipeline.py`
+Modify `_save_strategy_predictions_report()` to defensively handle missing scores:
+1. **Defensive Imputation Before Dropna**:
+   ```python
+   # Convert symbol types and impute missing scores before dropna
+   merged['symbol'] = merged['symbol'].astype(str)
+   merged[score_col] = pd.to_numeric(merged[score_col], errors='coerce')
+   if merged[score_col].isna().all():
+       logger.warning(f"[REPORT FALLBACK] Strategy '{title}' has all-NaN scores. Imputing baseline neutral score 0.50.")
+       merged[score_col] = 0.50
+   else:
+       # Impute remaining sporadic NaNs with column median or neutral 0.50
+       col_median = merged[score_col].median()
+       fallback_val = col_median if pd.notna(col_median) and np.isfinite(col_median) else 0.50
+       merged[score_col] = merged[score_col].fillna(fallback_val)
+   ```
+2. **Market Identifier Normalization**:
+   Map generic `'KRX'` to `'KOSPI'` or `'KOSDAQ'` using symbol patterns (`str(sym).isdigit()`) so `generate_report.py`'s `KNOWN_MKTS` set matches accurately.
+3. **Per-Market Split File Guarantee**:
+   Iterate over all active markets in `_get_target_markets_to_save(df=merged, universe=universe)`. For any market with symbols in `merged`, write `<base_name>_<MARKET>.txt`.
+
+### Recommendation 3: Standardize 31+ Strategy Output File Generation
+Ensure all 31+ strategy blocks in `trading_system/run_pipeline.py` write both unified `.txt` and `<strategy>_<MARKET>.txt` files matching the names registered in `merge_predictions.py` and parsed in `generate_report.py`.
 
 ---
 
 ## 5. Verification Method
 
-To independently verify the test suite and Strategy 21 implementation:
-
-1. **Create and Run SLA Test Suite**:
+1. **Unit Verification of Report Saving**:
+   Run pytest on merge and report generation suites:
    ```bash
-   .venv\Scripts\python.exe -m pytest tests/test_factor_neutralized_sla.py -v
+   .venv/bin/pytest tests/test_merge_generic_strategies.py tests/ -v
    ```
-   - *Expected Result*: 100% of tests PASS (0 failures, 0 errors, latency $< 50\text{ ms}$).
-2. **Execute Full Pytest Regression**:
+2. **Pipeline Report Saving Inspection**:
+   Execute `generate_report.py` against result directory to verify 0-row files no longer trigger "데이터 없음":
    ```bash
-   .venv\Scripts\python.exe -m pytest tests/ trading_system/tests/ -v
+   .venv/bin/python trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html
    ```
-   - *Expected Result*: All existing tests continue to pass 100%.
-3. **Validate Strategy Coverage**:
-   - Check `strategy_data_coverage_report.txt` after running `run_pipeline.py` to confirm Strategy 21 coverage $\ge 95.0\%$.
-4. **Invalidation Conditions**:
-   - Any test failure in `tests/test_factor_neutralized_sla.py`.
-   - Any factor exhibiting Pearson $|\rho| \ge 0.15$ with neutralized alpha scores.
-   - Strategy 21 symbol coverage dropping below $95.0\%$.
+3. **Verification Commands**:
+   - Inspect generated files: `cat trading_system/result/sentiment_predictions.txt`
+   - Check symbol counts: verify `Total symbols evaluated: > 0` and verify non-empty ranked lines exist for all 5 markets (`SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`).

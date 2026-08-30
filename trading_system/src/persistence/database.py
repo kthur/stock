@@ -616,12 +616,12 @@ class StockPriceDB:
         validator_func = None
         if not bypass_validation:
             try:
-                from src.data_layer.data_validator import DataValidator
-                validator_func = DataValidator.validate_price_data
+                from src.data_layer.data_validator import DataValidator as _DV
+                validator_func = _DV.validate_price_data
             except (ImportError, ModuleNotFoundError):
                 try:
-                    from data_validator import DataValidator
-                    validator_func = DataValidator.validate_price_data
+                    from data_validator import DataValidator as _DVFallback
+                    validator_func = _DVFallback.validate_price_data
                 except Exception:
                     validator_func = None
 

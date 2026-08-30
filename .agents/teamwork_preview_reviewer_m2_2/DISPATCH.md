@@ -1,13 +1,15 @@
-## 2026-08-05T16:04:11Z
-Review Milestone 2 (Software Architecture & Pipeline Robustness Audit).
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2.
-Read ORIGINAL_REQUEST.md at: d:\Finance\code\stock\ORIGINAL_REQUEST.md.
-Read PROJECT.md at: d:\Finance\code\stock\.agents\orchestrator_readiness_audit\PROJECT.md.
+## 2026-08-29T14:09:14Z
+You are reviewer_m2_2 for Milestone 2: Multi-Market Merge Synchronization.
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2
 
-Task:
-Review Milestone 2 pipeline robustness and automation implementations:
-1. `.github/workflows/`: Inspect `pipeline.yml`, `training.yml`, `realtime_monitor.yml`, and `weekly_hpo.yml`. Verify matrix cache restoration (`actions/cache/restore@v4`), dynamic `SKIP_TRAINING`, 22:00 UTC US market cron schedule, run_id cache keys, and `N_TRIALS` env var handling in `tune_models.py`.
-2. `trading_system/run_pipeline.py`: Inspect 12 pipeline steps for exception safety, step isolation wrappers, 3-tier data fallback, and per-market failure isolation across 6 markets.
+Please read:
+- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+- d:\Finance\code\stock\PROJECT.md
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md
 
-Run tests (`.venv/bin/pytest tests/ -v`).
-Write `handoff.md` with your verdict (APPROVE or REQUEST_CHANGES). Send a message to parent when finished.
+Your task:
+1. Independently review multi-market merge synchronization across all 5 core markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ) plus KONEX.
+2. Check header deduplication for `Pair`, `No.`, `Symbol`, `Rank`, and `Filters:`.
+3. Run test suite:
+   `.venv\Scripts\pytest.exe tests/test_merge_generic_strategies.py tests/test_report_generator_hrp.py tests/test_challenger_rim_2_stress.py -v`
+4. Record your explicit verdict (APPROVE or REQUEST_CHANGES) and evidence in `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2\handoff.md` and send a message back.

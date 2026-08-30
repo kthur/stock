@@ -370,14 +370,14 @@ class VCPSurgePredictor:
         for col in feat_cols:
             if col not in df_train.columns:
                 df_train[col] = np.nan
-        
+
         if 'market' in df_train.columns:
             for col in feat_cols:
                 df_train[col] = df_train.groupby('market')[col].transform(lambda x: x.fillna(x.median()))
                 df_train[col] = df_train[col].fillna(0.0)
         else:
             df_train[feat_cols] = df_train[feat_cols].fillna(0.0)
-            
+
         logger.info(f"Feature columns: {len(feat_cols)}")
 
         vcp_train_lock = threading.Lock()

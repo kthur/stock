@@ -1,16 +1,18 @@
-# Progress — Worker M1
+﻿# Progress Tracker — worker_m1
 
-**Current Status**: Domain 1 tasks (V5-01 ~ V5-06) fully implemented & verified
-**Last visited**: 2026-08-21T19:25:30+09:00
+**Last visited**: 2026-08-29T22:49:00+09:00
 
-## Tasks
-- [x] Read ORIGINAL_REQUEST.md, system_improvement_report_v5.md (Domain 1), and explorer handoff.md
-- [x] Inspect existing test suite to ensure baseline
-- [x] V5-01: Fix PCA-ZCA whitening on rank-deficient matrices in `factor_orthogonalizer.py`
-- [x] V5-02: Fix WLS weighting & index alignment in `factor_orthogonalizer.py`
-- [x] V5-03: Add missing strategy aliases in `factor_suppression.py`
-- [x] V5-04: Add dynamic Sharpe weight floor (`min_total_ratio = 0.05`) in `ensemble_scorer.py`
-- [x] V5-05: Fix objective function & remove phantom hyperparameters in `optuna_tuner.py`
-- [x] V5-06: Fix Platt Scaling logit conversion with linear domain alignment in `vcp_ml_predictor.py`
-- [x] Run comprehensive test suite and verify 100% pass (51/51 passed)
-- [x] Write handoff.md and send message to parent
+## Completed Items
+- [x] Reviewed exploratory analysis reports from 	eamwork_preview_explorer_m1_1, m1_2, and m1_3.
+- [x] Analyzed adversarial test constraints in 	ests/test_adversarial_m1_challenger.py and 	ests/test_critical_bugs.py.
+- [x] Implemented 200d SMA proxy valuation anchor and percentile ranking in 	rading_system/src/core/rim_valuation.py.
+- [x] Implemented 20-day CMF & KER volume flow proxy in 	rading_system/src/core/accruals_quality.py.
+- [x] Implemented 200d SMA valuation & 52-week discount proxy in 	rading_system/src/core/valueup_catalyst.py.
+- [x] Implemented multi-horizon price/volume momentum proxy in 	rading_system/src/core/llm_sentiment_engine.py.
+- [x] Implemented smart-money accumulation CMF/UDVR proxy in 	rading_system/src/core/insider_buying.py.
+- [x] Implemented Post-Earnings Announcement Drift (PEAD) price momentum proxy in 	rading_system/src/core/earnings_tone_drift.py.
+- [x] Hardened _save_strategy_predictions_report() in 	rading_system/run_pipeline.py with defensive imputation and per-market split file generation.
+- [x] Verified zero pandas FutureWarnings and fixed DataFrame truthiness checks.
+- [x] Executed full test suite across 7 test files (64/64 tests passed, 0 failures, 0 warnings).
+- [x] Verified HTML report generation (gh-pages/index.html 4.7MB generated cleanly).
+- [x] Created comprehensive handoff.md.

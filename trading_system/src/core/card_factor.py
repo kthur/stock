@@ -156,10 +156,10 @@ class CARDFactorEngine(BaseStrategyEngine):
                 if indicator_df is not None and isinstance(indicator_df, pd.DataFrame) and len(close) >= 60 and len(indicator_df) >= 60:
                     try:
                         ret_60 = close.pct_change().tail(60).dropna()
-                        
+
                         # Align indicators to stock price dates using reindex with ffill
                         aligned_indicators = indicator_df.reindex(ret_60.index, method='ffill')
-                        
+
                         # Defensive guard: if all are NaN after alignment, fall through to heuristic
                         if not (aligned_indicators.empty or aligned_indicators.isna().all().all()):
                             fx_60 = aligned_indicators.get('usdkrw_change', aligned_indicators.get('usdkrw_pct', pd.Series(0.0, index=aligned_indicators.index))) / 100.0

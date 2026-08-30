@@ -1,18 +1,13 @@
-## 2026-08-21T10:10:47Z
+## 2026-08-29T13:28:03Z
+User/Parent Request:
+You are teamwork_preview_explorer_survey_2.
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2
 
-You are Survey Explorer 2 for the stock trading system.
-Your working directory is: D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\
-
-Read:
-1. D:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (Authoritative request)
-2. D:\Finance\code\stock\system_improvement_report_v5.md (Authoritative specification)
-
-Your scope:
-Survey Domain 3 Part A (31 Strategy Engines & Data Layer: V5-13 through V5-23).
-
-For each of tasks V5-13 to V5-23:
-- Locate the exact files and lines in the codebase (	rading_system/src/core/..., 	rading_system/src/persistence/...).
-- Analyze current code vs required fix in system_improvement_report_v5.md (e.g. CARD fallback NameError, gamma squeeze kwargs, microstructure HFT empty dataframe, short squeeze scaling, split-runner lead-lag, OBV trend division-by-zero, RIM distressed companies, DART 8-digit corp_code, multi-factor neutralizer ridge, stock split false positive in crash, short-term reversal case sensitivity).
-- Detail the exact changes, logic, and tests needed.
-- Write your complete findings to D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md.
-- When done, send a message to parent with summary and file path.
+Please read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md.
+Your task: Deeply investigate pipeline result files, strategy output schema, and merge synchronization.
+Focus areas:
+1. Examine `trading_system/` and `trading_system/result/`, `trading_system/run_pipeline.py`, `trading_system/merge_predictions.py`, `src/ai/ensemble_scorer.py`, and the output generation of all 31+ strategies.
+2. Check the exact filenames, headers, delimiters, columns, and data formats produced by each strategy (e.g. rim_predictions.txt, sentiment_predictions.txt, tone_drift / earnings_tone_drift, accruals_quality, value_up / valueup_catalyst, insider_buying, etc.).
+3. Identify any discrepancies between how pipeline files are saved/named vs how `generate_report.py` expects them.
+4. Check multi-market support (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ), UTF-8 encoding, and schema alignment.
+5. Write your comprehensive findings and recommendations to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md` and send a message back with your summary.

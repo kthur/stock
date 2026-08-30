@@ -1,12 +1,12 @@
-# BRIEFING — 2026-08-22T06:05:43Z
+# BRIEFING — 2026-08-30T00:55:44Z
 
 ## Mission
-Coordinate the comprehensive resolution of P0/P1/P2 issues across the 31-strategy quantitative trading system, ensuring scale normalization, dynamic filing lag, stratified sampling, clean stat-arb pairs, adaptive timeouts, and 100% pass across 1,124+ tests.
+Audit and optimize 31-strategy alpha generation, data accuracy & coverage, portfolio allocation, execution OMS, and walk-forward backtest verification.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: d:\Finance\code\stock\.agents\sentinel\
-- Orchestrator: 97d406ca-67f8-4f8e-8e84-d697799e3ddd
+- Orchestrator: 2c758034-8f5a-4d5d-b753-f9e1095309d1
 - Victory Auditor: to be spawned on victory claim
 
 ## 🔒 Key Constraints
@@ -16,13 +16,13 @@ Coordinate the comprehensive resolution of P0/P1/P2 issues across the 31-strateg
 - Strictly manage orchestrator lifecycle and crons
 
 ## User Context
-- **Last user request**: Full fix of P0/P1/P2 issues (31-strategy score scale normalization, dynamic filing lag, stratified sampling, removal of fake stat-arb benchmark pairs, removal of global socket timeout, VIX term-structure buffering, and 100% test suite verification).
+- **Last user request**: Full audit and remediation of 31-strategy stock prediction and trading system for Alpha Generation, Data Accuracy & Coverage (100% valid coverage), Portfolio Optimization & Execution OMS, and Walk-Forward Backtest Verification (Sharpe >= 1.50).
 - **Pending clarifications**: none
-- **Delivered results**: Initialized sentinel state, recorded original request, routing to general orchestrator.
+- **Delivered results**: Initialized sentinel state, recorded user request to ORIGINAL_REQUEST.md.
 
 ## Project Status
 - **Phase**: in progress
-- **Routing**: General path -> teamwork_preview_orchestrator (multi-part quantitative system engineering task)
+- **Routing**: SWE Light path -> teamwork_preview_swe (single self-contained project with focused implementation per explicit user signal)
 
 ## Victory Audit Status
 - **Triggered**: no
@@ -31,4 +31,5 @@ Coordinate the comprehensive resolution of P0/P1/P2 issues across the 31-strateg
 
 ## Artifact Index
 - d:\Finance\code\stock\ORIGINAL_REQUEST.md — Authoritative user request log
-- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md — Agent-internal user request log
+- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md — Internal agent request log
+

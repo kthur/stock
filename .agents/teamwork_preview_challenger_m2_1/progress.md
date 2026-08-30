@@ -1,11 +1,14 @@
-# Progress Tracker — Challenger M2-1
+# Progress Log — challenger_m2_1
 
-Last visited: 2026-07-31T00:25:35Z
+- **Last visited**: 2026-08-29T14:09:40Z
+- **Status**: Starting investigation and stress-testing of Milestone 2 merge synchronization.
 
-- [x] Step 1: Record ORIGINAL_REQUEST.md & BRIEFING.md
-- [ ] Step 2: Search codebase for `FactorOrthogonalizerEngine` implementation and existing tests
-- [ ] Step 3: Run existing unit test suite via `.venv\Scripts\python.exe -m pytest`
-- [ ] Step 4: Construct empirical test harness / script to stress test `FactorOrthogonalizerEngine` (collinear columns, singular covariance, zero variance, uniform random noise, NaNs/Infs, edge cases)
-- [ ] Step 5: Execute empirical test harness and record output/failures
-- [ ] Step 6: Formulate logical evidence chain and handoff report (`handoff.md`)
-- [ ] Step 7: Send completion message to parent agent
+## Completed Tasks
+- [x] Initialized DISPATCH.md, BRIEFING.md, and progress.md
+
+## Ongoing Tasks
+- [ ] Read `ORIGINAL_REQUEST.md`, `PROJECT.md`, `teamwork_preview_worker_m2/handoff.md`, `trading_system/merge_predictions.py`, `tests/test_merge_predictions.py`
+- [ ] Analyze implementation against requirements
+- [ ] Design and implement empirical adversarial stress tests in `tests/test_merge_predictions_stress.py`
+- [ ] Run test suite with pytest and check results
+- [ ] Document findings, construct logic chains, finalize handoff.md and send result to parent

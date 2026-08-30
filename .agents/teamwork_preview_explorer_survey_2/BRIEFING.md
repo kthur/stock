@@ -1,50 +1,46 @@
-# BRIEFING — 2026-08-21T10:11:30Z
+# BRIEFING — 2026-08-29T13:35:00Z
 
 ## Mission
-Investigate and survey Domain 3 Part A (31 Strategy Engines & Data Layer: V5-13 through V5-23) in depth, pinpointing exact code locations, root causes, required modifications, and verification test requirements.
+Deeply investigate pipeline result files, strategy output schema, merge synchronization, and report generator expectations across all 31+ strategies and 5 markets.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: survey, investigation, synthesis, reporting
-- Working directory: D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2
-- Original parent: 6ca0b715-13b6-471b-8297-997f4c66f01d
-- Milestone: Survey Domain 3 Part A (V5-13 ~ V5-23)
+- Roles: investigation, synthesis
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2
+- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
+- Milestone: Strategy output schema & merge sync investigation
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Scope: Domain 3 Part A (31 Strategy Engines & Data Layer: V5-13 through V5-23)
-- Target codebase: trading_system/src/core/..., trading_system/src/persistence/...
-- Authoritative reference: system_improvement_report_v5.md
-- Output handoff report to handoff.md in working directory
-- Notify parent via send_message with report path and executive summary
+- Read-only investigation — do NOT implement / modify source code directly
+- Output structured findings to handoff.md in working directory
+- Communicate via send_message to parent
 
 ## Current Parent
-- Conversation ID: 6ca0b715-13b6-471b-8297-997f4c66f01d
-- Updated: 2026-08-21T10:11:30Z
+- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
+- Updated: 2026-08-29T13:35:00Z
 
 ## Investigation State
 - **Explored paths**:
-  - `system_improvement_report_v5.md` (Domain 3 Part A, V5-13 to V5-23)
-  - `trading_system/src/core/card_factor.py:130-133` (V5-13: `res_rows.append` NameError)
-  - `trading_system/src/core/gamma_squeeze.py:55-60` (V5-14: missing `**kwargs` in `compute_gamma_squeeze_scores`)
-  - `trading_system/src/core/hft_engine.py:181-194` (V5-15: empty DataFrame when `universe` is omitted)
-  - `trading_system/src/core/short_interest_squeeze.py:114-126` (V5-16: 10x-20x proxy vs explicit score scale divergence)
-  - `trading_system/src/core/cross_border_lead_lag.py:59-93` (V5-17: split-runner missing US leaders inverting momentum)
-  - `trading_system/src/core/order_flow.py:103-108` (V5-18: OBV trend slope division by ~0)
-  - `trading_system/src/core/rim_valuation.py:317-328` (V5-19: distressed companies participate in ranking before invalidation)
-  - `trading_system/src/core/event_driven.py:150-160, 245-255` (V5-20: 8-digit DART `corp_code` vs 6-digit stock ticker)
-  - `trading_system/src/core/multi_factor_neutralizer.py:273-286` (V5-21: factor neutralization skipped for $N_m < 6$)
-  - `trading_system/src/persistence/database.py:437-459` (V5-22: market crash false positive in stock split detector)
-  - `trading_system/src/core/short_term_reversal.py:71-79` (V5-23: `KeyError: 'Close'` on lowercase column names)
-  - Unit test suite: `tests/` (1,224 tests passing baseline confirmed)
-- **Key findings**: Full root cause analysis, mathematical rationales, affected line numbers, concrete diffs, and verification test specifications generated for all 11 tasks.
-- **Unexplored areas**: None in Domain 3 Part A scope.
+  - `trading_system/run_pipeline.py`
+  - `trading_system/merge_predictions.py`
+  - `trading_system/generate_report.py`
+  - `trading_system/src/ai/ensemble_scorer.py`
+  - `trading_system/src/core/` (all 31 strategy engines)
+  - `trading_system/result/` (all 127 result files)
+  - `.github/workflows/pipeline.yml`
+- **Key findings**:
+  - Full schema and filename mapping catalogued for all 31+ strategies.
+  - Identified root causes of empty tables ("데이터 없음"):
+    1. Strategy fallback score calculation emitting NaNs when fundamental/DART API is missing, causing `_save_strategy_predictions_report` to drop all rows.
+    2. Merge discovery gate in `merge_predictions.py` relying solely on `surge_predictions_{m}.txt` to detect market existence.
+    3. `active_markets_ordered` in `generate_report.py` omitting core markets (like NASDAQ/RUSSELL2000) if 0 rows were parsed across all files.
+- **Unexplored areas**: None for survey scope.
 
 ## Key Decisions Made
-- Fully documented all 11 tasks in 5-component `handoff.md`.
-- Designed targeted verification test suite `tests/test_v5_domain3_part_a_survey.py` covering edge cases and regression scenarios.
+- Completed systematic 31-strategy schema audit and merge sync analysis.
+- Generated complete `handoff.md` with observations, logic chain, caveats, conclusions, and verification commands.
 
 ## Artifact Index
-- `D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md` — 5-Component Comprehensive Survey Report
-- `D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\progress.md` — Execution progress and heartbeat log
-- `D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\DISPATCH.md` — Dispatch record
+- handoff.md — Comprehensive findings & recommendations
+- progress.md — Heartbeat and progress tracking
+- DISPATCH.md — Initial dispatch log

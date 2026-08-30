@@ -1,119 +1,232 @@
-# Handoff Report — Multi-Factor Risk & Style Neutralizer Engine (Strategy 21) Implementation Design
-
-**Agent**: Explorer M1-1 (Engine Implementation Designer)  
-**Target Module**: `trading_system/src/core/multi_factor_neutralizer.py`  
-**Milestone**: Milestone 1 (F1: Interface & Imputation, F2: QR Residualization, F3: Pure Alpha Hard SLA Gate)
-
----
+# Handoff Report: Milestone 1 - Fundamental Strategies Fallback Scoring
 
 ## 1. Observation
 
-Direct code examination and execution traces identified the following precise observations:
+Direct code examination and empirical execution of the fundamental strategy engines revealed the exact root causes of missing predictions when financial statements are absent or in offline/isolated environments:
 
-1. **Positional Argument Binding Defect**:
-   - `trading_system/src/core/multi_factor_neutralizer.py:45-58`:
-     ```python
-     def compute_scores(self, prices_dict: Any = None, fundamentals_dict: Optional[Dict] = None, indicators_df: Optional[Any] = None, **kwargs: Any) -> Any:
-         universe = kwargs.get("universe", kwargs.get("universe_df", pd.DataFrame()))
-         ...
-         if universe is None or universe.empty:
-             return pd.DataFrame(columns=["symbol", "name", "market", "neutralized_score"])
-     ```
-   - `trading_system/run_pipeline.py:2869`:
-     ```python
-     factor_neutralized_df = fn_engine.compute_scores(universe)
-     ```
-   - `tests/test_critical_bugs.py:37`:
-     ```python
-     res_df1 = engine.compute_scores(universe)
-     ```
-   - *Observation*: When `universe` is passed as the 1st positional argument, Python binds it to `prices_dict`. `kwargs.get("universe")` evaluates to `None`, defaulting to an empty DataFrame, which causes `compute_scores` to immediately return an empty DataFrame (0 symbols evaluated) in production.
+### Observation 1: RIM Valuation Engine (`trading_system/src/core/rim_valuation.py`)
+- **File & Lines**: `trading_system/src/core/rim_valuation.py:487-488`, `700-730`
+- **Code**:
+  ```python
+  missing_fund = df['bps'].isna() & (df['rim_filter_reason'] == '')
+  df.loc[missing_fund, 'rim_filter_reason'] = 'MISSING_FUNDAMENTALS'
+  ...
+  invalid_mask = df['rim_filter_reason'].isin([
+      'MISSING_FUNDAMENTALS', 'CAPITAL_IMPAIRMENT',
+      'LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE', 'OPERATING_LOSS'
+  ])
+  ...
+  if invalid_mask.any():
+      df.loc[invalid_mask, ['rim_score', 'discount_ratio', 'intrinsic_value']] = np.nan
+  ```
+- **Execution Test Result**:
+  When tested with `pd.DataFrame([{'symbol': 'AAPL', 'Close': 150.0, 'market': 'SP500'}, {'symbol': 'MSFT', 'Close': 300.0, 'market': 'SP500'}])`:
+  ```
+  symbol  rim_score     rim_filter_reason
+  AAPL        NaN  MISSING_FUNDAMENTALS
+  MSFT        NaN  MISSING_FUNDAMENTALS
+  ```
+- **Pipeline Result**: In `run_pipeline.py:2775-2777`, when `valid_rim` is empty (all scores NaN), `_write_rim_file()` outputs verbatim:
+  `"데이터 없음 (유효한 RIM 적정가 산출 대상 종목 없음)"`
+  and no ranked rows are generated for downstream parsing.
 
-2. **Premature Strategy Deactivation on Missing `raw_scores`**:
-   - `trading_system/src/core/multi_factor_neutralizer.py:63-78`:
-     ```python
-     if not all(col in df.columns for col in req_cols) or (raw_scores is None or raw_scores.empty or "score" not in raw_scores.columns):
-         logger.info("MultiFactorNeutralizerEngine: missing required factor columns or raw_scores. Deactivating strategy (returning NaNs).")
-     ```
-   - *Observation*: In `run_pipeline.py`, `raw_scores` is not passed. The engine logs deactivation and returns `NaN` for all rows instead of generating a deterministic baseline raw alpha signal from available price history or momentum indicators.
+### Observation 2: Accruals Quality Anomaly Engine (`trading_system/src/core/accruals_quality.py`)
+- **File & Lines**: `trading_system/src/core/accruals_quality.py:83-86`, `125-155`
+- **Code**:
+  ```python
+  if not fund_map:
+      default_val = 0.50 if len(sym_strs) == 1 else np.nan
+      df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': default_val})
+      return df_acc[['symbol', 'accruals_quality_score']]
+  ...
+  valid_mask = df_acc['accrual_ratio'].notna() & np.isfinite(df_acc['accrual_ratio'])
+  ...
+  else:
+      df_acc['accruals_quality_score'] = np.nan
+  ```
+- **Execution Test Result**:
+  When tested with `calculate_scores(['AAPL', 'MSFT'], features_df=None, prices_dict=None)`:
+  ```
+  symbol  accruals_quality_score
+  AAPL                     NaN
+  MSFT                     NaN
+  ```
+- **File Observation**: `trading_system/result/accruals_quality_predictions.txt` contains:
+  ```
+  === Strategy 24: Accruals Quality Anomaly Predictions ===
+  Date: 2026-08-28 18:49 KST
+  Total symbols evaluated: 0
 
-3. **Catastrophic Symbol Loss via `dropna`**:
-   - `trading_system/src/core/multi_factor_neutralizer.py:82`:
-     ```python
-     df_merged = df_merged.dropna(subset=["score", "market_cap", "per", "roe"]).copy()
-     ```
-   - *Observation*: Dropping rows missing any single financial metric deletes hundreds of symbols (unprofitable growth stocks without PER, biotech, recent IPOs) instead of performing market-level median imputation.
+  Rank Symbol    Name              Market    Accruals Score  
+  -----------------------------------------------------------
+  ```
 
-4. **Global Cross-Sectional Pooling Distortion**:
-   - `trading_system/src/core/multi_factor_neutralizer.py:96-123`:
-     ```python
-     size_factor = np.log(df_merged["market_cap"].clip(lower=1e8))
-     ```
-   - *Observation*: Pooling KRW market caps ($10^{11} \sim 10^{14}$ KRW) with USD market caps ($10^8 \sim 10^{12}$ USD) in one global standardization creates artificial cross-currency factor distortions.
+### Observation 3: Value-Up & Shareholder Yield Engine (`trading_system/src/core/valueup_catalyst.py`)
+- **File & Lines**: `trading_system/src/core/valueup_catalyst.py:83-109`, `158-177`
+- **Code**:
+  ```python
+  # If PBR is missing, estimate from price / BPS if price is available
+  if pd.isna(pbr) and pd.notna(bps) and float(bps) > 0:
+      ...
+  if pd.notna(pbr):
+      ...
+  else:
+      scores[sym_str] = np.nan
+  ...
+  else:
+      default_val = 0.50 if len(df_out) == 1 else np.nan
+      df_out['valueup_catalyst_score'] = default_val
+  ```
+- **Execution Test Result**:
+  When tested with `calculate_scores(['AAPL', 'MSFT'], features_df=None, prices_dict=None)`:
+  ```
+  symbol  valueup_catalyst_score
+  AAPL                     NaN
+  MSFT                     NaN
+  ```
+- **File Observation**: `trading_system/result/valueup_catalyst_predictions.txt` contains:
+  ```
+  === Strategy 26: Value-Up & Shareholder Yield Predictions ===
+  Date: 2026-08-28 18:49 KST
+  Total symbols evaluated: 0
 
-5. **Numerical Instability of OLS vs QR Decomposition**:
-   - `trading_system/src/core/multi_factor_neutralizer.py:129-130`:
-     ```python
-     beta, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
-     residuals = y - X.dot(beta)
-     ```
-   - *Observation*: Direct OLS solves normal equations with squared condition number $\kappa(X^T X) = \kappa(X)^2$. Collinear factor subsets cause numerical precision degradation.
+  Rank Symbol    Name              Market    ValueUp Score   
+  -----------------------------------------------------------
+  ```
 
-6. **Output Column Inconsistency**:
-   - `StrategyMeta.score_column` is `"factor_neutralized_score"`.
-   - `run_pipeline.py:2880` and `tests/test_critical_bugs.py:39-40` require `"neutralized_score"`.
-   - Lines 74, 91, 150 only populated `"factor_neutralized_score"`.
-
-7. **Absence of Post-Condition SLA Deflation**:
-   - No verification or enforcement of $|\rho(f_k, \epsilon)| < 0.15$ exists in the current codebase.
+### Observation 4: Pipeline Report Saving (`trading_system/run_pipeline.py`)
+- **File & Lines**: `trading_system/run_pipeline.py:2852-2859`
+- **Code**:
+  ```python
+  if df_strat is None or df_strat.empty or score_col not in df_strat.columns:
+      return
+  ...
+  merged[score_col] = pd.to_numeric(merged[score_col], errors='coerce')
+  merged = merged.dropna(subset=[score_col]).sort_values(by=score_col, ascending=False)
+  ```
+- When a strategy returns 100% NaN scores, `merged.dropna(subset=[score_col])` reduces the DataFrame to 0 rows, resulting in `Total symbols evaluated: 0` and an empty table.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Step 1 (Argument Binding)**: Because `compute_scores` is invoked with `universe` as the first positional argument across `run_pipeline.py` and `test_critical_bugs.py`, `compute_scores` must inspect the type of `prices_dict`: if it is a `pd.DataFrame`, treat it as `universe`.
-2. **Step 2 (Raw Score Hierarchy)**: To prevent strategy deactivation when `raw_scores` is omitted, the engine must extract baseline signals from `prices_map` (12M-1M return skipping 1M reversal noise: $(P_{t-21} / P_{t-252}) - 1.0$) or from universe momentum columns (`momentum_12m`, `return_3m`), while maintaining deterministic NaN output when neither factors nor prices are provided (passing `test_bug_a3`).
-3. **Step 3 (Market-Grouped Median Imputation)**: By partitioning the universe by `market` and imputing missing factor values with the intra-market median, all 3,379 symbols are retained (0% symbol loss) and currency/market scale discrepancies are eliminated.
-4. **Step 4 (QR Decomposition Orthogonal Projection)**: Factoring $X_m = Q_m R_m$ via thin QR decomposition ($Q_m^T Q_m = I_6$) yields orthogonal projector $P_{X} = Q_m Q_m^T$ and annihilator $M_X = I - Q_m Q_m^T$. Computing $\epsilon_m = y_m - Q_m (Q_m^T y_m)$ eliminates factor exposure in $O(N K)$ operations and guarantees $Q_m^T \epsilon_m = \mathbf{0}$ at machine precision without forming the $N \times N$ matrix.
-5. **Step 5 (Secondary Gram-Schmidt Deflation Gate)**: Evaluating $\rho_{\max} = \max_k |\text{Corr}(f_k, \epsilon_m)|$ and applying Modified Gram-Schmidt deflation if $\rho_{\max} \ge 0.15$ guarantees the hard SLA constraint under all edge cases.
-6. **Step 6 (Dual Column Schema)**: Providing both `'factor_neutralized_score'` and `'neutralized_score'` alongside style factor exposures (`smb_exposure`, `hml_exposure`, `rmw_exposure`, `cma_exposure`, `umd_exposure`) guarantees 100% test and pipeline compatibility.
+1. **Premise**: In live pipelines, GitHub Actions workflows, or isolated testing environments, external fundamental financial statement data (e.g. quarterly DART/SEC filings, BPS, ROE, OCF, Net Income) is often unavailable, delayed by filing lags, or missing for non-covered symbols (e.g. US symbols or small caps).
+2. **Current State**:
+   - `rim_valuation.py` explicitly invalidates any row where `bps` is NaN, setting `rim_score = np.nan`.
+   - `accruals_quality.py` checks `if not fund_map:` and returns `np.nan` for universes with $>1$ symbol, and sets `accruals_quality_score = np.nan` whenever OCF/Net Income is missing.
+   - `valueup_catalyst.py` requires `pbr` or `bps` to compute `pbr_factor`; if missing, it sets `valueup_catalyst_score = np.nan`.
+3. **Downstream Cascade**:
+   - `run_pipeline.py` receives DataFrames where `rim_score`, `accruals_quality_score`, or `valueup_catalyst_score` is all NaN.
+   - `_save_strategy_predictions_report()` drops all NaN rows (`dropna(subset=[score_col])`), leaving 0 rows.
+   - Output files (`rim_predictions.txt`, `accruals_quality_predictions.txt`, `valueup_catalyst_predictions.txt`) are written with header-only content and 0 ranked rows.
+   - `generate_report.py` parses these empty files, rendering empty tables or "데이터 없음" placeholders on the GitHub Pages dashboard (`index.html`).
+4. **Resolution Mechanism**:
+   - Implementing a 3-tier hierarchical calculation structure in each engine:
+     - **Tier 1 (True Fundamental)**: If full financial statement items exist, execute the exact economic formulas (Decaying ROE RIM, Sloan Accrual Anomaly, Value-Up PBR/Cash Yield).
+     - **Tier 2 (Price/Volume Market Proxy)**: If fundamental statements are missing but price/volume time series is available (`prices_dict` or `Close` series), compute market-based proxy metrics (e.g., 200-day SMA valuation anchor for RIM, Volume Flow & Trend Efficiency for Accruals Quality, 200d SMA & 52-week discount for Value-Up).
+     - **Tier 3 (Neutral Prior)**: If price history is also missing or single-point flat, assign a neutral prior score of `0.50` (or uniform market percentile rank).
+   - This ensures all output DataFrames contain finite floats in $[0.0, 1.0]$ for all symbols, preserving strategy rankings across all 5 markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ).
 
 ---
 
-## 3. Caveats
+## 3. Concrete Implementation Recommendations
 
-- **KONEX / Small Sample Markets**: For markets with $N_m < 6$ symbols (less than the number of factor columns + intercept), thin QR is under-determined; the engine falls back to de-meaning $\epsilon = y - \bar{y}$.
-- **Completely Missing Data**: If a universe DataFrame contains only symbol names without prices, fundamentals, or momentum columns, the engine logs deactivation and returns `NaN` as required by test contract `test_bug_a3`.
-- **Zero Variance Factors**: If all stocks in a market have identical values for a factor (e.g. constant CMA), standard deviation is clamped and the factor column is zeroed out to avoid division by zero.
+### Recommendation 1: RIM Valuation Engine Fallback (`src/core/rim_valuation.py`)
+1. **Fallback Valuation Anchor**:
+   - When `bps` is missing/NaN, compute proxy intrinsic value and discount from price history:
+     $$\text{SMA}_{200} = \text{mean}(Close_{t-200..t}) \quad (\text{or } \text{SMA}_{60} \text{ if } <200 \text{ days})$$
+     $$V_{0, \text{proxy}} = \text{SMA}_{200} \times 1.05$$
+     $$\text{Discount Ratio}_{\text{proxy}} = \frac{V_{0, \text{proxy}} - \text{Price}}{\text{Price}} = \frac{\text{SMA}_{200} \times 1.05 - \text{Price}}{\text{Price}}$$
+   - Mark `rim_filter_reason = 'PRICE_TREND_PROXY'`.
+2. **Percentile Ranking**:
+   - Instead of setting `rim_score = np.nan` for rows with `PRICE_TREND_PROXY`, include them in the market-level percentile ranking:
+     `df.loc[proxy_mask, 'rim_score'] = df[proxy_mask].groupby('market')['discount_ratio'].rank(pct=True).clip(0.05, 0.95)`
+   - Only distress cases with explicit severe negative equity / capital impairment remain penalized/flagged.
+   - If no price history exists (1 point), set $V_0 = \text{Price} \times 1.05$, $\text{Discount} = 5.0\%$, and `rim_score = 0.50`.
+3. **File Output Formatting**:
+   - In `run_pipeline.py:_write_rim_file()`, rows evaluated via proxy format with tag `[PROXY]` under the `Filter` column, displaying valid `Price`, `Intrinsic V0`, `Discount %`, and `RIM Score`.
+
+### Recommendation 2: Accruals Quality Engine Fallback (`src/core/accruals_quality.py`)
+1. **Remove Premature Multi-Symbol NaN Guard**:
+   - Modify line 84: if `not fund_map`, do NOT immediately return `np.nan`. Proceed to compute Level 2 Price-Volume proxies.
+2. **Price-Volume Flow Quality Proxy**:
+   - For each symbol in `symbols`, if `net_income` / `operating_cash_flow` is missing, inspect `prices_dict.get(sym)`:
+     - Compute 20-day Volume-Weighted Flow (Chaikin / MFI proxy):
+       $$\text{Flow} = \frac{\sum_{t=1}^{20} \text{sgn}(\Delta C_t) \times V_t}{\sum_{t=1}^{20} V_t + 1e-5} \in [-1.0, 1.0]$$
+     - Compute Kaufman Trend Efficiency (KER):
+       $$\text{KER}_{20} = \frac{|C_t - C_{t-20}|}{\sum_{i=1}^{20} |C_i - C_{i-1}| + 1e-5} \in [0.0, 1.0]$$
+     - Compute 20-day Realized Volatility:
+       $$\sigma_{20} = \text{std}(\text{returns}_{20}) \times \sqrt{252}$$
+     - Proxy Accruals Quality Score:
+       $$\text{Raw Proxy} = 0.50 + 0.25 \times \text{Flow} + 0.20 \times \text{KER}_{20} - 0.20 \times \min(\sigma_{20}, 1.0)$$
+3. **Normalization & Prior**:
+   - Rank valid proxy scores into $[0.05, 0.95]$.
+   - If price history is unavailable for a symbol, assign `0.50`.
+
+### Recommendation 3: Value-Up Catalyst Engine Fallback (`src/core/valueup_catalyst.py`)
+1. **Remove Premature NaN Return**:
+   - Modify lines 174-176: if `valid_mask.sum() == 0`, compute Level 2 Valuation proxies from `prices_dict` instead of assigning `np.nan`.
+2. **Moving Average Valuation & 52-Week Discount Proxy**:
+   - For each symbol where `pbr` and `bps` are missing:
+     - Compute Price / 200-day SMA ratio:
+       $$\text{VR} = \frac{\text{Close}}{\text{SMA}_{200}} \quad (\text{or } \text{SMA}_{60})$$
+       $$\text{pbr\_factor\_proxy} = \text{clip}(1.5 - 0.5 \times \text{VR}, 0.2, 1.8)$$
+     - Compute 52-week High/Low Range Position:
+       $$\text{RP} = \frac{\text{Close} - \min(C_{252})}{\max(C_{252}) - \min(C_{252}) + 1e-5} \in [0.0, 1.0]$$
+     - Composite Proxy Score:
+       $$\text{raw\_score}_{\text{proxy}} = \text{pbr\_factor\_proxy} \times (1.0 + 0.30 \times (1.0 - \text{RP}))$$
+3. **Normalization & Prior**:
+   - Rank valid proxy scores into $[0.05, 0.95]$.
+   - If price history is unavailable for a symbol, assign `0.50`.
 
 ---
 
-## 4. Conclusion
+## 4. Caveats
 
-The complete architectural redesign and source code specification for `trading_system/src/core/multi_factor_neutralizer.py` is documented in `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\analysis.md`. The proposed implementation:
-1. Fixes positional argument binding and enables seamless execution from `run_pipeline.py`.
-2. Implements market-grouped Fama-French 5-Factor matrix construction with intra-market median imputation.
-3. Applies thin QR orthogonal projection $\epsilon = y - Q (Q^T y)$ ensuring zero linear factor exposure.
-4. Enforces the $|\rho| < 0.15$ SLA gate with secondary Gram-Schmidt deflation.
-5. Provides dual column naming (`factor_neutralized_score` and `neutralized_score`) and 5 style exposure diagnostics.
+1. **Distinction Between Real Fundamentals and Proxies**: Proxies are mathematical heuristics designed to provide continuity and relative market rankings when external financial APIs or filings are unavailable. They must not overwrite or dilute true fundamental data when true BPS/ROE/OCF items are present.
+2. **Extreme Capital Impairment**: True distressed firms with confirmed negative book value (자본잠식) should remain identified and penalized appropriately to prevent Value Trap recommendations.
+3. **Other Heuristic Strategies**: Similar proxy mechanisms exist and are verified for `short_interest_squeeze.py` and `trend_efficiency.py`; applying the same discipline to `llm_sentiment_engine.py`, `earnings_tone_drift.py`, and `insider_buying.py` ensures that all 31 strategies maintain 100% non-empty coverage across all markets.
 
 ---
 
-## 5. Verification Method
+## 5. Conclusion
 
-### Test Commands
-Run pytest against critical bugs, factor orthogonalization, and empirical challenger suites:
-```bash
-.venv/Scripts/python.exe -m pytest tests/test_critical_bugs.py tests/test_factor_orthogonalization.py tests/test_m1_empirical_challenger.py -v
-```
+1. The root cause of empty tables and "데이터 없음" for RIM, Accruals Quality, and Value-Up is that each engine defaults to `np.nan` whenever financial statement line items are missing, causing `_save_strategy_predictions_report` in `run_pipeline.py` to drop all rows.
+2. Implementing 3-tier hierarchical fallback logic (Level 1: True Fundamentals $\to$ Level 2: Price/Volume Proxy $\to$ Level 3: Neutral Prior 0.50) guarantees that valid ranked scores in $[0.0, 1.0]$ are always produced.
+3. This completely resolves the data deficiency for fundamental strategies across all 5 markets (`SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`) without breaking genuine valuation calculations.
 
-### Files to Inspect
-- `d:\Finance\code\stock\trading_system\src\core\multi_factor_neutralizer.py`
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\analysis.md`
-- `d:\Finance\code\stock\trading_system\run_pipeline.py` (lines 2866–2884)
+---
 
-### Invalidation Conditions
-- Any output DataFrame missing `'factor_neutralized_score'` or `'neutralized_score'`.
-- Residual correlation with any Fama-French factor exceeding $|\rho| \ge 0.15$.
-- Dropping valid symbols from the input universe (length mismatch `len(output) != len(universe)`).
-- Failure of `test_bug_a3_factor_neutralizer_deactivates_without_random`.
+## 6. Verification Method
+
+To verify these findings and future implementations:
+1. **Isolated Unit Test Verification**:
+   ```bash
+   .venv/Scripts/python.exe -c "
+   import pandas as pd
+   from trading_system.src.core.rim_valuation import RIMValuationEngine
+   from trading_system.src.core.accruals_quality import AccrualsQualityEngine
+   from trading_system.src.core.valueup_catalyst import ValueUpCatalystEngine
+
+   symbols = ['AAPL', 'MSFT', '005930', '000660']
+   dates = pd.date_range('2026-01-01', periods=220)
+   prices_dict = {s: pd.DataFrame({'Close': [100.0 + i for i in range(220)], 'Volume': [1000]*220}, index=dates) for s in symbols}
+
+   # Verify non-NaN scores are produced when features_df is None
+   aq = AccrualsQualityEngine()
+   res_aq = aq.calculate_scores(symbols, features_df=None, prices_dict=prices_dict)
+   assert res_aq['accruals_quality_score'].notna().all(), 'Accruals Quality must have no NaNs'
+
+   vu = ValueUpCatalystEngine()
+   res_vu = vu.calculate_scores(symbols, features_df=None, prices_dict=prices_dict)
+   assert res_vu['valueup_catalyst_score'].notna().all(), 'Value-Up must have no NaNs'
+   "
+   ```
+2. **Test Suite Verification**:
+   ```bash
+   .venv/Scripts/pytest tests/test_rim_strategy.py tests/test_strategies_24_to_27.py -v
+   ```
+3. **End-to-End Report Generation**:
+   ```bash
+   .venv/Scripts/python.exe trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html
+   ```

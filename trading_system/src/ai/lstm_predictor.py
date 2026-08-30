@@ -110,20 +110,20 @@ class LSTMPredictor:
                 else:
                     vals = vals - np.mean(vals)
                 normed_feats.append(vals)
-                
+
             stacked_feats = np.column_stack(normed_feats)
-            
+
             target_vals = group_sorted[target_col].values if target_col in group_sorted.columns else np.zeros(len(group_sorted))
             idx_vals = group_sorted.index.values
-            
+
             for i in range(len(group_sorted) - seq_len + 1):
                 X_all.append(stacked_feats[i:i+seq_len])
                 y_all.append(target_vals[i+seq_len-1])
                 indices_all.append(idx_vals[i+seq_len-1])
-                
+
         if not X_all:
             return np.array([]), np.array([]), np.array([])
-            
+
         return np.array(X_all), np.array(y_all), np.array(indices_all)
 
     def train_model(self, X_train: np.ndarray, y_train: np.ndarray, val_split: float = 0.15, max_grad_norm: float = 1.0, date_labels: Optional[np.ndarray] = None) -> None:

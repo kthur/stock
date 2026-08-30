@@ -755,7 +755,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             res = self.get_symbol_stat_arb_scores(pairs)
             if res.empty:
                 return pd.DataFrame([{"symbol": s, "stat_arb_score": 0.50, "long_only_mode": False} for s in all_syms])
-            
+
             existing_syms = set(res["symbol"])
             missing = [{"symbol": s, "stat_arb_score": 0.50, "long_only_mode": False} for s in all_syms if s not in existing_syms]
             if missing:

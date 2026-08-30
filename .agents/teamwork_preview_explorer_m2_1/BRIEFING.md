@@ -1,35 +1,44 @@
-# BRIEFING — 2026-08-05T16:03:30Z
+# BRIEFING — 2026-08-29T14:02:05Z
 
 ## Mission
-Audit end-to-end pipeline execution in `trading_system/run_pipeline.py` for exception safety, step isolation, graceful degradation, multi-market error handling, output file generation, and pipeline state tracking.
+Investigate `trading_system/merge_predictions.py` architecture, market discovery logic, and section extraction regex for Milestone 2: Multi-Market Merge Synchronization.
 
 ## 🔒 My Identity
-- Archetype: teamwork_preview_explorer
-- Roles: Software Architecture & Pipeline Robustness Audit Explorer
+- Archetype: explorer
+- Roles: investigator, synthesizer
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_1
-- Original parent: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
-- Milestone: Milestone 2 (Software Architecture & Pipeline Robustness Audit)
+- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
+- Milestone: Milestone 2: Multi-Market Merge Synchronization
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement source code changes directly.
-- Document all findings with line numbers, code snippets, and recommended fixes in `analysis.md` and `handoff.md`.
+- Read-only investigation — do NOT implement
+- Follow Handoff Protocol (5 sections: Observation, Logic Chain, Caveats, Conclusion, Verification Method)
+- Communicate via send_message to parent caller
 
 ## Current Parent
-- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
-- Updated: 2026-08-05T16:03:30Z
+- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
+- Updated: not yet
 
 ## Investigation State
-- **Explored paths**: `trading_system/run_pipeline.py`, `src/data_layer/indicator_storage.py`, `src/ai/prediction_model.py`, `src/ai/ensemble_scorer.py`, `src/persistence/database.py`
-- **Key findings**: Audited 12 pipeline steps; identified missing `try...except` isolation in Steps 2, 4, 7c, 10a, 10d, 10e, 11b, 11d, and HRP allocation; verified 3-tier data fallback and macro data integrity gate; verified multi-market parallel execution and per-market suffix artifact generation; identified state tracking vs resumability gap.
-- **Unexplored areas**: None for this task.
+- **Explored paths**:
+  - `d:\Finance\code\stock\trading_system\merge_predictions.py` (lines 1-750)
+  - `d:\Finance\code\stock\trading_system\run_pipeline.py` (lines 3960-4250)
+  - `d:\Finance\code\stock\trading_system\generate_report.py` (lines 270-450)
+  - `d:\Finance\code\stock\.github\workflows\pipeline.yml` (lines 200-350)
+  - `d:\Finance\code\stock\tests\test_merge_generic_strategies.py`
+  - `d:\Finance\code\stock\tests\test_challenger_rim_2_stress.py`
+  - Current artifact files in `d:\Finance\code\stock\trading_system\result/`
+- **Key findings**:
+  - Market Discovery bug: Single probe file `surge_predictions_{m}.txt` causes markets without surge predictions to be dropped; if-else structure prevents fallback from executing when any one market is found.
+  - Section Extraction Regex bug: `rf"(==={{10,}}\s*\n\[{re.escape(market)}\][^\n]*\n==={{10,}}\s*\n.*?)(?=\n==={{10,}}|\Z)"` fails if header has fewer `=` characters, lacks top `===`, uses dashes `---`, or if input split file is missing the `[{market}]` section (or only contains other markets due to artifact copy).
+  - Lookahead `(?=\n==={{10,}}|\Z)` swallows trailing footer sections like `--- Data Quality Notes ---` into the market section text.
+- **Unexplored areas**: None for M2 scope.
 
 ## Key Decisions Made
-- Completed read-only architectural audit of `run_pipeline.py`.
-- Formulated proposed code patches in `analysis.md`.
-- Authored 5-component handoff report in `handoff.md`.
+- Formulated multi-pattern extractor and wildcard market discovery algorithm for `merge_predictions.py`.
 
 ## Artifact Index
-- `.agents/teamwork_preview_explorer_m2_1/DISPATCH.md` — Dispatch log
-- `.agents/teamwork_preview_explorer_m2_1/BRIEFING.md` — Working briefing state
-- `.agents/teamwork_preview_explorer_m2_1/analysis.md` — Comprehensive pipeline audit report & proposed patches
-- `.agents/teamwork_preview_explorer_m2_1/handoff.md` — 5-component handoff report
+- DISPATCH.md — Initial task dispatch
+- BRIEFING.md — Situational awareness
+- progress.md — Heartbeat progress
+- handoff.md — Comprehensive handoff report

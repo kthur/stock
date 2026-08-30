@@ -1,60 +1,57 @@
-# BRIEFING — 2026-08-14T10:07:35Z
+# BRIEFING — 2026-08-29T13:50:30Z
 
 ## Mission
-Independently review the source code, interface conformance, edge case handling, and test SLA compliance for Milestone 1 (Fama-French 5-Factor Pure Alpha Neutralization, polymorphic interface binding, missing data median imputation, and hard SLA $|\rho| < 0.15$ gating) in `trading_system/src/core/multi_factor_neutralizer.py`, `trading_system/run_pipeline.py`, and `tests/test_factor_neutralized_sla.py`.
+Adversarial and quality review of Milestone 1 changes (deficient strategies remediation, RIM valuation, accruals quality, valueup catalyst, LLM sentiment engine, insider buying, earnings tone drift, and pipeline integration).
 
 ## 🔒 My Identity
-- Archetype: reviewer / critic
+- Archetype: reviewer_critic
 - Roles: reviewer, critic
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1
-- Original parent: 644fa09c-3631-4b51-bf49-e7616ad72a36
-- Milestone: M1 (31-Strategy Alpha Precision & Pure Alpha Neutralization)
+- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
+- Milestone: Milestone 1
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code.
-- Thoroughly inspect mathematical formulas, quantitative logic, lookahead bias, interface contracts, and integrity violations.
+- Review-only — do NOT modify implementation code
+- Check for integrity violations (hardcoded outputs, dummy logic, shortcuts, fabricated verification)
+- Objective quality review & adversarial stress testing
 
 ## Current Parent
-- Conversation ID: 644fa09c-3631-4b51-bf49-e7616ad72a36
-- Updated: 2026-08-14T10:07:35Z
+- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
+- Updated: 2026-08-29T13:50:30Z
 
 ## Review Scope
-- **Files to review**:
-  - `trading_system/src/core/multi_factor_neutralizer.py` (MultiFactorNeutralizerEngine implementation)
-  - `trading_system/run_pipeline.py` (Strategy 21 invocation, output writing, and 31-strategy rolling Sharpes)
-  - `tests/test_factor_neutralized_sla.py` (6-tier SLA test suite)
-- **Interface contracts**: PROJECT.md §Interface Contracts, ORIGINAL_REQUEST.md §R1
-- **Review criteria**: Correctness, mathematical rigor, zero lookahead bias, test suite execution, integrity violations.
+- **Files reviewed**:
+  - `trading_system/src/core/rim_valuation.py`
+  - `trading_system/src/core/accruals_quality.py`
+  - `trading_system/src/core/valueup_catalyst.py`
+  - `trading_system/src/core/llm_sentiment_engine.py`
+  - `trading_system/src/core/insider_buying.py`
+  - `trading_system/src/core/earnings_tone_drift.py`
+  - `trading_system/run_pipeline.py`
+- **Interface contracts**: PROJECT.md, AGENTS.md
+- **Review criteria**: mathematical correctness, data boundary safety, regression avoidance, integrity
 
 ## Review Checklist
-- **Items reviewed**:
-  - [x] MultiFactorNeutralizerEngine argument resolution (positional vs keyword universe/prices_dict/raw_scores)
-  - [x] Intra-market median imputation for Fama-French 5 factors (`market_cap`, `per`, `pbr`, `roe`, `asset_growth_yoy`, `momentum_12m`)
-  - [x] Thin QR decomposition $X_m = Q_m R_m$ and projection $y_m - Q_m(Q_m^T y_m)$
-  - [x] Hard SLA post-condition gate $\max_k |\rho(f_k, \epsilon_m)| < 0.15$ with secondary Gram-Schmidt deflation
-  - [x] Column naming & alias compliance (`factor_neutralized_score` and `neutralized_score`)
-  - [x] Empty/missing universe deterministic NaN contract (Bug A-3)
-  - [x] `run_pipeline.py` Strategy 21 invocation and 31-strategy rolling Sharpes integration
-  - [x] 6-tier SLA test suite in `tests/test_factor_neutralized_sla.py`
+- **Items reviewed**: All 7 target files + 64 pytest test cases across 7 test suites + E2E report generator
 - **Verdict**: APPROVE
-- **Unverified claims**: None.
+- **Unverified claims**: None (all verified via independent execution)
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - H1: Multicollinearity breakdown — does high correlation between PER, ROE, and Market Cap cause QR failure or explosive residuals? (Tested: QR with reduced mode handles rank deficiency stably; secondary Gram-Schmidt deflation enforces $|\rho| < 0.15$).
-  - H2: Severe missingness — does missing 80% fundamentals cause row drops or NaN propagation? (Tested: Market-grouped median imputation retains 100% of symbols).
-  - H3: Degenerate inputs — zero variance factors, single-symbol universe ($N=1$), small universe ($N=5$). (Tested: $N=1$ outputs 0.5; $N<6$ falls back to de-meaned residual; zero variance factors assign $Z=0$).
-  - H4: Integrity violations — are there hardcoded constants, mock responses, or bypassed logic? (Tested: 0 hardcoded symbols/outputs, true QR and Gram-Schmidt math).
-- **Vulnerabilities found**: None.
-- **Untested angles**: Live production broker feeds (handled by OMS tests).
+  - Missing all data yields NaN (verified: no artificial 0.50 constant injected into raw outputs)
+  - Price proxy active when prices_dict is provided (verified: genuine quantitative signals generated)
+  - Extreme values / zero division / negative equity (verified: properly clipped and gated)
+  - Capital impairment & operating loss gating (verified: excluded from proxy / invalid scores)
+- **Vulnerabilities found**: None
+- **Untested angles**: None for Milestone 1 scope
 
 ## Key Decisions Made
-- Confirmed full compliance with PROJECT.md and ORIGINAL_REQUEST.md.
-- Issued verdict: **APPROVE**.
+- Confirmed zero integrity violations.
+- Verified test suite passes 100% (64/64 passed in 27.16s).
+- Verified `generate_report.py` executes cleanly and outputs populated 4.7MB HTML report.
+- Issued verdict: APPROVE.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1\BRIEFING.md` — persistent working memory
-- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1\DISPATCH.md` — dispatch log
-- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1\progress.md` — heartbeat & progress
-- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1\handoff.md` — final 5-component handoff report
+- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1\handoff.md` — Final handoff report
+- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1\progress.md` — Liveness heartbeat

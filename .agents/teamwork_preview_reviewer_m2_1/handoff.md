@@ -1,90 +1,96 @@
-# Handoff Report - Reviewer M2-1 (Factor Orthogonalization)
+# Handoff Report: Milestone 2 Reviewer & Critic Assessment
 
 ## 1. Observation
 
-### Codebase Inspection
-- **File 1**: `trading_system/src/ai/factor_orthogonalizer.py` (149 lines)
-  - `FactorOrthogonalizerEngine` implements decorrelation for multi-strategy score matrices.
-  - `orthogonalize(...)` (lines 26–79): Extracts raw numeric score matrix $X \in \mathbb{R}^{N \times K}$, imputes NaNs with column means, rescales, delegates to either Gram-Schmidt or Loewdin PCA ZCA whitening, restores original NaNs, and clips scores to $[0.0, 1.0]$.
-  - `_gram_schmidt(...)` (lines 81–117): Standard Gram-Schmidt orthogonalization sorted by strategy weights. Projects out collinear components sequentially, standardizes vectors, and rescales back to original column means and standard deviations.
-  - `_pca_zca_symmetric(...)` (lines 119–147): Loewdin symmetric PCA ZCA whitening operator $C^{-1/2} = V \Lambda^{-1/2} V^T$ via `np.linalg.eigh(C)`, regularized with `ridge_epsilon=1e-6` on eigenvalues to ensure positive definiteness. Rescales decorrelated features back to original means and standard deviations.
-- **File 2**: `trading_system/src/ai/ensemble_scorer.py` (1171 lines)
-  - `EnsembleScoringEngine.__init__` (line 271): Instantiates `self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric')`.
-  - `combine_predictions` (lines 887–898): Executes `self.orthogonalizer.orthogonalize(...)` on merged 17-strategy score columns prior to correlation monitoring, factor suppression, isotonic calibration, and dynamic weighting.
-- **File 3**: `tests/test_factor_orthogonalization.py` (147 lines)
-  - Test suite covering:
-    - `test_gram_schmidt_orthogonality`: Verifies Gram-Schmidt mean off-diagonal correlation < 0.30.
-    - `test_pca_variance_preservation`: Verifies ZCA output score bounds $[0.0, 1.0]$ and matrix shape $(500, 17)$.
-    - `test_cross_strategy_correlation_reduction`: Primary SLA test verifying reduction of mean off-diagonal correlation from $>0.65$ down to $<0.30$.
-    - `test_score_range_and_rank_preservation`: Verifies score bounds $[0.0, 1.0]$ and Spearman rank correlation $\ge 0.70$.
-    - `test_orthogonalization_edge_cases`: Verifies robustness to NaNs, constant columns, small $N=5$, and duplicate columns (rank deficiency).
-    - `test_benchmark_orthogonalization_latency`: Verifies execution time for 3,379 symbols $\times$ 17 strategies is $< 50\text{ ms}$.
+### 1.1 Scope of Review
+- **Code under review**:
+  - `trading_system/merge_predictions.py` (910 lines)
+  - `tests/test_merge_generic_strategies.py` (641 lines, 74 test cases)
+- **Integration targets**:
+  - `trading_system/generate_report.py`
+  - `tests/test_report_generator_hrp.py`
+  - `tests/test_challenger_rim_2_stress.py`
 
-### Test Execution Results
-- Command: `.venv\Scripts\python.exe -u -m pytest tests/test_factor_orthogonalization.py -v`
-- Execution Log Output:
-```text
-tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_benchmark_orthogonalization_latency PASSED [ 16%]
-tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_cross_strategy_correlation_reduction PASSED [ 33%]
-tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_gram_schmidt_orthogonality PASSED [ 50%]
-tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_orthogonalization_edge_cases PASSED [ 66%]
-tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_pca_variance_preservation PASSED [ 83%]
-tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_score_range_and_rank_preservation PASSED [100%]
+### 1.2 Direct Observations & Evidence
 
-============================= 6 passed in 33.75s ==============================
-```
+1. **Market Discovery Implementation (`discover_target_markets`)**:
+   - Location checking: Probes dedicated split folders across candidate locations (`base_dir`, `base_dir / "artifacts_in"`, `base_dir.parent / "artifacts_in"`) for folder naming conventions `result_{m}`, `result-{m}`, `result_split_{m}`, `market_{m}`, etc.
+   - Result Dir Multi-Probe: Verifies file existence across 8 specific strategy prefixes (`surge_predictions_{m}.txt`, `pipeline_result_{m}.txt`, `ensemble_predictions_{m}.txt`, `rim_predictions_{m}.txt`, `sentiment_predictions_{m}.txt`, `backtest_summary_{m}.json`, `portfolio_allocation_{m}.txt`, `strategy_data_coverage_report_{m}.txt`) and globs `*_{m}.txt` / `*_{m}.json`.
+   - Dynamic Discovery with Exclusion List: Scans `result_dir` for files matching `{prefix}_{mkt}.*` across `KNOWN_STRATEGY_PREFIXES` (39 prefixes). Excludes non-market utility suffixes (`RESULT`, `PREDICTIONS`, `REPORT`, `SUMMARY`, `METRICS`, `ALLOCATION`, `DATA`, `SNAPSHOT`, `HISTORY`, `LOG`, `STATUS`, `COMPARISON`, `PATTERNS`, `BLACK_LITTERMAN`, `LITTERMAN`, `HRP`). Matches `KNOWN_MARKETS` and alphanumeric market tags up to 12 characters.
 
-### Integrity Check
-- Checked for hardcoded test outputs, facade/dummy implementations, bypasses, or self-certifying shortcuts.
-- Finding: **No integrity violations detected**. Implementations are genuine, mathematically correct, and perform actual matrix operations.
+2. **Ensemble Section Header & Footer Synchronization (`_extract_ensemble_market_section`)**:
+   - Tier 1 Regex: Matches `(?:^[ \t]*[=\-]{3,}[^\n]*\n)?^[ \t]*\[{market}\][^\n]*\n(?:^[ \t]*[=\-]{3,}[^\n]*\n)?(.*?)` looking ahead to next bordered or unbordered market header, footer markers, or `\Z`.
+   - Tier 2 State Machine: Line-by-line fallback parser tracking `in_section` when encountering `^\[{market}\]\s+Top` or `[{market}]`.
+   - Explicit Footer Stripping: Iteratively searches for and strips `--- Data Quality`, `--- Applied`, `--- Executive`, `=== Dynamic` to eliminate footer leakage into table data.
+   - Standard Header Normalization: Re-wraps extracted table body into `=========================================\n[{market}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n=========================================`.
+
+3. **Generic Strategy Header Deduplication & Merge (`merge_generic_strategy_files`)**:
+   - Safe Pre-read: Scans and buffers source content before opening the destination file in `"w"` mode, preventing self-referencing file truncation bugs.
+   - Header Recognition: Detects `Filters:`, `Rank`, `Pair`, `No.`, `Symbol`, and horizontal dividers (`---`, `───`, `===`, `═══`).
+   - Deduplication: Uses 5-character prefix hashing (`prefix = line_str[:5]`) so column headers and dividers appear exactly once in a single header block at the top of the merged file.
+   - 31+ Strategy Merge Parity: `main()` explicitly calls `merge_generic_strategy_files` for all 31 strategies plus darkpool aliases (`darkpool_predictions.txt`, `hft_order_flow_predictions.txt`, `earnings_tone_drift_predictions.txt`, `dual_correction_predictions.txt`, `index_rebalance_predictions.txt`, `overnight_gap_predictions.txt`).
+
+4. **Integrity Audit**:
+   - No hardcoded test responses, fake returns, or bypass shortcuts detected.
+   - All logic is generalized and operates dynamically on arbitrary data and files.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Orthogonalization Correctness & Decorrelation Capability**:
-   - The Loewdin ZCA transformation matrix $C^{-1/2} = V \text{diag}(\lambda_i^{-1/2}) V^T$ produces decorrelated features $X_{\text{decorr}} = \bar{X} C^{-1/2}$ such that the covariance matrix of $X_{\text{decorr}}$ is the identity matrix $I_K$.
-   - When raw strategy scores exhibit high collinearity (e.g., mean pairwise correlation $> 0.65 - 0.80$), ZCA decorrelation reduces off-diagonal pairwise correlations to approximately 0.0, well below the target requirement of $< 0.30$.
+1. **Step 1 — Market Discovery Completeness**:
+   - Single-probe gating on `surge_predictions_{m}.txt` was identified as a critical point of failure where non-surge market outputs were dropped.
+   - Observation confirms that `discover_target_markets()` probes across split folders, 8 standard strategy files, glob patterns, and dynamic prefix stems with strict exclusion filtering.
+   - Inference: GHA matrix jobs and local per-market runs will reliably discover all active markets regardless of individual strategy candidate counts.
 
-2. **Rank Order & Structure Preservation**:
-   - Loewdin ZCA whitening is uniquely optimal among all whitening transformations in minimizing the total sum of squared distances $\sum_{k=1}^K \|x_k - x_{\text{ortho}, k}\|^2$ to original features.
-   - Rescaling by original column means and standard deviations followed by score clipping $[0.0, 1.0]$ preserves relative symbol rankings (Spearman rank correlation $\ge 0.70$ with un-orthogonalized raw score sums).
+2. **Step 2 — Section Header Extraction & Footer Sanitization**:
+   - Historical fragility in `merge_ensemble_predictions()` stemmed from divider formatting mismatches and lookahead swallows.
+   - Observation confirms that `_extract_ensemble_market_section()` implements dual-tier parsing (flexible border regex + state machine line parser) and explicit post-match footer truncation.
+   - Inference: Prevents both section dropouts and footer leakage into downstream report tables.
 
-3. **Numerical Stability & Edge Cases**:
-   - Eigenvalue thresholding (`ridge_epsilon = 1e-6`) prevents division by zero or ill-conditioned matrix inversion under collinearity or duplicate columns.
-   - Column-mean NaN imputation preserves missing value masks for downstream NaN-aware weighting in `EnsembleScoringEngine`.
+3. **Step 3 — Header Deduplication & Table Structural Integrity**:
+   - Per-market files contain redundant header rows (`Rank Symbol...`, `Pair ...`, `No. ...`, `Filters: ...`).
+   - Observation confirms `merge_generic_strategy_files()` extracts only the first instance of each header type into a unified header block while accumulating all market data rows below it.
+   - Inference: Merged files are cleanly structured and fully parseable by `generate_report.py`.
+
+4. **Step 4 — Test Suite Verification**:
+   - Executing `.venv\Scripts\pytest.exe tests/test_merge_generic_strategies.py tests/test_report_generator_hrp.py tests/test_challenger_rim_2_stress.py -v` produced 74 passing tests in 23.16s with 0 failures.
+   - Executing `.venv\Scripts\python.exe trading_system/merge_predictions.py` successfully merged all strategy files.
+   - Executing `.venv\Scripts\python.exe trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html` produced `gh-pages/index.html` (5,621 KB) with zero errors.
 
 ---
 
 ## 3. Caveats
 
-- **Score Range Clipping**: Decorrelation rescales features based on normal distribution assumptions. Extremely high-variance tail outliers may be clipped at upper bound $1.0$ or lower bound $0.0$. This is intentional and necessary to maintain valid probability inputs $[0.0, 1.0]$ for the ensemble scorer.
-- No other caveats.
+1. **Self-Referencing Fallback Notice**: In environments where per-market split files are not generated and only unified files exist in `trading_system/result`, `merge_generic_strategy_files()` logs an informative message (`Only self-referencing fallbacks available; leaving <filename> untouched.`) and skips rewriting, preserving existing data without truncation.
+2. **Missing Market Data in Legacy Snapshots**: When historical data for a specific market is absent from a run, the system emits an informative warning and continues merging all available markets.
 
 ---
 
 ## 4. Conclusion
 
-**Verdict**: **APPROVE**
+**Verdict: APPROVE**
 
-The Factor Orthogonalization engine (`FactorOrthogonalizerEngine`) in `factor_orthogonalizer.py` and its integration in `ensemble_scorer.py` fully satisfy all requirements for Milestone 2:
-- Gram-Schmidt & Loewdin PCA ZCA Whitening decorrelation methods correctly implemented.
-- Mean off-diagonal pairwise strategy correlation reduced from $>0.65$ to $<0.30$.
-- Rank ordering preserved (Spearman $\rho \ge 0.70$).
-- Output scores strictly bounded within $[0.0, 1.0]$.
-- Robust handling of NaNs, zero-variance columns, small sample sizes, and duplicate strategy features.
-- Zero integrity violations detected.
+The implementation of Milestone 2 (Multi-Market Merge Synchronization) in `trading_system/merge_predictions.py` and `tests/test_merge_generic_strategies.py` is thorough, robust, and mathematically sound. It completely resolves market discovery omissions, section divider fragility, footer pollution, and header duplication across all 31+ strategies and 5 core markets.
 
 ---
 
 ## 5. Verification Method
 
-To independently re-verify this assessment:
-1. Run pytest suite:
-   ```powershell
-   .venv\Scripts\python.exe -m pytest tests/test_factor_orthogonalization.py -v
-   ```
-2. Inspect source code files:
-   - `trading_system/src/ai/factor_orthogonalizer.py`
-   - `trading_system/src/ai/ensemble_scorer.py`
-3. Verify test cases pass with 0 failures and off-diagonal correlation metrics strictly below 0.30.
+### 5.1 Pytest Test Suite
+```powershell
+.venv\Scripts\pytest.exe tests/test_merge_generic_strategies.py tests/test_report_generator_hrp.py tests/test_challenger_rim_2_stress.py -v
+```
+**Observed Result**: `74 passed in 23.16s`
+
+### 5.2 Standalone Merger Run
+```powershell
+.venv\Scripts\python.exe trading_system/merge_predictions.py
+```
+**Observed Result**: Discovers target markets `['SP500', 'NASDAQ', 'RUSSELL2000', 'KOSPI', 'KOSDAQ', 'KONEX']`, merges all 31+ strategy files cleanly, exit code 0.
+
+### 5.3 Report Generator Verification
+```powershell
+.venv\Scripts\python.exe trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html
+```
+**Observed Result**: `[generate_report] Dashboard written to: D:\Finance\code\stock\gh-pages\index.html (5621 KB)`, exit code 0.

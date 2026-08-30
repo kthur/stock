@@ -1,31 +1,25 @@
-## 2026-08-21T10:25:28Z
-You are Worker M2 for the Stock Trading System.
-Your working directory is: D:\Finance\code\stock\.agents\teamwork_preview_worker_m2\
+## 2026-08-29T14:02:32Z
+You are worker_m2 for Milestone 2: Multi-Market Merge Synchronization.
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2
 
-Read:
-1. D:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-2. D:\Finance\code\stock\system_improvement_report_v5.md (Focus on Domain 2: V5-07 ~ V5-12)
-3. D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md
-
-Your exclusive write boundaries:
-- `trading_system/src/analysis/portfolio_optimizer.py`
-- `trading_system/src/analysis/coverage_analyzer.py`
-- `trading_system/src/risk/portfolio_allocator.py`
-- `trading_system/src/risk/risk_manager.py`
-- `trading_system/src/ai/prediction_model.py`
-Do NOT modify files outside your boundary.
+Please read:
+- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+- d:\Finance\code\stock\PROJECT.md
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_1\handoff.md
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\handoff.md
 
 MANDATORY INTEGRITY WARNING:
 DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-Tasks to implement:
-- **V5-07**: In `portfolio_optimizer.py:170-178, 204-220`, fix Black-Litterman prior vs view scale alignment and quadratic utility optimization on negative excess return (`if port_ret <= risk_free_rate: return - (port_ret - 0.5 * lambda_aversion * port_var)`).
-- **V5-08**: In `portfolio_allocator.py:106-112`, Clayton copula asymmetric correlation PSD spectral projection (`c_evals, c_evecs = np.linalg.eigh(asym_corr); c_evals = np.maximum(c_evals, 1e-4); asym_corr = c_evecs @ np.diag(c_evals) @ c_evecs.T; res = stressed_cov + 1e-5 * np.eye(K)`).
-- **V5-09**: In `prediction_model.py:156-170`, chronological forward expanding time series cross-validation (`train_end_idx = (i + 1) * test_size`).
-- **V5-10**: In `portfolio_optimizer.py:406-422`, HRP inverse-variance cluster variance floor (`1e-4` on vols, `1e-8` on var, alpha clamped to `[0.01, 0.99]`).
-- **V5-11**: In `risk_manager.py:207-210, 310-315`, fix `np.isnan(None)` with `isinstance` / `np.isfinite` check, and forward-fill macro history queue synchronously.
-- **V5-12**: In `coverage_analyzer.py:37-41, 165-170`, align fundamental column schema with engineered feature names (`['revenue_to_market_cap', 'dividend_yield', 'eps_yield', 'eps_growth_1y', 'operating_margin', 'roe']`).
-
-Run relevant tests using `.venv\Scripts\python.exe -m pytest tests/test_portfolio_optimization.py tests/test_risk_manager.py tests/test_coverage_analyzer.py -v`.
-Write your complete report to `D:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md`.
-Send message to parent when done.
+Your Tasks:
+1. In `trading_system/merge_predictions.py`:
+   - Implement robust multi-artifact market discovery in `main()` so markets are detected via any market-suffixed file (`*_{m}.txt`, `*_{m}.json`, dedicated split dirs like `result_{m}`, `result-{m}`, or multi-probe `[surge, pipeline_result, ensemble, rim, sentiment]`) rather than gating solely on surge files.
+   - Refactor section extraction in `merge_ensemble_predictions()` with a robust multi-tier parser (`_extract_ensemble_market_section`) supporting flexible separators (`===`, `---`, varying border widths, line-by-line fallback) without leaking footers into market tables.
+   - Expand header prefix matching in `merge_generic_strategy_files()` to include `Pair`, `No.`, `Symbol`, `Rank`, `Filters:` so Stat-Arb and portfolio table headers do not leak into data rows.
+   - Standardize strategy list and darkpool merging.
+   - Add `"KONEX"` to `KNOWN_MARKETS` if applicable.
+2. In `tests/test_merge_generic_strategies.py`:
+   - Expand unit and integration test suite to cover multi-market merge across all 31+ strategies, empty market handling, multi-probe market discovery, and section extraction.
+3. Run tests using `.venv\Scripts\pytest.exe tests/test_merge_generic_strategies.py tests/test_report_generator_hrp.py tests/test_challenger_rim_2_stress.py -v`
+4. Run `trading_system/merge_predictions.py` standalone and verify clean merge.
+5. Document all changes, test commands, and passing results in `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md` and send a message back.

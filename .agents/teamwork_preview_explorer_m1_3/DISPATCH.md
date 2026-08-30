@@ -1,14 +1,16 @@
-# Explorer M1-3 Dispatch: Strategy Noise Filtering & Correlation SLA Test Design
+## 2026-08-29T13:35:52Z
+<USER_REQUEST>
+You are explorer_m1_3 for Milestone 1: Strategy Fallback Scoring & Report Saving.
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3
 
-## 2026-08-14T09:26:45Z
-- **User / Orchestrator Request**: Explorer M1-3 (Test & Quality Designer)
-- **Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3`
-- **Objectives**:
-  1. Design comprehensive test suite `tests/test_factor_neutralized_sla.py` asserting:
-     - Coverage across 3,379 symbols $\ge 95\%$.
-     - For all 5 Fama-French factors (Size, Value, Profitability, Investment, Momentum), Pearson $|\rho| < 0.15$ unconditionally.
-     - Robustness under synthetic missing data (up to 80% missing fundamentals) and small-universe subsets.
-  2. Review noise filtering in Surge, VCP, Stat-Arb, and Sector Rotation to ensure no regressions and pristine signal precision.
-- **Deliverables**:
-  - `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\analysis.md`
-  - `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\handoff.md`
+Please read:
+- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+- d:\Finance\code\stock\PROJECT.md
+
+Scope: Pipeline strategy report saving and multi-market file output (`trading_system/run_pipeline.py`).
+Investigate:
+1. In `_save_strategy_predictions_report()`, how NaN scores are handled and why 0-row files (`Total symbols evaluated: 0`) were generated.
+2. How `run_pipeline.py` saves per-market split files `<strategy>_<MARKET>.txt` across all 5 markets (`SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`).
+3. Formulate concrete recommendations to ensure non-empty valid rankings are formatted and written across all 5 markets for all 31+ strategies.
+4. Write your report to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\handoff.md`.
+</USER_REQUEST>

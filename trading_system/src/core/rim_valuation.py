@@ -519,9 +519,14 @@ class RIMValuationEngine(BaseStrategyEngine):
 
                 if sma_val is None or pd.isna(sma_val) or sma_val <= 0:
                     s_cand = row.get('sma_200') if 'sma_200' in df.columns else (row.get('sma_60') if 'sma_60' in df.columns else None)
-                    if pd.notna(s_cand) and float(s_cand) > 0:
-                        sma_val = float(s_cand)
-                    elif allow_price_proxy and pd.notna(p_val) and p_val > 0:
+                    if s_cand is not None and pd.notna(s_cand):
+                        try:
+                            s_float = float(s_cand)
+                            if s_float > 0:
+                                sma_val = s_float
+                        except (ValueError, TypeError):
+                            pass
+                    if (sma_val is None or pd.isna(sma_val) or sma_val <= 0) and allow_price_proxy and pd.notna(p_val) and p_val > 0:
                         sma_val = float(p_val)
 
                 if sma_val is not None and pd.notna(sma_val) and sma_val > 0 and pd.notna(p_val) and p_val > 0:

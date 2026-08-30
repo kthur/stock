@@ -1363,7 +1363,7 @@ def build_tab_status_banner(
 
 def parse_strategy_coverage_report(
     cov_text: str,
-    parsed_strategies_map: Optional[dict[str, list]] = None,
+    parsed_strategies_map: Optional[dict[str, Any]] = None,
     total_symbols_fallback: int = 948
 ) -> tuple[int, list[StrategyHealthInfo]]:
     """
