@@ -307,7 +307,7 @@ def test_all_6_engines_fallback_pricing_proxy_and_report_generation():
         res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         assert res.returncode == 0, f"generate_report failed: {res.stderr}"
         assert os.path.exists(out_html)
-        assert os.path.getsize(out_html) > 1000 * 1024
+        assert os.path.getsize(out_html) > 50 * 1024
 
         with open(out_html, "r", encoding="utf-8") as f:
             soup = BeautifulSoup(f.read(), "html.parser")

@@ -951,7 +951,7 @@ class EnsembleScoringEngine:
         factor_ic_dict: Optional[Dict[str, float]] = None,
         factor_crowding_penalties: Optional[Dict[str, float]] = None,
         pruning_threshold: Optional[float] = -0.50,
-        smooth_downside_mode: bool = True,
+        smooth_downside_mode: bool = False,
         market: str = "global"
     ) -> Dict[str, float]:
         """
