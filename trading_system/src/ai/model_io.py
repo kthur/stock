@@ -1,47 +1,42 @@
 import json
 import os
-import xgboost as xgb
-import lightgbm as lgb
-import catboost as cb
 import logging
+from typing import Optional, Dict, Any, List, Union
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-def save_model(model, filepath: str, metadata: dict | None = None) -> None:
-    """Save machine learning model along with a JSON metadata side-car file."""
-    # Ensure folder structure exists
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
-    # Save the model booster/weights depending on library type
-    if isinstance(model, xgb.XGBModel):
-        model.get_booster().save_model(filepath)
-    elif isinstance(model, lgb.Booster):
-        # Raw LightGBM Booster (not wrapped in LGBMModel): must save in
-        # LightGBM text format, NOT via the joblib fallback below - otherwise
-        # load_model() fails with "Unknown model format or submodel type".
-        model.save_model(filepath)
-    elif isinstance(model, lgb.LGBMModel):
-        model.booster_.save_model(filepath)
-    elif isinstance(model, (cb.CatBoostRegressor, cb.CatBoostClassifier)):
-        model.save_model(filepath)
-    else:
-        # Fallback to general pickle/joblib if needed
-        import joblib
-        joblib.dump(model, filepath)
+def save_model(
+    model: Any,
+    filepath: Union[str, Path],
+    metadata: Optional[Dict[str, Any]] = None,
+    feature_names: Optional[List[str]] = None,
+) -> bool:
+    """Save machine learning model atomically with SHA-256 checksum and JSON metadata sidecar."""
+    from src.ai.model_cache import ModelCacheManager
+    manager = ModelCacheManager.get_instance()
+    return manager.save_model_atomic(
+        model=model,
+        filepath=filepath,
+        metadata=metadata,
+        feature_names=feature_names,
+    )
 
-    # Save side-car JSON file containing metadata
-    meta_path = filepath + "_meta.json"
-    if metadata is None:
-        metadata = {}
 
-    metadata.update({
-        "saved_filepath": filepath,
-        "model_class": model.__class__.__name__
-    })
+def load_model(
+    filepath: Union[str, Path],
+    verify_checksum: bool = True,
+    expected_features: Optional[List[str]] = None,
+    **kwargs,
+) -> Optional[Any]:
+    """Safely load machine learning model with checksum verification and feature fingerprint checking."""
+    from src.ai.model_cache import ModelCacheManager
+    manager = ModelCacheManager.get_instance()
+    return manager.load_model_safe(
+        filepath=filepath,
+        verify_checksum=verify_checksum,
+        expected_features=expected_features,
+        **kwargs,
+    )
 
-    try:
-        with open(meta_path, 'w', encoding='utf-8') as f:
-            json.dump(metadata, f, indent=2, ensure_ascii=False)
-        logger.debug(f"Saved model metadata to {meta_path}")
-    except Exception as e:
-        logger.error(f"Failed to save metadata to {meta_path}: {e}")

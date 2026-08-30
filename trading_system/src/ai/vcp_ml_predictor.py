@@ -750,26 +750,42 @@ class VCPSurgePredictor:
             from src.ai.model_io import save_model
             from datetime import datetime
             current_date = datetime.now().strftime("%Y-%m-%d")
+            cols = list(dict.fromkeys(self._ft.ALL_FEATURES + VCP_FEATURES))
 
             # XGBoost
             for market, models in self.models.items():
                 for h, model in models.items():
                     path = self.model_dir / f"vcp_surge_{market}_{h}d.json"
                     base_model = getattr(model, 'estimator', getattr(model, 'base_estimator', model))
-                    save_model(base_model, str(path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "vcp_xgb_surge"})
+                    save_model(
+                        base_model,
+                        str(path),
+                        {"market": market, "horizon": h, "train_date": current_date, "model_type": "vcp_xgb_surge"},
+                        feature_names=cols,
+                    )
             # LightGBM
             for market, models in self.lgb_models.items():
                 for h, model in models.items():
                     path = self.model_dir / f"lgb_vcp_surge_{market}_{h}d.txt"
                     base_model = getattr(model, 'estimator', getattr(model, 'base_estimator', model))
-                    save_model(base_model, str(path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "vcp_lgb_surge"})
+                    save_model(
+                        base_model,
+                        str(path),
+                        {"market": market, "horizon": h, "train_date": current_date, "model_type": "vcp_lgb_surge"},
+                        feature_names=cols,
+                    )
             # CatBoost
             for market, models in self.cat_models.items():
                 for h, model in models.items():
                     path = self.model_dir / f"cat_vcp_surge_{market}_{h}d.bin"
                     base_model = getattr(model, 'estimator', getattr(model, 'base_estimator', model))
-                    save_model(base_model, str(path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "vcp_cat_surge"})
-            logger.info(f"VCP ML models saved to {self.model_dir}")
+                    save_model(
+                        base_model,
+                        str(path),
+                        {"market": market, "horizon": h, "train_date": current_date, "model_type": "vcp_cat_surge"},
+                        feature_names=cols,
+                    )
+            logger.info(f"VCP ML models saved atomically to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save VCP ML models: {e}")
 

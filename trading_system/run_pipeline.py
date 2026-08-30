@@ -1486,7 +1486,22 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     vcp_ml = None
 
     if cfg.skip_training:
-        logger.info("SKIP_TRAINING is active. Checking for existing models on disk...")
+        logger.info("SKIP_TRAINING is active. Checking for existing models on disk via ModelCacheManager...")
+        from src.ai.model_cache import ModelCacheManager
+        cache_mgr = ModelCacheManager.get_instance()
+        cache_health = cache_mgr.validate_cache_health(
+            model_dir=str(model.model_dir),
+            required_markets=['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq'],
+            max_age_days=getattr(cfg, 'model_cache_max_age_days', 7),
+            verify_checksum=getattr(cfg, 'model_cache_verify_checksum', True),
+            expected_features=getattr(model, 'ALL_FEATURES', None),
+        )
+        logger.info(
+            f"[ModelCacheManager] Cache health: valid={cache_health.get('valid_models_count')}, "
+            f"stale={cache_health.get('stale_models_count')}, corrupted={cache_health.get('corrupted_models_count')}, "
+            f"ready={cache_health.get('is_fully_ready')}"
+        )
+
         model.load_models()
         model.load_surge_models()
         model.load_lead_lag()

@@ -86,29 +86,57 @@ class LimitOrderBookCalculator:
 
     def evaluate_lob_snapshot(self, snapshot: Dict[str, Any]) -> Dict[str, float]:
         """
-        Evaluates a complete LOB snapshot and returns metrics.
+        Evaluates a complete LOB snapshot and returns metrics including multi-depth OBI.
         """
         bids = snapshot.get("bids", [])
         asks = snapshot.get("asks", [])
 
         if not bids or not asks:
-            return {"obi": 0.0, "micro_price": 0.0, "spread": 0.0}
+            return {
+                "obi": 0.0,
+                "obi_1": 0.0,
+                "obi_5": 0.0,
+                "obi_10": 0.0,
+                "micro_price": 0.0,
+                "spread": 0.0
+            }
 
         # Safe sorting: bids descending by price, asks ascending by price
-        sorted_bids = sorted(bids, key=lambda x: x.get("price", 0.0), reverse=True)
-        sorted_asks = sorted(asks, key=lambda x: x.get("price", 0.0))
+        sorted_bids = sorted(bids, key=lambda x: float(x.get("price", 0.0) or 0.0), reverse=True)
+        sorted_asks = sorted(asks, key=lambda x: float(x.get("price", 0.0) or 0.0))
 
-        p_b1 = sorted_bids[0].get("price", 0.0)
-        v_b1 = sorted_bids[0].get("volume", 0.0)
-        p_a1 = sorted_asks[0].get("price", 0.0)
-        v_a1 = sorted_asks[0].get("volume", 0.0)
+        p_b1 = float(sorted_bids[0].get("price", 0.0) or 0.0)
+        v_b1 = float(sorted_bids[0].get("volume", 0.0) or 0.0)
+        p_a1 = float(sorted_asks[0].get("price", 0.0) or 0.0)
+        v_a1 = float(sorted_asks[0].get("volume", 0.0) or 0.0)
 
         micro = self.calculate_micro_price(p_b1, v_b1, p_a1, v_a1)
-        obi = self.calculate_obi(sorted_bids, sorted_asks)
+        obi_1 = self._calc_obi_k(sorted_bids, sorted_asks, k=1)
+        obi_5 = self._calc_obi_k(sorted_bids, sorted_asks, k=5)
+        obi_10 = self._calc_obi_k(sorted_bids, sorted_asks, k=min(10, max(len(sorted_bids), len(sorted_asks))))
         spread = max(0.0, p_a1 - p_b1)
 
         return {
-            "obi": round(obi, 4),
-            "micro_price": round(micro, 2),
-            "spread": round(spread, 2)
+            "obi": round(obi_10, 4),
+            "obi_1": round(obi_1, 4),
+            "obi_5": round(obi_5, 4),
+            "obi_10": round(obi_10, 4),
+            "micro_price": round(micro, 4),
+            "spread": round(spread, 4)
         }
+
+    def _calc_obi_k(self, bids: List[Dict[str, float]], asks: List[Dict[str, float]], k: int) -> float:
+        """Helper to calculate OBI for top-k levels."""
+        n_levels = min(len(bids), len(asks), k)
+        if n_levels == 0:
+            return 0.0
+        numerator = 0.0
+        denominator = 0.0
+        for i in range(n_levels):
+            w = np.exp(-self.decay_lambda * i)
+            vb = max(0.0, float(bids[i].get("volume", 0.0) or 0.0))
+            va = max(0.0, float(asks[i].get("volume", 0.0) or 0.0))
+            numerator += w * (vb - va)
+            denominator += w * (vb + va)
+        return float(np.clip(numerator / denominator, -1.0, 1.0)) if denominator > 0 else 0.0
+

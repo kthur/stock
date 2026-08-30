@@ -110,6 +110,14 @@ class TradingConfig:
     skip_training: bool = False
     skip_inference: bool = False
     fundamental_cache_expiry_days: int = 90
+    model_cache_enabled: bool = True
+    model_cache_max_age_days: int = 7
+    model_cache_verify_checksum: bool = True
+    timescaledb_url: str = field(default="", repr=False)
+    timescaledb_enabled: bool = False
+    lob_tick_storage_enabled: bool = True
+    lob_depth_levels: int = 10
+    vpin_bucket_size: float = 10000.0
 
     # 백테스트 기간 설정 (숫자=년)
     backtest_years: float = 5.0
@@ -264,6 +272,14 @@ class TradingConfig:
         self.skip_training = _get_env_bool("SKIP_TRAINING", self.skip_training)
         self.skip_inference = _get_env_bool("SKIP_INFERENCE", self.skip_inference)
         self.fundamental_cache_expiry_days = _get_env_int("FUNDAMENTAL_CACHE_EXPIRY_DAYS", self.fundamental_cache_expiry_days)
+        self.model_cache_enabled = _get_env_bool("MODEL_CACHE_ENABLED", self.model_cache_enabled)
+        self.model_cache_max_age_days = _get_env_int("MODEL_CACHE_MAX_AGE_DAYS", self.model_cache_max_age_days)
+        self.model_cache_verify_checksum = _get_env_bool("MODEL_CACHE_VERIFY_CHECKSUM", self.model_cache_verify_checksum)
+        self.timescaledb_url = _get_env_str("TIMESCALEDB_URL", self.timescaledb_url)
+        self.timescaledb_enabled = _get_env_bool("TIMESCALEDB_ENABLED", self.timescaledb_enabled)
+        self.lob_tick_storage_enabled = _get_env_bool("LOB_TICK_STORAGE_ENABLED", self.lob_tick_storage_enabled)
+        self.lob_depth_levels = _get_env_int("LOB_DEPTH_LEVELS", self.lob_depth_levels)
+        self.vpin_bucket_size = _get_env_float("VPIN_BUCKET_SIZE", self.vpin_bucket_size)
 
         if "BACKTEST_YEARS" in os.environ:
             try:
