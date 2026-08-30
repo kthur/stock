@@ -61,15 +61,20 @@ class VolTargetingEngine(BaseStrategyEngine):
         **kwargs: Any
     ) -> Any:
         """Compute volatility targeting risk parity score for universe symbols."""
-        df_prices = kwargs.get("df_prices", prices_dict)
-        universe = kwargs.get("universe", kwargs.get("universe_df", None))
+        if isinstance(prices_dict, pd.DataFrame) and isinstance(fundamentals_dict, dict):
+            universe = prices_dict
+            df_prices = fundamentals_dict
+        else:
+            df_prices = kwargs.get("df_prices", prices_dict)
+            universe = kwargs.get("universe", kwargs.get("universe_df", None))
+
         if universe is None or (isinstance(universe, pd.DataFrame) and universe.empty):
             if isinstance(fundamentals_dict, pd.DataFrame) and not fundamentals_dict.empty:
                 universe = fundamentals_dict
-            elif isinstance(prices_dict, dict) and prices_dict:
-                universe = pd.DataFrame({'symbol': list(prices_dict.keys()), 'name': list(prices_dict.keys()), 'market': 'ALL'})
+            elif isinstance(df_prices, dict) and df_prices:
+                universe = pd.DataFrame({'symbol': list(df_prices.keys()), 'name': list(df_prices.keys()), 'market': 'ALL'})
 
-        if df_prices is None or universe is None or universe.empty:
+        if df_prices is None or universe is None or (isinstance(universe, pd.DataFrame) and universe.empty):
             return pd.DataFrame(columns=["symbol", "name", "market", "vol_target_score"])
 
         if isinstance(df_prices, dict):
@@ -125,11 +130,11 @@ class VolTargetingEngine(BaseStrategyEngine):
                         low_series = pd.to_numeric(df_p[l_col].tail(30), errors='coerce').dropna()
                         common_idx = high_series.index.intersection(low_series.index)
                         if len(common_idx) >= 15:
-                            h_sub, l_sub = high_series.loc[common_idx], low_series.loc[common_idx]
-                            hl_ratio = (h_sub / np.maximum(l_sub, 1e-8)).clip(lower=1.0)
+                            h_sub, l_sub = np.maximum(high_series.loc[common_idx].values, 1e-8), np.maximum(low_series.loc[common_idx].values, 1e-8)
+                            hl_ratio = np.maximum(h_sub / l_sub, 1.0)
                             log_hl_sq = (np.log(hl_ratio) ** 2)
-                            parkinson_var = float(log_hl_sq.mean() / (4.0 * np.log(2.0)))
-                            parkinson_vol = np.sqrt(parkinson_var * 252.0)
+                            parkinson_var = float(np.nanmean(log_hl_sq) / (4.0 * np.log(2.0)))
+                            parkinson_vol = np.sqrt(max(0.0, parkinson_var) * 252.0)
                             # Blend 70% Close-to-Close EWMA + 30% Parkinson Range Volatility
                             blended_v = float(0.70 * realized_vol[sym] + 0.30 * parkinson_vol)
                             realized_vol[sym] = float(np.clip(blended_v, 0.02, 5.0)) if np.isfinite(blended_v) else 0.25

@@ -661,8 +661,10 @@ class RiskManager:
         """
         cur_price = entry_price or 0.0
         if isinstance(intraday_data, pd.DataFrame) and not intraday_data.empty:
-            prices = intraday_data['close'].values if 'close' in intraday_data.columns else intraday_data['Close'].values
-            cur_price = float(prices[-1])
+            close_col = next((c for c in ['close', 'Close', 'adj_close', 'Adj Close', 'price', 'Price'] if c in intraday_data.columns), None)
+            if close_col is not None and len(intraday_data[close_col]) > 0:
+                prices = intraday_data[close_col].values
+                cur_price = float(prices[-1])
 
         signal = self.intraday_stop_loss_engine.evaluate(symbol, intraday_data)
 
@@ -678,8 +680,10 @@ class RiskManager:
         if signal.trigger_stop:
             cur_price = 0.0
             if isinstance(intraday_data, pd.DataFrame) and not intraday_data.empty:
-                prices = intraday_data['close'].values if 'close' in intraday_data.columns else intraday_data['Close'].values
-                cur_price = float(prices[-1])
+                close_col = next((c for c in ['close', 'Close', 'adj_close', 'Adj Close', 'price', 'Price'] if c in intraday_data.columns), None)
+                if close_col is not None and len(intraday_data[close_col]) > 0:
+                    prices = intraday_data[close_col].values
+                    cur_price = float(prices[-1])
             elif isinstance(intraday_data, dict):
                 cur_price = float(intraday_data.get('current_price', 0.0))
 

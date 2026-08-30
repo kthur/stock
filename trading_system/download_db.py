@@ -46,8 +46,11 @@ def download_github_databases():
     if not os.path.isabs(stock_price_db_path):
         stock_price_db_path = str(base_dir / stock_price_db_path)
 
-    # 1. Fetch latest artifact named 'stock-databases'
-    url = f"https://api.github.com/repos/{repo}/actions/artifacts?name=stock-databases&per_page=1"
+    # 1. Fetch artifacts from GitHub
+    target_market = os.environ.get("INFERENCE_TARGET", os.environ.get("TARGET_MARKET", "")).strip().split(",")[0].strip()
+    target_name = f"stock-databases-{target_market}" if target_market else "stock-databases"
+
+    url = f"https://api.github.com/repos/{repo}/actions/artifacts?per_page=30"
     req = urllib.request.Request(url)
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Accept", "application/vnd.github+json")
@@ -59,13 +62,26 @@ def download_github_databases():
             data = json.loads(response.read().decode('utf-8'))
 
         artifacts = data.get("artifacts", [])
-        if not artifacts:
-            logger.warning("No artifact named 'stock-databases' found in GitHub.")
+        matched_artifact = None
+        # Try exact target name match first
+        for art in artifacts:
+            if art.get("name") == target_name:
+                matched_artifact = art
+                break
+        # Fallback to any stock-databases artifact
+        if not matched_artifact:
+            for art in artifacts:
+                if str(art.get("name", "")).startswith("stock-databases"):
+                    matched_artifact = art
+                    break
+
+        if not matched_artifact:
+            logger.warning(f"No artifact matching '{target_name}' or 'stock-databases*' found in GitHub.")
             return
 
-        latest_artifact = artifacts[0]
+        latest_artifact = matched_artifact
         artifact_id = latest_artifact["id"]
-        logger.info(f"Found artifact ID: {artifact_id} created at {latest_artifact['created_at']}.")
+        logger.info(f"Found artifact '{latest_artifact.get('name')}' (ID: {artifact_id}) created at {latest_artifact['created_at']}.")
 
         # 2. Get the redirect URL first.
         #    GitHub API redirects to Azure Blob Storage for the actual ZIP.

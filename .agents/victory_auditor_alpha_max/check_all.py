@@ -100,7 +100,10 @@ weights = {'005930': 0.10}
 plans = oms.generate_order_plan(top_picks, weights, total_capital=100000000.0, crisis_level='NORMAL', use_leland_buffer=False)
 assert len(plans) == 1 and plans[0]['symbol'] == '005930'
 print(f'   - Confluence Entry: {conf}')
-print(f'   - Scale-In 3 Stages: S1={s1[" allocated_shares\]}, S2={s2[\allocated_shares\]}, S3={s3[\allocated_shares\]}')
+s1_sh = s1['allocated_shares']
+s2_sh = s2['allocated_shares']
+s3_sh = s3['allocated_shares']
+print(f'   - Scale-In 3 Stages: S1={s1_sh}, S2={s2_sh}, S3={s3_sh}')
 print(f' - Generated Orders: {len(plans)} orders in memory')
 print(' -> OMS Precision Timing Check: PASS')
 

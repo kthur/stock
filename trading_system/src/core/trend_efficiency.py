@@ -62,7 +62,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
 
     def calculate_scores(
         self,
-        symbols: list,
+        symbols: Any,
         prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
         features_df: Optional[Any] = None
     ) -> pd.DataFrame:
@@ -70,11 +70,24 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         Computes Trend Efficiency Score per symbol.
         Returns DataFrame with ['symbol', 'trend_efficiency_score'].
         """
-        if not symbols or not prices_dict:
+        if symbols is None or not prices_dict:
             return pd.DataFrame(columns=['symbol', 'trend_efficiency_score'])
 
+        if isinstance(symbols, pd.DataFrame):
+            if symbols.empty:
+                return pd.DataFrame(columns=['symbol', 'trend_efficiency_score'])
+            sym_list = symbols['symbol'].tolist() if 'symbol' in symbols.columns else symbols.index.tolist()
+        elif isinstance(symbols, pd.Series):
+            if symbols.empty:
+                return pd.DataFrame(columns=['symbol', 'trend_efficiency_score'])
+            sym_list = symbols.tolist()
+        else:
+            sym_list = list(symbols)
+            if not sym_list:
+                return pd.DataFrame(columns=['symbol', 'trend_efficiency_score'])
+
         valid_cols = {}
-        for sym in symbols:
+        for sym in sym_list:
             sym_str = str(sym)
             p_df = prices_dict.get(sym_str, prices_dict.get(sym))
             if isinstance(p_df, pd.DataFrame):
@@ -85,7 +98,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
                         valid_cols[sym_str] = c_series
 
         if not valid_cols:
-            df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': np.nan})
+            df_out = pd.DataFrame({'symbol': [str(s) for s in sym_list], 'trend_efficiency_score': np.nan})
             return df_out[['symbol', 'trend_efficiency_score']]
 
         # Full price matrix for extended Hurst calculation (up to 120 days)
@@ -93,11 +106,13 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         n_hurst_obs = min(120, len(close_full))
         close_hurst = close_full.tail(n_hurst_obs)
 
+        # 20-day slice for KER
         close_2d = close_full.tail(21)
         if len(close_2d) < 21:
-            df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': np.nan})
+            df_out = pd.DataFrame({'symbol': [str(s) for s in sym_list], 'trend_efficiency_score': np.nan})
             return df_out[['symbol', 'trend_efficiency_score']]
 
+        # Vectorized KER across columns
         change_5 = (close_2d.iloc[-1] - close_2d.iloc[-6]).abs()
         vol_5 = close_2d.iloc[-6:].diff().abs().sum(axis=0)
         ker5 = np.where(vol_5 > 1e-8, change_5 / vol_5, 0.0)
@@ -127,7 +142,10 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
             n_obs = float(max(20, h_len))
             # Expected R/S under null hypothesis of random walk (Anis-Lloyd / Peters correction)
             e_rs = np.sqrt(np.pi * n_obs / 2.0) if n_obs > 50 else ((n_obs - 0.5) / n_obs) * np.sqrt(np.pi * n_obs / 2.0)
-            hurst = np.clip(0.50 + (np.log(rs_h) - np.log(e_rs)) / np.log(n_obs), 0.1, 0.9)
+            e_rs = max(float(e_rs), 1e-8)
+            hurst = 0.50 + (np.log(np.maximum(rs_h, 1e-8)) - np.log(e_rs)) / np.log(max(n_obs, 2.0))
+            hurst = np.nan_to_num(hurst, nan=0.50, posinf=0.90, neginf=0.10)
+            hurst = np.clip(hurst, 0.1, 0.9)
             hurst = np.where(flat_mask, 0.50, hurst)
         else:
             hurst = np.full(len(close_2d.columns), 0.50)
@@ -144,7 +162,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         score_arr = np.clip(np.where(np.isfinite(raw_score), raw_score, 0.50), 0.0, 1.0)
 
         results = dict(zip(close_2d.columns, score_arr))
-        df_out = pd.DataFrame([{'symbol': str(s), 'raw_score': results.get(str(s), np.nan)} for s in symbols])
+        df_out = pd.DataFrame([{'symbol': str(s), 'raw_score': results.get(str(s), np.nan)} for s in sym_list])
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
 
         if valid_mask.sum() > 1:

@@ -28,4 +28,5 @@ aiohttp>=3.9.0,<4.0.0
 catboost>=1.2
 optuna>=3.0
 tqdm>=4.60.0,<5.0.0
+opendartreader>=0.2.0
 

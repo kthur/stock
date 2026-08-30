@@ -154,8 +154,11 @@ def _estimate_half_life(residuals: np.ndarray) -> float:
     dy = np.diff(residuals)
     y_lag = residuals[:-1]
 
-    res = linregress(y_lag, dy)
-    lam = res.slope
+    try:
+        res = linregress(y_lag, dy)
+        lam = res.slope
+    except Exception:
+        return 999.0
 
     if lam >= 0:
         return 999.0
@@ -289,7 +292,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         # Initialize State and Covariance
         theta = np.zeros(2, dtype=np.float64)
         P = np.eye(2, dtype=np.float64) * 1.0
-        Q = np.eye(2, dtype=np.float64) * (delta_w / (1.0 - delta_w))
+        Q = np.eye(2, dtype=np.float64) * (delta_w / max(1e-6, 1.0 - delta_w))
         R = float(v_e)
 
         betas = np.zeros(N, dtype=np.float64)

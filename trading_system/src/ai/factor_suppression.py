@@ -36,7 +36,8 @@ def solve_single_stage_entropy_allocation(
     np.fill_diagonal(R_sym, 1.0)
     w = np.copy(w0).astype(np.float64)
     w = np.maximum(w, w_min)
-    w = w / np.sum(w)
+    w_s = np.sum(w)
+    w = w / w_s if w_s > 1e-12 else np.ones(K) / K
 
     lr = 0.02
     for it in range(max_iter):
@@ -44,7 +45,8 @@ def solve_single_stage_entropy_allocation(
         grad = np.dot(R_sym, w) - (tau_entropy / np.maximum(w, 1e-6)) + 2.0 * gamma_anchor * (w - w0)
         w_new = w - lr_t * grad
         w_new = np.maximum(w_new, w_min)
-        w_new = w_new / np.sum(w_new)
+        w_new_s = np.sum(w_new)
+        w_new = w_new / w_new_s if w_new_s > 1e-12 else np.ones(K) / K
 
         if np.max(np.abs(w_new - w)) < 1e-6:
             break
@@ -52,7 +54,8 @@ def solve_single_stage_entropy_allocation(
 
     w_clean = np.where(np.isfinite(w), w, w_min)
     w_clean = np.maximum(w_clean, w_min)
-    w_clean = w_clean / np.sum(w_clean)
+    w_clean_s = np.sum(w_clean)
+    w_clean = w_clean / w_clean_s if w_clean_s > 1e-12 else np.ones(K) / K
     return np.asarray(w_clean, dtype=np.float64)
 
 
@@ -221,7 +224,7 @@ class RegimeFactorSuppressionEngine:
             if vif_dict and strat_i in vif_dict:
                 vif_val = float(vif_dict[strat_i])
                 if vif_val > 5.0:
-                    vif_damping = min(1.0, np.sqrt(5.0 / vif_val))
+                    vif_damping = min(1.0, np.sqrt(5.0 / max(vif_val, 1e-6)))
                     penalty_i *= vif_damping
 
             # Consensus Precision Relief: Prevent over-suppression when strategy has high precision

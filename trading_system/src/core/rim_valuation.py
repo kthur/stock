@@ -435,13 +435,13 @@ class RIMValuationEngine(BaseStrategyEngine):
 
         if 'bps' in df.columns:
             bps_col = pd.to_numeric(df['bps'], errors='coerce')
-            has_negative_equity = has_negative_equity | (bps_col.notna() & (bps_col <= 0))
+            has_negative_equity = has_negative_equity | (bps_col.notna() & (bps_col < 0))
             bps_col = bps_col.replace([np.inf, -np.inf, 0.0], np.nan)
             bps_series = bps_col.copy()
 
         if 'book_value' in df.columns:
             bv = pd.to_numeric(df['book_value'], errors='coerce')
-            has_negative_equity = has_negative_equity | (bv.notna() & (bv <= 0))
+            has_negative_equity = has_negative_equity | (bv.notna() & (bv < 0))
             bv = bv.replace([np.inf, -np.inf, 0.0], np.nan)
             df['book_value'] = bv
             shares = (

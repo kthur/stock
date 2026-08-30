@@ -980,16 +980,19 @@ class AlphaDecayTracker:
 
         # Iterative Simplex Projection to guarantee hard bounds [min_w, max_w]
         weights_arr = np.array(list(adjusted.values()), dtype=float)
+        if len(weights_arr) == 0:
+            return {}
         for _ in range(10):
             tot = weights_arr.sum()
-            if tot <= 0:
+            if tot <= 0 or not np.isfinite(tot):
+                weights_arr = np.ones_like(weights_arr) / len(weights_arr)
                 break
             weights_arr = weights_arr / tot
             weights_arr = np.clip(weights_arr, self.min_weight_bound, self.max_weight_bound)
             if abs(weights_arr.sum() - 1.0) < 1e-4:
                 break
         tot = weights_arr.sum()
-        final_w = weights_arr / tot if tot > 0 else weights_arr
+        final_w = weights_arr / tot if (tot > 0 and np.isfinite(tot)) else np.ones_like(weights_arr) / len(weights_arr)
         return {s: round(float(w), 4) for s, w in zip(adjusted.keys(), final_w)}
 
 

@@ -593,13 +593,24 @@ class PortfolioAllocator:
             if len(returns_matrix) >= 5 and n_assets > 1:
                 cov_shrunk = LedoitWolf().fit(returns_matrix).covariance_
             else:
-                cov_shrunk = np.cov(returns_matrix, rowvar=False)
+                clean_returns = pd.DataFrame(returns_matrix).dropna(axis=0, how='any').values
+                if len(clean_returns) >= 2 and n_assets > 1:
+                    cov_shrunk = np.cov(clean_returns, rowvar=False)
+                else:
+                    cov_shrunk = np.eye(n_assets) * 0.0004
                 if cov_shrunk.ndim == 0:
                     cov_shrunk = np.array([[float(cov_shrunk)]])
         except Exception:
-            cov_shrunk = np.cov(returns_matrix, rowvar=False) if len(returns_matrix) > 1 else np.eye(n_assets) * 0.0004
+            clean_returns = pd.DataFrame(returns_matrix).dropna(axis=0, how='any').values
+            if len(clean_returns) >= 2 and n_assets > 1:
+                cov_shrunk = np.cov(clean_returns, rowvar=False)
+            else:
+                cov_shrunk = np.eye(n_assets) * 0.0004
             if cov_shrunk.ndim == 0:
                 cov_shrunk = np.array([[float(cov_shrunk)]])
+
+        if cov_shrunk is None or np.any(np.isnan(cov_shrunk)) or np.any(np.isinf(cov_shrunk)) or cov_shrunk.shape != (n_assets, n_assets):
+            cov_shrunk = np.eye(n_assets) * 0.0004
 
         # Lower tail dependence stress covariance blending
         cov_shrunk = self.compute_tail_stress_cov(returns_matrix, cov_shrunk)
@@ -762,7 +773,16 @@ class PortfolioAllocator:
             from sklearn.covariance import LedoitWolf
             cov_shrunk = LedoitWolf().fit(returns_matrix).covariance_
         except Exception:
-            cov_shrunk = np.cov(returns_matrix, rowvar=False) if len(returns_matrix) > 1 else np.eye(n_assets) * 0.0004
+            clean_returns = pd.DataFrame(returns_matrix).dropna(axis=0, how='any').values
+            if len(clean_returns) >= 2 and n_assets > 1:
+                cov_shrunk = np.cov(clean_returns, rowvar=False)
+            else:
+                cov_shrunk = np.eye(n_assets) * 0.0004
+            if cov_shrunk.ndim == 0:
+                cov_shrunk = np.array([[float(cov_shrunk)]])
+
+        if cov_shrunk is None or np.any(np.isnan(cov_shrunk)) or np.any(np.isinf(cov_shrunk)) or cov_shrunk.shape != (n_assets, n_assets):
+            cov_shrunk = np.eye(n_assets) * 0.0004
 
         cov_shrunk = self.compute_tail_stress_cov(returns_matrix, cov_shrunk)
 
@@ -1858,7 +1878,10 @@ class PortfolioAllocator:
             from sklearn.covariance import LedoitWolf
             cov_matrix = LedoitWolf().fit(ret_df.values).covariance_
         except Exception:
-            cov_matrix = ret_df.cov().values
+            cov_matrix = ret_df.cov().fillna(0.0).values
+
+        if cov_matrix is None or np.any(np.isnan(cov_matrix)) or np.any(np.isinf(cov_matrix)) or cov_matrix.shape != (len(valid_symbols), len(valid_symbols)):
+            cov_matrix = np.eye(len(valid_symbols)) * 0.0004
 
         n_valid = len(valid_symbols)
         # Market-cap prior equilibrium weights w_mkt

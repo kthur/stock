@@ -69,9 +69,14 @@ class CrossSectionalScoreNormalizer:
             return df.copy()
 
         out_df = df.copy()
+        orig_index = out_df.index
+        has_dup_index = bool(orig_index.duplicated().any())
+        if has_dup_index:
+            out_df = out_df.reset_index(drop=True)
+
         valid_cols = [c for c in strategy_cols if c in out_df.columns]
         if not valid_cols:
-            return out_df
+            return df.copy()
 
         # Ensure float dtype on valid columns to avoid pandas incompatible dtype warnings
         for col in valid_cols:
@@ -105,6 +110,8 @@ class CrossSectionalScoreNormalizer:
         else:
             out_df[valid_cols] = self._normalize_matrix(out_df[valid_cols], eff_method)
 
+        if has_dup_index:
+            out_df.index = orig_index
         return out_df
 
     def _normalize_matrix(self, sub_df: pd.DataFrame, method: str) -> pd.DataFrame:
@@ -129,7 +136,7 @@ class CrossSectionalScoreNormalizer:
                     method_clean = method.lower()
                     if method_clean in ('rank_percentile', 'percentile_rank', 'rank'):
                         # (Rank - 0.5) / N uniformly distributed in (0, 1) with standard 'average' tie handling
-                        rank_s = pd.Series(vals, index=s.loc[valid_mask].index).rank(ascending=True, method='average')
+                        rank_s = pd.Series(vals).rank(ascending=True, method='average')
                         norm_vals = ((rank_s - 0.5) / float(n_valid)).clip(0.005, 0.995)
 
                         # If a large inactive block of exact zeros exists in a non-negative sparse factor (>20% of universe, N >= 10), isolate and assign neutral midpoint

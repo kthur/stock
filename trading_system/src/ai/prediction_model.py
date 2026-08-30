@@ -724,22 +724,27 @@ class OnDevicePredictionModel:
                     for h in self.surge_horizons:
                         model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
                         if model_path.exists():
-                            booster = xgb.Booster()
-                            booster.load_model(str(model_path))
-                            booster.set_param('predictor', 'auto')
                             model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
-                            model._Booster = booster
+                            try:
+                                model.load_model(str(model_path))
+                            except Exception:
+                                booster = xgb.Booster()
+                                booster.load_model(str(model_path))
+                                booster.set_param('predictor', 'auto')
+                                model._Booster = booster
                             model._estimator_type = 'classifier'
+                            for attr in ('n_classes_', '_n_classes'):
+                                try:
+                                    setattr(model, attr, 2)
+                                except Exception:
+                                    pass
+                            for attr in ('classes_', '_classes'):
+                                try:
+                                    setattr(model, attr, np.array([0, 1]))
+                                except Exception:
+                                    pass
                             try:
-                                model.n_classes_ = 2
-                            except (AttributeError, TypeError):
-                                model._n_classes = 2
-                            try:
-                                model.classes_ = np.array([0, 1])
-                            except (AttributeError, TypeError):
-                                model._classes = np.array([0, 1])
-                            try:
-                                fn = booster.feature_names if hasattr(booster, "feature_names") and booster.feature_names else self.ALL_FEATURES
+                                fn = booster.feature_names if (hasattr(booster, "feature_names") and booster.feature_names) else self.ALL_FEATURES
                                 val_df = pd.DataFrame(0.0, index=[0], columns=fn)
                                 _ = model.predict_proba(val_df)
                                 if market not in self.surge_models:

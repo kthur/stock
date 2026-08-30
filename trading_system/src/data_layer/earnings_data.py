@@ -305,16 +305,52 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     return result
 
 
-def fetch_fundamentals(symbol: str, market: Optional[str] = None, max_retries: int = 3) -> Optional[pd.DataFrame]:
+_dart_fetcher_instance: Optional[Any] = None
+
+
+def _get_global_dart_fetcher():
+    global _dart_fetcher_instance
+    if _dart_fetcher_instance is None:
+        try:
+            from src.data_layer.dart_fundamental_fetcher import DARTFundamentalFetcher
+            _dart_fetcher_instance = DARTFundamentalFetcher()
+        except Exception as _e:
+            logger.debug(f"Could not initialize DARTFundamentalFetcher: {_e}")
+            _dart_fetcher_instance = False
+    return _dart_fetcher_instance if _dart_fetcher_instance is not False else None
+
+
+def fetch_fundamentals(
+    symbol: str,
+    market: Optional[str] = None,
+    max_retries: int = 3,
+    shares_outstanding: Optional[float] = None,
+) -> Optional[pd.DataFrame]:
     """
-    Fetch annual fundamental data from Yahoo Finance.
+    Fetch annual/quarterly fundamental data.
+    For Korean stocks (KOSPI/KOSDAQ), uses OpenDartReader (OpenDART API) as primary source,
+    falling back to Yahoo Finance if unavailable.
+    For US and other global markets, uses Yahoo Finance.
 
     Returns DataFrame with columns:
-        date, revenue, operating_income, net_income, eps,
-        shares_outstanding, dividend_per_share
-    One row per fiscal year, sorted chronologically.
-    Returns None if no data is available.
+        date (index), date_available, period_type, revenue, operating_income,
+        net_income, eps, shares_outstanding, book_value, bps, total_debt,
+        cash_equivalents, dividend_per_share, etc.
     """
+    cleaned_sym = str(symbol).strip().upper().split('.')[0]
+    mkt_upper = str(market).strip().upper() if market else ''
+    is_kr = mkt_upper in ('KOSPI', 'KOSDAQ', 'KRX') or cleaned_sym.isdigit() or str(symbol).strip().upper().endswith(('.KS', '.KQ'))
+
+    if is_kr:
+        dart_fetcher = _get_global_dart_fetcher()
+        if dart_fetcher is not None:
+            try:
+                dart_df = dart_fetcher.fetch_fundamentals(symbol=symbol, years_back=3, shares_outstanding=shares_outstanding)
+                if dart_df is not None and not dart_df.empty:
+                    return dart_df
+            except Exception as e:
+                logger.debug(f"OpenDART fundamental fetch fallback to yfinance for {symbol}: {e}")
+
     yf_sym = _yf_ticker(symbol, market)
     try:
         result = _fetch_fundamentals_network(yf_sym)
@@ -545,6 +581,7 @@ def fetch_and_store_fundamentals_batch(
     storage,
     max_workers: int = 8,
     force_refetch: bool = False,
+    shares_map: Optional[Dict[str, float]] = None,
 ) -> int:
     """
     Fetch fundamentals for a list of symbols and store in DB using ThreadPoolExecutor.
@@ -600,7 +637,8 @@ def fetch_and_store_fundamentals_batch(
 
     def _fetch_and_save_one(sym: str) -> tuple[str, bool]:
         market = symbol_market_map.get(sym, 'SP500')
-        df_fun = fetch_fundamentals(sym, market)
+        sh_val = shares_map.get(sym) if shares_map else None
+        df_fun = fetch_fundamentals(sym, market, shares_outstanding=sh_val)
         if df_fun is not None and not df_fun.empty:
             try:
                 df_fun_copy = df_fun.copy()

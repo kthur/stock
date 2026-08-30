@@ -467,23 +467,27 @@ class ExecutionOMSEngine:
 
                 # Gate 7.2: KRX Upper/Lower Limit Lock (±30% Price Limit & Liquidity Vanishing Gate)
                 # C-3 Fix: Only apply to KRX markets (US stocks can move >30% normally)
-                change_pct = pred.get("change_pct") or pred.get("daily_return")
-                try:
-                    if change_pct is not None and is_krx:
-                        # S-5 Fix: Unified percentage-to-decimal normalization (>=0.50 -> /100)
-                        c_norm = float(change_pct) / 100.0 if abs(float(change_pct)) >= 0.50 else float(change_pct)
-                        if c_norm >= 0.295 and action == "BUY":
-                            logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{c_norm:.2%}), skipping buy execution.")
+                change_pct_raw = pred.get("change_pct") or pred.get("daily_return")
+                change_pct: Optional[float] = None
+                if change_pct_raw is not None:
+                    try:
+                        change_pct = float(change_pct_raw)
+                    except (ValueError, TypeError):
+                        change_pct = None
+
+                if change_pct is not None and is_krx:
+                    # S-5 Fix: Unified percentage-to-decimal normalization (>=0.50 -> /100)
+                    c_norm = change_pct / 100.0 if abs(change_pct) >= 0.50 else change_pct
+                    if c_norm >= 0.295 and action == "BUY":
+                        logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{c_norm:.2%}), skipping buy execution.")
+                        continue
+                    elif c_norm <= -0.295:
+                        if action == "SELL":
+                            logger.warning(f"[OMS GATE 7] {sym} locked at lower limit ({c_norm:.2%}). Queueing PASSIVE_LIMIT SELL order for unfreeze liquidation.")
+                            exec_strategy = "PASSIVE_LIMIT"
+                        else:
+                            logger.warning(f"[OMS GATE 7] {sym} locked at lower limit ({c_norm:.2%}) - complete liquidity freeze; skipping new entry.")
                             continue
-                        elif c_norm <= -0.295:
-                            if action == "SELL":
-                                logger.warning(f"[OMS GATE 7] {sym} locked at lower limit ({c_norm:.2%}). Queueing PASSIVE_LIMIT SELL order for unfreeze liquidation.")
-                                exec_strategy = "PASSIVE_LIMIT"
-                            else:
-                                logger.warning(f"[OMS GATE 7] {sym} locked at lower limit ({c_norm:.2%}) - complete liquidity freeze; skipping new entry.")
-                                continue
-                except (ValueError, TypeError):
-                    pass
 
                 # Gate 7.3: KRX STT / Transaction Cost Net Alpha Hurdle Check
                 if is_krx and action == "BUY" and ("expected_return" in pred or "ensemble_expected_return" in pred):
@@ -520,8 +524,8 @@ class ExecutionOMSEngine:
                         _is_net = "ensemble_expected_return" in pred
                         _exp_ret_raw = pred.get("ensemble_expected_return") if _is_net else pred.get("expected_return", 0.0)
                         raw_exp_ret = float(_exp_ret_raw or 0.0)
-                        # Pipeline expected returns are on percentage scale (e.g. 15.0 for 15%, 0.15 for 0.15%)
-                        exp_ret_frac = raw_exp_ret / 100.0
+                        # Pipeline expected returns can be percentage scale (e.g. 15.0 for 15%) or decimal (e.g. 0.05 for 5%)
+                        exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.50 else raw_exp_ret
                         hurdle = safety_margin if _is_net else (friction_cost + safety_margin)
 
                         if exp_ret_frac <= hurdle:
@@ -610,7 +614,8 @@ class ExecutionOMSEngine:
                 avg_half_life = float(np.mean(hl_list)) if hl_list else 10.0
                 avg_half_life = avg_half_life if np.isfinite(avg_half_life) else 10.0
 
-                part_ratio = float(effective_target_amount / max(adv_val, 1.0)) if (np.isfinite(effective_target_amount) and np.isfinite(adv_val)) else 0.0
+                adv_eff = (adv_val / max(fx_rate_item, 1.0)) if (curr_iso != "KRW" and adv_val > 10_000_000.0) else adv_val
+                part_ratio = float(effective_target_amount / max(adv_eff, 1.0)) if (np.isfinite(effective_target_amount) and np.isfinite(adv_eff)) else 0.0
                 is_preassigned_strategy = (
                     'exec_strategy' in locals() and exec_strategy in ["PASSIVE_LIMIT", "CASH_OVERLAY"]
                 )
@@ -925,6 +930,8 @@ class ExecutionOMSEngine:
             'volume_component': round(vol_c, 4),
             'obi_component': round(obi_c, 4)
         }
+
+    check_confluence_entry = calculate_confluence_entry_score
 
     @staticmethod
     def generate_scale_in_order_plan(

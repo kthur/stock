@@ -1,4 +1,4 @@
-﻿import ast
+import ast
 import os
 import glob
 import sys
@@ -165,10 +165,10 @@ log(f'  Confluence entry (high signals): {conf}')
 assert conf['is_valid_entry'] is True and conf['confluence_score'] >= 0.65
 
 # Scale-In Pyramiding
-s1 = oms.generate_scale_in_order_plan('005930', total_target_shares=100, current_stage=1)
-s2 = oms.generate_scale_in_order_plan('005930', total_target_shares=100, current_stage=2)
-s3 = oms.generate_scale_in_order_plan('005930', total_target_shares=100, current_stage=3)
-log(f'  Scale-in stages: S1={s1[" allocated_shares\]}, S2={s2[\allocated_shares\]}, S3={s3[\allocated_shares\]}')
+s1_sh = s1['allocated_shares']
+s2_sh = s2['allocated_shares']
+s3_sh = s3['allocated_shares']
+log(f'  Scale-in stages: S1={s1_sh}, S2={s2_sh}, S3={s3_sh}')
 assert s1['allocated_shares'] == 30 and s2['allocated_shares'] == 50 and s3['allocated_shares'] == 20
 
 # Trailing Stop Plan

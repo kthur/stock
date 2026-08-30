@@ -604,14 +604,16 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                         if not sym:
                             continue
                         ticker_df = None
-                        if len(yf_tickers) == 1:
-                            ticker_df = df
-                        elif isinstance(df.columns, pd.MultiIndex):
+                        if isinstance(df.columns, pd.MultiIndex):
                             # MultiIndex check: level 0 or level 1 depending on yfinance group_by
                             if yf_ticker in df.columns.get_level_values(0):
                                 ticker_df = df.xs(yf_ticker, level=0, axis=1).dropna(how='all')
                             elif yf_ticker in df.columns.get_level_values(1):
                                 ticker_df = df.xs(yf_ticker, level=1, axis=1).dropna(how='all')
+                            elif len(yf_tickers) == 1:
+                                ticker_df = df.droplevel(0, axis=1) if df.columns.nlevels > 1 else df
+                        elif len(yf_tickers) == 1:
+                            ticker_df = df
                         elif yf_ticker in df.columns:
                             # Single-level columns fallback
                             ticker_df = df[[yf_ticker]].dropna(how='all')
@@ -1462,7 +1464,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     def _bg_fundamentals(syms, label):
         logger.info(f"[BG] Fetching fundamentals for {label} ({len(syms)} symbols)...")
         try:
-            fetch_and_store_fundamentals_batch(syms, symbol_market, storage)
+            u_shares_map = dict(zip(universe['symbol'], universe['shares_outstanding'])) if (universe is not None and not universe.empty and 'shares_outstanding' in universe.columns) else None
+            fetch_and_store_fundamentals_batch(syms, symbol_market, storage, shares_map=u_shares_map)
             logger.info(f"[BG] Fundamentals fetch complete for {label}")
         except Exception as e:
             logger.warning(f"[BG] Fundamentals fetch failed for {label}: {e}")
@@ -2771,32 +2774,33 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     else:
                         calc_roe = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
                         fund_df['roe'] = calc_roe
-                        # Merge into rim_input:
-                        # - operating_income/net_income: earnings quality filter
-                        # - book_value: normalize_roe() needs book_value for op_income/book_value ratio
-                        # - total_debt, cash_equivalents, shares_outstanding: holding-co net-debt deduction
-                        merge_cols = ['symbol', 'bps', 'roe', 'operating_income', 'net_income', 'book_value']
-                        for _extra_col in ['total_debt', 'cash_equivalents', 'shares_outstanding', 'eps_growth_1y', 'revenue_growth_1y']:
-                            if _extra_col in fund_df.columns:
-                                merge_cols.append(_extra_col)
-                        merge_cols = list(dict.fromkeys(merge_cols))  # deduplicate, preserve order
 
-                        # Cleanly drop existing overlapping columns from df_rim_input before merge to avoid _x/_y suffixes
-                        cols_to_merge = [c for c in merge_cols if c in fund_df.columns]
-                        for c in cols_to_merge:
-                            if c != 'symbol' and c in df_rim_input.columns:
-                                df_rim_input = df_rim_input.drop(columns=[c])
+                    # Merge into rim_input:
+                    # - operating_income/net_income: earnings quality filter
+                    # - book_value: normalize_roe() needs book_value for op_income/book_value ratio
+                    # - total_debt, cash_equivalents, shares_outstanding: holding-co net-debt deduction
+                    merge_cols = ['symbol', 'bps', 'roe', 'operating_income', 'net_income', 'book_value']
+                    for _extra_col in ['total_debt', 'cash_equivalents', 'shares_outstanding', 'eps_growth_1y', 'revenue_growth_1y']:
+                        if _extra_col in fund_df.columns:
+                            merge_cols.append(_extra_col)
+                    merge_cols = list(dict.fromkeys(merge_cols))  # deduplicate, preserve order
 
-                        df_rim_input = df_rim_input.merge(
-                            fund_df[cols_to_merge], on='symbol', how='left'
-                        )
-                        # Pass name for holding-company name-pattern detection (지주·홀딩스 등)
-                        if 'name' not in df_rim_input.columns and 'name' in universe.columns:
-                            df_rim_input = df_rim_input.merge(universe[['symbol', 'name']], on='symbol', how='left')
-                        # Pass sector_code for GICS/KRX holding-company sector classification
-                        if 'sector_code' not in df_rim_input.columns and 'sector_code' in universe.columns:
-                            df_rim_input = df_rim_input.merge(universe[['symbol', 'sector_code']], on='symbol', how='left')
-                        logger.info(f"Merged fundamental BPS/ROE for RIM: {fund_df['bps'].notna().sum()}/{len(df_rim_input)} symbols have BPS")
+                    # Cleanly drop existing overlapping columns from df_rim_input before merge to avoid _x/_y suffixes
+                    cols_to_merge = [c for c in merge_cols if c in fund_df.columns]
+                    for c in cols_to_merge:
+                        if c != 'symbol' and c in df_rim_input.columns:
+                            df_rim_input = df_rim_input.drop(columns=[c])
+
+                    df_rim_input = df_rim_input.merge(
+                        fund_df[cols_to_merge], on='symbol', how='left'
+                    )
+                    # Pass name for holding-company name-pattern detection (지주·홀딩스 등)
+                    if 'name' not in df_rim_input.columns and 'name' in universe.columns:
+                        df_rim_input = df_rim_input.merge(universe[['symbol', 'name']], on='symbol', how='left')
+                    # Pass sector_code for GICS/KRX holding-company sector classification
+                    if 'sector_code' not in df_rim_input.columns and 'sector_code' in universe.columns:
+                        df_rim_input = df_rim_input.merge(universe[['symbol', 'sector_code']], on='symbol', how='left')
+                    logger.info(f"Merged fundamental BPS/ROE for RIM: {fund_df['bps'].notna().sum()}/{len(df_rim_input)} symbols have BPS")
             except Exception as _fund_e:
                 logger.warning(f"Fundamental data merge for RIM skipped: {_fund_e}")
         rim_df = rim_engine.compute_rim_scores(
