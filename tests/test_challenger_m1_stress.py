@@ -1,11 +1,10 @@
 ﻿import time
 import numpy as np
 import pandas as pd
-import pytest
 
-from src.core.cross_asset_spillover import CrossAssetSpilloverEngine, cross_asset_spillover_score
-from src.core.supply_chain_gnn import SupplyChainGNNEngine, supply_chain_gnn_score
-from src.core.range_expansion_breakout import RangeExpansionBreakoutEngine, range_expansion_score
+from src.core.cross_asset_spillover import CrossAssetSpilloverEngine
+from src.core.supply_chain_gnn import SupplyChainGNNEngine
+from src.core.range_expansion_breakout import RangeExpansionBreakoutEngine
 
 def _make_dummy_ohlcv(n_bars=30, base_price=100.0, trend=0.001, vol=0.02, volume_base=100000):
     np.random.seed(42)

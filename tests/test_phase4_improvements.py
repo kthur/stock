@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 import pandas as pd
 from trading_system.src.ai.concept_drift import ConceptDriftDetector

@@ -1,6 +1,5 @@
 """Unit tests for Strategy #32: Overnight Gap Reversal Engine."""
 
-import pytest
 import pandas as pd
 import numpy as np
 from src.core.overnight_gap_reversal import OvernightGapReversalEngine

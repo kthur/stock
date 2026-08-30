@@ -1,11 +1,7 @@
 """
 Unit Tests for ExecutionOMSEngine / OrderManager (V6-25, V6-26, V6-27, V6-28)
 """
-import math
-import pytest
-import numpy as np
-from src.execution.oms_engine import ExecutionOMSEngine, OMSEngine, AlmgrenChrissScheduler
-from src.execution.order_manager import ExecutionOMSEngine as OMSEngineAlias
+from src.execution.oms_engine import ExecutionOMSEngine, AlmgrenChrissScheduler
 
 
 def test_v6_25_currency_denominator_normalization_us_equities():

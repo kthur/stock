@@ -7,7 +7,6 @@ Tests for Return & Alpha Maximization Improvements:
 5. Opening Gap Overheat & Dip-Buying Gating in ExecutionOMSEngine.
 """
 
-import pytest
 import numpy as np
 import pandas as pd
 from src.risk.portfolio_optimizer import PortfolioOptimizer

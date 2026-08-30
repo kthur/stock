@@ -1,5 +1,4 @@
 import pytest
-import numpy as np
 import pandas as pd
 from trading_system.src.core.event_driven import EventDrivenEngine
 from trading_system.src.core.lead_lag_3tier import ThreeTierLeadLagEngine

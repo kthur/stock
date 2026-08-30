@@ -9,7 +9,6 @@ Empirical verification of:
 
 import os
 import sys
-import pytest
 import pandas as pd
 import numpy as np
 
@@ -23,8 +22,7 @@ if TRADING_SYSTEM_DIR not in sys.path:
     sys.path.insert(0, TRADING_SYSTEM_DIR)
 
 from src.ai.ensemble_scorer import EnsembleScoringEngine
-from src.risk.risk_manager import RiskManager, CrisisDetector, CrisisLevel
-from src.config import TradingConfig
+from src.risk.risk_manager import RiskManager, CrisisLevel
 
 
 def test_microstructure_cost_calculation():

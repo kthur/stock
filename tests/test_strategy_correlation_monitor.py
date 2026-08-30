@@ -1,6 +1,5 @@
 """Unit tests for Strategy Correlation Monitor & ESC calculation."""
 
-import pytest
 import pandas as pd
 import numpy as np
 from src.analysis.strategy_correlation_monitor import StrategyCorrelationMonitor

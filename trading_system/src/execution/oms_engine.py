@@ -560,7 +560,7 @@ class ExecutionOMSEngine:
                         elif fx_rate > 0.01:
                             fx_rate_item = fx_rate
                         else:
-                            fx_rate_item = get_fx_rate(f"KRW{curr_iso}=X")
+                            fx_rate_item = 1350.0
                     except Exception:
                         fx_rate_item = fx_rate if fx_rate > 0.01 else 1350.0
 

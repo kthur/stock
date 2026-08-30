@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 import pytest
 from src.ai.ensemble_scorer import EnsembleScoringEngine
-from src.config import TradingConfig
 
 
 class TestRapidRegimeSwitching:

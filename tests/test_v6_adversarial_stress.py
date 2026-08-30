@@ -10,40 +10,22 @@ This suite empirically challenges the system across:
 Target: Empirical verification of V6-01 ~ V6-35 robustness against hostile inputs.
 """
 
-import os
-import re
-import json
-import sqlite3
 import numpy as np
 import pandas as pd
 import pytest
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 # Core Config & Infrastructure
-from src.config import TradingConfig, _build_market_lookup_table
 from generate_run_snapshot import generate_snapshot
 
 # AI / ML Models & Signal Engines
-from src.ai.prediction_model import OnDevicePredictionModel
 from src.ai.target_transform import transform_sharpe, inverse_transform_sharpe
-from src.ai.ensemble_scorer import EnsembleScoringEngine
-from src.ai.optuna_tuner import OptunaStrategyTuner, AlphaDecayTracker
-from src.ai.meta_ensemble_learner import MetaEnsembleLearner
 
 # Portfolio & Risk Engineering
 from src.risk.portfolio_allocator import PortfolioAllocator
-from src.analysis.portfolio_optimizer import calculate_black_litterman_weights, calculate_hrp_weights, calculate_risk_parity_weights
-from src.risk.risk_manager import CrisisDetector, CrisisLevel, RiskManager
-from src.analysis.coverage_analyzer import StrategyCoverageAnalyzer
-from src.risk.fx_adjusted_covariance import FXAdjustedCovarianceEngine
+from src.analysis.portfolio_optimizer import calculate_black_litterman_weights, calculate_risk_parity_weights
+from src.risk.risk_manager import CrisisDetector, CrisisLevel
 
 # 31 Strategy Engines & Data Layer
-from src.core.rim_valuation import RIMValuationEngine
-from src.core.sector_rotation import SectorRotationEngine
-from src.core.iv_skew import IVSkewEngine
-from src.core.event_driven import EventDrivenEngine
 from src.core.card_factor import CARDFactorEngine
 from src.core.mq_factor import MQFactorEngine
 from src.core.short_interest_squeeze import ShortInterestSqueezeEngine
@@ -52,17 +34,10 @@ from src.core.trend_efficiency import TrendEfficiencyEngine
 from src.core.order_flow import OrderFlowEngine
 from src.core.short_term_reversal import ShortTermReversalEngine
 from src.core.inst_foreign_sector import InstForeignSectorEngine
-from src.core.stat_arb import StatisticalArbitrageEngine
-from src.data_layer.data_validator import DataValidator
-from src.data_layer.dart_corp_mapper import DARTCorpMapper
-from src.data_layer.indicator_storage import MarketIndicatorStorage
 from src.persistence.database import StockPriceDB
 
 # Execution OMS & Microstructure
 from src.execution.oms_engine import ExecutionOMSEngine, AlmgrenChrissScheduler
-from src.execution.turnover_optimizer import TurnoverOptimizer
-from src.execution.slippage_feedback import SlippageFeedbackEngine, SlippageMetrics
-from src.execution.sor_router import SmartOrderRouter
 
 
 # ==============================================================================

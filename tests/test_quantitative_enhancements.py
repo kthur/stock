@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 from src.ai.meta_labeler import MetaLabeler
 from src.risk.portfolio_allocator import PortfolioAllocator
 from src.analysis.portfolio_optimizer import calculate_hrp_weights, compute_tail_stressed_covariance

@@ -4,7 +4,6 @@ Stress-testing all mathematical, statistical, and econometric formulations in sy
 """
 import unittest
 import numpy as np
-import pandas as pd
 import scipy.stats as stats
 from scipy.optimize import minimize
 

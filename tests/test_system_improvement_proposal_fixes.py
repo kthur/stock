@@ -15,12 +15,11 @@ import pandas as pd
 from datetime import datetime
 import os
 import tempfile
-import asyncio
 
-from src.data_layer.earnings_data import compute_regulatory_filing_lag, fetch_fundamentals
+from src.data_layer.earnings_data import compute_regulatory_filing_lag
 from src.data_layer.indicator_storage import MarketIndicatorStorage
-from src.persistence.database import _DBConnection, TradeLogger
-from src.risk.risk_manager import RiskManager, CrisisDetector, CrisisLevel
+from src.persistence.database import TradeLogger
+from src.risk.risk_manager import CrisisDetector, CrisisLevel
 from src.ai.ensemble_scorer import EnsembleScoringEngine
 from src.ai.factor_orthogonalizer import FactorOrthogonalizerEngine
 from src.execution.oms_engine import ExecutionOMSEngine

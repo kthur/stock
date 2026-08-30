@@ -1,11 +1,10 @@
-import pytest
 import numpy as np
 import pandas as pd
 from trading_system.src.core.sector_rotation import SectorRotationEngine
 from trading_system.src.analysis.regime_detector import MarketRegimeDetector
 from trading_system.src.analysis.scenario_simulator import ScenarioSimulationEngine, SectorOutlookScenario, MacroIndicatorScenario
 from trading_system.src.ai.ensemble_scorer import EnsembleScoringEngine
-from trading_system.generate_report import parse_ensemble, parse_portfolio_allocation, EnsembleData, PortfolioRow
+from trading_system.generate_report import parse_ensemble
 
 
 def test_decoupling_threshold_logic():

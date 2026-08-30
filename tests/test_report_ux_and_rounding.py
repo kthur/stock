@@ -1,4 +1,3 @@
-import pytest
 import re
 from trading_system.generate_report import (
     largest_remainder_round,

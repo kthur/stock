@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from src.ai.ensemble_scorer import EnsembleScoringEngine
 from src.risk.portfolio_allocator import PortfolioAllocator
-from src.risk.intraday_stop_loss import IntradayStopLossEngine, StopLossSignal
+from src.risk.intraday_stop_loss import IntradayStopLossEngine
 from src.execution.oms_engine import ExecutionOMSEngine, AlmgrenChrissScheduler
 
 

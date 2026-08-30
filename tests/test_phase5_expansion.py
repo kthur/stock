@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 import pandas as pd
 from trading_system.src.core.gamma_squeeze import OptionsGammaSqueezeEngine

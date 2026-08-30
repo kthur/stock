@@ -23,10 +23,7 @@ from merge_predictions import (
     _extract_ensemble_market_section,
     merge_surge_predictions,
     merge_vcp_ml_predictions,
-    merge_pipeline_result,
     discover_target_markets,
-    KNOWN_MARKETS,
-    ALL_31_STRATEGIES,
 )
 
 
@@ -286,9 +283,9 @@ class TestMergeGenericStrategiesComprehensive:
         for mkt in self.markets:
             p = self.target_dirs[mkt] / f"empty_strat_{mkt}.txt"
             content = (
-                f"=== Empty Strategy ===\n"
-                f"Date: 2026-08-29 23:00 KST\n\n"
-                f"데이터 없음\n"
+                "=== Empty Strategy ===\n"
+                "Date: 2026-08-29 23:00 KST\n\n"
+                "데이터 없음\n"
             )
             p.write_text(content, encoding="utf-8")
 
@@ -318,9 +315,9 @@ class TestMergeGenericStrategiesComprehensive:
                 )
             else:
                 content = (
-                    f"=== Partial Strategy ===\n"
-                    f"Date: 2026-08-29 23:00 KST\n\n"
-                    f"데이터 없음\n"
+                    "=== Partial Strategy ===\n"
+                    "Date: 2026-08-29 23:00 KST\n\n"
+                    "데이터 없음\n"
                 )
             p.write_text(content, encoding="utf-8")
 

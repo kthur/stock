@@ -7,8 +7,7 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-import pandas as pd
-from src.data_layer.fred_client import FredApiClient, FRED_SERIES_MAP
+from src.data_layer.fred_client import FredApiClient
 from src.data_layer.global_market import GlobalMarketClient
 
 

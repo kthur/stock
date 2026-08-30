@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 from trading_system.src.config import TradingConfig
 from trading_system.src.ai.optuna_tuner import OptunaStrategyTuner
-from trading_system.src.execution.oms_engine import ExecutionOMSEngine
 from trading_system.src.risk.portfolio_allocator import PortfolioAllocator
 from trading_system.src.core.latr_factor import LATRFactorEngine
 from trading_system.src.core.order_flow import OrderFlowEngine

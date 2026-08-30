@@ -180,7 +180,7 @@ def test_extreme_roe_normalization():
       - 최종 roe <= ABSOLUTE_ROE_CAP (0.25)
       - 정상 종목(ROE 15%, EQ 1.0)은 영향 없음
     """
-    from src.core.rim_valuation import RIMValuationEngine, ABSOLUTE_ROE_CAP, EXTREME_ROE_THRESHOLD
+    from src.core.rim_valuation import RIMValuationEngine, ABSOLUTE_ROE_CAP
 
     engine = RIMValuationEngine(default_required_return=0.08)
 
@@ -233,7 +233,7 @@ def test_holding_company_discount():
       - bps_adjusted = max(10000 - 6000, 10000*0.3) = 4000원
       - intrinsic_value < v0_without_hc_discount
     """
-    from src.core.rim_valuation import RIMValuationEngine, HOLDING_CO_DISCOUNT
+    from src.core.rim_valuation import RIMValuationEngine
 
     engine = RIMValuationEngine(default_required_return=0.08)
 

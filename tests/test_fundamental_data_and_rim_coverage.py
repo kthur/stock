@@ -3,7 +3,6 @@ tests/test_fundamental_data_and_rim_coverage.py
 Unit tests verifying fundamental data extraction, shares resolution, bank statement handling,
 batch SQLite caching, and RIM valuation coverage.
 """
-import pytest
 import numpy as np
 import pandas as pd
 from unittest.mock import MagicMock, patch
@@ -12,7 +11,6 @@ from src.data_layer.earnings_data import (
     _yf_ticker,
     compute_regulatory_filing_lag,
     _fetch_fundamentals_network,
-    fetch_fundamentals,
     fetch_and_store_fundamentals_batch,
 )
 from src.data_layer.indicator_storage import MarketIndicatorStorage

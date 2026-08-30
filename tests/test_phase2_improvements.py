@@ -1,7 +1,5 @@
-import os
 import sqlite3
 import pytest
-import numpy as np
 import pandas as pd
 from trading_system.src.data_layer.feature_store import FeatureStore
 from trading_system.src.risk.portfolio_allocator import PortfolioAllocator

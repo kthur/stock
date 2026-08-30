@@ -3,8 +3,7 @@ import numpy as np
 import pandas as pd
 
 from src.ai.factor_suppression import (
-    solve_single_stage_entropy_allocation,
-    RegimeFactorSuppressionEngine
+    solve_single_stage_entropy_allocation
 )
 from src.analysis.regime_detector import MarketRegimeDetector
 from src.ai.ensemble_scorer import EnsembleScoringEngine

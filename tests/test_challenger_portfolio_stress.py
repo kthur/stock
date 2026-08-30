@@ -13,15 +13,15 @@ Challenge Scenarios:
 import unittest
 import numpy as np
 import pandas as pd
-from scipy.stats import t, pareto, norm, cauchy, lognorm
+from scipy.stats import t, pareto, cauchy
 
 from trading_system.src.risk.portfolio_allocator import PortfolioAllocator
 from trading_system.src.risk.portfolio_optimizer import PortfolioOptimizer
 from trading_system.src.risk.risk_manager import (
-    RiskManager, CrisisDetector, CrisisLevel, PortfolioCircuitBreaker, EconomicCalendarAnalyzer
+    RiskManager, CrisisDetector, CrisisLevel, PortfolioCircuitBreaker
 )
 from trading_system.src.analysis.portfolio_optimizer import (
-    calculate_hrp_weights, calculate_risk_parity_weights, calculate_black_litterman_weights, shrink_covariance_matrix
+    calculate_hrp_weights, calculate_risk_parity_weights, calculate_black_litterman_weights
 )
 
 

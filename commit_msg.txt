@@ -1,7 +1,0 @@
-feat: end-to-end alpha expansion & high-alpha strategy suite integration (R1-R5)
-
-- R1: Implemented CrossAssetSpilloverEngine, SupplyChainGNNEngine, RangeExpansionBreakoutEngine, DualCorrectionEngine
-- R2: Integrated 37-strategy matrix into EnsembleScoringEngine with 2D/3D dynamic regime weights & synergy boosting
-- R3: High-precision portfolio optimization with HRP, Black-Litterman horizon alignment, EVT-CVaR, and fractional Kelly
-- R4: ExecutionOMSEngine precision timing (Confluence Entry, Scale-in pyramiding, 4-tier trailing stop, shock exits)
-- R5: Verified 100% test integrity with comprehensive test suite

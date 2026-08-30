@@ -5,7 +5,6 @@ Tests for Phase 3 & Phase 4 Institutional Enhancements:
 3. ExecutionOMSEngine Gate 7.4 Dynamic Gap Filter and DYNAMIC_VWAP execution strategy.
 """
 
-import pytest
 import numpy as np
 import pandas as pd
 from src.analysis.regime_detector import MarketRegimeDetector

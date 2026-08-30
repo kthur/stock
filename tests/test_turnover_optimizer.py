@@ -1,7 +1,6 @@
 """
 Unit Tests for TurnoverOptimizer (V6-29)
 """
-import pytest
 from src.execution.turnover_optimizer import TurnoverOptimizer
 
 

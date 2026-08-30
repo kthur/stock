@@ -8,11 +8,8 @@ Adversarial Empirical Stress Test Suite by Challenger 2:
 
 import os
 import sys
-import shutil
-import tempfile
 import sqlite3
 import concurrent.futures
-from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
@@ -26,7 +23,7 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from src.data_layer.indicator_storage import MarketIndicatorStorage
-from generate_report import parse_rim, build_html, EnsembleData, EnsembleMarket, EnsembleRow, RimRow
+from generate_report import parse_rim
 from merge_predictions import merge_generic_strategy_files
 
 
@@ -523,7 +520,7 @@ Rank Symbol    Name                Market    Price       Intrinsic V0  Discount 
         """Verify merged file outputs single '데이터 없음' when all markets are empty."""
         for mkt in self.markets:
             (self.target_dirs[mkt] / f"rim_predictions_{mkt}.txt").write_text(
-                f"=== Strategy 9 ===\nDate: 2026-08-22\n데이터 없음\n", encoding="utf-8"
+                "=== Strategy 9 ===\nDate: 2026-08-22\n데이터 없음\n", encoding="utf-8"
             )
 
         merge_generic_strategy_files(

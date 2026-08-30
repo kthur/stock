@@ -28,7 +28,7 @@ if _TS_DIR not in sys.path:
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from src.data_layer.hybrid_storage import HybridDataEngine, ParquetWALBuffer
+from src.data_layer.hybrid_storage import ParquetWALBuffer
 from src.persistence.database import StockPriceDB
 
 
@@ -180,7 +180,7 @@ class TestEmpiricalConcurrencyM12(unittest.TestCase):
         reader_executor.shutdown(wait=True)
         db.close()
         
-        print(f"\n[STRESS TEST RESULTS - DIRECT SQLITE]")
+        print("\n[STRESS TEST RESULTS - DIRECT SQLITE]")
         print(f"Total Symbols: {self.num_symbols}")
         print(f"Writer Threads: {num_writers}, Duration: {writer_duration:.2f}s")
         print(f"Reader Threads: {num_readers}, Total Reader Queries: {reader_stats['query_count']}")
@@ -270,7 +270,7 @@ class TestEmpiricalConcurrencyM12(unittest.TestCase):
         retrieved_df = db.get_prices("UNNAMED_SYM")
         db.close()
 
-        print(f"\n[PARQUET WAL UNNAMED INDEX VULNERABILITY REPRODUCTION]")
+        print("\n[PARQUET WAL UNNAMED INDEX VULNERABILITY REPRODUCTION]")
         print(f"Flushed count returned: {flushed_count}")
         print(f"Retrieved DB row count: {len(retrieved_df)}")
         print(f"All dates in retrieved index are NaT: {pd.isna(retrieved_df.index).all()}")

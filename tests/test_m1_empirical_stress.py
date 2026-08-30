@@ -11,14 +11,12 @@ Stress tests DataFrameCache, DataValidator, and CorporateActionAdjuster under:
 import time
 import threading
 from datetime import date, datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.utils.technical_cache import DataFrameCache
 from src.data_layer.data_validator import (
-    DataValidator,
     validate_price_data,
     sanitize_and_validate_price_data,
     filter_price_spikes,

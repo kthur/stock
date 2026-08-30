@@ -7,13 +7,12 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "trading_system"))
 sys.path.insert(0, str(_ROOT))
 
-import numpy as np
 import pandas as pd
 from src.config import TradingConfig
-from src.data_layer.global_market import GLOBAL_INDICES, FX_PAIRS, GlobalMarketClient
-from src.core.supply_chain import LEAD_CUSTOMER_MAP, SupplyChainEngine
+from src.data_layer.global_market import GLOBAL_INDICES, FX_PAIRS
+from src.core.supply_chain import LEAD_CUSTOMER_MAP
 from src.ai.ensemble_scorer import EnsembleScoringEngine
-from run_pipeline import format_canonical_yf_symbol, _MARKET_SUFFIX_MAP
+from run_pipeline import format_canonical_yf_symbol
 
 
 class TestMultiMarketExpansion(unittest.TestCase):

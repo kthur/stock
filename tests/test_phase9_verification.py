@@ -14,7 +14,6 @@ Tests all 11 Phase 9 components across Quant AI, Microstructure & HFT, and MLOps
 - SmartOrderRouter (SOR Nextrade/ATS Router)
 """
 
-import pytest
 import numpy as np
 import pandas as pd
 import tempfile

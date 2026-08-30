@@ -7,7 +7,6 @@ Tests for Next-Gen (v2) Structural Improvements:
 5. Dynamic FX Overlay & Covered Interest Parity (CIP) Currency Risk Control.
 """
 
-import pytest
 import numpy as np
 import pandas as pd
 from src.analysis.portfolio_optimizer import calculate_hrp_weights

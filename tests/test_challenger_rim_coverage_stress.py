@@ -16,11 +16,10 @@ Adversarial Stress Test Suite by Challenger 1:
 """
 import io
 import re
-import pytest
 import numpy as np
 import pandas as pd
 
-from src.core.rim_valuation import RIMValuationEngine, ABSOLUTE_ROE_CAP
+from src.core.rim_valuation import RIMValuationEngine
 from src.analysis.coverage_analyzer import StrategyCoverageAnalyzer
 
 

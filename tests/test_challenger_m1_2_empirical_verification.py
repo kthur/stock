@@ -20,7 +20,6 @@ import tempfile
 import shutil
 import subprocess
 import re
-import pytest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timezone, timedelta

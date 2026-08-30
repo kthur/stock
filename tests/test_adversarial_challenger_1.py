@@ -9,7 +9,6 @@ Target Domains:
 5. Platt Scaling Probability Monotonicity across Logit Domains
 """
 
-import math
 import numpy as np
 import pandas as pd
 import pytest
@@ -19,8 +18,6 @@ from src.risk.portfolio_allocator import PortfolioAllocator
 from src.analysis.portfolio_optimizer import (
     calculate_black_litterman_weights,
     calculate_hrp_weights,
-    calculate_risk_parity_weights,
-    apply_portfolio_constraints,
 )
 
 

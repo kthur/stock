@@ -12,13 +12,10 @@ Unit and Integration Regression Tests for Domain 2 (V6-09 ~ V6-16) Improvements:
 
 import unittest
 import numpy as np
-import pandas as pd
-from scipy.stats import t, norm
 
 from trading_system.src.risk.portfolio_allocator import PortfolioAllocator
 from trading_system.src.analysis.portfolio_optimizer import (
-    calculate_black_litterman_weights,
-    shrink_covariance_matrix
+    calculate_black_litterman_weights
 )
 from trading_system.src.risk.risk_manager import CrisisDetector, CrisisLevel
 from trading_system.src.analysis.coverage_analyzer import StrategyCoverageAnalyzer

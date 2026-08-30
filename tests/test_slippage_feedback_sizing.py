@@ -1,4 +1,3 @@
-import pytest
 from src.risk.portfolio_allocator import PortfolioAllocator
 
 

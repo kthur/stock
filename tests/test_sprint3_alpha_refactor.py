@@ -1,8 +1,7 @@
 import unittest
 import numpy as np
-import pandas as pd
 
-from src.ai.lstm_predictor import LSTMPredictor, LSTMNetwork
+from src.ai.lstm_predictor import LSTMPredictor
 from src.core.stat_arb import KalmanPairTracker
 from src.core.rim_valuation import RIMValuationEngine
 from src.data_layer.earnings_data import compute_regulatory_filing_lag

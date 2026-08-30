@@ -9,22 +9,13 @@ Tests:
 5. Full HTML generation and verification of zero raw NaN/undefined cells and switchTabById JS linkage.
 """
 
-import math
-import os
 import re
-import subprocess
-import sys
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from trading_system.generate_report import (
-    RimRow,
-    SimpleStrategyRow,
-    StrategyHealthInfo,
     _parse_simple_strategy,
-    build_html,
     build_strategy_health_monitor_html,
     build_tab_status_banner,
     format_metric_cell,
@@ -60,8 +51,6 @@ from trading_system.generate_report import (
     parse_lstm,
     parse_stat_arb,
     parse_regression,
-    parse_ensemble,
-    safe_float,
 )
 
 

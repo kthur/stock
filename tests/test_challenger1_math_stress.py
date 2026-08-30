@@ -1,6 +1,5 @@
 ﻿import numpy as np
 import sympy as sp
-from scipy import stats
 
 def test_asymmetric_pseudo_huber():
     print('=== TESTING ASYMMETRIC PSEUDO-HUBER LOSS ===')

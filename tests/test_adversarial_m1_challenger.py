@@ -12,7 +12,6 @@ Tests:
 5. Boundary conditions: empty DataFrames, None parameters, extreme values, mixed sparsity matrices.
 """
 
-import math
 import numpy as np
 import pandas as pd
 import pytest

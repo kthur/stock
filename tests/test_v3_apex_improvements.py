@@ -7,7 +7,6 @@ Tests for v3.0 Apex-Tier Quantitative Improvements:
 5. Institutional Factor Crowding & Fire-Sale Spillover Suppression in EnsembleScorer.
 """
 
-import pytest
 import numpy as np
 import pandas as pd
 from src.ai.optuna_tuner import OptunaStrategyTuner

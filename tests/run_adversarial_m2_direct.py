@@ -1,5 +1,4 @@
 import sys
-import traceback
 
 def run_tests():
     print("=== STARTING DIRECT EXECUTION OF ADVERSARIAL M2 TESTS ===", flush=True)

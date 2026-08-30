@@ -1,6 +1,3 @@
-import pytest
-import pandas as pd
-import numpy as np
 from trading_system.src.analysis.scenario_simulator import (
     ScenarioSimulationEngine,
     SectorOutlookScenario,

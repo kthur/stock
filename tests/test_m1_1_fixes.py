@@ -1,7 +1,6 @@
 import unittest
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
 
 from trading_system.src.analysis.portfolio_optimizer import calculate_hrp_weights
 from trading_system.src.ai.ensemble_scorer import EnsembleScoringEngine

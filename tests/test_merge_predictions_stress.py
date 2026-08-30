@@ -10,7 +10,6 @@ BOM headers, corrupt JSON, extreme floats, and self-referencing safety.
 import json
 import os
 import sys
-from pathlib import Path
 import pytest
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -26,15 +25,11 @@ from merge_predictions import (
     merge_generic_strategy_files,
     merge_surge_predictions,
     merge_vcp_ml_predictions,
-    merge_vcp_patterns,
-    merge_lead_lag_predictions,
     merge_portfolio_allocation,
     merge_backtest_summary,
     merge_coverage_report,
     merge_pipeline_result,
     get_file_content,
-    KNOWN_MARKETS,
-    ALL_31_STRATEGIES,
 )
 
 

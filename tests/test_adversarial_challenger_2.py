@@ -28,7 +28,7 @@ if project_root not in sys.path:
 from src.execution.oms_engine import ExecutionOMSEngine
 from src.execution.slippage_feedback import SlippageFeedbackEngine, SlippageMetrics
 from src.core.event_driven import EventDrivenEngine
-from src.persistence.database import StockPriceDB, DataValidator
+from src.persistence.database import DataValidator
 from src.core.accruals_quality import AccrualsQualityEngine
 from src.core.multi_factor_neutralizer import MultiFactorNeutralizerEngine
 from src.core.vol_target import VolTargetingEngine

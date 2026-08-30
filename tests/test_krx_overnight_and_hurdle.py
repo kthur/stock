@@ -1,8 +1,4 @@
-import pytest
-import os
-import sqlite3
 import pandas as pd
-import numpy as np
 from src.data_layer.overnight_gap_shifter import OvernightGapShifter
 from src.execution.oms_engine import ExecutionOMSEngine
 

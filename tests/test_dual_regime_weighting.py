@@ -1,11 +1,8 @@
 import unittest
 import pandas as pd
-import numpy as np
-from pathlib import Path
-import tempfile
 
 from trading_system.src.ai.ensemble_scorer import EnsembleScoringEngine
-from trading_system.generate_report import parse_ensemble, generate_html, EnsembleData, REGIME_INFO
+from trading_system.generate_report import parse_ensemble, generate_html
 
 
 class TestDualRegimeWeighting(unittest.TestCase):

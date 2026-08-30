@@ -12,7 +12,6 @@ Exhaustively stress tests the 6 modified strategy engines:
 6. EarningsToneDriftEngine (earnings_tone_drift.py)
 """
 
-import math
 import numpy as np
 import pandas as pd
 import pytest

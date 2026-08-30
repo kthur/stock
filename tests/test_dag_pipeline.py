@@ -36,7 +36,6 @@ try:
     )
 except ImportError:
     from trading_system.dag_pipeline import (
-        CheckpointManager,
         CyclicDependencyError,
         DAGContext,
         DAGRunner,

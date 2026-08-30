@@ -19,8 +19,7 @@ from unittest.mock import MagicMock
 from src.ai.prediction_model import OnDevicePredictionModel
 from src.ai.ensemble_scorer import EnsembleScoringEngine
 from src.ai.optuna_tuner import OptunaStrategyTuner, AlphaDecayTracker
-from src.ai.meta_ensemble_learner import MetaEnsembleLearner, STRATEGY_SCORE_COLS
-from src.ai.target_transform import transform_sharpe, inverse_transform_sharpe
+from src.ai.meta_ensemble_learner import MetaEnsembleLearner
 
 
 class TestV6Domain1Enhancements(unittest.TestCase):

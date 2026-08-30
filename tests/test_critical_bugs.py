@@ -4,15 +4,13 @@ Unit tests verifying Phase 6-A critical bug fixes.
 """
 
 import math
-import numpy as np
 import pandas as pd
-import pytest
 
 from trading_system.src.core.llm_sentiment_engine import DARTSECSentimentEngine
 from trading_system.src.core.multi_factor_neutralizer import MultiFactorNeutralizerEngine
 from trading_system.src.risk.delta_beta_hedge import DeltaBetaHedgeEngine
-from trading_system.src.risk.microstructure import MicrostructureCostModel, TransactionCostConfig
-from trading_system.src.realtime.trade_executor import TradeExecutor, ExecResult
+from trading_system.src.risk.microstructure import MicrostructureCostModel
+from trading_system.src.realtime.trade_executor import TradeExecutor
 
 
 def test_bug_a2_sentiment_returns_nan_on_missing_text():

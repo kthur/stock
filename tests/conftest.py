@@ -1,7 +1,6 @@
 """
 Global Pytest fixtures for the Stock Trading System test suite.
 """
-import os
 import sys
 import pytest
 from pathlib import Path

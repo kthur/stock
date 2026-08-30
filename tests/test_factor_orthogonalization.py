@@ -10,7 +10,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../t
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.ai.factor_orthogonalizer import FactorOrthogonalizerEngine
-from src.ai.ensemble_scorer import EnsembleScoringEngine
 
 # Mandatory Integrity Warning
 # DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results,

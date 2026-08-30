@@ -1,10 +1,9 @@
 import unittest
 import numpy as np
 import pandas as pd
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from src.risk.risk_manager import CrisisDetector, CrisisLevel
+from src.risk.risk_manager import CrisisDetector
 from src.ai.optuna_tuner import OptunaStrategyTuner
 from src.data_layer.indicator_storage import MarketIndicatorStorage
 

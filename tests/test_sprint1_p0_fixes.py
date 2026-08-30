@@ -11,9 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from src.execution.oms_engine import ExecutionOMSEngine
 from src.ai.factor_orthogonalizer import FactorOrthogonalizerEngine, safe_matrix_precision_guard
-from src.ai.ensemble_scorer import EnsembleScoringEngine
-from src.utils.rate_limiter import GlobalRateLimiter, get_global_rate_limiter
-from src.config import TradingConfig
+from src.utils.rate_limiter import GlobalRateLimiter
 
 
 class TestSprint1P0Fixes(unittest.TestCase):

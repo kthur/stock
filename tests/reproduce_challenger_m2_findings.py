@@ -4,7 +4,6 @@ Challenger M2 Gen 2 Empirical Bug Reproduction & Verification Script
 
 import sys
 import os
-import math
 import numpy as np
 import pandas as pd
 

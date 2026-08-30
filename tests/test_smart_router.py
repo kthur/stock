@@ -1,9 +1,7 @@
 """
 Unit Tests for SmartOrderRouter (V6-31)
 """
-import pytest
 from src.execution.sor_router import SmartOrderRouter
-from src.execution.smart_router import SmartOrderRouter as SmartRouterAlias
 
 
 def test_v6_31_ats_residual_routed_to_primary():

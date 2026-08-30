@@ -1,9 +1,8 @@
 import pytest
 import numpy as np
 import pandas as pd
-from typing import Dict, Any
 
-from src.ai.correlation_monitor import StrategyCorrelationMonitor, ALL_17_STRATEGIES, STRATEGY_SCORE_COL_MAP
+from src.ai.correlation_monitor import StrategyCorrelationMonitor, ALL_17_STRATEGIES
 from src.ai.factor_suppression import RegimeFactorSuppressionEngine
 from src.ai.ensemble_scorer import EnsembleScoringEngine
 from src.ai.optuna_tuner import OptunaStrategyTuner

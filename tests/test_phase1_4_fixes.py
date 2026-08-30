@@ -1,10 +1,8 @@
 import os
 import pytest
-import numpy as np
 import pandas as pd
 from src.core.hft_engine import MicrostructureImbalanceEngine
 from src.ai.ensemble_scorer import EnsembleScoringEngine
-from src.core.stat_arb import StatisticalArbitrageEngine
 from src.core.sector_rotation import SectorRotationEngine
 from src.config import TradingConfig
 

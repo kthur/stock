@@ -8,11 +8,11 @@ explosive range expansion (REF >= 1.5), relative volume surge (RVOL >= 1.8), and
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
-from .base_strategy import BaseStrategyEngine, ScoreDataFrame, make_score_dataframe
+from .base_strategy import BaseStrategyEngine, make_score_dataframe
 from src.core.strategy_registry import register_strategy, StrategyMeta
 
 logger = logging.getLogger(__name__)
@@ -96,20 +96,20 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
             w = min(n, 35)
             c = c_raw[-w:]
             h = h_raw[-w:]
-            l = l_raw[-w:]
+            lows = l_raw[-w:]
             o = o_raw[-w:]
             v = np.nan_to_num(v_raw[-w:], nan=0.0, posinf=0.0, neginf=0.0)
             w_len = len(c)
 
             # 1. Bar Range and True Range calculation
-            bar_range = np.maximum(h - l, 1e-8)
+            bar_range = np.maximum(h - lows, 1e-8)
             prev_c = np.empty_like(c)
             prev_c[0] = c[0]
             prev_c[1:] = c[:-1]
 
             tr1 = bar_range
             tr2 = np.abs(h - prev_c)
-            tr3 = np.abs(l - prev_c)
+            tr3 = np.abs(lows - prev_c)
             tr = np.maximum(np.maximum(tr1, tr2), tr3)
 
             # ATR 14
@@ -146,7 +146,7 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
             # Inside Day precursor
             is_inside_day = 0.0
             if w_len >= 3:
-                if (h[-2] < h[-3]) and (l[-2] > l[-3]):
+                if (h[-2] < h[-3]) and (lows[-2] > lows[-3]):
                     is_inside_day = 1.0
 
             compression_score = 0.40 * is_nr7 + 0.40 * is_squeeze + 0.20 * is_inside_day
@@ -182,7 +182,7 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
 
             # 5. Close Location Value & Breakout Direction Q_i
             curr_close = float(c[-1])
-            curr_low = float(l[-1])
+            curr_low = float(lows[-1])
             curr_high = float(h[-1])
             curr_open = float(o[-1])
 

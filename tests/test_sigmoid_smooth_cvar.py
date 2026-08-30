@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 from src.risk.portfolio_allocator import PortfolioAllocator
 

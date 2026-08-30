@@ -2,12 +2,9 @@
 test_supply_chain_map.py — Unit and integration tests for SupplyChainEngine with JSON mapping database
 """
 
-import pytest
-import numpy as np
 import pandas as pd
-from pathlib import Path
 
-from src.core.supply_chain import SupplyChainEngine, LEAD_CUSTOMER_MAP
+from src.core.supply_chain import SupplyChainEngine
 
 
 def test_supply_chain_engine_loads_json_map():

@@ -5,12 +5,11 @@ Unit tests for Strategy Engines #24 through #27.
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from trading_system.src.core.accruals_quality import AccrualsQualityEngine
 from trading_system.src.core.short_interest_squeeze import ShortInterestSqueezeEngine
 from trading_system.src.core.valueup_catalyst import ValueUpCatalystEngine
-from trading_system.src.core.trend_efficiency import TrendEfficiencyEngine, KaufmanTrendEfficiencyEngine
+from trading_system.src.core.trend_efficiency import TrendEfficiencyEngine
 
 
 def test_accruals_quality_engine():

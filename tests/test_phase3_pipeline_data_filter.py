@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 import pandas as pd
 from src.data_layer.pipeline_data_filter import filter_training_data

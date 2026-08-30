@@ -8,11 +8,11 @@ VIX, SOX, S&P 500), and unpriced lead-lag spillover diffusion into equity prices
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from .base_strategy import BaseStrategyEngine, ScoreDataFrame, make_score_dataframe
+from .base_strategy import BaseStrategyEngine, make_score_dataframe
 from src.core.strategy_registry import register_strategy, StrategyMeta
 
 logger = logging.getLogger(__name__)
