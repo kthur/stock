@@ -1,0 +1,6 @@
+fix: 28-issue comprehensive return improvement overhaul
+
+P0: score_normalizer sparse rank inversion, prediction_model covariate shift, ensemble CLT compression
+P1: risk_manager 4-layer penalty unified, VIX override continuous sigmoid, trailing stop double penalty
+CRIT: factor_orthogonalizer tanh compression, dual_correction ACTIVE_MARKUP, vcp_ml Platt logit, stat_arb BH FDR
+EXEC: oms_engine ADV floor/currency mismatch/symbol_meta, portfolio Kelly horizon, Black-Litterman scale

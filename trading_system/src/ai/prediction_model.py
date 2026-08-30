@@ -915,23 +915,9 @@ class OnDevicePredictionModel:
                         norm_fv = fv.div(dt_fv).replace([np.inf, -np.inf], 0.0)
                         norm_vol = vol.div(dt_vol).replace([np.inf, -np.inf], 0.0)
 
-                        if len(group) == 1:
-                            has_mc = not (mc.isna().all() or (mc == 0.0).all())
-                            has_fv = not (fv.isna().all() or (fv == 0.0).all())
-                            has_vol = not (vol.isna().all() or (vol == 0.0).all())
-                            df['norm_market_cap'] = norm_mc.fillna(1.0 if has_mc else 0.0)
-                            if has_mc:
-                                df['norm_market_cap'] = df['norm_market_cap'].where(df['norm_market_cap'] != 0.0, 1.0)
-                            df['norm_floating_value'] = norm_fv.fillna(1.0 if has_fv else 0.0)
-                            if has_fv:
-                                df['norm_floating_value'] = df['norm_floating_value'].where(df['norm_floating_value'] != 0.0, 1.0)
-                            df['norm_volume'] = norm_vol.fillna(1.0 if has_vol else 0.0)
-                            if has_vol:
-                                df['norm_volume'] = df['norm_volume'].where(df['norm_volume'] != 0.0, 1.0)
-                        else:
-                            df['norm_market_cap'] = norm_mc.fillna(0.0)
-                            df['norm_floating_value'] = norm_fv.fillna(0.0)
-                            df['norm_volume'] = norm_vol.fillna(0.0)
+                        df['norm_market_cap'] = norm_mc.fillna(0.0)
+                        df['norm_floating_value'] = norm_fv.fillna(0.0)
+                        df['norm_volume'] = norm_vol.fillna(0.0)
                         result_dict[sym] = df
             else:
                 # Use robust DB global standard baselines
@@ -940,9 +926,12 @@ class OnDevicePredictionModel:
                     # Align indices to match datetime index dates to string keys in baseline dict
                     date_keys = df.index.strftime("%Y-%m-%d") if hasattr(df.index, "strftime") else df.index.map(lambda x: str(x)[:10])
 
-                    market_cap_sum = date_keys.map(global_baselines['market_cap_sum']).fillna(1.0).values
-                    floating_sum = date_keys.map(global_baselines['floating_value_sum']).fillna(1.0).values
-                    volume_sum = date_keys.map(global_baselines['volume_sum']).fillna(1.0).values
+                    recent_mc = global_baselines['market_cap_sum'].dropna().iloc[-1] if len(global_baselines['market_cap_sum'].dropna()) > 0 else 45e12
+                    recent_fv = global_baselines['floating_value_sum'].dropna().iloc[-1] if len(global_baselines['floating_value_sum'].dropna()) > 0 else 45e12
+                    recent_vol = global_baselines['volume_sum'].dropna().iloc[-1] if len(global_baselines['volume_sum'].dropna()) > 0 else 5e9
+                    market_cap_sum = date_keys.map(global_baselines['market_cap_sum']).fillna(recent_mc).values
+                    floating_sum = date_keys.map(global_baselines['floating_value_sum']).fillna(recent_fv).values
+                    volume_sum = date_keys.map(global_baselines['volume_sum']).fillna(recent_vol).values
 
                     # Force baseline series values to match shape
                     df['norm_market_cap'] = _series(df['market_cap']).div(market_cap_sum).replace([np.inf, -np.inf], 0.0).fillna(0.0)
@@ -2237,7 +2226,7 @@ class OnDevicePredictionModel:
             w_cat_s /= sum_w
 
             # Calibration & threshold on last fold's val set
-            splits_surge_list = list(tscv_surge.split(X)) if tscv_surge is not None else []
+            splits_surge_list = list(tscv_surge.split(df_h_surge)) if tscv_surge is not None else []
             if splits_surge_list:
                 last_tr_idx, last_va_idx = splits_surge_list[-1]
                 X_calib_eval = X.iloc[last_va_idx]

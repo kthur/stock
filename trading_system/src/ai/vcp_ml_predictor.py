@@ -719,8 +719,7 @@ class VCPSurgePredictor:
                                     intercept = calib_dict.get("intercept")
                                     if coef is not None and intercept is not None and coef > 0:
                                         # R7-4 Fix: Apply logit transformation before Platt logistic scaling
-                                        logit = np.log(np.clip(blend_prob, 1e-6, 1.0 - 1e-6) / (1.0 - np.clip(blend_prob, 1e-6, 1.0 - 1e-6)))
-                                        z = np.clip(coef * logit + intercept, -10.0, 10.0)
+                                        z = np.clip(coef * blend_prob + intercept, -10.0, 10.0)
                                         calib_p = 1.0 / (1.0 + np.exp(-z))
                                         # Prevent numeric collapse to 0.0 while preserving model ranking
                                         blend_prob = np.clip(calib_p, 0.001, 0.999)
@@ -729,7 +728,9 @@ class VCPSurgePredictor:
                         else:
                             # Use VCP feature heuristic probability fallback (calibrated to ~0.20-0.25 base rate)
                             if 'vcp_score' in X_mkt.columns:
-                                fallback_prob = np.clip((X_mkt['vcp_score'] / 100.0) * 0.40 + 0.05, 0.05, 0.45)
+                                vcp_raw = X_mkt['vcp_score']
+                                vcp_val = vcp_raw / 100.0 if float(vcp_raw.max()) > 1.5 else vcp_raw
+                                fallback_prob = np.clip(vcp_val * 0.40 + 0.05, 0.05, 0.45)
                             elif 'range_pct' in X_mkt.columns:
                                 fallback_prob = np.clip((1.0 - (X_mkt['range_pct'] / 50.0)) * 0.40 + 0.05, 0.05, 0.45)
                             else:

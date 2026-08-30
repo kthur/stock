@@ -76,8 +76,10 @@ class PriceCorrectionScorer:
         avwap_score = 0.50
         if volume is not None and len(volume) >= 30:
             low_window = min(60, len(df))
-            low_idx = low.tail(low_window).idxmin()
-            subset_df = df.loc[low_idx:]
+            low_tail = low.tail(low_window)
+            low_pos = int(np.argmin(low_tail.values))
+            start_pos = len(df) - low_window + low_pos
+            subset_df = df.iloc[start_pos:]
             if len(subset_df) >= 3:
                 s_c = _extract_series(subset_df, 'close')
                 s_v = _extract_series(subset_df, 'volume')
@@ -102,10 +104,10 @@ class PriceCorrectionScorer:
             is_hammer = (curr_p - float(low.iloc[-1])) > (float(high.iloc[-1]) - curr_p) * 1.5
             is_green = curr_p >= float(close.iloc[-2]) if len(close) >= 2 else True
 
-            if recent_vol >= 2.0 * vol_ma20 and (is_hammer or is_green):
-                climax_score = 0.90
+            if recent_vol >= 2.0 * vol_ma20:
+                climax_score = 0.90 if (is_hammer or is_green) else 0.15
             elif recent_vol >= 1.5 * vol_ma20:
-                climax_score = 0.70
+                climax_score = 0.70 if (is_hammer or is_green) else 0.25
 
         # 4. RSI Oversold Turnaround
         delta = close.diff()
@@ -304,12 +306,12 @@ class DualCorrectionEngine(BaseStrategyEngine):
                 high_52w = float(high.tail(min(252, len(df))).max()) if high is not None else curr_p
                 dist_from_high = (high_52w - curr_p) / max(high_52w, 1e-6)
 
-                if dist_from_high <= 0.08 and time_score >= 0.65:
+                if dist_from_high <= 0.10 and time_score >= 0.65:
                     phase = 'TIME_CONSOLIDATION'
-                elif dist_from_high > 0.08 and price_score >= 0.65:
-                    phase = 'PRICE_PULLBACK'
                 elif dist_from_high <= 0.04 and dual_score >= 0.70:
                     phase = 'ACTIVE_MARKUP'
+                elif dist_from_high > 0.08 and price_score >= 0.65:
+                    phase = 'PRICE_PULLBACK'
                 elif dist_from_high > 0.20 and dual_score < 0.45:
                     phase = 'BREAKDOWN'
                 else:

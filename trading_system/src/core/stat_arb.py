@@ -121,7 +121,11 @@ def _estimate_adf_pvalue(residuals: np.ndarray) -> Tuple[float, float]:
 
     t_stat = beta / stderr
 
-    if t_stat < -3.90:
+    if t_stat < -4.50:
+        p_val = 0.001
+    elif t_stat < -4.10:
+        p_val = 0.005
+    elif t_stat < -3.90:
         p_val = 0.01
     elif t_stat < -3.34:
         p_val = 0.03
@@ -309,6 +313,8 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             # 4. State Update
             theta = theta + K * e
             P = P - np.outer(K, H).dot(P)
+            P = 0.5 * (P + P.T)
+            np.fill_diagonal(P, np.maximum(np.diag(P), 1e-12))
 
             alphas[t] = theta[0]
             betas[t] = theta[1]

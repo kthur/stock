@@ -791,34 +791,21 @@ class EnsembleScoringEngine:
         return sharpes
 
     def apply_vix_override(self, weights: Dict[str, float], vix_val: Optional[float] = None) -> Dict[str, float]:
-        if vix_val is None or vix_val <= 25.0:
+        if vix_val is None or vix_val <= 20.0:
             return weights
-
         w = dict(weights)
-        if vix_val > 30.0:
-            w['surge'] = max(0.0, w.get('surge', 0.15) - 0.10)
-            w['sector_rotation'] = max(0.0, w.get('sector_rotation', 0.10) - 0.05)
-            w['regression'] = w.get('regression', 0.20) + 0.10
-            w['stat_arb'] = w.get('stat_arb', 0.10) + 0.05
-            # 신규: VIX>30 시 추세/숏스퀴즈 모멘텀 억제
-            w['trend_efficiency'] = max(0.0, w.get('trend_efficiency', 0.02) - 0.02)
-            w['short_squeeze'] = max(0.0, w.get('short_squeeze', 0.02) - 0.01)
-            w['supply_chain'] = max(0.0, w.get('supply_chain', 0.02) - 0.01)
-
-        if vix_val > 40.0:
-            vix_decay = 1.0 / (1.0 + np.exp((vix_val - 35) / 5))
-            for key in ['surge', 'vcp_ml', 'trend_efficiency', 'short_squeeze']:
-                w[key] = max(w.get(key, 0.15) * max(vix_decay, 0.50), 0.01)
-            w['stat_arb'] = w.get('stat_arb', 0.10) + 0.15
-            w['rim_valuation'] = w.get('rim_valuation', 0.10) + 0.10
-            w['vol_target'] = w.get('vol_target', 0.04) + 0.05  # 리스크 파리티 극대화
-            w['accruals_quality'] = w.get('accruals_quality', 0.03) + 0.03
-
-        total_w = sum(w.values())
-        if total_w > 0:
-            return {k: v / total_w for k, v in w.items()}
-        n_keys = len(w)
-        return {k: 1.0 / n_keys for k in w} if n_keys > 0 else w
+        # Continuous stress factor [0.0, 1.0]
+        vix_stress = float(np.clip((vix_val - 20.0) / 25.0, 0.0, 1.0))
+        # Decay momentum strategies smoothly
+        for k in ['surge', 'vcp_ml', 'trend_efficiency', 'short_squeeze', 'gamma_squeeze']:
+            if k in w:
+                w[k] = max(0.005, w[k] * (1.0 - 0.80 * vix_stress))
+        # Boost defensive strategies smoothly
+        for k in ['regression', 'stat_arb', 'rim_valuation', 'vol_target', 'accruals_quality']:
+            if k in w:
+                w[k] = w[k] + 0.08 * vix_stress
+        tot = sum(v for v in w.values() if v > 0)
+        return {k: v / tot for k, v in w.items()} if tot > 0 else weights
 
     def get_base_weights(self, regime: Union[int, str], vix_val: Optional[float] = None,
                          macro_label: Optional[str] = None) -> Dict[str, float]:
@@ -1117,23 +1104,19 @@ class EnsembleScoringEngine:
             eff_alpha = self.alpha_smoothing
 
         # Apply EMA Weight Smoothing only when strategy spaces match to prevent cross-space dimension leakage
-        strategy_space_matches = (
-            prev_w_mkt is not None
-            and set(prev_w_mkt.keys()) == set(dynamic_weights.keys())
-        )
-        if strategy_space_matches and eff_alpha < 1.0:
+        if prev_w_mkt is not None and eff_alpha < 1.0:
             smoothed = {}
-            for k, target_w in dynamic_weights.items():
+            all_keys = set(dynamic_weights.keys()) | set(prev_w_mkt.keys())
+            for k in all_keys:
+                target_w = dynamic_weights.get(k, 0.0)
+                prev_w = prev_w_mkt.get(k, target_w)
                 if target_w == 0.0:
                     smoothed[k] = 0.0
                 else:
-                    prev_w = prev_w_mkt.get(k, target_w)
                     smoothed[k] = eff_alpha * target_w + (1.0 - eff_alpha) * prev_w
-
-            total_w = sum(smoothed.values())
-            if total_w > 0:
-                smoothed = {k: v / total_w for k, v in smoothed.items()}
-            dynamic_weights = smoothed
+            tot = sum(smoothed.values())
+            if tot > 0:
+                dynamic_weights = {k: v / tot for k, v in smoothed.items()}
 
         self._prev_weights[market] = dict(dynamic_weights)
 
@@ -2560,7 +2543,12 @@ class EnsembleScoringEngine:
         else:
             regime_elasticity = 1.0
         # Zero-centered around 0.50 neutral score so neutral assets generate 0.0% expected excess return.
-        score_centered = np.clip(merged['ensemble_score'].values - 0.50, -0.50, 0.50)
+        ens_scores = merged['ensemble_score'].values
+        if len(ens_scores) >= 5:
+            ranks = pd.Series(ens_scores).rank(pct=True).values
+            score_centered = np.clip(ranks - 0.50, -0.50, 0.50)
+        else:
+            score_centered = np.clip(ens_scores - 0.50, -0.50, 0.50)
         # Power-law convex transformation: Softened to 1.10 to prevent over-suppressing high-conviction signals (e.g. 0.75 score)
         convex_alpha = np.sign(score_centered) * (np.abs(score_centered * 2.0) ** 1.10)
         raw_exp_ret = convex_alpha * float(self._return_multiplier) * horizon_scale * regime_elasticity

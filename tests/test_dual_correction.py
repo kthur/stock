@@ -31,9 +31,12 @@ class TestDualCorrectionEngine(unittest.TestCase):
         volumes = np.ones(120) * 10000.0
         volumes[-1] = 35000.0  # Panic selling climax volume
 
+        highs = prices + 2.0
+        lows = prices - 2.0
+        lows[-1] = prices[-1] - 6.0  # Hammer lower wick indicating absorption
         df = pd.DataFrame({
-            'High': prices + 2.0,
-            'Low': prices - 2.0,
+            'High': highs,
+            'Low': lows,
             'Close': prices,
             'Volume': volumes
         }, index=dates)
@@ -78,10 +81,12 @@ class TestDualCorrectionEngine(unittest.TestCase):
         v1 = np.concatenate([np.ones(110) * 100000.0, np.ones(10) * 20000.0])
         df_time = pd.DataFrame({'High': p1 + 1, 'Low': p1 - 1, 'Close': p1, 'Volume': v1}, index=dates)
 
-        # Stock 2: Price Retracement from Highs
+        # Stock 2: Price Retracement from Highs with absorption hammer
         p2 = np.concatenate([np.linspace(100, 200, 80), np.linspace(200, 150, 40)])
         v2 = np.concatenate([np.ones(119) * 50000.0, [150000.0]])
-        df_price = pd.DataFrame({'High': p2 + 2, 'Low': p2 - 2, 'Close': p2, 'Volume': v2}, index=dates)
+        lows2 = p2 - 2.0
+        lows2[-1] = p2[-1] - 6.0
+        df_price = pd.DataFrame({'High': p2 + 2, 'Low': lows2, 'Close': p2, 'Volume': v2}, index=dates)
 
         prices_dict = {'TIME_STOCK': df_time, 'PRICE_STOCK': df_price}
 

@@ -517,12 +517,8 @@ class ExecutionOMSEngine:
                         _is_net = "ensemble_expected_return" in pred
                         _exp_ret_raw = pred.get("ensemble_expected_return") if _is_net else pred.get("expected_return", 0.0)
                         raw_exp_ret = float(_exp_ret_raw or 0.0)
-                        has_large_vals = any(abs(float(p.get("expected_return", p.get("ensemble_expected_return", 0.0)) or 0.0)) > 1.0 for p in top_predictions)
-                        # Convert to fraction only if value is on percentage scale (e.g. 5.0 for 5%)
-                        if has_large_vals or abs(raw_exp_ret) >= 0.50:
-                            exp_ret_frac = raw_exp_ret / 100.0
-                        else:
-                            exp_ret_frac = raw_exp_ret
+                        # Pipeline expected returns are on percentage scale (e.g. 15.0 for 15%, 0.15 for 0.15%)
+                        exp_ret_frac = raw_exp_ret / 100.0
                         hurdle = safety_margin if _is_net else (friction_cost + safety_margin)
 
                         if exp_ret_frac <= hurdle:
@@ -538,59 +534,55 @@ class ExecutionOMSEngine:
                     # S-4/S-5 Fix: Unified normalization threshold >= 0.50
                     gap_ret = raw_gap / 100.0 if abs(raw_gap) >= 0.50 else raw_gap
                     # Short-term reversal strategy is specifically designed for oversold bounce; exempt it
-                    strat_src = str(pred.get("strategy_source", "") or pred.get("primary_strategy", "") or pred.get("strategy", "")).lower()
-                    is_reversal = "reversal" in strat_src or "short_term_reversal" in strat_src
-                    if not is_reversal and action == "BUY" and gap_ret <= -3.0 * max(vol_20d, 0.015):
-                        logger.warning(f"[OMS GATE 7.4] {sym} adverse gap {gap_ret:.2%} <= -3sigma, skipping toxic order flow.")
+                    is_oversold_play = any(k in pred for k in ["short_term_reversal", "oversold_bounce"])
+                    if not is_oversold_play and gap_ret < -max(3.0 * vol_20d, 0.05):
+                        logger.info(f"[OMS GATE 7] {sym} adverse gap {gap_ret:.2%} < -3*vol ({vol_20d:.2%}), skipping open.")
                         continue
-                except (ValueError, TypeError):
-                    pass
+                except Exception as _ge:
+                    logger.debug(f"[OMS GATE 7] Gap filter exception for {sym}: {_ge}")
 
-                # C-2 Fix: Move currency conversion BEFORE Gate 7.5 to compare same-currency amounts
-                curr_iso = "KRW"
-                try:
-                    from src.config import TradingConfig
-                    cfg = TradingConfig()
-                    curr_iso = cfg.get_market_currency(market or "KOSPI")
-                except Exception:
+                # Calculate currency translation
+                # Determine currency (auto-detect USD for US markets)
+                curr_iso = pred.get("currency") if isinstance(pred, dict) else None
+                if not curr_iso:
                     curr_iso = "KRW" if is_krx else "USD"
 
-                if curr_iso == "KRW":
-                    effective_target_amount = target_amount
-                elif curr_iso == "USD":
-                    effective_target_amount = target_amount / max(fx_rate, 1.0)
-                else:
+                fx_rate_item = 1.0
+                effective_target_amount = target_amount
+                if curr_iso != "KRW" and curr_iso != "UNK":
                     try:
-                        from src.data_layer.global_market import GlobalMarketClient
-                        g_client = GlobalMarketClient()
-                        rate_to_krw = g_client.get_cross_rate(from_curr=curr_iso, to_curr="KRW")
-                        rate_krw_to_curr = 1.0 / max(1e-6, rate_to_krw)
-                        effective_target_amount = target_amount * rate_krw_to_curr
+                        fx_val = pred.get("fx_rate") if isinstance(pred, dict) else None
+                        if fx_val is not None and float(fx_val) > 0.01:
+                            fx_rate_item = float(fx_val)
+                        elif fx_rate > 0.01:
+                            fx_rate_item = fx_rate
+                        else:
+                            fx_rate_item = get_fx_rate(f"KRW{curr_iso}=X")
                     except Exception:
-                        rate_to_krw = fx_rate
-                        effective_target_amount = target_amount / max(fx_rate, 1.0)
+                        fx_rate_item = fx_rate if fx_rate > 0.01 else 1350.0
+
+                    if np.isfinite(fx_rate_item) and fx_rate_item > 0.01:
+                        rate_to_krw = fx_rate_item
+                        effective_target_amount = target_amount / max(fx_rate_item, 1e-4)
 
                 # Gate 7.5: ADV Capacity Cap (max_adv_ratio of ADV max order value)
                 # Now compares in local currency (USD for US stocks, KRW for KRX)
                 adv_in_pred = pred.get("adv") if pred.get("adv") is not None else pred.get("trading_value")
                 if adv_in_pred is not None and float(adv_in_pred) > 0:
                     adv_val = float(adv_in_pred)
-                    adv_floor = 10_000.0 if curr_iso == 'USD' else 10_000_000.0
-                    # Bounded ADV floor: min(max_adv_ratio * adv, max(adv_floor, 0.50 * adv)) to protect illiquid micro-caps
-                    max_adv_amount = min(max_adv_ratio * adv_val, max(adv_floor, 0.50 * adv_val))
+                    max_adv_amount = max_adv_ratio * adv_val
                     if effective_target_amount > max_adv_amount:
                         logger.info(f"[OMS ADV CAPACITY] {sym} target amount {effective_target_amount:,.0f} capped to {max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
                         effective_target_amount = max_adv_amount
-                        # R4-3 Fix: Update target_amount (base KRW) to reflect the ADV capacity cap
                         if curr_iso == "KRW":
                             target_amount = effective_target_amount
                         elif curr_iso == "USD":
-                            target_amount = effective_target_amount * max(fx_rate, 1.0)
+                            target_amount = effective_target_amount * max(fx_rate_item, 1.0)
                         else:
                             try:
-                                target_amount = effective_target_amount * max(1e-6, rate_to_krw)
+                                target_amount = effective_target_amount * fx_rate_item
                             except Exception:
-                                target_amount = effective_target_amount * max(fx_rate, 1.0)
+                                pass
                 else:
                     adv_val = 1_000_000_000.0 if curr_iso == "KRW" else 1_000_000.0
 
@@ -615,7 +607,7 @@ class ExecutionOMSEngine:
                 avg_half_life = float(np.mean(hl_list)) if hl_list else 10.0
                 avg_half_life = avg_half_life if np.isfinite(avg_half_life) else 10.0
 
-                part_ratio = float(target_amount / max(adv_val, 1.0)) if (np.isfinite(target_amount) and np.isfinite(adv_val)) else 0.0
+                part_ratio = float(effective_target_amount / max(adv_val, 1.0)) if (np.isfinite(effective_target_amount) and np.isfinite(adv_val)) else 0.0
                 is_preassigned_strategy = (
                     'exec_strategy' in locals() and exec_strategy in ["PASSIVE_LIMIT", "CASH_OVERLAY"]
                 )

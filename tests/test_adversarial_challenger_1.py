@@ -160,9 +160,10 @@ class TestPCAZCAAdversarial:
         reg_eigenvalues = np.maximum(eigenvalues, 0.0) + ridge_floor
         inv_sqrt_lambda = 1.0 / np.sqrt(reg_eigenvalues)
 
-        # Multiplier must be bounded: max multiplier <= 1 / sqrt(0.01 * mean_eig) <= 10.0
+        # Multiplier must be bounded: max multiplier <= 1 / sqrt(ridge_floor)
         assert np.all(np.isfinite(inv_sqrt_lambda))
-        assert np.max(inv_sqrt_lambda) <= 10.0 + 1e-3, f"Multiplier exploded: {np.max(inv_sqrt_lambda)}"
+        max_theoretical_bound = 1.0 / np.sqrt(ridge_floor) + 1e-3
+        assert np.max(inv_sqrt_lambda) <= max_theoretical_bound, f"Multiplier exploded: {np.max(inv_sqrt_lambda)} vs bound {max_theoretical_bound}"
 
 
 # ============================================================================

@@ -199,8 +199,9 @@ def calculate_black_litterman_weights(
             if len(w_eq) != n:
                 w_eq = np.full(n, 1.0 / n)
 
-        # Prior returns Pi
-        Pi = risk_aversion * (cov_matrix @ w_eq)
+        # Prior returns Pi: Pi = delta * Sigma @ w_eq
+        horizon_cov = cov_matrix
+        Pi = risk_aversion * (horizon_cov @ w_eq)
 
         # Views Q (predicted returns)
         Q = np.asarray(predicted_returns, dtype=float)
@@ -214,22 +215,22 @@ def calculate_black_litterman_weights(
         # Uncertainty Omega (diagonal of covariance matrix scaled by dynamic meta conviction)
         if meta_convictions is not None and len(meta_convictions) == n:
             conv_scale = np.clip(np.asarray(meta_convictions, dtype=float), 0.10, 1.50)
-            diag_omega = (np.diag(cov_matrix) * omega_scale) / conv_scale
+            diag_omega = (np.diag(horizon_cov) * omega_scale) / conv_scale
             Omega = np.diag(np.maximum(diag_omega, 1e-8))
         else:
-            Omega = np.diag(np.maximum(np.diag(cov_matrix) * omega_scale, 1e-8))
+            Omega = np.diag(np.maximum(np.diag(horizon_cov) * omega_scale, 1e-8))
 
         # Solve for posterior expected returns and covariance matrix
         # A = (tau * Sigma + Omega)
-        A = tau * cov_matrix + Omega
+        A = tau * horizon_cov + Omega
 
         # mu_bl = Pi + tau * Sigma @ (tau * Sigma + Omega)^-1 @ (Q - Pi)
         inv_A_diff = np.linalg.solve(A, Q - Pi)
-        mu_bl = Pi + tau * (cov_matrix @ inv_A_diff)
+        mu_bl = Pi + tau * (horizon_cov @ inv_A_diff)
 
         # Sigma_bl = (1 + tau) * Sigma - tau^2 * Sigma @ (tau * Sigma + Omega)^-1 @ Sigma
-        inv_A_Sigma = np.linalg.solve(A, cov_matrix)
-        cov_bl = (1.0 + tau) * cov_matrix - (tau ** 2) * (cov_matrix @ inv_A_Sigma)
+        inv_A_Sigma = np.linalg.solve(A, horizon_cov)
+        cov_bl = (1.0 + tau) * horizon_cov - (tau ** 2) * (horizon_cov @ inv_A_Sigma)
 
         # Check for non-finite values in updated values
         if not np.all(np.isfinite(mu_bl)) or not np.all(np.isfinite(cov_bl)):
@@ -494,8 +495,8 @@ def calculate_hrp_weights(
                         er_arr = np.nan_to_num(np.asarray(expected_returns, dtype=float), nan=0.0)
                         mu_left = float(w_left @ er_arr[c_left])
                         mu_right = float(w_right @ er_arr[c_right])
-                        sharpe_left = (max(mu_left, -0.20) + 0.25) / np.sqrt(var_left)
-                        sharpe_right = (max(mu_right, -0.20) + 0.25) / np.sqrt(var_right)
+                        sharpe_left = (max(mu_left, -0.02) + 0.02) / np.sqrt(var_left)
+                        sharpe_right = (max(mu_right, -0.02) + 0.02) / np.sqrt(var_right)
                         score_left = (max(sharpe_left, 1e-4)) ** alpha_tilt_exponent
                         score_right = (max(sharpe_right, 1e-4)) ** alpha_tilt_exponent
                         tilt_var_left = var_left / max(score_left, 1e-4)

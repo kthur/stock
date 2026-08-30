@@ -890,7 +890,8 @@ class PortfolioAllocator:
             vols = np.full(n_assets, 0.02)
 
         # Raw Kelly score: kelly_fraction * (excess_mu / sigma_i^2)
-        raw_kelly = float(kelly_fraction) * (excess_mu / (vols ** 2))
+        horizon = max(getattr(self, 'target_horizon', 20), 1)
+        raw_kelly = float(kelly_fraction) * (excess_mu / (vols ** 2 * horizon))
 
         # Top-K Conviction Concentration Filter (Eliminate tail dilution drag)
         if top_k_concentration is not None and 0 < top_k_concentration < n_assets:
@@ -1868,7 +1869,9 @@ class PortfolioAllocator:
             w_mkt = np.full(n_valid, 1.0 / n_valid)
 
         # Equilibrium prior returns Pi = lambda * Sigma @ w_mkt
-        Pi = risk_aversion * (cov_matrix @ w_mkt)
+        horizon = max(getattr(self, 'target_horizon', 20), 1)
+        horizon_cov = cov_matrix * horizon
+        Pi = risk_aversion * (horizon_cov @ w_mkt)
 
         # Views Q
         Q = np.array([float(predicted_returns.get(s, 0.0)) for s in valid_symbols], dtype=np.float64)
@@ -1879,20 +1882,20 @@ class PortfolioAllocator:
         # Idzorek uncertainty matrix Omega
         if meta_convictions:
             conf_arr = np.array([float(np.clip(meta_convictions.get(s, 0.70), 0.10, 0.99)) for s in valid_symbols])
-            omega_diag = (np.diag(cov_matrix) * omega_scale) * ((1.0 - conf_arr) / conf_arr)
+            omega_diag = (np.diag(horizon_cov) * omega_scale) * ((1.0 - conf_arr) / conf_arr)
         else:
-            omega_diag = np.diag(cov_matrix) * omega_scale
+            omega_diag = np.diag(horizon_cov) * omega_scale
 
         Omega = np.diag(np.maximum(omega_diag, 1e-8))
 
         # Solve for posterior expected returns mu_BL
         try:
-            A = tau * cov_matrix + Omega
+            A = tau * horizon_cov + Omega
             inv_A_diff = np.linalg.solve(A, Q - Pi)
-            mu_bl = Pi + tau * (cov_matrix @ inv_A_diff)
+            mu_bl = Pi + tau * (horizon_cov @ inv_A_diff)
 
-            inv_A_Sigma = np.linalg.solve(A, cov_matrix)
-            cov_bl = (1.0 + tau) * cov_matrix - (tau ** 2) * (cov_matrix @ inv_A_Sigma)
+            inv_A_Sigma = np.linalg.solve(A, horizon_cov)
+            cov_bl = (1.0 + tau) * horizon_cov - (tau ** 2) * (horizon_cov @ inv_A_Sigma)
         except Exception:
             mu_bl = 0.5 * (Pi + Q)
             cov_bl = cov_matrix
@@ -1961,7 +1964,9 @@ class PortfolioAllocator:
         try:
             # Regularized inverse: Sigma + 1e-4 * I
             cov_reg = cov + 1e-4 * np.eye(N)
-            inv_cov = np.linalg.pinv(cov_reg)
+            horizon = max(getattr(self, 'target_horizon', 20), 1)
+            cov_horizon = cov_reg * horizon
+            inv_cov = np.linalg.pinv(cov_horizon)
             raw_kelly = float(kelly_fraction) * np.dot(inv_cov, excess_mu)
         except Exception:
             raw_kelly = excess_mu / np.maximum(np.diag(cov), 1e-6)

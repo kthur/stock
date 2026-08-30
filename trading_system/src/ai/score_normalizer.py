@@ -145,7 +145,7 @@ class CrossSectionalScoreNormalizer:
                             if nz_mask.sum() > 1:
                                 nz_vals = vals[nz_mask]
                                 nz_rank = pd.Series(nz_vals).rank(ascending=True, method='average')
-                                nz_norm = ((nz_rank - 0.5) / float(len(nz_vals))).clip(0.005, 0.995)
+                                nz_norm = (0.52 + 0.475 * ((nz_rank - 0.5) / float(len(nz_vals)))).clip(0.52, 0.995)
                                 norm_vals = np.full(n_valid, 0.50, dtype=np.float64)
                                 norm_vals[nz_mask] = nz_norm.values
 

@@ -115,8 +115,9 @@ class FactorOrthogonalizerEngine:
         if use_dispersion:
             # Sigmoid-Tanh Dispersion-Preserving Conviction Scaling
             # Preserves relative distance, fat tails, and non-uniform conviction without flat rank collapse
-            X_centered = (X_ortho - col_means) / col_stds
-            X_disp = col_means + col_stds * np.tanh(X_centered)
+            X_centered = (X_ortho - col_means) / np.maximum(col_stds, 1e-8)
+            # Scale by 3-sigma to preserve ~99.7% of dynamic range
+            X_disp = col_means + 3.0 * col_stds * np.tanh(X_centered / 3.0)
             scaled_vals = np.clip(np.where(np.isfinite(X_disp), X_disp, 0.50), 0.0, 1.0)
         elif len(out_df) >= 5:
             ranks = pd.DataFrame(X_ortho, index=out_df.index, columns=valid_cols).rank(pct=True)
@@ -236,7 +237,7 @@ class FactorOrthogonalizerEngine:
         # Positive diagonal alignment constraint to ensure positive factor self-affinity
         diag_signs = np.sign(np.diag(C_inv_sqrt))
         diag_signs[diag_signs == 0] = 1.0
-        C_inv_sqrt = C_inv_sqrt * diag_signs[:, np.newaxis]
+        C_inv_sqrt = diag_signs[:, None] * C_inv_sqrt * diag_signs[None, :]
         C_inv_sqrt = (C_inv_sqrt + C_inv_sqrt.T) * 0.5
         np.fill_diagonal(C_inv_sqrt, np.maximum(np.diag(C_inv_sqrt), 1e-6))
 

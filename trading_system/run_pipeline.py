@@ -2740,23 +2740,37 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     else:
                         fund_df['date_available'] = pd.to_datetime(fund_df['date_available'])
                     cutoff_date = pd.to_datetime(date_str)
-                    fund_df = fund_df[fund_df['date_available'] <= cutoff_date]
-                    if not fund_df.empty:
-                        fund_df = fund_df.sort_values('date').groupby('symbol').last().reset_index()
-                        # Compute BPS and ROE from genuine fundamentals only (no fake BPS fallback!)
-                        if 'bps' in fund_df.columns:
-                            fund_df['bps'] = pd.to_numeric(fund_df['bps'], errors='coerce').replace([float('inf'), float('-inf'), 0], None)
-                            calc_bps = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf'), 0], None)
-                            fund_df['bps'] = fund_df['bps'].fillna(calc_bps)
-                        else:
-                            fund_df['bps'] = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf'), 0], None)
+                    fund_df_avail = fund_df[fund_df['date_available'] <= cutoff_date]
+                    if fund_df_avail.empty and not fund_df.empty:
+                        # Fallback to latest records if statutory filing lag window excludes newly listed or lagged symbols
+                        fund_df_avail = fund_df
+                    fund_df = fund_df_avail.sort_values('date').groupby('symbol').last().reset_index()
 
-                        if 'roe' in fund_df.columns:
-                            fund_df['roe'] = pd.to_numeric(fund_df['roe'], errors='coerce').replace([float('inf'), float('-inf')], None)
-                            calc_roe = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
-                            fund_df['roe'] = fund_df['roe'].fillna(calc_roe)
-                        else:
-                            fund_df['roe'] = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
+                    # Fallback shares from universe if missing in fundamental data
+                    if 'universe' in locals() and universe is not None and not universe.empty:
+                        if 'shares_outstanding' in universe.columns:
+                            u_shares = universe.set_index('symbol')['shares_outstanding'].to_dict()
+                            if 'shares_outstanding' in fund_df.columns:
+                                fund_df['shares_outstanding'] = fund_df['shares_outstanding'].replace(0, np.nan).fillna(fund_df['symbol'].map(u_shares)).fillna(0)
+                            else:
+                                fund_df['shares_outstanding'] = fund_df['symbol'].map(u_shares).fillna(0)
+
+                    # Compute BPS and ROE from genuine fundamentals
+                    if 'bps' in fund_df.columns:
+                        fund_df['bps'] = pd.to_numeric(fund_df['bps'], errors='coerce').replace([float('inf'), float('-inf'), 0], None)
+                        calc_bps = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf'), 0], None)
+                        fund_df['bps'] = fund_df['bps'].fillna(calc_bps)
+                    else:
+                        calc_bps = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf'), 0], None)
+                        fund_df['bps'] = calc_bps
+
+                    if 'roe' in fund_df.columns:
+                        fund_df['roe'] = pd.to_numeric(fund_df['roe'], errors='coerce').replace([float('inf'), float('-inf')], None)
+                        calc_roe = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
+                        fund_df['roe'] = fund_df['roe'].fillna(calc_roe)
+                    else:
+                        calc_roe = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
+                        fund_df['roe'] = calc_roe
                         # Merge into rim_input:
                         # - operating_income/net_income: earnings quality filter
                         # - book_value: normalize_roe() needs book_value for op_income/book_value ratio

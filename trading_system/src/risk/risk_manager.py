@@ -784,14 +784,14 @@ class RiskManager:
         stop_distance = atr * stop_multiplier
 
         crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        if crisis_mult > 0.0:
-            stop_distance *= crisis_mult
-
         drawdown = self.calculate_drawdown()
+        drawdown_scaler = 1.0
         if drawdown > 0.0 and self.max_drawdown_allowed > 0.0:
             drawdown_scaler = 1.0 - (drawdown / self.max_drawdown_allowed)
             drawdown_scaler = max(0.25, min(1.0, drawdown_scaler))
-            stop_distance *= drawdown_scaler
+
+        stop_scaler = min(crisis_mult if crisis_mult > 0 else 1.0, drawdown_scaler)
+        stop_distance *= max(0.50, stop_scaler)
 
         if highest_price - current_price >= stop_distance:
             return True
@@ -818,14 +818,14 @@ class RiskManager:
         stop_distance = atr * stop_multiplier
 
         crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        if crisis_mult > 0.0:
-            stop_distance *= crisis_mult
-
         drawdown = self.calculate_drawdown()
+        drawdown_scaler = 1.0
         if drawdown > 0.0 and self.max_drawdown_allowed > 0.0:
             drawdown_scaler = 1.0 - (drawdown / self.max_drawdown_allowed)
             drawdown_scaler = max(0.25, min(1.0, drawdown_scaler))
-            stop_distance *= drawdown_scaler
+
+        stop_scaler = min(crisis_mult if crisis_mult > 0 else 1.0, drawdown_scaler)
+        stop_distance *= max(0.50, stop_scaler)
 
         calculated_stop = float(max(0.0, highest_price - stop_distance))
         # R9-3 Fix: Enforce monotonic ratchet: trailing stop never decreases on a running position
@@ -1103,24 +1103,24 @@ class RiskManager:
         vix_cap = self.get_vix_position_cap(vix)
 
         effective_scale = max(vol_scalar, vix_cap)
-        max_value *= effective_scale
 
-        if effective_scale < 1.0:
-            self.logger.info(f"VIX Risk-Off: {symbol} scaled by {effective_scale:.2f}x (VIX={vix:.1f})")
-
-        position_quantity = max(0, int(max_value / entry_price)) if (entry_price > 0 and np.isfinite(entry_price)) else 0
+        base_quantity = max(0, int(max_value / entry_price)) if (entry_price > 0 and np.isfinite(entry_price)) else 0
         unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price) if (entry_price > 0 and np.isfinite(entry_price)) else 0
-        position_quantity = min(position_quantity, unpenalized_max_position)
+        base_quantity = min(base_quantity, unpenalized_max_position)
 
-        # 위기 시 포지션 크기 감축
         crisis_mult = self.crisis_detector.get_crisis_position_multiplier()
-        combined_mult = crisis_mult * self.stress_test_adjustment_factor
-        if combined_mult < 1.0:
-            old_qty = position_quantity
-            position_quantity = max(0, int(position_quantity * combined_mult))
+        unified_scale = min(
+            crisis_mult if crisis_mult > 0 else 1.0,
+            effective_scale,
+            self.stress_test_adjustment_factor
+        )
+
+        position_quantity = max(0, int(base_quantity * unified_scale))
+
+        if unified_scale < 1.0:
             self.logger.info(
-                f"Risk adjusted position sizing: {symbol} qty {old_qty} -> {position_quantity} "
-                f"(combined_mult={combined_mult:.2f}, crisis_mult={crisis_mult:.2f}, level={self.crisis_detector.crisis_level.value})"
+                f"Risk adjusted position sizing: {symbol} qty {base_quantity} -> {position_quantity} "
+                f"(unified_scale={unified_scale:.2f}, crisis_mult={crisis_mult:.2f}, level={self.crisis_detector.crisis_level.value})"
             )
 
         if symbol in self.position_limits:

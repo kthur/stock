@@ -260,7 +260,7 @@ class SectorRotationEngine(BaseStrategyEngine):
 
                 # R6-7 Fix: True 20-day and 60-day lookback indexing (-21 and -61 relative to -1)
                 p20 = float(close.iloc[-21]) if len(close) >= 21 else float(close.iloc[0])
-                p60 = float(close.iloc[-61]) if len(close) >= 61 else (p20 if len(close) >= 21 else float(close.iloc[0]))
+                p60 = float(close.iloc[-61]) if len(close) >= 61 else float(close.iloc[0])
                 ret_20d = float(close.iloc[-1] / p20 - 1.0) if (len(close) >= 20 and p20 > 0) else 0.0
                 ret_60d = float(close.iloc[-1] / p60 - 1.0) if (len(close) >= 60 and p60 > 0) else ret_20d
 

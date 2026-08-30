@@ -55,6 +55,18 @@ def compute_regulatory_filing_lag(
     return str((ts + pd.Timedelta(days=lag_days)).strftime('%Y-%m-%d'))
 
 
+def _to_safe_float(val: Any, default: float = 0.0) -> float:
+    if val is None:
+        return default
+    if type(val).__name__ == 'MagicMock':
+        return default
+    try:
+        f = float(val)
+        return f if np.isfinite(f) else default
+    except (ValueError, TypeError):
+        return default
+
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -70,19 +82,18 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     # faster to fresh earnings. Fall back to annual when quarterly is missing.
     financials = None
     is_quarterly = True
-    try:
-        financials = ticker.quarterly_financials
-    except Exception as _q_err:
-        logger.debug(f"Quarterly financials fetch failed for {yf_sym}: {_q_err}. Trying annual financials.")
-        financials = None
-    if financials is None or (hasattr(financials, 'empty') and financials.empty):
+    for attr in ['quarterly_income_stmt', 'quarterly_financials', 'income_stmt', 'financials']:
         try:
-            financials = ticker.financials
-            is_quarterly = False
-        except Exception as _a_err:
-            logger.debug(f"Annual financials fetch failed for {yf_sym}: {_a_err}.")
+            val = getattr(ticker, attr, None)
+            if val is not None and isinstance(val, pd.DataFrame) and not val.empty:
+                financials = val
+                is_quarterly = 'quarter' in attr
+                break
+        except Exception as _q_err:
+            logger.debug(f"Income statement attribute {attr} fetch failed for {yf_sym}: {_q_err}")
             financials = None
-    if financials is None or (hasattr(financials, 'empty') and financials.empty):
+
+    if financials is None or not isinstance(financials, pd.DataFrame) or financials.empty:
         raise ValueError(f"No financials available for {yf_sym}")
 
     fin = financials.T
@@ -100,16 +111,21 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     result['period_type'] = p_type
 
     scale_factor = 1.0 if is_quarterly else 0.25  # Normalize annual flow figures to quarterly run-rate
-    rev_cols = [c for c in ['Total Revenue', 'Revenue'] if c in fin.columns]
+    rev_cols = [c for c in ['Total Revenue', 'Revenue', 'Operating Revenue'] if c in fin.columns]
     result['revenue'] = (fin[rev_cols[0]] * scale_factor) if rev_cols else 0.0
 
-    oi_cols = [c for c in ['Operating Income', 'Operating Income (Loss)'] if c in fin.columns]
-    result['operating_income'] = (fin[oi_cols[0]] * scale_factor) if oi_cols else 0.0
+    oi_cols = [c for c in ['Operating Income', 'Operating Income (Loss)', 'Operating Profit', 'Pretax Income'] if c in fin.columns]
+    if oi_cols:
+        result['operating_income'] = (fin[oi_cols[0]] * scale_factor)
+    else:
+        # For financial firms / banks where operating income is not separated, fallback to Net Income or Revenue
+        ni_temp = [c for c in ['Net Income', 'Net Income (Loss)', 'Net Income Common Stockholders'] if c in fin.columns]
+        result['operating_income'] = (fin[ni_temp[0]] * scale_factor) if ni_temp else 0.0
 
-    ni_cols = [c for c in ['Net Income', 'Net Income (Loss)'] if c in fin.columns]
+    ni_cols = [c for c in ['Net Income', 'Net Income (Loss)', 'Net Income Common Stockholders', 'Net Income Continuous Operations'] if c in fin.columns]
     result['net_income'] = (fin[ni_cols[0]] * scale_factor) if ni_cols else 0.0
 
-    eps_cols = [c for c in ['Diluted EPS', 'Basic EPS'] if c in fin.columns]
+    eps_cols = [c for c in ['Diluted EPS', 'Basic EPS', 'Diluted Continuous Operations EPS'] if c in fin.columns]
     if eps_cols:
         result['eps'] = fin[eps_cols[0]] * (1.0 if is_quarterly else 0.25)
     else:
@@ -117,15 +133,21 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
 
     # Fetch Cash Flow Statement for OCF
     try:
-        if is_quarterly:
-            cf_data = ticker.quarterly_cashflow
-        else:
-            cf_data = ticker.cashflow
+        cf_data = None
+        for cf_attr in ['quarterly_cash_flow', 'quarterly_cashflow', 'cash_flow', 'cashflow']:
+            try:
+                cval = getattr(ticker, cf_attr, None)
+                if cval is not None and isinstance(cval, pd.DataFrame) and not cval.empty:
+                    cf_data = cval
+                    break
+            except Exception:
+                pass
         if cf_data is not None and not cf_data.empty:
             cf_cols_map = {
                 'Total Cash From Operating Activities': 'operating_cash_flow',
                 'Operating Cash Flow': 'operating_cash_flow',
                 'Cash Flow From Continuing Operating Activities': 'operating_cash_flow',
+                'Cash Flow From Continuing Operations': 'operating_cash_flow',
             }
             for cf_col, target_col in cf_cols_map.items():
                 if cf_col in cf_data.index:
@@ -147,44 +169,61 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     except Exception:
         info = {}
 
-    try:
-        result['shares_outstanding'] = int(info.get('sharesOutstanding', 0) or 0)
-    except (ValueError, TypeError):
-        result['shares_outstanding'] = 0
+    shares_outstanding = _to_safe_float(info.get('sharesOutstanding', None), 0.0)
 
-    try:
-        current_price = float(info.get('regularMarketPrice', info.get('previousClose', 0.0)) or 0.0)
-        div_yield = float(info.get('dividendYield', 0.0) or 0.0)
-        div = info.get('dividendRate', div_yield * current_price)
-        result['dividend_per_share'] = max(0.0, float(div) if div else 0.0)
-    except (ValueError, TypeError):
-        result['dividend_per_share'] = 0.0
+    # Fast info shares fallback
+    if shares_outstanding <= 0 and hasattr(ticker, 'fast_info'):
+        f_info = ticker.fast_info
+        if f_info is not None:
+            for f_attr in ['shares', 'shares_outstanding']:
+                f_val = getattr(f_info, f_attr, None)
+                f_num = _to_safe_float(f_val, 0.0)
+                if f_num > 0:
+                    shares_outstanding = f_num
+                    break
+
+    price_raw = info.get('regularMarketPrice', info.get('previousClose', None))
+    current_price = _to_safe_float(price_raw, 0.0)
+    if current_price <= 0 and hasattr(ticker, 'fast_info'):
+        current_price = _to_safe_float(getattr(ticker.fast_info, 'last_price', None), 0.0)
+
+    div_yield = _to_safe_float(info.get('dividendYield', None), 0.0)
+    div_rate = _to_safe_float(info.get('dividendRate', None), div_yield * current_price)
+    result['dividend_per_share'] = max(0.0, div_rate)
 
     # Fetch book value (Total Stockholder Equity) from balance sheet for RIM BPS calculation
+    bs_t = pd.DataFrame()
     try:
         bs = None
-        try:
-            bs = ticker.quarterly_balance_sheet
-        except Exception:
-            bs = None
-        if bs is None or bs.empty:
+        for bs_attr in ['quarterly_balance_sheet', 'quarterly_balancesheet', 'balance_sheet', 'balancesheet']:
             try:
-                bs = ticker.balance_sheet
+                bval = getattr(ticker, bs_attr, None)
+                if bval is not None and isinstance(bval, pd.DataFrame) and not bval.empty:
+                    bs = bval
+                    break
             except Exception:
-                bs = None
+                pass
         if bs is not None and not bs.empty:
             bs_t = bs.T
             bs_t.index = pd.to_datetime(bs_t.index)
             bs_t = bs_t.sort_index()
-            bv_cols = [c for c in ['Total Stockholder Equity', 'Stockholders Equity', 'Total Equity Gross Minority Interest'] if c in bs_t.columns]
+            bv_cols = [c for c in ['Total Stockholder Equity', 'Stockholders Equity', 'Total Equity Gross Minority Interest', 'Common Stock Equity'] if c in bs_t.columns]
             if bv_cols:
                 bv_series = bs_t[bv_cols[0]].reindex(result.index).ffill()
                 result['book_value'] = bv_series
             else:
                 result['book_value'] = 0.0
 
+            # Shares from Balance Sheet if still missing
+            if shares_outstanding <= 0:
+                sh_cols = [c for c in ['Ordinary Shares Number', 'Share Issued', 'Common Stock Shares Outstanding'] if c in bs_t.columns]
+                if sh_cols:
+                    last_sh = bs_t[sh_cols[0]].dropna()
+                    if not last_sh.empty and last_sh.iloc[-1] > 0:
+                        shares_outstanding = float(last_sh.iloc[-1])
+
             # Add cash extraction
-            cash_cols = [c for c in ['Cash And Cash Equivalents', 'Cash', 'Cash And Equivalents'] if c in bs_t.columns]
+            cash_cols = [c for c in ['Cash And Cash Equivalents', 'Cash', 'Cash And Equivalents', 'Cash Financial'] if c in bs_t.columns]
             if cash_cols:
                 result['cash_equivalents'] = bs_t[cash_cols[0]].reindex(result.index).ffill()
             else:
@@ -209,14 +248,21 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
         result['cash_equivalents'] = 0.0
         result['total_debt'] = 0.0
 
-    if 'shares_outstanding' in result.columns:
-        shares = pd.to_numeric(result['shares_outstanding'], errors='coerce').fillna(0.0)
-        bv = pd.to_numeric(result.get('book_value', 0.0), errors='coerce').fillna(0.0)
-        bps_raw = np.where(shares > 0, bv / np.maximum(shares, 1.0), bv)
+    result['shares_outstanding'] = shares_outstanding
+
+    bv_val = pd.to_numeric(result.get('book_value', 0.0), errors='coerce').fillna(0.0)
+    if shares_outstanding > 0:
+        bps_raw = np.where(bv_val > 0, bv_val / shares_outstanding, 0.0)
         result['bps'] = np.where(np.isfinite(bps_raw), bps_raw, 0.0)
     else:
-        bv_val = pd.to_numeric(result.get('book_value', 0.0), errors='coerce').fillna(0.0)
-        result['bps'] = np.where(np.isfinite(bv_val), bv_val, 0.0)
+        # Fallback to info bookValue (which is BPS in Yahoo Finance)
+        bv_per_share = float(info.get('bookValue', 0.0) or 0.0)
+        if bv_per_share > 0:
+            result['bps'] = bv_per_share
+            if (bv_val == 0.0).all():
+                result['book_value'] = bv_per_share
+        else:
+            result['bps'] = 0.0
 
     for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps', 'operating_cash_flow', 'cash_equivalents', 'total_debt']:
         if col in result.columns:
@@ -497,111 +543,90 @@ def fetch_and_store_fundamentals_batch(
     symbols: List[str],
     symbol_market_map: Dict[str, str],
     storage,
-    max_workers: int = 4,
+    max_workers: int = 8,
     force_refetch: bool = False,
 ) -> int:
     """
-    Fetch fundamentals for a list of symbols and store in DB.
+    Fetch fundamentals for a list of symbols and store in DB using ThreadPoolExecutor.
     Skips symbols that already have fresh fundamentals in DB (based on cache metadata).
     """
-    async def _async_batch_fetch_and_store():
-        meta_cache = {}
-        if hasattr(storage, 'get_fundamental_meta'):
-            try:
-                meta_cache = storage.get_fundamental_meta()
-            except Exception as e:
-                logger.warning(f"Failed to load fundamental cache metadata: {e}")
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        expiry_days = 90
+    meta_cache = {}
+    if hasattr(storage, 'get_fundamental_meta'):
         try:
-            from src.config import TradingConfig
-            config = TradingConfig()
-            expiry_days = config.fundamental_cache_expiry_days
-        except Exception:
-            pass
+            meta_cache = storage.get_fundamental_meta()
+        except Exception as e:
+            logger.warning(f"Failed to load fundamental cache metadata: {e}")
 
-        # Offline mode check (expiry_days < 0): skip network requests entirely
-        if expiry_days < 0:
-            logger.info("[Offline Mode] Skipping fundamental network fetching (expiry_days < 0). Using existing DB cache.")
-            return 0
-
-        current_time = datetime.now()
-        skipped = 0
-        to_fetch = []
-
-        for sym in symbols:
-            if not force_refetch and sym in meta_cache:
-                try:
-                    last_fetched = datetime.strptime(meta_cache[sym], "%Y-%m-%d")
-                    if (current_time - last_fetched).days < expiry_days:
-                        skipped += 1
-                        continue
-                except Exception:
-                    pass
-            to_fetch.append(sym)
-
-        if skipped > 0:
-            logger.info(f"Skipped {skipped}/{len(symbols)} symbols with fresh fundamental cache (within {expiry_days} days)")
-
-        if not to_fetch:
-            return 0
-
-        stored = 0
-        success = 0
-        sem = asyncio.Semaphore(10)
-
-        async with aiohttp.ClientSession() as shared_session:
-            async def _fetch_task(sym):
-                async with sem:
-                    await asyncio.sleep(0.05)
-                    market = symbol_market_map.get(sym, 'SP500')
-                    df_fun = await async_fetch_fundamentals(sym, market, session=shared_session)
-                    return sym, df_fun
-
-
-            tasks = [_fetch_task(sym) for sym in to_fetch]
-            total_fetch = len(to_fetch)
-            done_count = 0
-
-            for f in asyncio.as_completed(tasks):
-                sym, df_fun = await f
-                if df_fun is not None and not df_fun.empty:
-                    try:
-                        # Stream save fundamental data immediately to DB to save RAM
-                        df_fun_copy = df_fun.copy()
-                        df_fun_copy['symbol'] = sym
-                        df_fun_copy['date'] = df_fun_copy.index.strftime('%Y-%m-%d')
-                        df_fun_copy = df_fun_copy.reset_index(drop=True)
-                        storage.save_fundamentals(df_fun_copy)
-                        stored += 1
-
-                        if hasattr(storage, 'save_fundamental_meta'):
-                            storage.save_fundamental_meta(sym, current_time.strftime("%Y-%m-%d"))
-                        success += 1
-                    except Exception as e:
-                        logger.warning(f"Failed to store fundamentals for {sym}: {e}")
-                done_count += 1
-                if done_count % 500 == 0 or done_count == total_fetch:
-                    logger.info(f"Fundamentals progress: {done_count}/{total_fetch} ({success} fetched, {skipped} skipped)")
-
-        logger.info(f"Streamed and stored fundamentals for {stored}/{total_fetch} symbols in DB")
-        return stored
-
-    # Run execution with robust event loop isolation to avoid nested event loop conflicts
+    expiry_days = 90
     try:
-        try:
-            running_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            running_loop = None
+        from src.config import TradingConfig
+        config = TradingConfig()
+        expiry_days = config.fundamental_cache_expiry_days
+    except Exception:
+        pass
 
-        if running_loop is None:
-            return int(asyncio.run(_async_batch_fetch_and_store()))
-        else:
-            # If an event loop is already active in current thread, execute cleanly in dedicated worker thread
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(lambda: asyncio.run(_async_batch_fetch_and_store()))
-                return int(future.result(timeout=600))
-    except Exception as e:
-        logger.error(f"Error in batch fundamental fetch execution: {e}")
-        raise
+    # Offline mode check (expiry_days < 0 and not force_refetch): skip network requests entirely
+    if expiry_days < 0 and not force_refetch:
+        logger.info("[Offline Mode] Skipping fundamental network fetching (expiry_days < 0). Using existing DB cache.")
+        return 0
+
+    current_time = datetime.now()
+    skipped = 0
+    to_fetch = []
+
+    for sym in symbols:
+        if not force_refetch and sym in meta_cache:
+            try:
+                last_fetched = datetime.strptime(meta_cache[sym], "%Y-%m-%d")
+                if (current_time - last_fetched).days < expiry_days:
+                    skipped += 1
+                    continue
+            except Exception:
+                pass
+        to_fetch.append(sym)
+
+    if skipped > 0:
+        logger.info(f"Skipped {skipped}/{len(symbols)} symbols with fresh fundamental cache (within {expiry_days} days)")
+
+    if not to_fetch:
+        return 0
+
+    total_fetch = len(to_fetch)
+    stored = 0
+    success = 0
+    done_count = 0
+
+    def _fetch_and_save_one(sym: str) -> tuple[str, bool]:
+        market = symbol_market_map.get(sym, 'SP500')
+        df_fun = fetch_fundamentals(sym, market)
+        if df_fun is not None and not df_fun.empty:
+            try:
+                df_fun_copy = df_fun.copy()
+                df_fun_copy['symbol'] = sym
+                df_fun_copy['date'] = df_fun_copy.index.strftime('%Y-%m-%d')
+                df_fun_copy = df_fun_copy.reset_index(drop=True)
+                storage.save_fundamentals(df_fun_copy)
+                if hasattr(storage, 'save_fundamental_meta'):
+                    storage.save_fundamental_meta(sym, current_time.strftime("%Y-%m-%d"))
+                return (sym, True)
+            except Exception as _save_e:
+                logger.warning(f"Failed to store fundamentals for {sym}: {_save_e}")
+                return (sym, False)
+        return (sym, False)
+
+    workers = max(1, min(max_workers, 12))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_fetch_and_save_one, sym): sym for sym in to_fetch}
+        for future in as_completed(futures):
+            sym, ok = future.result()
+            done_count += 1
+            if ok:
+                stored += 1
+                success += 1
+            if done_count % 50 == 0 or done_count == total_fetch:
+                logger.info(f"Fundamentals progress: {done_count}/{total_fetch} ({success} fetched, {skipped} skipped)")
+
+    logger.info(f"Streamed and stored fundamentals for {stored}/{total_fetch} symbols in DB")
+    return stored
