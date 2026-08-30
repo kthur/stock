@@ -381,6 +381,15 @@ class OnDevicePredictionModel:
             except Exception as e:
                 logger.warning(f"Failed to load validation metrics: {e}")
 
+        # Load optimal thresholds if exists
+        opt_thresh_path = self.model_dir / "optimal_thresholds.json"
+        if opt_thresh_path.exists():
+            try:
+                with open(opt_thresh_path, 'r') as f:
+                    self.optimal_thresholds = json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load optimal thresholds: {e}")
+
         self.load_ensemble_weights()
         self.load_optimal_thresholds()
 
@@ -388,6 +397,23 @@ class OnDevicePredictionModel:
         self.load_models()
         self.load_surge_models()
         self.load_lead_lag()
+
+    def _load_market_params(self, market: str) -> Dict[str, Any]:
+        """Load market-specific tuned parameters (e.g. tuned_params_sp500.json),
+        falling back to global tuned_params.json if market file does not exist."""
+        m_lower = str(market).lower()
+        market_file = self.model_dir / f"tuned_params_{m_lower}.json"
+        global_file = self.model_dir / "tuned_params.json"
+        target_file = market_file if market_file.exists() else global_file
+        if target_file.exists():
+            try:
+                with open(target_file, 'r') as f:
+                    data = json.load(f)
+                logger.info(f"Loaded tuned params for {market} from {target_file.name}")
+                return data if isinstance(data, dict) else {}
+            except Exception as e:
+                logger.warning(f"Failed to load tuned params from {target_file}: {e}")
+        return {}
 
     def load_ensemble_weights(self):
         try:
@@ -1526,57 +1552,12 @@ class OnDevicePredictionModel:
 
     def _prepare_lstm_data(self, df: pd.DataFrame, target_col: str = 'target_20d', seq_len: int = 20, window_size: Optional[int] = None, **kwargs):
         """
-        Constructs symbol-grouped sequences of length seq_len.
+        Constructs symbol-grouped sequences of length seq_len using the LSTMPredictor pipeline.
         Returns X_all, y_all, and df_indices array.
         """
-        import numpy as np
+        from src.ai.lstm_predictor import LSTMPredictor
         seq_len = window_size if window_size is not None else seq_len
-        X_all = []
-        y_all = []
-        df_indices = []
-
-        if 'symbol' in df.columns:
-            groups = df.groupby('symbol')
-        else:
-            groups = [('ALL', df)]
-
-        for sym, group in groups:
-            if 'date' in group.columns:
-                group_sorted = group.sort_values('date')
-            else:
-                group_sorted = group
-            if len(group_sorted) < seq_len:
-                continue
-
-            # Strict causal 1D sequence of daily returns (preventing future target leakage & matching inference shape)
-            if 'ret_1d' in group_sorted.columns:
-                seq_features = np.expand_dims(group_sorted['ret_1d'].fillna(0.0).values, axis=-1)
-            elif 'close' in group_sorted.columns:
-                seq_features = np.expand_dims(group_sorted['close'].pct_change().fillna(0.0).values, axis=-1)
-            elif 'Close' in group_sorted.columns:
-                seq_features = np.expand_dims(group_sorted['Close'].pct_change().fillna(0.0).values, axis=-1)
-            else:
-                seq_features = np.zeros((len(group_sorted), 1), dtype=np.float32)
-
-            from src.ai.target_transform import transform_sharpe
-            targets = transform_sharpe(group_sorted[target_col]).values
-            indices = group_sorted.index.values
-
-            # Create rolling windows
-            for i in range(seq_len - 1, len(group_sorted)):
-                window = seq_features[i - (seq_len - 1) : i + 1]
-                X_all.append(window)
-                y_all.append(targets[i])
-                df_indices.append(indices[i])
-
-        if not X_all:
-            return np.array([]), np.array([]), np.array([])
-        X_arr = np.array(X_all, dtype=np.float32)
-        if X_arr.ndim == 2:
-            X_arr = np.expand_dims(X_arr, axis=-1)
-        y_arr = np.array(y_all, dtype=np.float32)
-        df_indices_arr = np.array(df_indices)
-        return X_arr, y_arr, df_indices_arr
+        return LSTMPredictor.prepare_multivariate_sequences(df, target_col, seq_len=seq_len)
 
     def train(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True, n_jobs: Optional[int] = None, **kwargs):
         """Train XGBoost, LightGBM, and CatBoost regressors for each horizon.
@@ -1608,9 +1589,30 @@ class OnDevicePredictionModel:
         kw_lgb = dict(self._lgb_kwargs)
         kw_cat = dict(self._cat_kwargs)
 
+        # Apply market-specific hyperparameter overrides if available
+        mkt_params = self._load_market_params(market)
+        if 'xgb' in mkt_params:
+            kw_xgb.update(mkt_params['xgb'])
+        if 'lgb' in mkt_params:
+            kw_lgb.update(mkt_params['lgb'])
+        if 'cat' in mkt_params:
+            kw_cat.update(mkt_params['cat'])
+
         kw_xgb['n_jobs'] = intra_n_jobs
         kw_lgb['n_jobs'] = intra_n_jobs
         kw_cat['thread_count'] = intra_n_jobs
+
+        # Cross-Sectional Ranking Objective: When date groups are available, use
+        # pairwise ranking objectives that optimize relative stock ordering within
+        # each date cross-section rather than absolute return prediction (MSE).
+        # This aligns the loss directly with portfolio alpha generation.
+        use_ranking_objective = kwargs.get('use_ranking_objective', True)
+        has_date_groups = 'date' in df_train.columns and df_train['date'].nunique() >= 10
+        if use_ranking_objective and has_date_groups:
+            self._ranking_mode = True
+            logger.info(f"{market}: Using cross-sectional ranking objective (rank:pairwise/lambdarank)")
+        else:
+            self._ranking_mode = False
 
         # Sort by date to ensure walk-forward splits are chronological
         if 'date' in df_train.columns:
@@ -1694,21 +1696,47 @@ class OnDevicePredictionModel:
                     # preventing tree algorithms from shrinking positive predictions to zero.
                     sample_weights_tr = np.where(y_tr > 0.05, 1.50, 1.0)
 
-                    # XGBoost fold
+                    # XGBoost fold: Use rank:pairwise when ranking mode is active for
+                    # cross-sectional stock ranking optimization. Fall back to MSE regressor otherwise.
                     kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
-                    _m_xgb = xgb.XGBRegressor(**kw_xgb)
-                    try:
-                        _m_xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr, eval_set=[(X_va, y_va)], verbose=False)
-                        if hasattr(_m_xgb, 'best_iteration') and _m_xgb.best_iteration is not None:
-                            best_iters_xgb.append(_m_xgb.best_iteration)
-                    except Exception as ex:
-                        if _is_gpu_error(ex):
-                            kw_xgb_cpu = {k: v for k, v in kw_xgb.items() if k not in ('device', 'device_type', 'tree_method')}
-                            _m_xgb = xgb.XGBRegressor(**kw_xgb_cpu)
-                            _m_xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
-                        else:
-                            _m_xgb = xgb.XGBRegressor(**kw_no_es)
-                            _m_xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
+                    if getattr(self, '_ranking_mode', False) and 'date' in df_h.columns:
+                        # Build date-based group sizes for XGBRanker pairwise objective
+                        try:
+                            tr_dates = df_h.iloc[tr_idx]['date'].values
+                            va_dates = df_h.iloc[va_idx]['date'].values
+                            tr_groups = pd.Series(tr_dates).groupby(tr_dates).size().values
+                            va_groups = pd.Series(va_dates).groupby(va_dates).size().values
+                            kw_rank = {k: v for k, v in kw_xgb.items()
+                                       if k not in ('early_stopping_rounds', 'objective')}
+                            kw_rank['objective'] = 'rank:pairwise'
+                            kw_rank['eval_metric'] = 'ndcg'
+                            _m_xgb = xgb.XGBRanker(**kw_rank)
+                            _m_xgb.fit(X_tr, y_tr, group=tr_groups,
+                                       eval_set=[(X_va, y_va)], eval_group=[va_groups],
+                                       verbose=False)
+                            if hasattr(_m_xgb, 'best_iteration') and _m_xgb.best_iteration is not None:
+                                best_iters_xgb.append(_m_xgb.best_iteration)
+                        except Exception as rank_ex:
+                            logger.debug(f"XGBRanker fold failed ({rank_ex}), falling back to XGBRegressor")
+                            _m_xgb = xgb.XGBRegressor(**kw_xgb)
+                            _m_xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr,
+                                       eval_set=[(X_va, y_va)], verbose=False)
+                            if hasattr(_m_xgb, 'best_iteration') and _m_xgb.best_iteration is not None:
+                                best_iters_xgb.append(_m_xgb.best_iteration)
+                    else:
+                        _m_xgb = xgb.XGBRegressor(**kw_xgb)
+                        try:
+                            _m_xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr, eval_set=[(X_va, y_va)], verbose=False)
+                            if hasattr(_m_xgb, 'best_iteration') and _m_xgb.best_iteration is not None:
+                                best_iters_xgb.append(_m_xgb.best_iteration)
+                        except Exception as ex:
+                            if _is_gpu_error(ex):
+                                kw_xgb_cpu = {k: v for k, v in kw_xgb.items() if k not in ('device', 'device_type', 'tree_method')}
+                                _m_xgb = xgb.XGBRegressor(**kw_xgb_cpu)
+                                _m_xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
+                            else:
+                                _m_xgb = xgb.XGBRegressor(**kw_no_es)
+                                _m_xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
                     y_va_clean = np.nan_to_num(y_va, nan=0.0, posinf=0.0, neginf=0.0)
                     pred_xgb_clean = np.nan_to_num(_m_xgb.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
                     fold_mse_xgb.append(float(mean_squared_error(y_va_clean, pred_xgb_clean)))
@@ -1790,16 +1818,29 @@ class OnDevicePredictionModel:
             kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
             if best_iters_xgb:
                 kw_no_es['n_estimators'] = max(30, int(np.median(best_iters_xgb) * 1.15))
-            model_xgb = xgb.XGBRegressor(**kw_no_es)
-            try:
-                model_xgb.fit(X_all, y_all)
-            except Exception as ex:
-                if _is_gpu_error(ex):
-                    kw_xgb_cpu = {k: v for k, v in kw_no_es.items() if k not in ('device', 'device_type', 'tree_method')}
-                    model_xgb = xgb.XGBRegressor(**kw_xgb_cpu)
+            if getattr(self, '_ranking_mode', False) and 'date' in df_h.columns:
+                try:
+                    all_dates = df_h['date'].values
+                    all_groups = pd.Series(all_dates).groupby(all_dates).size().values
+                    kw_rank = {k: v for k, v in kw_no_es.items() if k != 'objective'}
+                    kw_rank['objective'] = 'rank:pairwise'
+                    model_xgb = xgb.XGBRanker(**kw_rank)
+                    model_xgb.fit(X_all, y_all, group=all_groups)
+                except Exception as rank_ex:
+                    logger.debug(f"Final XGBRanker retraining fallback to XGBRegressor: {rank_ex}")
+                    model_xgb = xgb.XGBRegressor(**kw_no_es)
                     model_xgb.fit(X_all, y_all)
-                else:
-                    raise ex
+            else:
+                model_xgb = xgb.XGBRegressor(**kw_no_es)
+                try:
+                    model_xgb.fit(X_all, y_all)
+                except Exception as ex:
+                    if _is_gpu_error(ex):
+                        kw_xgb_cpu = {k: v for k, v in kw_no_es.items() if k not in ('device', 'device_type', 'tree_method')}
+                        model_xgb = xgb.XGBRegressor(**kw_xgb_cpu)
+                        model_xgb.fit(X_all, y_all)
+                    else:
+                        raise ex
             self.models[market][h] = model_xgb
 
             kw_lgb_final = {k: v for k, v in kw_lgb.items() if k != 'device_type'} if self._has_gpu else dict(kw_lgb)
@@ -1988,6 +2029,15 @@ class OnDevicePredictionModel:
         kw_xgb = dict(self._surge_xgb_kwargs)
         kw_lgb = dict(self._surge_lgb_kwargs)
         kw_cat = dict(self._surge_cat_kwargs)
+
+        # Apply market-specific surge hyperparameter overrides if available
+        mkt_params = self._load_market_params(market)
+        if 'surge_xgb' in mkt_params:
+            kw_xgb.update(mkt_params['surge_xgb'])
+        if 'surge_lgb' in mkt_params:
+            kw_lgb.update(mkt_params['surge_lgb'])
+        if 'surge_cat' in mkt_params:
+            kw_cat.update(mkt_params['surge_cat'])
 
         kw_xgb['n_jobs'] = intra_n_jobs
         kw_lgb['n_jobs'] = intra_n_jobs
@@ -2231,17 +2281,28 @@ class OnDevicePredictionModel:
             from sklearn.isotonic import IsotonicRegression
             from sklearn.linear_model import LogisticRegression
             calibration_model = None
-            is_isotonic = True
+            # Adaptive calibration selection: Isotonic regression creates step plateaus
+            # on small sample sizes (destroying cross-sectional ranking). Use Platt
+            # (LogisticRegression) when N < 150 or positive cases < 20 for smooth monotonic calibration.
+            pos_cases = int(np.sum(y_fit_th == 1)) if len(y_fit_th) > 0 else 0
+            prefer_platt = len(blend_probs_fit) < 150 or pos_cases < 20
+            is_isotonic = not prefer_platt
             try:
-                calibration_model = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
-                calibration_model.fit(blend_probs_fit, y_fit_th)
-                logger.info(f"Isotonic calibration fitted for {market} {h}d.")
-            except Exception as iso_err:
+                if not prefer_platt:
+                    calibration_model = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
+                    calibration_model.fit(blend_probs_fit, y_fit_th)
+                    logger.info(f"Isotonic calibration fitted for {market} {h}d (N={len(blend_probs_fit)}, pos={pos_cases}).")
+                else:
+                    calibration_model = LogisticRegression(C=1.0, solver='lbfgs', random_state=42)
+                    calibration_model.fit(blend_probs_fit.reshape(-1, 1), y_fit_th)
+                    is_isotonic = False
+                    logger.info(f"Smooth Platt calibration fitted for {market} {h}d (N={len(blend_probs_fit)}, pos={pos_cases}).")
+            except Exception as first_calib_err:
                 try:
                     calibration_model = LogisticRegression(C=1.0, solver='lbfgs', random_state=42)
                     calibration_model.fit(blend_probs_fit.reshape(-1, 1), y_fit_th)
                     is_isotonic = False
-                    logger.info(f"Platt calibration fallback fitted for {market} {h}d: {iso_err}")
+                    logger.info(f"Platt calibration fallback fitted for {market} {h}d: {first_calib_err}")
                 except Exception as calib_err:
                     logger.warning(f"Calibration fitting failed: {calib_err}. Using uncalibrated probs.")
                     calibration_model = None
@@ -3105,14 +3166,16 @@ class OnDevicePredictionModel:
             leader = all_symbols[leader_idx]
             corrs = corr_matrix[i]
 
-            # Filter out self-correlation, virtual index symbols, and negligible correlations (|corr| <= 0.01)
+            # Statistical significance filter: critical correlation threshold based on sample size T_eff
+            # r_crit corresponds to 2-tailed p < 0.05 (t-stat > 1.96)
+            min_sig_corr = max(0.04, float(1.96 / np.sqrt(max(10, T_eff))))
             valid_mask = np.ones(n_symbols, dtype=bool)
             valid_mask[leader_idx] = False
             virtual_symbols = set(index_sector_mapping.values()).union(forced_leaders)
             for v_sym in virtual_symbols:
                 if v_sym in all_symbols:
                     valid_mask[all_symbols.index(v_sym)] = False
-            valid_mask &= (np.abs(corrs) > 0.01)
+            valid_mask &= (np.abs(corrs) >= min_sig_corr)
 
             if not np.any(valid_mask):
                 continue
@@ -3126,7 +3189,11 @@ class OnDevicePredictionModel:
 
             if followers:
                 self.lead_lag_leaders.append(leader)
-                self.lead_lag_matrix[leader] = followers[:20]
+                # Dynamic follower cap: broad ETF / sector leaders influence more followers (up to 40)
+                # while single-stock leaders keep top 20 significant followers
+                is_broad_leader = leader.startswith('^') or leader in ('XLK', 'XLF', 'XLV', 'XLE', '069500', '102110')
+                cap_followers = 40 if is_broad_leader else 20
+                self.lead_lag_matrix[leader] = followers[:cap_followers]
 
         logger.info(f"Lead-lag matrix computed: {len(self.lead_lag_leaders)} leaders, "
                      f"avg {sum(len(v) for v in self.lead_lag_matrix.values()) // max(len(self.lead_lag_matrix), 1)} followers each")

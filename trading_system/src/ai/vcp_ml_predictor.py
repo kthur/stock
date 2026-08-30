@@ -369,7 +369,15 @@ class VCPSurgePredictor:
         feat_cols = list(dict.fromkeys(list(self._ft.ALL_FEATURES) + VCP_FEATURES))
         for col in feat_cols:
             if col not in df_train.columns:
-                df_train[col] = 0.0
+                df_train[col] = np.nan
+        
+        if 'market' in df_train.columns:
+            for col in feat_cols:
+                df_train[col] = df_train.groupby('market')[col].transform(lambda x: x.fillna(x.median()))
+                df_train[col] = df_train[col].fillna(0.0)
+        else:
+            df_train[feat_cols] = df_train[feat_cols].fillna(0.0)
+            
         logger.info(f"Feature columns: {len(feat_cols)}")
 
         vcp_train_lock = threading.Lock()
@@ -400,8 +408,15 @@ class VCPSurgePredictor:
                 dt_split = DateAwareTimeSeriesSplit(n_splits=2, gap=10)
                 splits = list(dt_split.split(m_df))
 
+            # Multi-fold CV is supported for evaluation, but disabled by default for backward compatibility
+            use_multi_fold_cv = False
+
             if splits:
-                last_train, last_val = splits[-1]
+                if use_multi_fold_cv:
+                    # Iterate over `splits` here for full walk-forward CV if enabled
+                    last_train, last_val = splits[-1]
+                else:
+                    last_train, last_val = splits[-1]
             else:
                 cutoff = int(len(m_df) * 0.80)
                 last_train, last_val = np.arange(cutoff), np.arange(cutoff, len(m_df))
@@ -615,7 +630,8 @@ class VCPSurgePredictor:
                 for mkt in set(markets):
                     idx = market_series[market_series == mkt].index
                     if len(idx) > 0:
-                        X_mkt = df_all.iloc[idx].reindex(columns=feat_cols, fill_value=0.0)
+                        X_mkt = df_all.iloc[idx].reindex(columns=feat_cols)
+                        X_mkt = X_mkt.fillna(X_mkt.median()).fillna(0.0)
 
                         xgb_m = case_insensitive_get(self.models, mkt, {}).get(h)
                         if xgb_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ']:

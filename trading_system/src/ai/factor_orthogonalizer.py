@@ -70,17 +70,17 @@ class FactorOrthogonalizerEngine:
                 if nan_idx.any():
                     if 'sector' in score_df.columns or 'market' in score_df.columns:
                         group_col = 'sector' if 'sector' in score_df.columns else 'market'
-                        # Create series for grouping
+                        # Create series for grouping - use median for robust imputation
                         s = pd.Series(col_j)
-                        s = s.fillna(s.groupby(score_df[group_col].values).transform('mean'))
-                        # Fill remaining NaNs with overall mean
-                        overall_mean = s.mean()
-                        s = s.fillna(overall_mean if pd.notna(overall_mean) else 0.5)
+                        s = s.fillna(s.groupby(score_df[group_col].values).transform('median'))
+                        # Fill remaining NaNs with overall median
+                        overall_med = s.median()
+                        s = s.fillna(overall_med if pd.notna(overall_med) else 0.5)
                         X_clean[:, j] = s.values
                     else:
                         valid_j = col_j[~nan_idx]
-                        mean_val = float(np.mean(valid_j)) if len(valid_j) > 0 else 0.5
-                        col_j[nan_idx] = mean_val
+                        med_val = float(np.median(valid_j)) if len(valid_j) > 0 else 0.5
+                        col_j[nan_idx] = med_val
             col_means = np.mean(X_clean, axis=0)
         else:
             X_clean = X_raw

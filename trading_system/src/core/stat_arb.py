@@ -399,6 +399,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         min_zscore: float = 2.0,
         sector_map: Optional[Dict[str, str]] = None,
         require_same_sector: bool = False,
+        market_map: Optional[Dict[str, str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Fast O(N log N) Hierarchical Pre-Clustered Cointegration Scanner across 100% of symbols:
@@ -516,6 +517,16 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             sec_array = np.array([eff_sector_map.get(s, "") for s in valid_symbols])
             sec_match_mask = (sec_array[:, None] == sec_array[None, :]) & (sec_array[:, None] != "")
             high_corr_mask = high_corr_mask & sec_match_mask
+
+        # Apply same-market filter
+        if market_map:
+            mkt_array = np.array([market_map.get(s, "") for s in valid_symbols])
+            mkt_match_mask = (mkt_array[:, None] == mkt_array[None, :]) & (mkt_array[:, None] != "")
+            initial_count = high_corr_mask.sum()
+            high_corr_mask = high_corr_mask & mkt_match_mask
+            filtered_count = initial_count - high_corr_mask.sum()
+            if filtered_count > 0:
+                logger.debug(f"[StatArb] Same-market filter removed {filtered_count} cross-market candidate pairs.")
 
         i_arr, j_arr = np.where(high_corr_mask)
         if len(i_arr) == 0:
@@ -723,7 +734,18 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         **kwargs: Any,
     ) -> pd.DataFrame:
         try:
-            pairs = self.find_cointegrated_pairs(prices_dict)
+            market_map = kwargs.get("market_map")
+            if not market_map and fundamentals_dict:
+                market_map = {k: v.get("market", "") for k, v in fundamentals_dict.items() if isinstance(v, dict)}
+            if not market_map:
+                market_map = {}
+                for sym, df in prices_dict.items():
+                    if isinstance(df, pd.DataFrame) and "market" in df.columns:
+                        m_val = df["market"].dropna()
+                        if not m_val.empty:
+                            market_map[sym] = m_val.iloc[-1]
+
+            pairs = self.find_cointegrated_pairs(prices_dict, market_map=market_map)
             return self.get_symbol_stat_arb_scores(pairs)
 
         except Exception as e:

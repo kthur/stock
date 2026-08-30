@@ -950,8 +950,8 @@ class EnsembleScoringEngine:
         vix_val: Optional[float] = None,
         factor_ic_dict: Optional[Dict[str, float]] = None,
         factor_crowding_penalties: Optional[Dict[str, float]] = None,
-        pruning_threshold: Optional[float] = -0.50,
-        smooth_downside_mode: bool = False,
+        pruning_threshold: Optional[float] = -2.0,
+        smooth_downside_mode: bool = True,
         market: str = "global"
     ) -> Dict[str, float]:
         """
@@ -1084,6 +1084,20 @@ class EnsembleScoringEngine:
         if total_score == 0.0 or not np.isfinite(total_score):
             return base_weights
         dynamic_weights = {k: float(v / total_score) for k, v in scores.items()}
+
+        # Enforce minimum weight floor to prevent permanent zero-weight deadlock.
+        # Strategies pruned to 0.0 receive a small exploratory allocation so they
+        # can generate fresh performance data and eventually recover.
+        STRATEGY_WEIGHT_FLOOR = 0.01  # 1% minimum per strategy
+        n_strategies = len(dynamic_weights)
+        if n_strategies > 0:
+            for k in dynamic_weights:
+                if dynamic_weights[k] < STRATEGY_WEIGHT_FLOOR and k in base_weights:
+                    dynamic_weights[k] = STRATEGY_WEIGHT_FLOOR
+            # Re-normalize after floor enforcement
+            floor_total = sum(dynamic_weights.values())
+            if floor_total > 1e-12:
+                dynamic_weights = {k: float(v / floor_total) for k, v in dynamic_weights.items()}
 
         # Detect regime transition or explicit factor tilting to accelerate EMA weight smoothing
         current_regime_str = str(regime)
@@ -2779,7 +2793,13 @@ class EnsembleScoringEngine:
         cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
         max_cost_cap = np.where(ov_mask, 0.20, 0.05)
         cost_series = np.minimum(raw_total_cost * cost_scaling, max_cost_cap)
-        merged['ensemble_expected_return'] = np.clip(raw_exp_ret - cost_series * 100.0, 0.0, 50.0)
+        # Holding-period amortized cost drag: short-horizon trades (1-3d) should not
+        # bear the same round-trip cost as 20d trades. Scale cost by sqrt(20/h) so
+        # high-conviction short-term surge signals are not over-penalized.
+        horizon_cost_amort = float(np.clip(np.sqrt(20.0 / max(1, h_int)), 0.5, 4.5))
+        amortized_cost_pct = cost_series * 100.0 * horizon_cost_amort
+        # Preserve non-negative expected return proxy for downstream allocation
+        merged['ensemble_expected_return'] = np.clip(raw_exp_ret - amortized_cost_pct, 0.0, 50.0)
 
         # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)
         if sentiment_blacklist:

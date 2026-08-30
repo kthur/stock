@@ -156,16 +156,22 @@ class CARDFactorEngine(BaseStrategyEngine):
                 if indicator_df is not None and isinstance(indicator_df, pd.DataFrame) and len(close) >= 60 and len(indicator_df) >= 60:
                     try:
                         ret_60 = close.pct_change().tail(60).dropna()
-                        fx_60 = indicator_df.get('usdkrw_change', indicator_df.get('usdkrw_pct', pd.Series(0.0, index=indicator_df.index))).tail(60) / 100.0
-                        wti_60 = indicator_df.get('wti_change', indicator_df.get('wti_pct', pd.Series(0.0, index=indicator_df.index))).tail(60) / 100.0
-                        vix_60 = indicator_df.get('vix_change', indicator_df.get('vix_pct', pd.Series(0.0, index=indicator_df.index))).tail(60) / 100.0
+                        
+                        # Align indicators to stock price dates using reindex with ffill
+                        aligned_indicators = indicator_df.reindex(ret_60.index, method='ffill')
+                        
+                        # Defensive guard: if all are NaN after alignment, fall through to heuristic
+                        if not (aligned_indicators.empty or aligned_indicators.isna().all().all()):
+                            fx_60 = aligned_indicators.get('usdkrw_change', aligned_indicators.get('usdkrw_pct', pd.Series(0.0, index=aligned_indicators.index))) / 100.0
+                            wti_60 = aligned_indicators.get('wti_change', aligned_indicators.get('wti_pct', pd.Series(0.0, index=aligned_indicators.index))) / 100.0
+                            vix_60 = aligned_indicators.get('vix_change', aligned_indicators.get('vix_pct', pd.Series(0.0, index=aligned_indicators.index))) / 100.0
 
-                        df_ols = pd.DataFrame({'R': ret_60, 'FX': fx_60, 'WTI': wti_60, 'VIX': vix_60}).dropna()
-                        if len(df_ols) >= 30:
-                            import statsmodels.api as sm
-                            X = sm.add_constant(df_ols[['FX', 'WTI', 'VIX']])
-                            model = sm.OLS(df_ols['R'], X).fit()
-                            macro_impact = (model.params.get('FX', 0.0) * usdkrw_chg + model.params.get('WTI', 0.0) * wti_chg - model.params.get('VIX', 0.0) * vix_pct_shock)
+                            df_ols = pd.DataFrame({'R': ret_60, 'FX': fx_60, 'WTI': wti_60, 'VIX': vix_60}).dropna()
+                            if len(df_ols) >= 30:
+                                import statsmodels.api as sm
+                                X = sm.add_constant(df_ols[['FX', 'WTI', 'VIX']])
+                                model = sm.OLS(df_ols['R'], X).fit()
+                                macro_impact = (model.params.get('FX', 0.0) * usdkrw_chg + model.params.get('WTI', 0.0) * wti_chg - model.params.get('VIX', 0.0) * vix_pct_shock)
                     except Exception:
                         pass
 

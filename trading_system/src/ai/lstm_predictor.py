@@ -1,10 +1,11 @@
 import logging
 import os
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from typing import cast, Optional
+from typing import cast, Optional, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 # Auditor will independently verify your work. Integrity violations WILL be detected
 # and your work WILL be rejected.
 
+DEFAULT_LSTM_FEATURES = ['ret_1d', 'volume_ratio', 'range_pos_20d', 'rsi_14', 'macd_hist_norm', 'mfi_14', 'vix_change', 'usdkrw_change']
 
 class LSTMNetwork(nn.Module):
     """
@@ -22,11 +24,10 @@ class LSTMNetwork(nn.Module):
     Outputs predicted return of shape (batch_size, output_size)
     """
 
-    def __init__(self, input_size: int = 1, hidden_size: int = 32, num_layers: int = 2, dropout: float = 0.2, output_size: int = 1):
+    def __init__(self, input_size: int = 1, hidden_size: int = 64, num_layers: int = 2, dropout: float = 0.2, output_size: int = 1):
         super(LSTMNetwork, self).__init__()
-        self.use_layer_norm = input_size > 1
-        if self.use_layer_norm:
-            self.layer_norm = nn.LayerNorm(input_size)
+        self.use_layer_norm = True
+        self.layer_norm = nn.LayerNorm(input_size)
         self.lstm = nn.LSTM(
             input_size,
             hidden_size,
@@ -51,7 +52,7 @@ class LSTMPredictor:
     Wrapper class to train and predict using the PyTorch LSTM model.
     """
 
-    def __init__(self, sequence_length: int = 20, input_size: int = 1, hidden_size: int = 32, epochs: int = 5, lr: float = 0.01):
+    def __init__(self, sequence_length: int = 20, input_size: int = 1, hidden_size: int = 64, epochs: int = 25, lr: float = 0.01):
         self.sequence_length = sequence_length
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -60,6 +61,70 @@ class LSTMPredictor:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = LSTMNetwork(input_size=input_size, hidden_size=hidden_size, num_layers=2, dropout=0.2, output_size=1).to(self.device)
         self.is_trained = False
+
+    @staticmethod
+    def prepare_multivariate_sequences(df: pd.DataFrame, target_col: str, seq_len: int = 20, features: Optional[List[str]] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Prepare multivariate sequences for LSTM per stock.
+        Each feature is standardized per stock before stacking.
+        Handles missing features gracefully by falling back to available ones.
+        """
+        if features is None:
+            features = DEFAULT_LSTM_FEATURES
+
+        if 'symbol' in df.columns:
+            groups = df.groupby('symbol')
+        else:
+            groups = [('ALL', df)]
+
+        X_all, y_all, indices_all = [], [], []
+
+        for sym, group in groups:
+            group_sorted = group.sort_values('date') if 'date' in group.columns else group
+            if len(group_sorted) < seq_len:
+                continue
+
+            # Identify available features
+            avail_features = [f for f in features if f in group_sorted.columns]
+            if not avail_features:
+                if 'ret_1d' in group_sorted.columns:
+                    avail_features = ['ret_1d']
+                elif 'close' in group_sorted.columns:
+                    group_sorted = group_sorted.copy()
+                    group_sorted['ret_1d'] = group_sorted['close'].pct_change().fillna(0.0)
+                    avail_features = ['ret_1d']
+                elif 'Close' in group_sorted.columns:
+                    group_sorted = group_sorted.copy()
+                    group_sorted['ret_1d'] = group_sorted['Close'].pct_change().fillna(0.0)
+                    avail_features = ['ret_1d']
+                else:
+                    continue
+
+            # Per-stock normalization
+            normed_feats = []
+            for f in avail_features:
+                vals = group_sorted[f].fillna(0.0).values
+                std = np.std(vals)
+                if std > 1e-6:
+                    vals = (vals - np.mean(vals)) / std
+                else:
+                    vals = vals - np.mean(vals)
+                normed_feats.append(vals)
+                
+            stacked_feats = np.column_stack(normed_feats)
+            
+            target_vals = group_sorted[target_col].values if target_col in group_sorted.columns else np.zeros(len(group_sorted))
+            idx_vals = group_sorted.index.values
+            
+            for i in range(len(group_sorted) - seq_len + 1):
+                X_all.append(stacked_feats[i:i+seq_len])
+                y_all.append(target_vals[i+seq_len-1])
+                indices_all.append(idx_vals[i+seq_len-1])
+                
+        if not X_all:
+            return np.array([]), np.array([]), np.array([])
+            
+        return np.array(X_all), np.array(y_all), np.array(indices_all)
 
     def train_model(self, X_train: np.ndarray, y_train: np.ndarray, val_split: float = 0.15, max_grad_norm: float = 1.0, date_labels: Optional[np.ndarray] = None) -> None:
         """
@@ -134,6 +199,9 @@ class LSTMPredictor:
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, mode='min', factor=0.5, patience=2, min_lr=1e-5
             )
+            cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=self.epochs, eta_min=1e-6
+            )
 
             batch_size = min(64, len(X_tr))
             dataset_size = len(X_tr)
@@ -175,6 +243,7 @@ class LSTMPredictor:
                         val_loss = criterion(val_outputs, y_val_tensor).item()
 
                     scheduler.step(val_loss)
+                    cosine_scheduler.step()
                     if val_loss < best_val_loss:
                         best_val_loss = val_loss
                         best_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
@@ -186,6 +255,7 @@ class LSTMPredictor:
                             break
                 else:
                     scheduler.step(avg_train_loss)
+                    cosine_scheduler.step()
 
             if best_state is not None:
                 self.model.load_state_dict({k: v.to(self.device) for k, v in best_state.items()})
