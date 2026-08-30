@@ -1,64 +1,68 @@
-# BRIEFING — 2026-08-22T15:24:00Z
+# BRIEFING — 2026-08-30T13:38:00Z
 
 ## Mission
-Implement Milestone 1 (Requirement R1: 31-Strategy Score Normalization, 0.50 Purge, Dynamic Weight Re-normalization)
+Implement 3 high-alpha strategy engines (CrossAssetSpillover, SupplyChainGNN, RangeExpansionBreakout) and integrate with StrategyRegistry.
 
 ## 🔒 My Identity
 - Archetype: teamwork_preview_worker
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\worker_m1
-- Original parent: 97d406ca-67f8-4f8e-8e84-d697799e3ddd
-- Milestone: Milestone 1 (Requirement R1)
+- Original parent: 0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e
+- Milestone: Milestone 1 - High-Alpha Strategy Engines & StrategyRegistry Integration
 
 ## 🔒 Key Constraints
-- Pure genuine logic: No hardcoded test values, no dummy facades, no shortcuts.
-- Strict NaN preservation for missing/uncalculated strategy signals.
-- CrossSectionalScoreNormalizer with percentile_rank & winsorized_zscore.
-- Dynamic zero-weighting & active weight re-normalization summing to 1.0 per stock.
-- Purge all artificial 0.50 fallback defaults across strategy engines & pipeline.
+- Inherit from BaseStrategyEngine (trading_system/src/core/base_strategy.py)
+- Decorate with @register_strategy(StrategyMeta(...)) (trading_system/src/core/strategy_registry.py)
+- Range [0.05, 0.95] for normalized scores
+- Robust fallbacks for missing data/indicators/isolated nodes
+- Core modules registered in strategy_registry.py core_modules list
+- Pass test_phase5_registry.py and write comprehensive tests
 
 ## Current Parent
-- Conversation ID: 97d406ca-67f8-4f8e-8e84-d697799e3ddd
-- Updated: 2026-08-22T15:24:00Z
+- Conversation ID: 0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e
+- Updated: not yet
 
 ## Task Summary
-- **What to build**: CrossSectionalScoreNormalizer, integration into EnsembleScoringEngine, dynamic active weight re-normalization, purge 0.50 fallbacks across 7 strategy engines and run_pipeline.py.
-- **Success criteria**: 100% test pass on new unit tests and all existing ensemble/regime/orthogonalization tests.
-- **Interface contracts**: PROJECT.md Milestone 1 / SCOPE.md R1.
-- **Code layout**: `trading_system/src/ai/score_normalizer.py`, `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/core/*.py`, `tests/test_score_normalizer.py`.
+- **What to build**: 3 strategy engine modules:
+  1. `cross_asset_spillover.py` (CrossAssetSpilloverEngine, cross_asset_spillover_score)
+  2. `supply_chain_gnn.py` (SupplyChainGNNEngine, supply_chain_gnn_score)
+  3. `range_expansion_breakout.py` (RangeExpansionBreakoutEngine, range_expansion_score)
+  Update `strategy_registry.py` to auto-discover these engines.
+- **Success criteria**: All engines implemented with genuine logic, passing `tests/test_phase5_registry.py` and dedicated unit tests.
+- **Interface contracts**: `trading_system/src/core/base_strategy.py`, `trading_system/src/core/strategy_registry.py`
+- **Code layout**: `trading_system/src/core/` for strategies, `tests/` for tests.
+
+## Key Decisions Made
+- `CrossAssetSpilloverEngine`: Maps sector macro betas across 8 drivers (USD/KRW, TNX, WTI, Gold, DXY, VIX, SOX, S&P 500) and computes unpriced lead-lag diffusion gap against 5-day stock returns. Sigmoid score mapping centered at 0.50 clipped to [0.05, 0.95].
+- `SupplyChainGNNEngine`: 2-hop message passing across global anchor leaders and multi-tier suppliers with asymmetric bullwhip multiplier (1.35x downside / 0.85x upside) and sector liquidity flow acceleration.
+- `RangeExpansionBreakoutEngine`: Precursor compression (NR7, Bollinger Bandwidth squeeze, inside day) combined with range expansion trigger (REF >= 1.5), relative volume (RVOL >= 1.8), and CLV quality scoring.
+- `StrategyRegistry`: Registered all 3 modules into `core_modules` list in `StrategyRegistry.auto_discover()`.
+
+## Artifact Index
+- `.agents/worker_m1/DISPATCH.md` — Assignment instructions
+- `.agents/worker_m1/BRIEFING.md` — Agent state & persistent memory
+- `.agents/worker_m1/progress.md` — Liveness and progress log
+- `.agents/worker_m1/handoff.md` — Complete Milestone 1 handoff report
+- `trading_system/src/core/cross_asset_spillover.py` — Strategy engine module
+- `trading_system/src/core/supply_chain_gnn.py` — Strategy engine module
+- `trading_system/src/core/range_expansion_breakout.py` — Strategy engine module
+- `trading_system/src/core/strategy_registry.py` — Updated auto-discovery registry
+- `tests/test_r1_high_alpha_strategies.py` — 10 unit and integration tests
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/ai/score_normalizer.py` (Created): CrossSectionalScoreNormalizer engine with rank_percentile and winsorized_zscore.
-  - `trading_system/src/ai/ensemble_scorer.py`: Phase 3-A normalizer integration, NaN defaults in strategy extraction & horizon tier combination, dynamic weight re-normalization.
-  - `trading_system/src/core/accruals_quality.py`: Purged 0.50 default fallbacks -> np.nan.
-  - `trading_system/src/core/valueup_catalyst.py`: Purged 0.50 default fallbacks -> np.nan.
-  - `trading_system/src/core/short_interest_squeeze.py`: Purged 0.50 default fallbacks -> np.nan.
-  - `trading_system/src/core/trend_efficiency.py`: Purged 0.50 default fallbacks -> np.nan.
-  - `trading_system/src/core/insider_buying.py`: Purged 0.50 default fallbacks -> np.nan.
-  - `trading_system/src/core/earnings_tone_drift.py`: Purged 0.50 default fallbacks -> np.nan.
-  - `trading_system/src/core/iv_skew.py`: Purged 0.50 default fallbacks -> np.nan.
-  - `trading_system/run_pipeline.py`: Purged 0.50 default fallbacks in report generator and Strategy 31 empty DataFrame handling.
-  - `tests/test_score_normalizer.py` (Created): 14 comprehensive unit & integration tests.
-- **Build status**: PASS (All 48 pytest tests passed: 100%).
-- **Pending issues**: None.
+  - `trading_system/src/core/cross_asset_spillover.py`: Created CrossAssetSpilloverEngine
+  - `trading_system/src/core/supply_chain_gnn.py`: Created SupplyChainGNNEngine
+  - `trading_system/src/core/range_expansion_breakout.py`: Created RangeExpansionBreakoutEngine
+  - `trading_system/src/core/strategy_registry.py`: Added 3 modules to core_modules in auto_discover()
+  - `tests/test_r1_high_alpha_strategies.py`: Added 10 tests covering all 3 engines and integration
+- **Build status**: 15/15 tests passing across test_phase5_registry.py and test_r1_high_alpha_strategies.py; 9/9 passing in test_all_16_markets_31_strategies.py
+- **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: 48 passed in 47.02s.
-- **Lint status**: Clean, compliant with numpy/pandas/scipy standards.
-- **Tests added/modified**: 14 tests in `tests/test_score_normalizer.py`.
+- **Build/test result**: All passing (100%)
+- **Lint status**: Clean
+- **Tests added/modified**: 10 new comprehensive unit/integration tests in tests/test_r1_high_alpha_strategies.py
 
 ## Loaded Skills
-- **Source**: N/A
-- **Core methodology**: Multi-factor cross-sectional normalization, dynamic weight re-normalization, genuine NaN preservation.
-
-## Key Decisions Made
-- `min_symbols_per_market` defaults to 10 for cross-sectional market partitioning with regional (US/KR) and global fallbacks.
-- Single observation returns neutral midpoint 0.50; empty/NaN distributions return strictly NaN.
-- For small unit-test inputs ($N < 5$ in `ensemble_scorer`), raw scores are maintained without statistical rank distortion.
-- Available-factor dynamic weight formula: $\tilde{w}_{i,k} = \frac{m_{i,k} w_k^{(i)}}{\sum_j m_{i,j} w_j^{(i)}}$ guarantees active weights sum to 1.0 per ticker.
-
-## Artifact Index
-- `trading_system/src/ai/score_normalizer.py` — CrossSectionalScoreNormalizer module.
-- `tests/test_score_normalizer.py` — Unit & integration test suite.
-- `.agents/worker_m1/handoff.md` — 5-component handoff report.
+None

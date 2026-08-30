@@ -54,6 +54,9 @@ STRATEGY_ALPHA_HALF_LIVES: Dict[str, float] = {
     'earnings_tone_drift': 30.0,
     'valueup_catalyst': 45.0,
     'rim_valuation': 60.0,
+    'cross_asset_spillover': 5.0,
+    'supply_chain_gnn': 10.0,
+    'range_expansion_breakout': 2.0,
 }
 
 

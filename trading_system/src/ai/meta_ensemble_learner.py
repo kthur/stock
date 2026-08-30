@@ -22,7 +22,8 @@ STRATEGY_SCORE_COLS = [
     'factor_neutralized_score', 'vol_target_score', 'microstructure_score',
     'accruals_quality_score', 'short_squeeze_score', 'valueup_catalyst_score',
     'trend_efficiency_score', 'gamma_squeeze_score', 'insider_buying_score',
-    'darkpool_score', 'earnings_tone_drift_score'
+    'darkpool_score', 'earnings_tone_drift_score',
+    'cross_asset_spillover_score', 'supply_chain_gnn_score', 'range_expansion_score'
 ]
 
 class MetaEnsembleLearner:

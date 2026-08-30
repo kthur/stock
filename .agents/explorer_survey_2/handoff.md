@@ -1,106 +1,106 @@
-# Handoff Report — Requirement R2 Technical Investigation & Blueprint
+# Handoff Report: R2 (Ensemble & Regime) and R3 (Portfolio Optimization) Survey
 
-**Agent**: `explorer_survey_2`  
-**Role**: Teamwork Explorer (Investigation & Synthesis)  
-**Date**: 2026-08-22  
+**Agent**: `teamwork_preview_explorer`  
 **Working Directory**: `d:\Finance\code\stock\.agents\explorer_survey_2`  
-**Related Report**: `d:\Finance\code\stock\.agents\explorer_survey_2\survey_r2.md`
+**Task**: Survey R2 (Ensemble & Regime) and R3 (Portfolio Optimization)  
+**Parent Agent**: `parent` (ID: `0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e`)  
 
 ---
 
 ## 1. Observation
 
-Direct observations from source code inspection:
+1. **Source Code Structure and Key Implementations**:
+   - **`trading_system/src/ai/ensemble_scorer.py`**:
+     - Line 95–109: `ALPHA_HORIZON_TIERS` partitions 31 strategies into `'slow'` (weight 0.50), `'medium'` (weight 0.35), and `'fast'` (weight 0.15).
+     - Line 218–417: `REGIME_2D_WEIGHTS` defines normalized weight dictionaries across 6 regimes: `'BEAR_LOW_VOL'`, `'BEAR_HIGH_VOL'`, `'SIDEWAYS_LOW_VOL'`, `'SIDEWAYS_HIGH_VOL'`, `'BULL_LOW_VOL'`, `'BULL_HIGH_VOL'`.
+     - Line 422–472: `MACRO_WEIGHT_MODIFIERS` provides 3D macro deltas for `'LIQUIDITY_SQUEEZE'`, `'HIGH_YIELD_BULL'`, `'HIGH_YIELD_BEAR'`, `'INFLATION_SHOCK'`, `'YIELD_INVERSION'`.
+     - Line 2149–2166: Cross-sectional score normalization via `CrossSectionalScoreNormalizer`.
+     - Line 2167–2180: Factor orthogonalization via `FactorOrthogonalizerEngine(default_method='pca_symmetric')`.
+     - Line 2191–2223: Correlation monitoring via `StrategyCorrelationMonitor` and VIF suppression via `RegimeFactorSuppressionEngine`.
+     - Line 2387–2462: Multi-signal synergy boost, Quadruple Confluence (1.100x), Triple Confluence (1.065x), Dual Confluence (1.035x), Fundamental Distress Gatekeeper (0.70x), and Quality Compounder Bonus (1.035x).
+     - Line 2556–2789: Microstructure transaction cost model incorporating STT tax (KOSPI 0.18%, KOSDAQ 0.20%, US 0.003%), dynamic spread, Kyle/Almgren-Chriss square-root impact, and $\sqrt{20/h}$ holding-period amortization.
+   - **`trading_system/src/ai/score_normalizer.py`**:
+     - Line 17–175: `CrossSectionalScoreNormalizer` implementing `percentile_rank` with zero-inflated sparse factor midpoint isolation and `winsorized_zscore` Gaussian CDF mapping $\Phi(z)$ in $[0.005, 0.995]$.
+   - **`trading_system/src/ai/factor_orthogonalizer.py`**:
+     - Line 33–270: `FactorOrthogonalizerEngine` implementing PCA-ZCA whitening with Tikhonov filter, Modified Gram-Schmidt, ESRW spectral whitening, and `CrossSectionalFactorNeutralizer` for WLS risk-factor neutralization.
+   - **`trading_system/src/ai/factor_suppression.py`**:
+     - Line 15–56: `solve_single_stage_entropy_allocation` convex solver on $\Delta^{K-1}$.
+     - Line 59–361: `RegimeFactorSuppressionEngine` with 5 strategy clusters (`CORE_AI`, `MOMENTUM`, `VALUATION`, `REVERSAL`, `FLOW_MICRO`).
+   - **`trading_system/src/analysis/regime_detector.py`**:
+     - Line 16–601: `MarketRegimeDetector` GMM 1D classifier, `predict_2d_regime` (6 combos), `predict_3d_macro_regime` (macro conditions), and `predict_dual_market_regime` (US vs KR decoupling).
+   - **`trading_system/src/analysis/portfolio_optimizer.py`**:
+     - Line 24–141: `calculate_risk_parity_weights` (ERC log-barrier).
+     - Line 143–281: `calculate_black_litterman_weights` (2D regime-adaptive BL).
+     - Line 283–329: `shrink_covariance_matrix` (Ledoit-Wolf Frobenius norm shrinkage).
+     - Line 362–533: `calculate_hrp_weights` (Ward/Complete linkage HRP with RMT Marchenko-Pastur denoising and Return-Tilted HRP).
+     - Line 535–628: `calculate_herc_weights` (Hierarchical Equal Risk Contribution).
+   - **`trading_system/src/risk/portfolio_allocator.py`**:
+     - Line 23–2190: `PortfolioAllocator` implementing EVT-GPD CVaR POT estimation, Rockafellar-Uryasev linear programming CVaR, Continuous Fractional Kelly sizing, and Leland Dynamic No-Trade Buffer Bands ($[\mu - \Delta, \mu + \Delta]$).
+   - **`trading_system/src/risk/position_sizing.py`**:
+     - Line 8–606: 3-Layer top-down portfolio allocator (Layer 1 Market Budgets across 16 global markets, Layer 2 Regime/Decoupling overlays, Layer 3 Kelly/HRP with Precision Conviction Alpha Sizing $w_i \propto \alpha_i^\gamma / \sigma_i^2$).
 
-1. **Fixed 60-Day Filing Lag**:
-   - `trading_system/src/data_layer/earnings_data.py` (L74): `result['date_available'] = (fin.index + pd.Timedelta(days=60)).strftime('%Y-%m-%d')` enforces a static 60-day lag on synchronous fundamental fetch.
-   - `trading_system/src/data_layer/earnings_data.py` (L239): `"date_available": (dt + pd.Timedelta(days=60)).strftime('%Y-%m-%d')` enforces a static 60-day lag on asynchronous fundamental fetch.
-   - `trading_system/src/ai/prediction_model.py` (L1009, L1024): `df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=60)` applies static 60-day lag when merging fundamentals onto prices.
-   - `trading_system/run_pipeline.py` (L2645, L2957): Static 60-day lag applied during RIM input preparation and ARM factor calculation.
-   - *Observation Detail*: The 60-day lag causes a 15–20 day unnecessary delay for Korean quarterly reports (statutory deadline: 45 days) and US quarterly 10-Q filings (statutory deadline: 40 days for accelerated/large accelerated filers). Furthermore, when real-time disclosure dates (`filing_date` or `rcept_dt`) exist, they are ignored in favor of the static 60-day offset.
-
-2. **Naive Random Sampling in Training Data Preparation**:
-   - `trading_system/run_pipeline.py` (L1504–1519):
-     ```python
-     def _safe_sample(population, k):
-         if k >= len(population):
-             return list(population)
-         return random.sample(population, k)
-     train_krx_overall = _safe_sample(active_krx_symbols, krx_sample) if active_krx_symbols else []
-     train_us_overall = _safe_sample(active_us_symbols, sp500_sample) if active_us_symbols else []
-     ```
-   - *Observation Detail*: `random.sample()` selects tickers with uniform probability. Because small-caps outnumber large-caps by ~5:1, random sampling underrepresents mega/large caps and frequently produces sector imbalances (e.g. over-concentrating in technology and starving financial/industrial sectors).
-
-3. **Fake BENCHMARK Pair Injection in Statistical Arbitrage**:
-   - `trading_system/run_pipeline.py` (L1972–1997):
-     ```python
-     if not stat_arb_pairs:
-         # Continuous fallback: calculate 20-day MA Z-score deviation for all symbols
-         for sym, df_p in infer_data_dict.items():
-             ...
-             stat_arb_pairs.append({
-                 'pair': (sym, 'BENCHMARK'),
-                 'z_score': round(float(z), 2),
-                 'correlation': 0.85,
-                 'beta': 1.0,
-                 'signal': f'LONG_{sym}_SHORT_BENCHMARK' if z <= -2.0 else (f'SHORT_{sym}_LONG_BENCHMARK' if z >= 2.0 else 'NEUTRAL'),
-                 'market': mkt
-             })
-     ```
-   - `trading_system/src/core/stat_arb.py` (L635–640): Leftover special cases checking `s2 == "BENCHMARK"`.
-   - *Observation Detail*: When no statistically valid cointegrated pairs exist (e.g. in trending markets), this fallback manufactures fake benchmark pairs with hardcoded correlation 0.85 and beta 1.0 based on simple 20-day moving averages. This pollutes `stat_arb_predictions.txt` and distorts ensemble scoring.
+2. **Test Suite Verification Results**:
+   - Executed test suites via `$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe`:
+     - `tests/test_black_litterman.py`: 9 passed.
+     - `tests/test_portfolio_allocator.py`: 13 passed.
+     - `tests/test_unified_portfolio_engine.py`: 25 passed.
+     - `tests/test_advanced_ensemble_features.py`: 10 passed.
+     - `tests/test_regime_ensemble.py`: 12 passed.
+     - `tests/test_adversarial_ensemble_scorer_challenger.py`: 7 passed.
+   - Total verified passing tests in survey run: **76 tests passed, 0 failures, 0 errors (100% pass rate)**.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Dynamic Filing Lag Rationale**:
-   - *Step 1*: South Korea's Capital Markets Act mandates quarterly filing within 45 days. US SEC Form 10-Q mandates filing within 40 days for accelerated/large accelerated filers.
-   - *Step 2*: Replacing the static 60-day lag with 45d (KRX) and 40d (US) aligns the model with legal disclosure deadlines, accelerating earnings momentum recognition by 15–20 days.
-   - *Step 3*: When an authentic public filing date (`filing_date`, `rcept_dt`) is available and confirmed to be $\le \text{as\_of\_date}$, setting $\text{date\_available} = \text{filing\_date}$ immediately incorporates earnings data into the causal time series.
-   - *Step 4*: The existing `pd.merge_asof(..., direction='backward')` structure guarantees zero lookahead bias because fundamentals are merged strictly up to each trading date.
-
-2. **Stratified Sampling Rationale**:
-   - *Step 1*: Training on a representative cross-section of the market is essential for cross-sectional normalization (`apply_market_normalization`) and model generalization across market regimes.
-   - *Step 2*: Grouping the universe by `(Market, Sector, Market-Cap Quantile)` partitions the universe into homogeneous sub-populations.
-   - *Step 3*: Allocating sample quotas proportionally to strata sizes ($k_{s,q} \propto |S_{s,q}|$) ensures that large, mid, and small caps across all economic sectors are reliably represented in the training set in every run.
-   - *Step 4*: Seeding the sampling guarantees deterministic reproducibility for backtesting and production stability.
-
-3. **Fake BENCHMARK Pair Elimination Rationale**:
-   - *Step 1*: Statistical arbitrage relies on the stationarity of price residuals ($p < 0.05$ Engle-Granger ADF test, OU half-life $< 40$ days).
-   - *Step 2*: A single stock's 20-day moving average Z-score is a trend/momentum indicator, not cointegration. Packaging it as a cointegrated pair with hardcoded correlation 0.85 and beta 1.0 is statistically invalid.
-   - *Step 3*: When no pairs pass cointegration tests, returning 0 pairs is the statistically honest outcome.
-   - *Step 4*: Under Requirement R1's dynamic weight re-normalization, an empty `stat_arb_df` naturally receives 0% weight, and the remaining active strategies are re-normalized to 100%, completely avoiding ensemble skew without fabricating dummy data.
+1. **R2 Investigation Step 1 — Signal Ingestion & Normalization**:
+   - `EnsembleScoringEngine.combine_predictions()` ingests 31 raw strategy predictions.
+   - Raw scores have differing scales and variance. `CrossSectionalScoreNormalizer` standardizes scores cross-sectionally per market/region without destroying NaNs or distorting zero-inflated sparse signals.
+2. **R2 Investigation Step 2 — Orthogonalization & Redundancy Suppression**:
+   - Highly correlated signals (e.g. VCP ML and Surge) risk over-weighting collinear momentum.
+   - `FactorOrthogonalizerEngine` decorrelates signals via PCA-ZCA whitening / Modified Gram-Schmidt, and `RegimeFactorSuppressionEngine` applies VIF penalties / single-stage entropy rebalancing.
+3. **R2 Investigation Step 3 — 2D/3D Regime Dynamic Weighting & Synergy Boosting**:
+   - GMM and macro rules classify the market into 6 2D regimes and 5 3D macro states.
+   - Regime base weights are applied, and multi-factor confluence triggers super-linear convex synergy boosts (up to 1.100x for 4-pillar confirmation).
+4. **R2 Investigation Step 4 — Microstructure Friction Cost Deduction**:
+   - Vectorized cost model charges sell-side STT, SEC fees, dynamic spread, and Kyle market impact, amortized across holding horizon ($\sqrt{20/h}$) to produce `ensemble_expected_return`.
+5. **R3 Investigation Step 1 — Covariance Conditioning & Denoising**:
+   - Historical returns are conditioned via Ledoit-Wolf shrinkage, RMT Marchenko-Pastur spectral truncation, and lower-tail Clayton copula stress.
+6. **R3 Investigation Step 2 — Asset Allocation & Optimization**:
+   - Return-Tilted HRP (R-HRP), Black-Litterman with regime-adaptive view uncertainty $\Omega$, Rockafellar-Uryasev EVT-CVaR budgeting, and Fractional Kelly sizing calculate optimal weights.
+7. **R3 Investigation Step 3 — Churn Suppression & OMS Execution**:
+   - Leland dynamic no-trade buffer bands suppress sub-threshold rebalancing friction while ensuring immediate fills on new entries and full liquidations.
 
 ---
 
 ## 3. Caveats
 
-1. **Market Metadata Availability**: In offline mode or synthetic tests where sector or market cap is not populated in `universe`, stratified sampling must gracefully fall back to market-only or uniform stratification without raising exceptions.
-2. **Backward Compatibility with Existing Tests**: Tests asserting fundamental alignment (e.g. `test_fundamental_prediction_adversarial.py`) test chronological forward-filling. The 40d/45d window retains exact backward compatibility while reducing latency.
-3. **Empty Stat-Arb Result**: Downstream report generators and text formatters must cleanly output `Total cointegrated pairs found: 0` without KeyError or division-by-zero errors when `stat_arb_pairs` is empty.
+1. **New Strategy Engine Dependencies**:
+   - The survey assumes the 3 new high-alpha strategy engines from R1 (*Cross-Asset Spillover Momentum*, *Supply Chain GNN*, *Intraday Volatility Breakout*) will output scores strictly bounded in $[0.0, 1.0]$.
+2. **Read-Only Explorer Scope**:
+   - In accordance with explorer role constraints, no production files were modified. All findings, gaps, and extension blueprints are documented in `survey_report.md`.
 
 ---
 
 ## 4. Conclusion
 
-All three components of Requirement R2 are fully analyzed and architected:
-1. **Dynamic Filing Lag**: Implement `get_filing_lag_days(market, symbol)` (KRX 45d, US 40d) with immediate `filing_date` override across `earnings_data.py`, `prediction_model.py`, and `run_pipeline.py`.
-2. **Stratified Sampling**: Implement `stratified_sample_symbols(universe, sample_size, market, seed)` in `prediction_model.py` and replace `random.sample()` in `run_pipeline.py`.
-3. **Total Fake Pair Removal**: Delete lines 1972–1997 in `run_pipeline.py` and clean up `src/core/stat_arb.py`, letting `EnsembleScoringEngine` handle zero/sparse pairs via dynamic weight re-normalization.
+- **Current State**: R2 (Ensemble & Regime) and R3 (Portfolio Optimization) are architecturally complete, institutional-grade, and supported by a robust 100% passing test suite.
+- **Identified Action Items for Implementation Phase**:
+  1. Register the 3 new R1 strategy engines into `ALPHA_HORIZON_TIERS`, `REGIME_WEIGHTS`, `REGIME_2D_WEIGHTS`, `MACRO_WEIGHT_MODIFIERS`, `strategy_cols`, and `STRATEGY_SCORE_COLS`.
+  2. Maintain strict $1.000$ weight sum invariants across all 6 2D regimes and 3 1D regimes.
+  3. Ensure seamless alignment between `PortfolioAllocator` and `position_sizing.py` in `run_pipeline.py`.
+  4. Enforce Leland No-Trade Buffer Band gating in OMS order dispatch.
 
 ---
 
 ## 5. Verification Method
 
-1. **Unit Test Suite Execution**:
-   ```bash
-   .venv/Scripts/pytest tests/ -v
-   ```
-2. **Dedicated Unit Tests to Implement**:
-   - `test_dynamic_filing_lag_krx_vs_us`: Verify 45d lag for KOSPI/KOSDAQ and 40d lag for SP500/NASDAQ/RUSSELL2000.
-   - `test_dynamic_filing_lag_explicit_override`: Verify `filing_date` immediately takes precedence.
-   - `test_stratified_sampling_distribution`: Verify all market/sector/market-cap strata are represented proportionally.
-   - `test_stat_arb_zero_fake_benchmark_pairs`: Verify 0 fake pairs are generated when input prices are uncorrelated random walks.
-3. **Pipeline Verification**:
-   - Run pipeline in test/demo mode and inspect `stat_arb_predictions.txt` to confirm no `(sym, 'BENCHMARK')` pairs appear.
+To independently verify the test suite and survey findings:
+
+```powershell
+# Set PYTHONPATH and execute targeted test suites
+$env:PYTHONPATH="trading_system;trading_system/src;."
+.venv\Scripts\pytest.exe tests/test_black_litterman.py tests/test_portfolio_allocator.py tests/test_unified_portfolio_engine.py tests/test_advanced_ensemble_features.py tests/test_regime_ensemble.py tests/test_adversarial_ensemble_scorer_challenger.py -v
+```
+
+All 76 tests will execute cleanly and pass with 100% success.

@@ -57,3 +57,48 @@ Integrity mode: development
 - [ ] `generate_report.py`를 통한 GitHub Pages 대시보드(`gh-pages/index.html`)가 오류 없이 정상 생성될 것.
 - [ ] 워크포워드 백테스트 결과가 베이스라인 대비 향상된 위험조정 수익률(Sharpe $\ge 1.50$)을 기록할 것.
 
+## 2026-08-30T13:27:09Z
+
+한국(KOSPI, KOSDAQ) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 작동하는 31대 전략 다변화 앙상블 및 자율 트레이딩 시스템에 대해 전방위 고알파 확장 및 수익률 극대화(Alpha & Return Maximization)를 수행합니다. 신규 고알파 시그널 엔진 추가, 앙상블 메타러너·동적 레짐 가중치 고도화, 포트폴리오 자산배분 최적화, 그리고 OMS 정밀 진입/청산 타이밍 엔진을 파이프라인 전반에 완결 구현합니다.
+
+Working directory: d:/Finance/code/stock
+Integrity mode: development
+
+## Requirements
+
+### R1. 신규 고알파 특화 전략 엔진 구현 및 전략 레지스트리 통합
+- **Cross-Asset Spillover Momentum**: 글로벌 매크로(환율, 금리, 유가, 원자재, VIX 선물 기간구조) 및 해외 선행 지수의 단기 온기 전이와 섹터별 수급 선행성 알파 모델링.
+- **Supply Chain GNN & Sector Flow Dynamics**: 공급망 연결망 및 업종 내 선도 대형주와 후행 중소형주 간의 시차 모멘텀을 그래프 전파(GNN/네트워크 전파) 방식으로 수치화.
+- **Intraday Volatility & Range Expansion Breakout**: 변동성 압축(NR7, Bollinger Squeeze) 후 거래량 급증을 동반한 상방 돌파 확률 및 모멘텀 지속성 모델링.
+- 구현된 모든 신규 엔진은 `BaseStrategyEngine` 표준 규격을 준수하고 `StrategyRegistry`에 자동 등록되어 독립 점수 및 앙상블 피처로 정상 연동되어야 함.
+
+### R2. 앙상블 메타러너 및 동적 2D/3D 레짐 가중치 고도화
+- 31대(+신규) 전략 시그널에 대해 횡단면 정규화(`CrossSectionalScoreNormalizer`)를 적용하고, 전략 간 공선성을 억제하면서 다중 알파의 비선형 상호작용(Synergy Boost)을 극대화하는 메타러너 및 직교화 결합 최적화.
+- 6대 레짐(BULL_LOW_VOL, BULL_HIGH_VOL, SIDEWAYS_LOW_VOL, SIDEWAYS_HIGH_VOL, BEAR_LOW_VOL, BEAR_HIGH_VOL) 및 매크로 위기 국면별 알파 가중치 적응형 리밸런싱.
+
+### R3. 포트폴리오 최적화(HRP / Black-Litterman / EVT-CVaR) 및 순기대수익률 정밀 산출
+- 미시구조 거래비용(STT, SEC fee, Bid-Ask 스프레드, Kyle/Almgren-Chriss 시장 충격비용)을 정밀 차감한 순기대수익률(Net Alpha) 기반 포트폴리오 비중 최적화.
+- Ledoit-Wolf 공분산 축소, HRP, Black-Litterman, 연속형 켈리(Fractional Kelly) 및 EVT-CVaR 꼬리위험 예산 기반의 자산배분기 통합 연동.
+
+### R4. OMS 정밀 진입·청산 타이밍 엔진 및 파이프라인 전반 연계
+- Confluence Entry(다중 시계열 합치 진입), 3단계 Scale-In 분할 매수 피라미딩, 4-Tier 다단계 트레일링 스탑(손익분기 스탑 → Chandelier ATR → KAMA 러너 → 50MA), 신호 고갈(Signal Exhaustion) 및 수급 충격(Order Flow Shock) 조기 퇴출 엔진을 `run_pipeline.py` 및 OMS 주문 생성 로직에 완결 연계.
+
+### R5. 테스트 무결성 검증 및 파이프라인 자동화
+- 기존 및 신규 테스트 스위트 전수 실행(1,790+ 테스트) 100% 통과 확인.
+- `run_pipeline.py` E2E 정상 동작 및 GitHub Actions `Daily Pipeline` 연동 보장.
+
+## Acceptance Criteria
+
+### Strategy & Factor Quality
+- [ ] 신규 전략 엔진이 독립 `.py` 파일로 구현되고 `StrategyRegistry`에 등록되어 파이프라인 실행 시 유효한 전략 예측값(`*_score`)을 생성함.
+- [ ] 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`)와 호환되며 [0.0, 1.0] 범위로 정밀 매핑됨.
+
+### Ensemble & Execution Integration
+- [ ] 앙상블 스코어러(`EnsembleScoringEngine`)에서 신규 전략 가중치가 레짐별로 반영되고, CLT 스코어 압축 없이 순기대수익률 상위 100개 종목이 정상 도출됨.
+- [ ] OMS 주문 계획 생성 시 Confluence Score, 분할 매수 계획, 다단계 트레일링 스탑 플랜이 각 주문에 정확히 부여됨.
+
+### Verification & Automated Testing
+- [ ] `$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/` 실행 시 모든 단위/통합 테스트가 실패 없이 통과함.
+- [ ] 파이프라인 실행 스크립트가 에러 없이 완료되고 결과물(`ensemble_predictions.txt`, `strategy_data_coverage_report.txt`, 대시보드 리포트 등)이 정상 생성됨.
+
+

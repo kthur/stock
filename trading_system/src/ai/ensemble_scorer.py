@@ -86,7 +86,7 @@ class WeightsStateDict(dict):
 
 class EnsembleScoringEngine:
     """
-    Ensembles 31 multi-factor strategy predictions across 3 horizon tiers
+    Ensembles 34 multi-factor strategy predictions across 3 horizon tiers
     using 2D regime matrix weights, factor orthogonalization (PCA-ZCA & Gram-Schmidt),
     and dynamic exponential Sharpe weighting.
     """
@@ -102,28 +102,30 @@ class EnsembleScoringEngine:
             'vcp_rule', 'vcp_ml', 'surge', 'lead_lag', 'stat_arb', 'sector_rotation',
             'lstm', 'sentiment', 'inst_foreign_sector', 'supply_chain',
             'gamma_squeeze', 'short_squeeze', 'insider_buying', 'trend_efficiency', 'event_driven',
+            'cross_asset_spillover', 'supply_chain_gnn',
         ],
         'fast': [
             'microstructure', 'order_flow', 'short_term_reversal', 'darkpool',
+            'range_expansion_breakout',
         ],
     }
     TIER_WEIGHTS = {'slow': 0.50, 'medium': 0.35, 'fast': 0.15}
 
     # Dynamic Weight Configuration per 1D Market Regime (0: BEAR, 1: SIDEWAYS, 2: BULL)
-    # Dynamic Weight Configuration per 1D Market Regime (30 Strategies)
+    # Dynamic Weight Configuration per 1D Market Regime (34 Strategies, sum strictly = 1.00)
     REGIME_WEIGHTS = {
         0: {  # BEAR (Defensive) — sum = 1.00
-            'regression': 0.11,
+            'regression': 0.10,
             'surge': 0.01,
             'lead_lag': 0.02,
             'vcp_rule': 0.01,
             'vcp_ml': 0.01,
             'lstm': 0.02,
-            'stat_arb': 0.07,
+            'stat_arb': 0.06,
             'sector_rotation': 0.03,
-            'rim_valuation': 0.08,
+            'rim_valuation': 0.07,
             'event_driven': 0.03,
-            'mq_factor': 0.05,
+            'mq_factor': 0.04,
             'iv_skew': 0.03,
             'order_flow': 0.02,
             'short_term_reversal': 0.04,
@@ -144,14 +146,17 @@ class EnsembleScoringEngine:
             'insider_buying': 0.02,
             'darkpool': 0.02,
             'earnings_tone_drift': 0.02,
+            'cross_asset_spillover': 0.02,
+            'supply_chain_gnn': 0.01,
+            'range_expansion_breakout': 0.01,
         },
         1: {  # SIDEWAYS (Rotation) — sum = 1.00
-            'regression': 0.05,
+            'regression': 0.04,
             'surge': 0.02,
             'lead_lag': 0.03,
             'vcp_rule': 0.02,
             'vcp_ml': 0.03,
-            'lstm': 0.04,
+            'lstm': 0.03,
             'stat_arb': 0.07,
             'sector_rotation': 0.04,
             'rim_valuation': 0.04,
@@ -159,10 +164,10 @@ class EnsembleScoringEngine:
             'mq_factor': 0.04,
             'iv_skew': 0.02,
             'order_flow': 0.03,
-            'short_term_reversal': 0.03,
-            'arm_factor': 0.04,
-            'card_factor': 0.04,
-            'latr_factor': 0.04,
+            'short_term_reversal': 0.04,
+            'arm_factor': 0.03,
+            'card_factor': 0.03,
+            'latr_factor': 0.03,
             'inst_foreign_sector': 0.04,
             'supply_chain': 0.01,
             'sentiment': 0.03,
@@ -177,55 +182,60 @@ class EnsembleScoringEngine:
             'insider_buying': 0.03,
             'darkpool': 0.03,
             'earnings_tone_drift': 0.02,
+            'cross_asset_spillover': 0.02,
+            'supply_chain_gnn': 0.02,
+            'range_expansion_breakout': 0.02,
         },
         2: {  # BULL (Aggressive) — sum = 1.00
             'regression': 0.03,
-            'surge': 0.07,
+            'surge': 0.06,
             'lead_lag': 0.02,
             'vcp_rule': 0.02,
-            'vcp_ml': 0.06,
+            'vcp_ml': 0.05,
             'lstm': 0.04,
             'stat_arb': 0.02,
             'sector_rotation': 0.04,
             'rim_valuation': 0.03,
-            'event_driven': 0.05,
+            'event_driven': 0.04,
             'mq_factor': 0.04,
             'iv_skew': 0.02,
             'order_flow': 0.03,
             'short_term_reversal': 0.02,
-            'arm_factor': 0.04,
+            'arm_factor': 0.03,
             'card_factor': 0.03,
             'latr_factor': 0.03,
-            'inst_foreign_sector': 0.05,
+            'inst_foreign_sector': 0.04,
             'supply_chain': 0.03,
             'sentiment': 0.03,
             'factor_neutralized': 0.03,
             'vol_target': 0.02,
             'microstructure': 0.03,
             'accruals_quality': 0.01,
-            'short_squeeze': 0.04,
+            'short_squeeze': 0.03,
             'valueup_catalyst': 0.01,
-            'trend_efficiency': 0.04,
-            'gamma_squeeze': 0.04,
+            'trend_efficiency': 0.03,
+            'gamma_squeeze': 0.03,
             'insider_buying': 0.03,
             'darkpool': 0.03,
             'earnings_tone_drift': 0.02,
+            'cross_asset_spillover': 0.02,
+            'supply_chain_gnn': 0.03,
+            'range_expansion_breakout': 0.03,
         }
     }
 
-    # 2D Market Regime Matrix Weights (6 Combo States across 30 Strategies)
-    # C-4 Fix: All regimes normalized to sum = 1.00 after zeroing 6 faked strategies
+    # 2D Market Regime Matrix Weights (6 Combo States across 34 Strategies, sum strictly = 1.00)
     REGIME_2D_WEIGHTS = {
         'BEAR_LOW_VOL': {  # sum = 1.00
-            'regression': 0.09,
+            'regression': 0.08,
             'surge': 0.01,
             'lead_lag': 0.03,
             'vcp_rule': 0.02,
             'vcp_ml': 0.02,
             'lstm': 0.03,
-            'stat_arb': 0.07,
+            'stat_arb': 0.06,
             'sector_rotation': 0.03,
-            'rim_valuation': 0.08,
+            'rim_valuation': 0.07,
             'event_driven': 0.03,
             'mq_factor': 0.04,
             'iv_skew': 0.02,
@@ -238,7 +248,7 @@ class EnsembleScoringEngine:
             'supply_chain': 0.02,
             'sentiment': 0.03,
             'factor_neutralized': 0.04,
-            'vol_target': 0.05,
+            'vol_target': 0.04,
             'microstructure': 0.01,
             'accruals_quality': 0.04,
             'short_squeeze': 0.01,
@@ -248,17 +258,20 @@ class EnsembleScoringEngine:
             'insider_buying': 0.03,
             'darkpool': 0.01,
             'earnings_tone_drift': 0.02,
+            'cross_asset_spillover': 0.02,
+            'supply_chain_gnn': 0.01,
+            'range_expansion_breakout': 0.01,
         },
         'BEAR_HIGH_VOL': {  # sum = 1.00
-            'regression': 0.09,
+            'regression': 0.08,
             'surge': 0.01,
             'lead_lag': 0.02,
             'vcp_rule': 0.01,
             'vcp_ml': 0.02,
             'lstm': 0.03,
-            'stat_arb': 0.09,
+            'stat_arb': 0.08,
             'sector_rotation': 0.03,
-            'rim_valuation': 0.08,
+            'rim_valuation': 0.07,
             'event_driven': 0.03,
             'mq_factor': 0.03,
             'iv_skew': 0.03,
@@ -271,7 +284,7 @@ class EnsembleScoringEngine:
             'supply_chain': 0.01,
             'sentiment': 0.03,
             'factor_neutralized': 0.03,
-            'vol_target': 0.07,
+            'vol_target': 0.06,
             'microstructure': 0.01,
             'accruals_quality': 0.04,
             'short_squeeze': 0.01,
@@ -281,25 +294,28 @@ class EnsembleScoringEngine:
             'insider_buying': 0.03,
             'darkpool': 0.01,
             'earnings_tone_drift': 0.01,
+            'cross_asset_spillover': 0.02,
+            'supply_chain_gnn': 0.01,
+            'range_expansion_breakout': 0.01,
         },
         'SIDEWAYS_LOW_VOL': {  # sum = 1.00
-            'regression': 0.05,
+            'regression': 0.04,
             'surge': 0.03,
             'lead_lag': 0.03,
             'vcp_rule': 0.03,
             'vcp_ml': 0.04,
-            'lstm': 0.04,
-            'stat_arb': 0.06,
+            'lstm': 0.03,
+            'stat_arb': 0.05,
             'sector_rotation': 0.03,
             'rim_valuation': 0.04,
             'event_driven': 0.04,
             'mq_factor': 0.04,
             'iv_skew': 0.01,
-            'order_flow': 0.04,
+            'order_flow': 0.03,
             'short_term_reversal': 0.04,
             'arm_factor': 0.02,
-            'card_factor': 0.04,
-            'latr_factor': 0.04,
+            'card_factor': 0.03,
+            'latr_factor': 0.03,
             'inst_foreign_sector': 0.04,
             'supply_chain': 0.02,
             'sentiment': 0.04,
@@ -314,26 +330,29 @@ class EnsembleScoringEngine:
             'insider_buying': 0.02,
             'darkpool': 0.02,
             'earnings_tone_drift': 0.02,
+            'cross_asset_spillover': 0.02,
+            'supply_chain_gnn': 0.02,
+            'range_expansion_breakout': 0.02,
         },
         'SIDEWAYS_HIGH_VOL': {  # sum = 1.00
-            'regression': 0.05,
+            'regression': 0.04,
             'surge': 0.03,
             'lead_lag': 0.03,
             'vcp_rule': 0.03,
             'vcp_ml': 0.04,
-            'lstm': 0.04,
-            'stat_arb': 0.06,
+            'lstm': 0.03,
+            'stat_arb': 0.05,
             'sector_rotation': 0.04,
             'rim_valuation': 0.04,
             'event_driven': 0.04,
             'mq_factor': 0.04,
             'iv_skew': 0.02,
-            'order_flow': 0.04,
+            'order_flow': 0.03,
             'short_term_reversal': 0.03,
             'arm_factor': 0.02,
             'card_factor': 0.03,
-            'latr_factor': 0.04,
-            'inst_foreign_sector': 0.04,
+            'latr_factor': 0.03,
+            'inst_foreign_sector': 0.03,
             'supply_chain': 0.02,
             'sentiment': 0.04,
             'factor_neutralized': 0.04,
@@ -347,46 +366,16 @@ class EnsembleScoringEngine:
             'insider_buying': 0.02,
             'darkpool': 0.02,
             'earnings_tone_drift': 0.02,
+            'cross_asset_spillover': 0.02,
+            'supply_chain_gnn': 0.02,
+            'range_expansion_breakout': 0.02,
         },
         'BULL_LOW_VOL': {  # sum = 1.00
             'regression': 0.04,
-            'surge': 0.06,
+            'surge': 0.05,
             'lead_lag': 0.03,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.05,
-            'lstm': 0.04,
-            'stat_arb': 0.03,
-            'sector_rotation': 0.05,
-            'rim_valuation': 0.03,
-            'event_driven': 0.04,
-            'mq_factor': 0.04,
-            'iv_skew': 0.01,
-            'order_flow': 0.04,
-            'short_term_reversal': 0.03,
-            'arm_factor': 0.03,
-            'card_factor': 0.03,
-            'latr_factor': 0.03,
-            'inst_foreign_sector': 0.04,
-            'supply_chain': 0.04,
-            'sentiment': 0.04,
-            'factor_neutralized': 0.04,
-            'vol_target': 0.02,
-            'microstructure': 0.02,
-            'accruals_quality': 0.02,
-            'short_squeeze': 0.02,
-            'valueup_catalyst': 0.02,
-            'trend_efficiency': 0.04,
-            'gamma_squeeze': 0.02,
-            'insider_buying': 0.03,
-            'darkpool': 0.02,
-            'earnings_tone_drift': 0.02,
-        },
-        'BULL_HIGH_VOL': {  # sum = 1.00
-            'regression': 0.04,
-            'surge': 0.07,
-            'lead_lag': 0.03,
-            'vcp_rule': 0.03,
-            'vcp_ml': 0.05,
+            'vcp_ml': 0.04,
             'lstm': 0.04,
             'stat_arb': 0.03,
             'sector_rotation': 0.04,
@@ -394,14 +383,50 @@ class EnsembleScoringEngine:
             'event_driven': 0.04,
             'mq_factor': 0.04,
             'iv_skew': 0.01,
-            'order_flow': 0.04,
+            'order_flow': 0.03,
             'short_term_reversal': 0.03,
-            'arm_factor': 0.02,
+            'arm_factor': 0.03,
             'card_factor': 0.03,
             'latr_factor': 0.03,
             'inst_foreign_sector': 0.04,
             'supply_chain': 0.03,
-            'sentiment': 0.04,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.02,
+            'microstructure': 0.02,
+            'accruals_quality': 0.02,
+            'short_squeeze': 0.02,
+            'valueup_catalyst': 0.02,
+            'trend_efficiency': 0.03,
+            'gamma_squeeze': 0.02,
+            'insider_buying': 0.03,
+            'darkpool': 0.02,
+            'earnings_tone_drift': 0.02,
+            'cross_asset_spillover': 0.02,
+            'supply_chain_gnn': 0.03,
+            'range_expansion_breakout': 0.03,
+        },
+        'BULL_HIGH_VOL': {  # sum = 1.00
+            'regression': 0.03,
+            'surge': 0.06,
+            'lead_lag': 0.03,
+            'vcp_rule': 0.03,
+            'vcp_ml': 0.04,
+            'lstm': 0.04,
+            'stat_arb': 0.03,
+            'sector_rotation': 0.03,
+            'rim_valuation': 0.03,
+            'event_driven': 0.03,
+            'mq_factor': 0.04,
+            'iv_skew': 0.01,
+            'order_flow': 0.03,
+            'short_term_reversal': 0.03,
+            'arm_factor': 0.02,
+            'card_factor': 0.03,
+            'latr_factor': 0.03,
+            'inst_foreign_sector': 0.03,
+            'supply_chain': 0.03,
+            'sentiment': 0.03,
             'factor_neutralized': 0.03,
             'vol_target': 0.02,
             'microstructure': 0.03,
@@ -413,6 +438,9 @@ class EnsembleScoringEngine:
             'insider_buying': 0.03,
             'darkpool': 0.03,
             'earnings_tone_drift': 0.02,
+            'cross_asset_spillover': 0.02,
+            'supply_chain_gnn': 0.03,
+            'range_expansion_breakout': 0.03,
         }
     }
 
@@ -424,16 +452,21 @@ class EnsembleScoringEngine:
             'stat_arb': +0.10,
             'vcp_rule': +0.05,
             'vol_target': +0.05,        # 유동성 경색 시 변동성 타게팅 방어 강화
+            'cross_asset_spillover': +0.04,  # 유동성 이탈/괴리 시 크로스에셋 전이 신호
             'surge': -0.10,
             'sector_rotation': -0.05,
             'short_squeeze': -0.03,     # 유동성 경색 시 숏스퀴즈 기회 감소
             'supply_chain': -0.02,
+            'range_expansion_breakout': -0.03,  # 유동성 경색 시 돌파 실패율 증가
         },
         'HIGH_YIELD_BULL': {
             'sector_rotation': +0.10,
             'surge': +0.05,
             'supply_chain': +0.03,      # 업종 연쇄 온기 전이 가속
+            'supply_chain_gnn': +0.04,  # 공급망 네트워크 전이 가속
             'trend_efficiency': +0.05,  # 강세장 추세 효율성 부스트
+            'range_expansion_breakout': +0.04,  # 고수익 강세장 돌파 모멘텀 증폭
+            'cross_asset_spillover': +0.02,
             'lead_lag': -0.10,
             'stat_arb': -0.05,
         },
@@ -441,9 +474,11 @@ class EnsembleScoringEngine:
             'regression': +0.10,
             'stat_arb': +0.10,
             'accruals_quality': +0.04,  # 신용 위험 확대기 회계 품질 필터 강화
+            'cross_asset_spillover': +0.03,  # 크로스에셋 금리/신용 위험 전이 방어
             'surge': -0.15,
             'vcp_ml': -0.05,
             'trend_efficiency': -0.04,  # 하락 고수익 채권 국면 추세 전략 억제
+            'range_expansion_breakout': -0.04,
         },
         # ① 인플레이션 충격 (유가 + USD/KRW 환율 동시 상승): 국내 제조업 원가 이중 압박
         # MQ Factor(영업이익률/ROE 저하) 가중치 하향, RIM Valuation(안전마진) + Stat-Arb(시장 중립) 상향
@@ -454,6 +489,7 @@ class EnsembleScoringEngine:
             'stat_arb': +0.06,
             'accruals_quality': +0.04,  # 원가 압박 시 현금흐름 품질 필터
             'valueup_catalyst': +0.03,  # 저평가 방어주(PBR<1) 선호
+            'cross_asset_spillover': +0.05,  # 원자재/환율 충격의 업종별 전이 모멘텀 포착
         },
         # ② 장단기 금리 역전 (US10Y < US5Y): 6~18개월 내 경기침체 선행 신호
         # 공격적 모멘텀 전략 축소, 가치평가(RIM) + 평균회귀(Stat-Arb) + 단기반전 방어
@@ -464,10 +500,12 @@ class EnsembleScoringEngine:
             'short_term_reversal': +0.04,
             'accruals_quality': +0.05,  # 침체 선행 신호: 회계 품질 최강화
             'valueup_catalyst': +0.03,  # 저평가 방어 포지션
+            'cross_asset_spillover': +0.03,  # 금리 곡선 역전 매크로 전이
             'surge': -0.12,
             'vcp_ml': -0.07,
             'sector_rotation': -0.07,
             'trend_efficiency': -0.03,  # 금리 역전 시 추세 전략 축소
+            'range_expansion_breakout': -0.03,
         }
     }
 
@@ -489,7 +527,7 @@ class EnsembleScoringEngine:
         self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric')
         self.orthogonalizer_enabled = True
         self.score_normalizer = CrossSectionalScoreNormalizer(method='percentile_rank')
-        self._dsr_validator = DeflatedSharpeRatioValidator(n_strategies=31, n_horizons=8) if DeflatedSharpeRatioValidator is not None else None
+        self._dsr_validator = DeflatedSharpeRatioValidator(n_strategies=34, n_horizons=8) if DeflatedSharpeRatioValidator is not None else None
 
         # Milestone 4: Slippage execution feedback attributes
         self.slippage_metrics: Optional[Any] = None
@@ -1371,6 +1409,10 @@ class EnsembleScoringEngine:
                                  insider_buying_df: Optional[pd.DataFrame] = None,
                                  darkpool_df: Optional[pd.DataFrame] = None,
                                  earnings_tone_drift_df: Optional[pd.DataFrame] = None,
+                                 cross_asset_spillover_df: Optional[pd.DataFrame] = None,
+                                 supply_chain_gnn_df: Optional[pd.DataFrame] = None,
+                                 range_expansion_df: Optional[pd.DataFrame] = None,
+                                 range_expansion_breakout_df: Optional[pd.DataFrame] = None,
                                  rolling_sharpes: Optional[Dict[str, float]] = None,
                                  sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                                  target_horizon: int = 20,
@@ -1382,7 +1424,7 @@ class EnsembleScoringEngine:
                                  dual_regimes: Optional[Dict[str, Any]] = None,
                                  prices_dict: Optional[Dict[str, pd.DataFrame]] = None) -> pd.DataFrame:
         """
-        Calculates 31-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
+        Calculates 34-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
         Supports dual market regime weighting for US (SP500/NASDAQ/RUSSELL2000) and KR (KOSPI/KOSDAQ).
         """
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
@@ -1403,11 +1445,11 @@ class EnsembleScoringEngine:
         # Apply Decoupling Alpha Tilts if active
         if eff_decoupling == 'DECOUPLING_US_BULL_KR_BEAR':
             # US Bull: amplify momentum & breakout
-            for st in ['surge', 'vcp_ml', 'trend_efficiency', 'gamma_squeeze']:
+            for st in ['surge', 'vcp_ml', 'trend_efficiency', 'gamma_squeeze', 'range_expansion_breakout']:
                 if st in us_weights:
                     us_weights[st] += 0.015
             # KR Bear: amplify defensive valuation, foreign flow, supply chain & reversal
-            for st in ['rim_valuation', 'valueup_catalyst', 'order_flow', 'supply_chain', 'short_term_reversal']:
+            for st in ['rim_valuation', 'valueup_catalyst', 'order_flow', 'supply_chain', 'supply_chain_gnn', 'cross_asset_spillover', 'short_term_reversal']:
                 if st in kr_weights:
                     kr_weights[st] += 0.015
 
@@ -1420,11 +1462,11 @@ class EnsembleScoringEngine:
 
         elif eff_decoupling == 'DECOUPLING_KR_BULL_US_BEAR':
             # KR Bull: amplify sector rotation & valueup
-            for st in ['sector_rotation', 'valueup_catalyst', 'mq_factor']:
+            for st in ['sector_rotation', 'valueup_catalyst', 'mq_factor', 'supply_chain_gnn']:
                 if st in kr_weights:
                     kr_weights[st] += 0.02
             # US Bear: amplify factor neutralized & vol targeting
-            for st in ['factor_neutralized', 'vol_target', 'stat_arb']:
+            for st in ['factor_neutralized', 'vol_target', 'stat_arb', 'cross_asset_spillover']:
                 if st in us_weights:
                     us_weights[st] += 0.02
 
@@ -1472,6 +1514,10 @@ class EnsembleScoringEngine:
             insider_buying_df=insider_buying_df,
             darkpool_df=darkpool_df,
             earnings_tone_drift_df=earnings_tone_drift_df,
+            cross_asset_spillover_df=cross_asset_spillover_df,
+            supply_chain_gnn_df=supply_chain_gnn_df,
+            range_expansion_df=range_expansion_df if range_expansion_df is not None else range_expansion_breakout_df,
+            range_expansion_breakout_df=range_expansion_breakout_df if range_expansion_breakout_df is not None else range_expansion_df,
             weights=us_weights,
             us_weights=us_weights,
             kr_weights=kr_weights,
@@ -1518,6 +1564,10 @@ class EnsembleScoringEngine:
                             insider_buying_df: Optional[pd.DataFrame] = None,
                             darkpool_df: Optional[pd.DataFrame] = None,
                             earnings_tone_drift_df: Optional[pd.DataFrame] = None,
+                            cross_asset_spillover_df: Optional[pd.DataFrame] = None,
+                            supply_chain_gnn_df: Optional[pd.DataFrame] = None,
+                            range_expansion_df: Optional[pd.DataFrame] = None,
+                            range_expansion_breakout_df: Optional[pd.DataFrame] = None,
                             weights: Optional[Dict[str, float]] = None,
                             us_weights: Optional[Dict[str, float]] = None,
                             kr_weights: Optional[Dict[str, float]] = None,
@@ -1531,7 +1581,7 @@ class EnsembleScoringEngine:
                             prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
                             **kwargs) -> pd.DataFrame:
         """
-        Merges 31 strategy prediction DataFrames and computes weighted ensemble score.
+        Merges 34 strategy prediction DataFrames and computes weighted ensemble score.
         """
         regime = kwargs.get('regime_label', regime)
         us_regime = kwargs.get('us_regime_label', us_regime)
@@ -1615,6 +1665,20 @@ class EnsembleScoringEngine:
                 darkpool_df = reg_df[['symbol', 'darkpool_score']].copy()
             if (earnings_tone_drift_df is None or earnings_tone_drift_df.empty) and 'earnings_tone_drift_score' in reg_df.columns:
                 earnings_tone_drift_df = reg_df[['symbol', 'earnings_tone_drift_score']].copy()
+            if (cross_asset_spillover_df is None or cross_asset_spillover_df.empty):
+                if 'cross_asset_spillover_score' in reg_df.columns:
+                    cross_asset_spillover_df = reg_df[['symbol', 'cross_asset_spillover_score']].copy()
+                elif 'cross_asset_score' in reg_df.columns:
+                    cross_asset_spillover_df = reg_df[['symbol', 'cross_asset_score']].copy()
+            if (supply_chain_gnn_df is None or supply_chain_gnn_df.empty) and 'supply_chain_gnn_score' in reg_df.columns:
+                supply_chain_gnn_df = reg_df[['symbol', 'supply_chain_gnn_score']].copy()
+            if (range_expansion_df is None or range_expansion_df.empty) and (range_expansion_breakout_df is None or range_expansion_breakout_df.empty):
+                if 'range_expansion_score' in reg_df.columns:
+                    range_expansion_df = reg_df[['symbol', 'range_expansion_score']].copy()
+                elif 'range_expansion_breakout_score' in reg_df.columns:
+                    range_expansion_df = reg_df[['symbol', 'range_expansion_breakout_score']].copy()
+                elif 'breakout_score' in reg_df.columns:
+                    range_expansion_df = reg_df[['symbol', 'breakout_score']].copy()
 
         META_COLS = ['name', 'market', 'close', 'expected_return', 'expected_return_20d', 'win_rate', 'win_rate_20d']
 
@@ -2082,11 +2146,56 @@ class EnsembleScoringEngine:
         else:
             etd_df = pd.DataFrame(columns=['symbol', 'earnings_tone_drift_score'])
 
-        # Combine all 31 strategy DataFrames efficiently while preserving metadata
+        # 32. Strategy 32: Cross-Asset Spillover Momentum Engine
+        if cross_asset_spillover_df is not None and not cross_asset_spillover_df.empty:
+            cas_df = cross_asset_spillover_df.copy()
+            num_cols = [c for c in cas_df.columns if c != 'symbol' and c not in META_COLS]
+            cas_col = 'cross_asset_spillover_score' if 'cross_asset_spillover_score' in cas_df.columns else ('cross_asset_score' if 'cross_asset_score' in cas_df.columns else (num_cols[-1] if num_cols else cas_df.columns[-1]))
+            meta_cols = [c for c in META_COLS if c in cas_df.columns]
+            cas_df = cas_df[['symbol'] + meta_cols + [cas_col]].rename(columns={cas_col: 'cross_asset_spillover_score'})
+            if cas_df['cross_asset_spillover_score'].max() > 1.0:
+                cas_df['cross_asset_spillover_score'] = cas_df['cross_asset_spillover_score'] / 100.0
+            cas_df['cross_asset_spillover_score'] = cas_df['cross_asset_spillover_score'].clip(0.0, 1.0)
+        else:
+            cas_df = pd.DataFrame(columns=['symbol', 'cross_asset_spillover_score'])
+
+        # 33. Strategy 33: Supply Chain GNN & Sector Flow Engine
+        if supply_chain_gnn_df is not None and not supply_chain_gnn_df.empty:
+            scg_df = supply_chain_gnn_df.copy()
+            num_cols = [c for c in scg_df.columns if c != 'symbol' and c not in META_COLS]
+            scg_col = 'supply_chain_gnn_score' if 'supply_chain_gnn_score' in scg_df.columns else (num_cols[-1] if num_cols else scg_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in scg_df.columns]
+            scg_df = scg_df[['symbol'] + meta_cols + [scg_col]].rename(columns={scg_col: 'supply_chain_gnn_score'})
+            if scg_df['supply_chain_gnn_score'].max() > 1.0:
+                scg_df['supply_chain_gnn_score'] = scg_df['supply_chain_gnn_score'] / 100.0
+            scg_df['supply_chain_gnn_score'] = scg_df['supply_chain_gnn_score'].clip(0.0, 1.0)
+        else:
+            scg_df = pd.DataFrame(columns=['symbol', 'supply_chain_gnn_score'])
+
+        # 34. Strategy 34: Intraday Volatility & Range Expansion Breakout Engine
+        reb_input = range_expansion_df if range_expansion_df is not None else range_expansion_breakout_df
+        if reb_input is not None and not reb_input.empty:
+            reb_df = reb_input.copy()
+            num_cols = [c for c in reb_df.columns if c != 'symbol' and c not in META_COLS]
+            reb_col = 'range_expansion_score' if 'range_expansion_score' in reb_df.columns else ('range_expansion_breakout_score' if 'range_expansion_breakout_score' in reb_df.columns else ('breakout_score' if 'breakout_score' in reb_df.columns else (num_cols[-1] if num_cols else reb_df.columns[-1])))
+            meta_cols = [c for c in META_COLS if c in reb_df.columns]
+            reb_df = reb_df[['symbol'] + meta_cols + [reb_col]].rename(columns={reb_col: 'range_expansion_score'})
+            if reb_df['range_expansion_score'].max() > 1.0:
+                reb_df['range_expansion_score'] = reb_df['range_expansion_score'] / 100.0
+            reb_df['range_expansion_score'] = reb_df['range_expansion_score'].clip(0.0, 1.0)
+        else:
+            reb_df = pd.DataFrame(columns=['symbol', 'range_expansion_score'])
+
+        # Combine all 34 strategy DataFrames efficiently while preserving metadata
         if scores_df is not None and not scores_df.empty:
             merged = scores_df.copy()
         else:
-            dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df, micro_df, aq_df, sq_df, vu_df, te_df, gs_df, ib_df, dp_df, etd_df]
+            dfs = [
+                reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df,
+                m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df,
+                micro_df, aq_df, sq_df, vu_df, te_df, gs_df, ib_df, dp_df, etd_df,
+                cas_df, scg_df, reb_df
+            ]
             valid_dfs = []
             for d in dfs:
                 if d is not None and not d.empty and 'symbol' in d.columns:
@@ -2136,6 +2245,9 @@ class EnsembleScoringEngine:
             ('insider_buying', 'insider_buying_score'),
             ('darkpool', 'darkpool_score'),
             ('earnings_tone_drift', 'earnings_tone_drift_score'),
+            ('cross_asset_spillover', 'cross_asset_spillover_score'),
+            ('supply_chain_gnn', 'supply_chain_gnn_score'),
+            ('range_expansion_breakout', 'range_expansion_score'),
         ]
 
         # Phase 3-Pre: Apply Isotonic / Platt Probability Calibration to raw scores if calibrators are fitted
@@ -2416,6 +2528,10 @@ class EnsembleScoringEngine:
                     has_mom = has_mom | merged['surge_score'].ge(0.60)
                 if 'vcp_ml_score' in merged.columns:
                     has_mom = has_mom | merged['vcp_ml_score'].ge(0.60)
+                if 'range_expansion_score' in merged.columns:
+                    has_mom = has_mom | merged['range_expansion_score'].ge(0.60)
+                if 'cross_asset_spillover_score' in merged.columns:
+                    has_mom = has_mom | merged['cross_asset_spillover_score'].ge(0.60)
 
                 has_flow = pd.Series(False, index=merged.index)
                 if 'order_flow_score' in merged.columns:
@@ -2424,10 +2540,14 @@ class EnsembleScoringEngine:
                     has_flow = has_flow | merged['inst_foreign_sector_score'].ge(0.60)
                 if 'darkpool_score' in merged.columns:
                     has_flow = has_flow | merged['darkpool_score'].ge(0.60)
+                if 'cross_asset_spillover_score' in merged.columns:
+                    has_flow = has_flow | merged['cross_asset_spillover_score'].ge(0.60)
 
                 has_cat = pd.Series(False, index=merged.index)
                 if 'supply_chain_score' in merged.columns:
                     has_cat = has_cat | merged['supply_chain_score'].ge(0.60)
+                if 'supply_chain_gnn_score' in merged.columns:
+                    has_cat = has_cat | merged['supply_chain_gnn_score'].ge(0.60)
                 if 'event_score' in merged.columns:
                     has_cat = has_cat | merged['event_score'].ge(0.60)
                 if 'sentiment_score' in merged.columns:
@@ -3020,6 +3140,12 @@ class EnsembleScoringEngine:
         "valueup_catalyst": 60.0,
         "tone_drift": 60.0,
         "earnings_tone_drift": 60.0,
+        "cross_asset_spillover": 5.0,
+        "cross_asset": 5.0,
+        "supply_chain_gnn": 7.0,
+        "range_expansion_breakout": 1.5,
+        "range_expansion": 1.5,
+        "intraday_breakout": 1.5,
     }
 
     @classmethod
@@ -3059,7 +3185,11 @@ class EnsembleScoringEngine:
                 'vol_target_score': 'vol_target', 'microstructure_score': 'microstructure', 'accruals_quality_score': 'accruals_quality',
                 'short_squeeze_score': 'short_squeeze', 'valueup_catalyst_score': 'value_up', 'trend_efficiency_score': 'trend_efficiency',
                 'gamma_squeeze_score': 'gamma_squeeze', 'insider_buying_score': 'insider_buying', 'darkpool_score': 'darkpool_hft',
-                'earnings_tone_drift_score': 'tone_drift'
+                'earnings_tone_drift_score': 'tone_drift',
+                'cross_asset_spillover_score': 'cross_asset_spillover', 'cross_asset_score': 'cross_asset_spillover',
+                'supply_chain_gnn_score': 'supply_chain_gnn',
+                'range_expansion_score': 'range_expansion_breakout', 'range_expansion_breakout_score': 'range_expansion_breakout',
+                'breakout_score': 'range_expansion_breakout',
             }
 
             for col in curr_indexed.columns:

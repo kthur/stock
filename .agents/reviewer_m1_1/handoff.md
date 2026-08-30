@@ -1,64 +1,43 @@
-# Review & Adversarial Quality Report — Milestone 1 (Requirement R1: 31-Strategy Score Normalization, 0.50 Purge, Dynamic Weight Re-normalization)
+# Handoff Report: Milestone 1 Review
 
 ## 1. Observation
-1. **Source Code Audited**:
-   - `trading_system/src/ai/score_normalizer.py` (lines 1–148):
-     - Implemented `CrossSectionalScoreNormalizer` supporting `percentile_rank` (mapping via $((\text{rank} - 0.5) / N)$ to $[0.005, 0.995]$ with median $0.50$ and uniform standard deviation $\approx 0.2887$) and `winsorized_zscore` (Gaussian CDF $\Phi(z)$ via `scipy.special.erf` with 1st/99th percentile winsorization and MAD-based robust scaling with sample std fallback when $\text{MAD} = 0$).
-     - Preserves `np.nan` strictly for missing strategy inputs without filling fake baseline constants.
-     - Supports per-market partitioning (`KOSPI`, `KOSDAQ`, `SP500`, `NASDAQ`, `RUSSELL2000`) and falls back to regional/global when sub-group size $< 10$.
-   - `trading_system/src/ai/ensemble_scorer.py`:
-     - Phase 3-A (lines 1890–1896): Integrates `self.score_normalizer.normalize_scores(df=merged, strategy_cols=strategy_score_cols, market_col='market')` for cross-sections ($N \ge 5$).
-     - Dynamic Available-Factor Re-normalization (lines 2012–2023):
-       ```python
-       valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
-       clean_score = np.where(valid_mask, merged[score_col], 0.0)
-       total_score_series += clean_score * w_series
-       total_weight_series += w_series * valid_mask.astype(float)
-       valid_count_series += valid_mask.astype(float)
-       safe_weight_series = total_weight_series.replace(0.0, np.nan)
-       linear_score = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
-       ```
-       Guarantees active weights $\tilde{w}_{i,k} = \frac{m_{i,k} w_k^{(i)}}{\sum_j m_{i,j} w_j^{(i)}}$ sum to exactly $1.0$ per ticker.
-     - Tier alpha score decomposition (lines 2048–2085): Missing strategy tiers return `np.nan` and only valid present tiers are weighted.
-   - Strategy Engines Audited for 0.50 Purge:
-     - `trading_system/src/core/accruals_quality.py` (lines 84, 146): Returns `np.nan` when fundamentals are absent or `accrual_ratio` is invalid.
-     - `trading_system/src/core/valueup_catalyst.py` (lines 140, 155): Returns `np.nan` when PBR / financial data is missing.
-     - `trading_system/src/core/short_interest_squeeze.py` (lines 122, 144): Returns `np.nan` when short metrics and price data are missing.
-     - `trading_system/src/core/trend_efficiency.py` (lines 88, 98, 150): Returns `np.nan` when price history $< 21$ bars.
-     - `trading_system/src/core/insider_buying.py` (lines 78, 124): Defaults to `np.nan` for tickers without insider disclosure filings.
-     - `trading_system/src/core/earnings_tone_drift.py` (lines 97, 118): Defaults to `np.nan` for tickers without earnings call transcripts.
-     - `trading_system/src/core/iv_skew.py` (lines 51, 88, 108, 166): Returns `np.nan` when option chains or 20-day prices are missing.
-   - Pipeline Orchestration:
-     - `trading_system/run_pipeline.py` (lines 2769–2770, 3259): `_save_strategy_predictions_report` drops NaNs cleanly (`dropna(subset=[score_col])`) instead of `fillna(0.5)`; Strategy 31 returns an empty DataFrame when microstructure data is unavailable.
-2. **Test Execution Results**:
-   - Command: `.venv/Scripts/python.exe -m pytest tests/test_score_normalizer.py tests/test_r1_ensemble_regime_fixes.py tests/test_adversarial_ensemble_scorer_challenger.py tests/test_regime_ensemble.py -v`
-   - Result: 47 passed, 1 warning in 42.30s (100% PASS).
-   - Command: `.venv/Scripts/python.exe -m pytest tests/test_score_normalizer.py -v`
-   - Result: 14 passed in 38.54s (100% PASS).
-3. **Integrity Audit**:
-   - No hardcoded test fixtures, dummy facade classes, or fake test returns detected.
-   - All normalizations and dynamic weights are computed through valid mathematical operators.
+- **Reviewed Code Files**:
+  1. `trading_system/src/core/cross_asset_spillover.py`:
+     - Defines `CrossAssetSpilloverEngine(BaseStrategyEngine)` decorated with `@register_strategy(StrategyMeta(...))`.
+     - Calculates sector sensitivity vectors across 8 global macro factors (`sox`, `usdkrw`, `tnx`, `wti`, `gold`, `dxy`, `vix`, `sp500`), computes macro impulse $I_i(t)$, evaluates lead-lag gap $\Delta \text{Spillover}_i(t) = I_i(t) - 0.70 R_{i, \text{eff}}(t)$, and applies continuous logistic mapping safely bounded in $[0.05, 0.95]$.
+  2. `trading_system/src/core/supply_chain_gnn.py`:
+     - Defines `SupplyChainGNNEngine(BaseStrategyEngine)` decorated with `@register_strategy(StrategyMeta(...))`.
+     - Constructs relational value chain graph across semiconductors, EV/battery, defense, power grid, shipbuilding, bio CDMO, and automotive OEM sectors.
+     - Implements 2-hop message passing with asymmetric Bullwhip transform ($1.35\times$ downside / $0.85\times$ upside) and sector liquidity flow acceleration, safely bounded in $[0.05, 0.95]$ with isolated node fallback.
+  3. `trading_system/src/core/range_expansion_breakout.py`:
+     - Defines `RangeExpansionBreakoutEngine(BaseStrategyEngine)` decorated with `@register_strategy(StrategyMeta(...))`.
+     - Detects compression precursors (NR7, Bollinger Bandwidth squeeze, inside days), explosive range expansion ($\text{REF}_t \ge 1.5\times$ ATR), relative volume surge ($\text{RVOL}_t \ge 1.8\times$), close location value ($\text{CLV}_t \ge 0.65$), and 20-day high breakout confirmation, safely bounded in $[0.05, 0.95]$.
+  4. `trading_system/src/core/strategy_registry.py`:
+     - Added `"src.core.cross_asset_spillover"`, `"src.core.supply_chain_gnn"`, `"src.core.range_expansion_breakout"` to `core_modules` in `StrategyRegistry.auto_discover()`.
+  5. `tests/test_r1_high_alpha_strategies.py`:
+     - Contains 10 unit and integration test methods validating metadata, inheritance, math logic, fallbacks, bounds, and ensemble dynamic weight integration.
+- **Verification Execution**:
+  - Ran `$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/test_phase5_registry.py tests/test_r1_high_alpha_strategies.py -v`: 15 passed, 0 failed in 23.08s.
+  - Ran `$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/test_all_16_markets_31_strategies.py -v`: 9 passed, 0 failed in 26.52s.
 
 ## 2. Logic Chain
-- Step 1 (Observation 1 & 2): Heterogeneous alpha signals have different scales (e.g. raw XGBoost returns $\sim 0.05$ vs. unbounded Z-scores vs. probabilities in $[0, 1]$). `CrossSectionalScoreNormalizer` maps valid observations to uniform percentile ranks in $[0.005, 0.995]$ with mean $0.50$ and std $\approx 0.2887$, eliminating variance dominance while preserving rank order.
-- Step 2 (Observation 1): In `CrossSectionalScoreNormalizer._normalize_matrix`, `np.nan` values are masked out of rank calculations and left unchanged as `np.nan`.
-- Step 3 (Observation 1): In `EnsembleScoringEngine.combine_predictions`, the mask $m_{i,k} = \mathbf{1}_{\{X_{i,k} \neq \text{NaN}\}}$ tracks availability. The effective score is $\text{Score}_i = \frac{\sum_k m_{i,k} X_{i,k} w_k}{\sum_k m_{i,k} w_k}$, which strictly normalizes active weights to $1.0$ without deflating scores for stocks lacking US-specific or disclosure-specific strategies.
-- Step 4 (Observation 1 & 2): All 7 strategy engines now output `np.nan` when required inputs are missing, and `test_accruals_quality_returns_nan_on_missing_fundamentals`, `test_valueup_catalyst_returns_nan_on_missing_data`, `test_short_interest_squeeze_returns_nan_on_missing_data`, `test_trend_efficiency_returns_nan_on_insufficient_prices`, `test_insider_buying_returns_nan_on_missing_filings`, `test_earnings_tone_drift_returns_nan_on_missing_transcripts`, and `test_iv_skew_returns_nan_on_missing_data` all pass with 100% success.
-- Step 5 (Adversarial stress-testing):
-  - Constant inputs / zero variance: `method='average'` in ranking assigns $0.50$ to ties without division by zero.
-  - Zero MAD in Winsorized Z-score: Falls back to sample standard deviation, preventing infinite Z-scores.
-  - Single observation: Assigns neutral midpoint $0.50$ without crash.
+1. All 3 strategy engines inherit from `BaseStrategyEngine` and implement `compute_scores` conforming to the abstract method signature, returning `ScoreDataFrame` indexed by symbol.
+2. The registration mechanism via `@register_strategy(StrategyMeta(...))` coupled with `StrategyRegistry.auto_discover()` enables dynamic detection by `EnsembleScoringEngine` and `StrategyCoverageAnalyzer`.
+3. Mathematical models are genuine and well-formulated without shortcuts, facades, or hardcoded dummy values.
+4. Exception handling and boundary clipping to $[0.05, 0.95]$ ensure robustness against corrupt or missing market data.
+5. All unit and integration test assertions passed without error.
 
 ## 3. Caveats
-- No caveats. All changes are backward compatible with existing pipelines and test suites.
+- `CrossAssetSpilloverEngine` requires macro indicators for full cross-asset impulse calculation; when macro indicators are missing or empty, it degrades gracefully to standard return momentum.
+- The global value chain graph in `SupplyChainGNNEngine` uses a curated set of key multi-market leaders and suppliers; additional custom edges can be injected via `custom_edges` if needed.
 
 ## 4. Conclusion
-Milestone 1 (Requirement R1: 31-Strategy Score Normalization, 0.50 Purge, Dynamic Weight Re-normalization) meets all acceptance criteria, preserves mathematical invariants, and introduces zero integrity violations or regressions.
-**Explicit Verdict: APPROVE**
+Milestone 1 satisfies all requirements set forth in `ORIGINAL_REQUEST.md` (R1) and `PROJECT.md`. The implementation is high quality, robust, and verified.
+**Verdict**: **APPROVE**.
 
 ## 5. Verification Method
-To independently replicate verification:
-```bash
-.venv/Scripts/python.exe -m pytest tests/test_score_normalizer.py tests/test_r1_ensemble_regime_fixes.py tests/test_adversarial_ensemble_scorer_challenger.py tests/test_regime_ensemble.py -v
+Execute the following verification command:
+```powershell
+$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/test_phase5_registry.py tests/test_r1_high_alpha_strategies.py -v
 ```
-Expected output: 47 passed, 0 failed.
+Invalidation condition: Any test failure in `tests/test_r1_high_alpha_strategies.py` or `tests/test_phase5_registry.py`.

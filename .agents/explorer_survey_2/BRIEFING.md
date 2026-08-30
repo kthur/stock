@@ -1,38 +1,39 @@
-# BRIEFING — 2026-08-22T15:12:10+09:00
+# BRIEFING — 2026-08-30T13:32:50Z
 
 ## Mission
-Comprehensive Survey & Technical Investigation of Requirement R2 (Dynamic Market Filing Lag, Stratified Sampling in prepare_training_data, Elimination of Fake BENCHMARK Pairs in Stat-Arb).
+Survey and deep-dive investigate R2 (Ensemble & Dynamic Regime Weighting) and R3 (Portfolio Optimization & Microstructure Cost Models) to assess current state, architecture, code implementations, gaps, and required enhancements.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: investigation, synthesis
+- Roles: investigator, synthesizer
 - Working directory: d:\Finance\code\stock\.agents\explorer_survey_2
-- Original parent: 97d406ca-67f8-4f8e-8e84-d697799e3ddd
-- Milestone: survey_r2
+- Original parent: 0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e
+- Milestone: survey_r2_r3
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement changes in src/ or tests/
-- Write all findings to .agents/explorer_survey_2/
-- Follow 5-component handoff protocol
-- Keep BRIEFING.md under ~100 lines
+- Read-only investigation — do NOT implement production changes
+- Write all findings to `survey_report.md` and self-contained `handoff.md`
+- Always use Python from `.venv\Scripts\python.exe` if running commands/tests
 
 ## Current Parent
-- Conversation ID: 97d406ca-67f8-4f8e-8e84-d697799e3ddd
-- Updated: not yet
+- Conversation ID: 0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e
+- Updated: 2026-08-30T13:32:50Z
 
 ## Investigation State
-- **Explored paths**: `src/data_layer/earnings_data.py`, `src/ai/prediction_model.py`, `src/core/stat_arb.py`, `trading_system/run_pipeline.py`, `tests/`
-- **Key findings**:
-  1. Static 60-day lag identified at L74, L239 in `earnings_data.py`, L1009, L1024 in `prediction_model.py`, L2645, L2957 in `run_pipeline.py`. Designed KRX 45d, US 40d, and explicit `filing_date` override.
-  2. Naive `random.sample()` at L1507 in `run_pipeline.py` identified. Designed Market × Sector × Market-Cap Quantile stratified sampling.
-  3. Fake `(sym, 'BENCHMARK')` fallback injection at L1972-1997 in `run_pipeline.py` and L635-640 in `stat_arb.py` identified. Designed clean removal and dynamic weight re-normalization in `EnsembleScoringEngine`.
-- **Unexplored areas**: None.
+- **Explored paths**:
+  - `ORIGINAL_REQUEST.md`, `AGENTS.md`
+  - `trading_system/src/ai/ensemble_scorer.py`, `score_normalizer.py`, `factor_orthogonalizer.py`, `factor_suppression.py`, `meta_ensemble_learner.py`
+  - `trading_system/src/analysis/portfolio_optimizer.py`, `regime_detector.py`
+  - `trading_system/src/risk/portfolio_allocator.py`, `position_sizing.py`, `risk_manager.py`, `portfolio_optimizer.py`
+  - `trading_system/run_pipeline.py`
+  - `tests/test_black_litterman.py`, `tests/test_portfolio_allocator.py`, `tests/test_unified_portfolio_engine.py`, `tests/test_advanced_ensemble_features.py`, `tests/test_regime_ensemble.py`, `tests/test_adversarial_ensemble_scorer_challenger.py`
+- **Key findings**: Full codebase audit and test suite execution completed (76 unit/integration tests passing 100%). Gaps and extension blueprints identified for R2 and R3.
+- **Unexplored areas**: None for R2/R3 survey scope.
 
 ## Key Decisions Made
-- Completed thorough codebase audit and synthesized comprehensive report in `survey_r2.md` and `handoff.md`.
+- Generated comprehensive `survey_report.md` detailing mathematical formulations, architectural flows, and code integration points.
+- Generated self-contained 5-component `handoff.md`.
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\explorer_survey_2\DISPATCH.md — Dispatch log
-- d:\Finance\code\stock\.agents\explorer_survey_2\progress.md — Liveness heartbeat
-- d:\Finance\code\stock\.agents\explorer_survey_2\survey_r2.md — Comprehensive Survey Report
-- d:\Finance\code\stock\.agents\explorer_survey_2\handoff.md — 5-Component Handoff Report
+- `d:\Finance\code\stock\.agents\explorer_survey_2\survey_report.md` — Detailed survey report on R2 & R3
+- `d:\Finance\code\stock\.agents\explorer_survey_2\handoff.md` — Self-contained 5-component handoff report

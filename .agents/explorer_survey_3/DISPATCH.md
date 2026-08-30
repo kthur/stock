@@ -1,17 +1,20 @@
-## 2026-08-22T06:06:47Z
+## 2026-08-30T13:28:15Z
 
-TASK: Comprehensive Survey & Technical Investigation of Requirements R3 & R4:
-1. Global `socket.setdefaulttimeout(5)` Removal:
-   - Find all occurrences of `socket.setdefaulttimeout(5)` or global socket timeout modifications in `src/`, `trading_system/`, etc.
-   - Design localized adaptive timeouts and exponential backoff retry for `yfinance`, `FRED`, `ECOS`, and other external data sources.
-2. `FallbackMetadataDict` NaN Defense:
-   - Locate `FallbackMetadataDict` and investigate metadata lookups for invalid/delisted/unmatched tickers.
-   - Design defensive filtering against NaN propagation downstream into models and calculations.
-3. VIX Term Structure & Change-Rate Buffering in Crisis Detection:
-   - Investigate `src/risk/risk_manager.py`, `CrisisDetector`, and VIX override gating logic.
-   - Design VIX term structure (e.g. spot vs 3M/futures or historical slope) and change-rate buffering so market recovery momentum is not unnecessarily suppressed.
-4. R4 Baseline Test Suite Inspection:
-   - Inspect existing test suite in `tests/` (1,124+ tests). Note existing tests for R1, R2, R3 components. Check how `.venv/Scripts/python.exe -m pytest tests/ -v` behaves and identify potential edge case test gaps.
-5. Identify all affected source files, exact functions, data models, and test files in `tests/`.
-6. Produce a detailed investigation report at `d:\Finance\code\stock\.agents\explorer_survey_3\survey_r3_r4.md` and your `handoff.md`.
-Communicate your completion via send_message to your parent.
+You are teamwork_preview_explorer surveying R4 (OMS Precision Timing) and R5 (Test Suite & Pipeline Execution).
+Your working directory is: d:\Finance\code\stock\.agents\explorer_survey_3
+Authoritative Original Request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Project Rules: d:\Finance\code\stock\AGENTS.md
+
+Task:
+1. Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md and AGENTS.md.
+2. Investigate the codebase under d:\Finance\code\stock\src\execution\, d:\Finance\code\stock\trading_system\run_pipeline.py, and .github/workflows/.
+3. Investigate OMS execution, order generation, and precision timing engines:
+   - Confluence Entry
+   - 3-tier Scale-In Pyramiding
+   - 4-tier Trailing Stop
+   - Signal Exhaustion
+   - Order Flow Shock
+4. Investigate current tests/ directory: number of test files, total test count, pytest configuration, execution command `$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/ -v`, and current passing status.
+5. Identify integration touchpoints in run_pipeline.py and OMS order generation.
+6. Write your comprehensive findings to d:\Finance\code\stock\.agents\explorer_survey_3\survey_report.md and create a self-contained handoff report at d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md.
+7. Send a message to parent when complete.

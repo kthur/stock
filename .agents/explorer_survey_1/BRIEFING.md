@@ -1,58 +1,46 @@
-# BRIEFING — 2026-08-22T06:11:50Z
+# BRIEFING — 2026-08-30T13:32:50Z
 
 ## Mission
-Comprehensive Survey & Technical Investigation of Requirement R1: 31-Strategy Score Scale Normalization and Missing Strategy Signal Zero-Weighting & Re-normalization.
+Survey R1 (Strategy Engines & Infrastructure) to analyze existing 31 strategies architecture, check BaseStrategyEngine/StrategyRegistry status, investigate 3 new high-alpha strategy requirements, exact signatures, dependencies, registration points, and test requirements.
 
 ## 🔒 My Identity
-- Archetype: Teamwork explorer
-- Roles: survey, analysis, synthesis
+- Archetype: explorer
+- Roles: investigation, synthesis
 - Working directory: d:\Finance\code\stock\.agents\explorer_survey_1
-- Original parent: 97d406ca-67f8-4f8e-8e84-d697799e3ddd
-- Milestone: Survey R1
+- Original parent: 0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e
+- Milestone: R1 Strategy Engines & Infrastructure Survey
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
-- Analyze all 31 strategies score scales, normalization, missing value handling, orthogonalization, suppression, ensemble scoring
-- Deliver comprehensive report at survey_r1.md and handoff.md
+- Base all findings on direct code inspection and project documents
+- Follow 5-component handoff report standard
 
 ## Current Parent
-- Conversation ID: 97d406ca-67f8-4f8e-8e84-d697799e3ddd
-- Updated: 2026-08-22T06:11:50Z
+- Conversation ID: 0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e
+- Updated: 2026-08-30T13:32:50Z
 
 ## Investigation State
 - **Explored paths**:
-  - `ORIGINAL_REQUEST.md` & `AGENTS.md`
-  - `trading_system/src/ai/ensemble_scorer.py`
-  - `trading_system/src/ai/factor_orthogonalizer.py`
-  - `trading_system/src/ai/factor_suppression.py`
-  - `trading_system/src/ai/correlation_monitor.py`
-  - `trading_system/src/core/rim_valuation.py`
-  - `trading_system/src/core/stat_arb.py`
-  - `trading_system/src/core/accruals_quality.py`
-  - `trading_system/src/core/valueup_catalyst.py`
-  - `trading_system/src/core/short_interest_squeeze.py`
-  - `trading_system/src/core/trend_efficiency.py`
-  - `trading_system/src/core/gamma_squeeze.py`
-  - `trading_system/src/core/insider_buying.py`
-  - `trading_system/src/core/earnings_tone_drift.py`
-  - `trading_system/src/core/iv_skew.py`
-  - `trading_system/run_pipeline.py`
-  - `tests/test_factor_momentum_and_available_normalization.py`
-  - `tests/test_factor_orthogonalization.py`
+  - `d:\Finance\code\stock\ORIGINAL_REQUEST.md` & `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
+  - `trading_system/src/core/base_strategy.py` (`BaseStrategyEngine`, `ScoreDataFrame`)
+  - `trading_system/src/core/strategy_registry.py` (`StrategyRegistry`, `StrategyMeta`, auto-discovery)
+  - `trading_system/src/ai/ensemble_scorer.py` (`REGIME_2D_WEIGHTS`, `strategy_cols`, score calculation)
+  - `trading_system/run_pipeline.py` (parallel execution, report saving, score aggregation)
+  - `trading_system/src/analysis/coverage_analyzer.py` (dynamic registry integration)
+  - `trading_system/src/ai/score_normalizer.py` (CrossSectionalScoreNormalizer)
+  - `tests/test_phase5_registry.py`, `tests/test_all_16_markets_31_strategies.py`, etc.
 - **Key findings**:
-  - Identified all 31 strategy native output formats and clipping mechanisms.
-  - Identified severe variance/scale mismatch (Regression clipped at 20x vs Surge mean 0.08).
-  - Identified 8+ modules injecting artificial `0.50` default values which prevent missing signal zero-weighting.
-  - Designed `CrossSectionalScoreNormalizer` with both Percentile Rank $U(0, 1)$ and Winsorized Gaussian CDF $\Phi(Z) \in [0, 1]$.
-  - Formulated strict missing signal zero-weighting $\tilde{w}_{i,k} = m_{i,k} w_k / \sum m_{i,j} w_j$.
-- **Unexplored areas**: None for R1 survey.
+  - `BaseStrategyEngine` and `StrategyRegistry` are fully operational.
+  - Complete architecture, mathematical formulations, exact signatures, input/output schemas, and integration points for the 3 new high-alpha strategies (`CrossAssetSpilloverEngine`, `SupplyChainGNNEngine`, `RangeExpansionBreakoutEngine`) have been detailed in `survey_report.md`.
+- **Unexplored areas**: None for R1 survey scope.
 
 ## Key Decisions Made
-- Completed technical survey and architectural design report at `survey_r1.md`.
-- Completed 5-component handoff report at `handoff.md`.
+- Fully documented 3 new strategy designs with exact formulas, class interfaces, and integration paths.
+- Authored `survey_report.md` and 5-component `handoff.md`.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\explorer_survey_1\survey_r1.md` — Main R1 survey and design report
+- `d:\Finance\code\stock\.agents\explorer_survey_1\DISPATCH.md` — Dispatch log
+- `d:\Finance\code\stock\.agents\explorer_survey_1\BRIEFING.md` — Situational awareness
+- `d:\Finance\code\stock\.agents\explorer_survey_1\progress.md` — Liveness heartbeat
+- `d:\Finance\code\stock\.agents\explorer_survey_1\survey_report.md` — Comprehensive R1 survey report
 - `d:\Finance\code\stock\.agents\explorer_survey_1\handoff.md` — 5-component handoff report
-- `d:\Finance\code\stock\.agents\explorer_survey_1\progress.md` — Progress tracking
-- `d:\Finance\code\stock\.agents\explorer_survey_1\DISPATCH.md` — Turn dispatch log

@@ -1,54 +1,47 @@
-# BRIEFING — 2026-07-31T19:04:15+09:00
+﻿# BRIEFING — 2026-08-30T14:02:15Z
 
 ## Mission
-Empirically challenge and stress-test `QuadFactorOptimizer` in `src/strategy/quad_factor_optimizer.py`.
+Empirical stress-testing of Milestone 2 (Ensemble Meta-Learner & Dynamic 2D/3D Regime Weighting) with 34 strategies under adversarial conditions.
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: empirical_challenger
 - Roles: critic, specialist
 - Working directory: d:\Finance\code\stock\.agents\challenger_m2_1
-- Original parent: 450b5560-14d4-4158-80b1-57ec805a6db7
-- Milestone: QuadFactorOptimizer Stress Testing
+- Original parent: 0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e
+- Milestone: Milestone 2: Ensemble Meta-Learner & Dynamic 2D/3D Regime Weighting
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Must empirically run test scripts & harnesses using python executable `.venv\Scripts\python.exe`
-- All code/test outputs verified empirically
+- Run build and tests to verify work product, report failures as findings
 
 ## Current Parent
-- Conversation ID: 450b5560-14d4-4158-80b1-57ec805a6db7
-- Updated: 2026-07-31T19:04:15+09:00
+- Conversation ID: 0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e
+- Updated: 2026-08-30T14:02:15Z
 
 ## Review Scope
-- **Files to review**: `src/strategy/quad_factor_optimizer.py`, `trading_system/tests/test_quad_factor_optimizer.py`
-- **Interface contracts**: `AGENTS.md`
-- **Review criteria**: Empirical stress-testing, numerical stability, SLSQP convergence, constraints compliance, fallback tiers
-
-## Attack Surface
-- **Hypotheses tested**:
-  1. Unit tests pass (FAILED: 2 of 6 failed due to infeasible sector caps & post-normalization bug).
-  2. SLSQP handles ill-conditioned & non-PSD covariance matrices (PASSED: robust up to cond 10^14).
-  3. SLSQP handles extreme returns scale (PASSED: robust from 1e-12 to 1e8).
-  4. SLSQP handles collinear factors (PASSED: constant and collinear factors handled).
-  5. Missing symbol handling in factor_df (FAILED: KeyError thrown due to incomplete index check).
-  6. Tier 3 fallback maintains sector caps (FAILED: weights /= w_sum breaches caps).
-- **Vulnerabilities found**:
-  1. Mutually infeasible sector caps when sum of caps < 1.0.
-  2. Post-processing normalization (`weights /= w_sum`) destroys asset & sector bounds.
-  3. Unhandled `KeyError` on missing factor index symbols.
-- **Untested angles**: Execution OMS integration (out of scope).
-
-## Loaded Skills
-- None loaded
+- **Files to review**: 	rading_system/src/ai/ensemble_scorer.py, 	rading_system/src/ai/factor_orthogonalizer.py, 	rading_system/src/ai/meta_ensemble_learner.py
+- **Interface contracts**: PROJECT.md, AGENTS.md
+- **Review criteria**: Mathematical integrity, robustness under singular matrices, [0.0, 1.0] bounds, truth-value safety, weight conservation
 
 ## Key Decisions Made
-- Executed unit tests (`pytest trading_system/tests/test_quad_factor_optimizer.py -v`).
-- Developed and ran `stress_harness.py` and `deep_stress_test.py`.
-- Formulated empirical challenge report in `handoff.md`.
+- Created 16 comprehensive empirical stress tests in 	ests/test_challenger_m2_empirical_stress.py.
+- Found 2 critical defects in 	rading_system/src/ai/ensemble_scorer.py.
+- Verdict: REQUEST_CHANGES.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\challenger_m2_1\ORIGINAL_REQUEST.md` — Original request
-- `d:\Finance\code\stock\.agents\challenger_m2_1\stress_harness.py` — Synthetic stress test harness
-- `d:\Finance\code\stock\.agents\challenger_m2_1\deep_stress_test.py` — Deep stress test harness
-- `d:\Finance\code\stock\.agents\challenger_m2_1\handoff.md` — 5-Component Empirical Challenge Report
+- .agents/challenger_m2_1/DISPATCH.md — Initial dispatch
+- .agents/challenger_m2_1/BRIEFING.md — Working memory and status
+- .agents/challenger_m2_1/progress.md — Liveness and step tracking
+- .agents/challenger_m2_1/handoff.md — 5-section handoff report with explicit verdict REQUEST_CHANGES
+- 	ests/test_challenger_m2_empirical_stress.py — Adversarial stress test suite
+
+## Attack Surface
+- **Hypotheses tested**: Tikhonov regularizer on rank-1 singular covariance matrix, N < K high-dimensional singularity, zero-variance columns, 1D/2D/3D weight conservation, DataFrame truth-value safety, missingness-aware zero weighting.
+- **Vulnerabilities found**:
+  1. 	rading_system/src/ai/ensemble_scorer.py:1519-1520: ange_expansion_df or range_expansion_breakout_df throws ValueError: The truth value of a DataFrame is ambiguous.
+  2. 	rading_system/src/ai/ensemble_scorer.py:153-188: REGIME_WEIGHTS[1] (SIDEWAYS) sums to 0.980, violating the 1.000 weight conservation constraint.
+- **Untested angles**: None.
+
+## Loaded Skills
+- None

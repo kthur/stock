@@ -4,9 +4,9 @@ import pandas as pd
 from src.ai.meta_ensemble_learner import MetaEnsembleLearner, STRATEGY_SCORE_COLS
 
 
-def test_meta_ensemble_learner_31_strategies(tmp_path):
-    """Verify that MetaEnsembleLearner handles all 31 strategy columns and fits/predicts correctly."""
-    assert len(STRATEGY_SCORE_COLS) == 31
+def test_meta_ensemble_learner_strategies(tmp_path):
+    """Verify that MetaEnsembleLearner handles all strategy columns and fits/predicts correctly."""
+    assert len(STRATEGY_SCORE_COLS) >= 31
 
     learner = MetaEnsembleLearner(model_dir=tmp_path)
     assert not learner.is_fitted
@@ -14,7 +14,7 @@ def test_meta_ensemble_learner_31_strategies(tmp_path):
     n_samples = 60
     np.random.seed(42)
 
-    # Generate synthetic scores for all 31 strategies
+    # Generate synthetic scores for all strategies
     data = {col: np.random.uniform(0.1, 0.9, n_samples) for col in STRATEGY_SCORE_COLS}
     df = pd.DataFrame(data)
     target_returns = np.random.uniform(-0.10, 0.25, n_samples)
@@ -27,7 +27,7 @@ def test_meta_ensemble_learner_31_strategies(tmp_path):
     # Fit Ridge
     learner.fit(df, target_returns, alpha=1.0)
     assert learner.is_fitted
-    assert len(learner.weights) == 31
+    assert len(learner.weights) == len(STRATEGY_SCORE_COLS)
 
     preds = learner.predict(df)
     assert len(preds) == n_samples

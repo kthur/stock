@@ -3152,6 +3152,18 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         from src.core.overnight_gap_reversal import OvernightGapReversalEngine
         return OvernightGapReversalEngine(cfg).calculate_scores(symbols_list, prices_dict=infer_data_dict)
 
+    def _eval_cross_asset_spillover() -> pd.DataFrame:
+        from src.core.cross_asset_spillover import CrossAssetSpilloverEngine
+        return CrossAssetSpilloverEngine().compute_scores(prices_dict=infer_data_dict, indicators_df=indicator_infer if 'indicator_infer' in locals() else None)
+
+    def _eval_supply_chain_gnn() -> pd.DataFrame:
+        from src.core.supply_chain_gnn import SupplyChainGNNEngine
+        return SupplyChainGNNEngine().compute_scores(prices_dict=infer_data_dict)
+
+    def _eval_range_expansion_breakout() -> pd.DataFrame:
+        from src.core.range_expansion_breakout import RangeExpansionBreakoutEngine
+        return RangeExpansionBreakoutEngine(cfg).compute_scores(prices_dict=infer_data_dict)
+
     def _eval_lstm() -> pd.DataFrame:
         if hasattr(model, "predict_lstm"):
             return model.predict_lstm(infer_data_dict, horizon=20)
@@ -3186,6 +3198,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         {'key': 'dual_correction', 'fn': _eval_dual_correction, 'col': 'dual_correction_score', 'title': 'Strategy 32: Dual Correction Predictions', 'file': 'dual_correction_predictions.txt', 'hdr': 'Dual Score', 'w': 16},
         {'key': 'index_rebalance', 'fn': _eval_index_rebalance, 'col': 'index_rebalance_score', 'title': 'Strategy 33: Index Rebalance Predictions', 'file': 'index_rebalance_predictions.txt', 'hdr': 'Rebal Score', 'w': 16},
         {'key': 'overnight_gap_reversal', 'fn': _eval_overnight_gap_reversal, 'col': 'overnight_gap_score', 'title': 'Strategy 34: Overnight Gap Reversal Predictions', 'file': 'overnight_gap_predictions.txt', 'hdr': 'Gap Score', 'w': 16},
+        {'key': 'cross_asset_spillover', 'fn': _eval_cross_asset_spillover, 'col': 'cross_asset_spillover_score', 'title': 'Strategy 35: Cross-Asset Spillover Momentum Predictions', 'file': 'cross_asset_spillover_predictions.txt', 'hdr': 'Spillover Score', 'w': 16},
+        {'key': 'supply_chain_gnn', 'fn': _eval_supply_chain_gnn, 'col': 'supply_chain_gnn_score', 'title': 'Strategy 36: Supply Chain GNN & Sector Flow Predictions', 'file': 'supply_chain_gnn_predictions.txt', 'hdr': 'SC GNN Score', 'w': 16},
+        {'key': 'range_expansion_breakout', 'fn': _eval_range_expansion_breakout, 'col': 'range_expansion_score', 'title': 'Strategy 37: Range Expansion Breakout Predictions', 'file': 'range_expansion_predictions.txt', 'hdr': 'Breakout Score', 'w': 16},
         {'key': 'lstm', 'fn': _eval_lstm, 'col': 'lstm_score', 'title': 'Strategy 6: Strict Causal LSTM Predictions', 'file': 'lstm_predictions.txt', 'hdr': 'LSTM Score', 'w': 14},
     ]
 
@@ -3255,6 +3270,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     dual_correction_df = _raw_strat_outputs.get('dual_correction', pd.DataFrame())
     index_rebalance_df = _raw_strat_outputs.get('index_rebalance', pd.DataFrame())
     overnight_gap_df = _raw_strat_outputs.get('overnight_gap_reversal', pd.DataFrame())
+    cross_asset_spillover_df = _raw_strat_outputs.get('cross_asset_spillover', pd.DataFrame())
+    supply_chain_gnn_df = _raw_strat_outputs.get('supply_chain_gnn', pd.DataFrame())
+    range_expansion_breakout_df = _raw_strat_outputs.get('range_expansion_breakout', pd.DataFrame())
     lstm_df_for_ens = _raw_strat_outputs.get('lstm', pd.DataFrame())
 
     # Backfill realized outcomes for previously stored ensemble predictions so that
@@ -3296,7 +3314,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 ('gamma_squeeze', 'gamma_squeeze_score'),
                 ('insider_buying', 'insider_buying_score'),
                 ('darkpool', 'darkpool_score'),
-                ('earnings_tone_drift', 'earnings_tone_drift_score')
+                ('earnings_tone_drift', 'earnings_tone_drift_score'),
+                ('cross_asset_spillover', 'cross_asset_spillover_score'),
+                ('supply_chain_gnn', 'supply_chain_gnn_score'),
+                ('range_expansion_breakout', 'range_expansion_score')
             ]:
                 if col in hist_df.columns and 'outcome_return' in hist_df.columns:
                     strat_series = hist_df.groupby('date').apply(lambda d: (d[col] * d['outcome_return']).mean(), include_groups=False)
@@ -3324,6 +3345,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         'dual_correction': dual_correction_df,
         'index_rebalance': index_rebalance_df,
         'overnight_gap_reversal': overnight_gap_df,
+        'cross_asset_spillover': cross_asset_spillover_df,
+        'supply_chain_gnn': supply_chain_gnn_df,
+        'range_expansion_breakout': range_expansion_breakout_df,
     }
     _active_strats = [name for name, df in _all_strategy_dfs.items() if df is not None and not (isinstance(df, pd.DataFrame) and df.empty)]
     _strat_coverage = len(_active_strats) / len(_all_strategy_dfs)
@@ -3369,6 +3393,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         insider_buying_df=insider_buying_df,
         darkpool_df=darkpool_df,
         earnings_tone_drift_df=earnings_tone_drift_df,
+        cross_asset_spillover_df=cross_asset_spillover_df,
+        supply_chain_gnn_df=supply_chain_gnn_df,
+        range_expansion_breakout_df=range_expansion_breakout_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20,
         prices_dict=infer_data_dict if 'infer_data_dict' in locals() else None

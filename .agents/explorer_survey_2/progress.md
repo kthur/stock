@@ -1,10 +1,13 @@
 # Progress Log — explorer_survey_2
 
-Last visited: 2026-08-22T15:12:15+09:00
+Last visited: 2026-08-30T13:32:50Z
 
-- [x] Initialized DISPATCH.md, BRIEFING.md, and progress.md
-- [x] Task 1: Investigate Dynamic Market Filing Lag (KRX 45d, US 40d, override with public filing date)
-- [x] Task 2: Investigate Stratified Sampling in `prepare_training_data`
-- [x] Task 3: Investigate Fake BENCHMARK Pairs removal in Stat-Arb
-- [x] Task 4: Identify all affected source files, functions, models, tests
-- [x] Task 5: Synthesize into survey_r2.md and handoff.md, notify parent
+- [x] Initialized DISPATCH.md and BRIEFING.md
+- [x] List and examine directory structures under src/ai, src/analysis, src/risk, tests
+- [x] Deep-dive investigate R2: EnsembleScoringEngine, CrossSectionalScoreNormalizer, FactorOrthogonalizerEngine, FactorSuppressionEngine, Market Regime detection & weighting
+- [x] Deep-dive investigate R3: PortfolioOptimizer, PortfolioAllocator, RiskManager, CrisisDetector, HRP, Black-Litterman, EVT-CVaR, Fractional Kelly, Ledoit-Wolf Shrinkage, Microstructure cost deductions
+- [x] Review existing tests and test coverage for R2 & R3 (76 tests verified 100% PASS)
+- [x] Identify architecture gaps, missing features, and concrete enhancement requirements
+- [x] Write comprehensive survey_report.md
+- [x] Write 5-component handoff.md
+- [x] Send completion message to parent

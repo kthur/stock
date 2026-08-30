@@ -1,11 +1,12 @@
-# Progress — challenger_m1_1
+﻿# Progress — Milestone 1 Empirical Challenger
 
-Last visited: 2026-08-22T06:24:30Z
+Last visited: 2026-08-30T13:42:30Z
 
-## Status
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [ ] Read ORIGINAL_REQUEST.md, PROJECT.md, and worker_m1 handoff.md
-- [ ] Inspect `src/ai/cross_sectional_normalizer.py` and `tests/test_cross_sectional_normalizer.py`
-- [ ] Design and execute adversarial stress tests covering all boundary conditions
-- [ ] Evaluate findings and formulate verdict
-- [ ] Write handoff.md and send message to orchestrator
+- [x] Initial dispatch recorded and files reviewed
+- [x] BRIEFING.md initialized and updated
+- [x] Write and execute adversarial stress test harness across all 3 engines (	ests/test_challenger_m1_stress.py)
+- [x] Stress-tested edge cases: zero volume, extreme volatility spikes, inverted prices, missing macro indicators, disjoint/isolated graph nodes, single bar histories, NaN/Inf values
+- [x] Benchmarked per-symbol latency under large universe loads
+- [x] Discovered 2 concrete defects (NaN corruption in SupplyChainGNNEngine + 7.35ms latency bottleneck in RangeExpansionBreakoutEngine) and 1 runtime warning (overflow in exp)
+- [x] Write handoff.md with REQUEST_CHANGES verdict and concrete recommendations
+- [x] Notify parent agent

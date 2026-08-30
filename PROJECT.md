@@ -1,68 +1,102 @@
-# Project: Stock Trading System Hardening & Optimization
+# Project: Alpha & Return Maximization (Stock Trading System)
 
 ## Architecture
-The stock trading system is an autonomous multi-market, multi-factor algorithmic trading and quantitative prediction engine supporting 5 core markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ).
+The stock trading system operates across 5 markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ) with an institutional multi-factor engine, dynamic 2D/3D market regime ensemble, robust portfolio optimization, and an Execution OMS with precision timing engines.
 
-### System Layers
-1. **Data Ingestion & Storage**: `StockPriceDB` (SQLite WAL + Write Lock Mutex), `MarketIndicatorStorage`, `EarningsDataFetcher` with dynamic filing lag (KRX 45d, US 40d).
-2. **31-Strategy Multi-Factor Alpha Engine**: `StrategyRegistry` with 31 alpha factors (Reg, Surge, Lead-Lag, VCP Rule/ML, LSTM, Stat-Arb, Sector Rotation, RIM, Event-Driven, MQ Factor, IV Skew, Order Flow, Reversal, ARM, CARD, LATR, Inst/Foreign, Supply Chain, Sentiment, Factor Neutralized, Vol Target, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Efficiency, Gamma Squeeze, Insider Buying, Tone Drift, Darkpool HFT).
-3. **Score Normalization & Dynamic Ensemble**: `CrossSectionalScoreNormalizer` (Percentile Rank / Winsorized Gaussian CDF), `FactorOrthogonalizerEngine` (PCA-ZCA, Gram-Schmidt), `FactorSuppressionEngine` (2D Regime VIF suppression), `EnsembleScoringEngine` (Dynamic active-weight zero-masking).
-4. **Portfolio Optimization & Risk Allocation**: `PortfolioOptimizer` (HRP, Black-Litterman, Ledoit-Wolf Shrinkage), `PortfolioAllocator` (EVT-CVaR Tail Risk Budgeting, Leland dynamic buffer bands), `RiskManager` (2D Regime Matrix, Crisis Detector, VIX Velocity gating).
-5. **Execution OMS**: `ExecutionOMSEngine` (7 Safety Gates, Limit Lock controls, VPIN maker routing, Overheat gap limits, Synthetic Beta Hedge), `AlmgrenChrissScheduler`, `SlippageFeedbackEngine`, `TurnoverOptimizer`.
-6. **Reporting & CI/CD**: `generate_report.py` (GitHub Pages HTML dashboard), `.github/workflows/` (5-market matrix pipeline, pytest CI), `verify_gha_artifacts.py`.
-
----
+```
+[Market Data / Global Indicators / Fundamentals]
+                       │
+                       ▼
+         [34-Strategy Multi-Factor Engine]
+         (Core AI + Momentum + Valuation + Reversal + Flow/Micro + 3 New High-Alpha Engines)
+                       │
+                       ▼
+       [CrossSectionalScoreNormalizer] ──► [FactorOrthogonalizer (PCA-ZCA)]
+                       │
+                       ▼
+       [EnsembleScoringEngine] (Dynamic 2D/3D Regime Weights & Synergy Boosting)
+                       │
+                       ▼
+       [Microstructure Cost Model] ──► Net Expected Return
+                       │
+                       ▼
+  [Portfolio Optimization] (HRP, Black-Litterman, EVT-CVaR, Fractional Kelly, Leland Bands)
+                       │
+                       ▼
+  [Execution OMS Engine] (Confluence Entry, Scale-In Pyramiding, 4-tier Trailing Stop, Shock Exits)
+                       │
+                       ▼
+  [Pipeline Outputs & Reports] (trade_logs.db, ensemble_predictions.txt, GitHub Pages)
+```
 
 ## Feature Inventory
-| # | Feature / Remediation Target | Description | Milestone | Source |
-|---|-----------------------------|-------------|-----------|--------|
-| 1 | SQLite Batch Price Upsert | Add `update_prices_batch` to `StockPriceDB` and integrate into `prefetch_prices_batch` | M1 | Survey Explorer 2 |
-| 2 | In-Memory Scaler LRU Cache | Cache StandardScaler artifacts in `load_scaler` to eliminate disk I/O | M1 | Survey Explorer 2 |
-| 3 | Dynamic ML Thread Allocation | Balance `n_jobs` per market worker during parallel training to prevent thread thrashing | M1 | Survey Explorer 2 |
-| 4 | Float32 Inference Downcasting | Downcast price arrays in inference pipeline to halve RAM footprint (~1.4GB -> ~720MB) | M1 | Survey Explorer 2 |
-| 5 | Parallel Factor Strategy Scoring | Concurrent execution of independent factor strategies in `run_pipeline.py` | M1 | Survey Explorer 2 |
-| 6 | Portfolio Constraint & Safety Polish | Refine `apply_portfolio_constraints` locals cleanup and ADV floor calculation for micro-caps | M2 | Survey Explorer 1 |
-| 7 | EVT-CVaR Adaptive Iterations | Optimize numerical stability and iteration convergence in EVT-CVaR optimizer | M2 | Survey Explorer 1 |
-| 8 | Trailing Stop Volatility Scaling | Dynamic ATR volatility scaling in trailing stop plan calculation | M2 | Survey Explorer 1 |
-| 9 | 31-Factor Strategy Fallback Audit | Verify 4-tier fallbacks, zero-weighting, and score normalizer across all 31 strategies | M3 | Survey Explorer 3 |
-| 10 | Backtesting & CI Workflow Hardening | Verify walk-forward backtest friction models and GitHub Actions matrix workflows | M3 | Survey Explorer 3 |
-| 11 | Full Test Suite 100% Verification | Run all 138 test files (1,777+ tests), adversarial stress checks, and verify zero regressions | M4 | Survey Explorer 1, 2, 3 |
-
----
+| # | Feature | Description | Milestone | Source |
+|---|---------|-------------|-----------|--------|
+| 1 | Cross-Asset Spillover Momentum | Macro impulse & lead-lag spillover from global drivers (USD/KRW, TNX, WTI, Gold, DXY, VIX, SOX, S&P) to domestic sectors | M1 | Survey (R1) [DONE] |
+| 2 | Supply Chain GNN & Sector Flow | 2-hop graph message passing across global anchor leaders & suppliers with bullwhip shock amplification and institutional sector flow acceleration | M1 | Survey (R1) [DONE] |
+| 3 | Intraday Volatility Breakout | NR7 / BB bandwidth squeeze precursor + range expansion trigger (REF >= 1.5) + relative volume (RVOL >= 1.8) + close location value | M1 | Survey (R1) [DONE] |
+| 4 | StrategyRegistry Registration | Inherit from BaseStrategyEngine, register via StrategyMeta, auto-discovery in core modules | M1 | Survey (R1) [DONE] |
+| 5 | EnsembleScoringEngine Integration | Register 3 new strategies into ALPHA_HORIZON_TIERS, REGIME_2D_WEIGHTS, MACRO_WEIGHT_MODIFIERS, strategy_cols | M2 | Survey (R2) |
+| 6 | Normalization & Orthogonalization | Validate CrossSectionalScoreNormalizer, PCA-ZCA whitening, and VIF suppression with 34 strategies | M2 | Survey (R2) |
+| 7 | 2D/3D Regime Weight Rebalancing | 6 2D regimes (BULL/SIDEWAYS/BEAR x LOW/HIGH VOL) + 5 3D macro modifiers with strict 1.0 weight sums and convex synergy boosting | M2 | Survey (R2) |
+| 8 | Portfolio Optimization Verification | Validate HRP (Hierarchical Risk Parity), Black-Litterman with regime views, Ledoit-Wolf shrinkage, EVT-CVaR, and Fractional Kelly | M3 | Survey (R3) |
+| 9 | Precision Net Return & Costs | Vectorized microstructure transaction cost deduction (STT tax, dynamic spread, Kyle impact, horizon amortization) | M3 | Survey (R3) |
+| 10 | Leland No-Trade Buffer Bands | Suppress sub-threshold portfolio churn while bypassing new entries and complete liquidations | M3 | Survey (R3) |
+| 11 | OMS Precision Timing Engines | Confluence Entry (65% hurdle), 3-tier Scale-In Pyramiding, 4-tier Trailing Stop with 2D regime matrix, Signal Exhaustion, Order Flow Shock, Time-Stop | M4 | Survey (R4) |
+| 12 | Pipeline OMS Order Generation | Connect top-20 ensemble picks to generate_order_plan with real price enrichment and SQLite WAL persistence in trade_logs.db | M4 | Survey (R4) |
+| 13 | High-Alpha Unit & Integration Tests | Create comprehensive tests for 3 new strategies (test_high_alpha_strategies.py) covering normal inputs, edge cases, missing data fallbacks | M5 | Survey (R5) |
+| 14 | Full Test Suite 100% Pass | Verify all 1,790+ tests pass with zero failures via `$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/ -v` | M5 | Survey (R5) |
+| 15 | GitHub Actions Workflow Alignment | Ensure Daily Pipeline workflow matrix, pytest CI, and artifact generation operate seamlessly | M5 | Survey (R5) |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | M1: Pipeline Speed & Memory Hardening | Batch DB upsert, Scaler LRU cache, ML thread balance, Float32 downcast, Parallel factor scoring | None | DONE |
-| 2 | M2: Portfolio Optimization & OMS Hardening | Constraint cleanup, ADV floor scaling, Trailing stop ATR scale, EVT-CVaR convergence | M1 | PLANNED |
-| 3 | M3: Strategy Fallback & CI Verification | 31-strategy fallback integrity, zero-weighting isolation, CI workflow validation | M1 | PLANNED |
-| 4 | M4: Final E2E Integration & 100% Test Pass | Full test suite execution (1,777+ tests), adversarial coverage hardening, audit gate | M1, M2, M3 | PLANNED |
-
----
+| M1 | High-Alpha Strategy Engines | Implement Cross-Asset Spillover, Supply Chain GNN, Range Expansion Breakout, register in StrategyRegistry | none | DONE |
+| M2 | Ensemble Meta-Learner & Regimes | Integrate 3 new strategies into EnsembleScoringEngine, normalize, orthogonalize, regime weights | M1 | DONE |
+| M3 | Portfolio Optimization & Costs | Verify HRP, Black-Litterman, EVT-CVaR, Fractional Kelly, Leland buffers, net return costs | M2 | DONE |
+| M4 | OMS Timing & Pipeline Wiring | Verify OMS precision timing engines, connect run_pipeline.py execution and trade_logs.db | M3 | DONE |
+| M5 | Test Integrity & E2E Verification | Create test_high_alpha_strategies.py, run full 1,790+ test suite, verify 100% pass & GHA alignment | M4 | IN_PROGRESS |
 
 ## Interface Contracts
+### BaseStrategyEngine ↔ StrategyRegistry
+```python
+class BaseStrategyEngine(ABC):
+    @abstractmethod
+    def compute_scores(self, prices_dict: Dict[str, pd.DataFrame],
+                       fundamentals_dict: Optional[Dict[str, Dict]] = None,
+                       indicators_df: Optional[pd.DataFrame] = None,
+                       **kwargs) -> pd.DataFrame:
+        """Returns DataFrame indexed by symbol with score in [0.0, 1.0]."""
+```
 
-### Data Persistence ↔ Pipeline
-- `StockPriceDB.update_prices_batch(price_data: Dict[str, pd.DataFrame]) -> int`: Single-transaction batch upsert across multiple tickers under write lock mutex.
-- `load_scaler(model_dir: str, market: str, horizon: int) -> StandardScaler`: Thread-safe LRU-cached scaler loader.
+### EnsembleScoringEngine ↔ StrategyRegistry
+- EnsembleScoringEngine dynamically discovers all registered strategies via `StrategyRegistry.get_all_ids()`.
+- Strategy columns mapped via `strategy_cols` dictionary.
+- All scores normalized to $[0.0, 1.0]$ via `CrossSectionalScoreNormalizer`.
 
-### Model Training ↔ Resource Allocator
-- `OnDevicePredictionModel.train(df: pd.DataFrame, market: str, n_jobs: Optional[int] = None)`: Dynamically allocated CPU worker threads.
-
-### Portfolio Allocator ↔ Execution OMS
-- `PortfolioAllocator.allocate(mu, cov, ...)`: Returns target weight dictionary $\mathbf{w}^*$.
-- `ExecutionOMSEngine.generate_orders(current_weights, target_weights, prices, ...)`: Generates compliant, gate-checked execution order list.
-
----
+### PortfolioAllocator ↔ ExecutionOMSEngine
+- Portfolio weights converted to target share quantities.
+- Leland dynamic buffer bands applied to filter turnover: $|w_{\text{target}} - w_{\text{current}}| > \Delta_i$.
+- ExecutionOMSEngine processes orders through 7 safety gates, Confluence Entry, and Almgren-Chriss sizing.
 
 ## Code Layout
-- `trading_system/run_pipeline.py`: Main unified pipeline entry point.
-- `src/persistence/database.py`: `StockPriceDB` SQLite WAL database layer.
-- `src/ai/feature_engineering.py`: Scaler loading and feature engineering functions.
-- `src/ai/prediction_model.py`: On-device ML model training and inference.
-- `src/ai/ensemble_scorer.py`: 31-strategy dynamic ensemble scoring engine.
-- `src/analysis/portfolio_optimizer.py`: HRP, Ledoit-Wolf, Black-Litterman optimization.
-- `src/risk/portfolio_allocator.py`: EVT-CVaR risk budgeting and Leland buffer bands.
-- `src/execution/order_manager.py`: Execution OMS engine with 7 safety gates.
-- `src/core/`: 31 individual strategy engines.
-- `tests/`: 138 test files with 1,777+ comprehensive test cases.
+- Strategy implementations: `trading_system/src/core/`
+  - `trading_system/src/core/cross_asset_spillover.py`
+  - `trading_system/src/core/supply_chain_gnn.py`
+  - `trading_system/src/core/range_expansion_breakout.py`
+  - `trading_system/src/core/base_strategy.py`
+  - `trading_system/src/core/strategy_registry.py`
+- AI & Ensemble: `trading_system/src/ai/`
+  - `trading_system/src/ai/ensemble_scorer.py`
+  - `trading_system/src/ai/score_normalizer.py`
+  - `trading_system/src/ai/factor_orthogonalizer.py`
+  - `trading_system/src/ai/factor_suppression.py`
+- Portfolio & Risk: `trading_system/src/analysis/`, `trading_system/src/risk/`
+  - `trading_system/src/analysis/portfolio_optimizer.py`
+  - `trading_system/src/risk/portfolio_allocator.py`
+  - `trading_system/src/risk/position_sizing.py`
+- Execution & OMS: `trading_system/src/execution/`
+  - `trading_system/src/execution/oms_engine.py`
+  - `trading_system/src/execution/order_manager.py`
+- Pipeline Orchestration: `trading_system/run_pipeline.py`
+- Tests: `tests/`

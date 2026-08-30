@@ -1,105 +1,51 @@
-# Forensic Audit Handoff Report — Milestone 1 (Financial Engineering & Model Optimization)
-
-**Date**: 2026-08-05  
-**Auditor**: Forensic Auditor (`teamwork_preview_auditor`)  
-**Working Directory**: `d:\Finance\code\stock\.agents\auditor_m1_1`  
-**Scope**: Milestone 1: Financial Engineering & Model Optimization Code Modifications  
-**Verdict**: **CLEAN**  
-
----
+# Forensic Auditor Handoff Report: Milestone 1
 
 ## 1. Observation
-
-A forensic audit was conducted on all code modifications associated with Milestone 1:
-
-1. **`trading_system/src/ai/factor_orthogonalizer.py`**:
-   - `__init__` signature accepts `shrinkage_alpha: float = 0.01` (line 22).
-   - `_pca_zca_symmetric` (lines 118–125) implements Ledoit-Wolf linear shrinkage matrix regularization:
-     ```python
-     C = np.dot(X_bar.T, X_bar) / max(N - 1, 1)
-     C_shrunk = (1.0 - self.shrinkage_alpha) * C + self.shrinkage_alpha * np.eye(K)
-     eigenvalues, eigenvectors = np.linalg.eigh(C_shrunk)
-     ```
-   - Ridge lower bound clamping `eigenvalues = np.maximum(eigenvalues, self.ridge_epsilon)` is maintained for positive-definiteness.
-
-2. **`trading_system/src/ai/factor_suppression.py`**:
-   - Explicit parameter mappings added to `DEFAULT_REGIME_PARAMS` (lines 68–69):
-     ```python
-     'CRISIS': {'theta': 0.50, 'lambda': 2.00},
-     'HIGH_VOL': {'theta': 0.55, 'lambda': 1.50},
-     ```
-   - High-risk cluster mappings added to `HIGH_RISK_CLUSTERS_PER_REGIME` (lines 53–54):
-     ```python
-     'CRISIS': ['MOMENTUM', 'FLOW_MICRO', 'REVERSAL'],
-     'HIGH_VOL': ['MOMENTUM', 'FLOW_MICRO'],
-     ```
-
-3. **`trading_system/src/ai/ensemble_scorer.py`**:
-   - Class-Balance Single-Class Target Guard added in `fit_calibrators` (lines 359–361):
-     ```python
-     if len(np.unique(y[mask])) < 2:
-         logger.warning(f"Calibrator for '{strategy}': target labels have single-class zero variance, skipping.")
-         continue
-     ```
-   - Regime shift EMA reset logic added in `compute_dynamic_weights_from_sharpe` (lines 548–553):
-     ```python
-     current_regime_str = str(regime)
-     is_regime_shift = (self._prev_regime is not None) and (str(self._prev_regime) != current_regime_str)
-     self._prev_regime = regime
-
-     eff_alpha = 1.0 if is_regime_shift else self.alpha_smoothing
-     ```
-
-4. **`tests/test_isotonic_sharpe_calibration.py`**:
-   - Created test suite with 5 comprehensive test cases covering Isotonic/Platt fitting, single-class target zero-variance handling, rolling Sharpe edge cases, cold-start seeds across all 6 2D market regimes, and EMA regime shift transition reset.
-
----
+- **Audited Target Files**:
+  1. `trading_system/src/core/cross_asset_spillover.py` (300 lines)
+  2. `trading_system/src/core/supply_chain_gnn.py` (334 lines)
+  3. `trading_system/src/core/range_expansion_breakout.py` (256 lines)
+  4. `trading_system/src/core/strategy_registry.py` (157 lines)
+  5. `tests/test_r1_high_alpha_strategies.py` (283 lines)
+- **Empirical Test Verification**:
+  - `tests/test_r1_high_alpha_strategies.py`: 10 passed, 0 failed in 14.93s
+  - `tests/test_phase5_registry.py`: 5 passed, 0 failed in 21.98s
+  - `tests/test_all_16_markets_31_strategies.py`: 9 passed, 0 failed in 16.12s
+  - Overall suite pass rate: 24/24 passed (100%).
+- **Forensic Pattern Searches**:
+  - Grep searches for `BREAKOUT_SYM`, `BREAKDOWN_SYM`, and test fixtures across `trading_system/src/` returned zero matches.
+  - Return analysis verified that all scoring functions evaluate genuine math formulas and return bounded numpy/pandas objects mapped to $[0.05, 0.95]$.
 
 ## 2. Logic Chain
-
-1. **Step 1 (Source Code Integrity & Absence of Prohibited Patterns)**:
-   - *Observation*: Static code inspection of `factor_orthogonalizer.py`, `factor_suppression.py`, `ensemble_scorer.py`, and `test_isotonic_sharpe_calibration.py` revealed zero hardcoded test outputs, zero facade/dummy methods, zero pre-populated result artifacts, and zero mocked test bypasses.
-   - *Inference*: The implementation logic across all target files is 100% genuine and mathematical.
-
-2. **Step 2 (Ledoit-Wolf Matrix Regularization Verification)**:
-   - *Observation*: In `factor_orthogonalizer.py`, sample covariance matrix $C$ is shrunk toward the identity matrix via $\hat{C} = (1 - \alpha) C + \alpha I$ ($\alpha = 0.01$).
-   - *Inference*: Under severe stress or collinear inputs, Ledoit-Wolf shrinkage guarantees well-conditioned covariance matrices ($\kappa(\hat{C}) \le 1000$), preventing singular matrix errors during ZCA whitening.
-
-3. **Step 3 (2D Regime Parameter Mapping Completeness)**:
-   - *Observation*: In `factor_suppression.py`, explicit parameters for `'CRISIS'` ($\theta=0.50, \lambda=2.00$) and `'HIGH_VOL'` ($\theta=0.55, \lambda=1.50$) were added alongside high-risk cluster targets.
-   - *Inference*: All 6 2D regimes and crisis/high-vol aliases are fully mapped, eliminating reliance on default fallback parameters during market panics.
-
-4. **Step 4 (Calibrator & Dynamic Weighting Robustness)**:
-   - *Observation*: In `ensemble_scorer.py`, single-class target labels are safely skipped to avoid 0.0 flattening, and 2D regime transitions set `eff_alpha = 1.0`.
-   - *Inference*: Calibrators handle zero-variance target edge cases gracefully, and dynamic weights adjust instantaneously without lag upon 2D regime shifts.
-
-5. **Step 5 (Empirical Test Verification)**:
-   - *Observation*: Executed complete Milestone 1 pytest test suite (`tests/test_factor_orthogonalization.py`, `tests/test_factor_ortho_empirical_stress.py`, `tests/test_correlation_suppression.py`, `tests/test_hpo_and_2d_ensemble.py`, `tests/test_isotonic_sharpe_calibration.py`).
-   - *Inference*: All 39 test cases passed cleanly (100% pass rate, exit code 0 in 155.14s).
-
----
+1. **Inheritance and Contract Compliance**: All 3 engines (`CrossAssetSpilloverEngine`, `SupplyChainGNNEngine`, `RangeExpansionBreakoutEngine`) inherit from `BaseStrategyEngine`, implement `compute_scores(prices_dict, fundamentals_dict, indicators_df, **kwargs) -> pd.DataFrame`, and expose convenience scoring functions.
+2. **StrategyRegistry Dynamic Auto-Discovery**: `@register_strategy(StrategyMeta(...))` decorators are attached to each class with proper metadata (`strategy_id`, `score_column`, `output_file`, `requires_indicators`, `default_regime_weights`), and all 3 modules are registered in `StrategyRegistry.auto_discover()`.
+3. **Genuine Mathematical Alpha Logic**:
+   - `CrossAssetSpilloverEngine` computes sector sensitivity vectors across 8 global macro drivers (SOX, USD/KRW, TNX, WTI, Gold, DXY, VIX, S&P 500), macro impulse $I_i(t) = \sum_k \beta_{s(i), k} \Delta M_k(t)$, lead-lag diffusion gap $\Delta = I_i(t) - 0.70 R_{i, \text{eff}}(t)$, and continuous logistic score mapping.
+   - `SupplyChainGNNEngine` implements a 2-hop message-passing relational graph with asymmetric Bullwhip shock amplification ($1.35\times$ downside vs $0.85\times$ upside) and sector liquidity flow acceleration.
+   - `RangeExpansionBreakoutEngine` calculates True Range, ATR-14, NR7 compression precursor, Bollinger Bandwidth squeeze percentile, Inside Days, Range Expansion Factor ($\text{REF} \ge 1.5$), Relative Volume ($\text{RVOL} \ge 1.8$), and Close Location Value ($\text{CLV} \ge 0.65$).
+4. **Absence of Prohibited Patterns**: No hardcoded test bypasses, no dummy facades, no synthetic output tampering, and no circumvention of alpha calculations were found.
 
 ## 3. Caveats
-
-- **No Caveats**: All code modifications were thoroughly inspected, verified mathematically, and passed unit and integration test execution.
-
----
+- When raw price inputs contain non-finite numbers (`np.inf`), values may propagate to NaN prior to normalization if not pre-filtered by `StockPriceDB`. While production pipeline feeds sanitize inputs, defensive `np.isfinite` guardrails can provide extra hardening in future iterations.
 
 ## 4. Conclusion
+**Verdict: CLEAN**
 
-**Verdict**: **CLEAN**
-
-The Milestone 1 (Financial Engineering & Model Optimization) work product strictly adheres to forensic integrity requirements. All implementations are genuine, robust, and empirically verified. No hardcoded shortcuts, facade implementations, or integrity violations exist.
-
----
+Milestone 1 satisfies all integrity criteria and user constraints. The work product is authentic, robust, and ready for Milestone 2 ensemble integration.
 
 ## 5. Verification Method
+Run the following commands to independently reproduce the verification results:
 
-To independently verify this forensic audit, run:
+```powershell
+# 1. Run dedicated Milestone 1 High-Alpha strategy tests
+$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/test_r1_high_alpha_strategies.py -v
 
-```bash
-.venv\Scripts\python.exe -m pytest tests/test_factor_orthogonalization.py tests/test_factor_ortho_empirical_stress.py tests/test_correlation_suppression.py tests/test_hpo_and_2d_ensemble.py tests/test_isotonic_sharpe_calibration.py -v
+# 2. Run Dynamic StrategyRegistry discovery tests
+$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/test_phase5_registry.py -v
+
+# 3. Run full 31 strategies regression suite
+$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/test_all_16_markets_31_strategies.py -v
+
+# 4. Run adversarial stress testing suite
+.venv\Scripts\python.exe .agents\auditor_m1_1\stress_test_m1.py
 ```
-
-**Expected Outcome**:
-- 39 tests executed, **39 passed** (exit code 0).
