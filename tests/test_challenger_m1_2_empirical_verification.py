@@ -1,4 +1,4 @@
-﻿"""
+"""
 tests/test_challenger_m1_2_empirical_verification.py
 
 Empirical Challenge & Verification Suite for Milestone 1 (Challenger 2):
@@ -222,10 +222,13 @@ def test_all_6_engines_fallback_pricing_proxy_and_report_generation():
 
     test_dir = tempfile.mkdtemp()
     try:
-        # Copy baseline result files from trading_system/result for full context
-        for src_file in os.listdir(os.path.join(PROJECT_ROOT, "trading_system", "result")):
-            dst_path = os.path.join(test_dir, src_file)
-            shutil.copy(os.path.join(PROJECT_ROOT, "trading_system", "result", src_file), dst_path)
+        # Copy baseline result files from trading_system/result for full context if exists
+        base_res_dir = os.path.join(PROJECT_ROOT, "trading_system", "result")
+        if os.path.exists(base_res_dir):
+            for src_file in os.listdir(base_res_dir):
+                src_path = os.path.join(base_res_dir, src_file)
+                if os.path.isfile(src_path):
+                    shutil.copy(src_path, os.path.join(test_dir, src_file))
 
         # 1. RIM
         rim_engine = RIMValuationEngine()

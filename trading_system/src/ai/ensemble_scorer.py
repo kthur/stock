@@ -1008,7 +1008,7 @@ class EnsembleScoringEngine:
         scores = {}
         for strategy, base_w in base_weights.items():
             sharpe = clean_sharpes.get(strategy, 0.0)
-            if pruning_threshold is not None and sharpe < pruning_threshold:
+            if pruning_threshold is not None and not smooth_downside_mode and sharpe < pruning_threshold:
                 # Hard gate pruning for severely underperforming strategies
                 scores[strategy] = 0.0
                 continue

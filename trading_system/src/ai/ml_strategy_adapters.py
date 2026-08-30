@@ -51,6 +51,8 @@ class RegressionStrategyAdapter(BaseStrategyEngine):
             else:
                 preds = pd.DataFrame()
             if isinstance(preds, pd.DataFrame):
+                if preds.empty or "symbol" not in preds.columns:
+                    return pd.DataFrame(columns=["symbol", "reg_score"])
                 if "reg_score" not in preds.columns and "expected_return_5d" in preds.columns:
                     preds = preds.rename(columns={"expected_return_5d": "reg_score"})
                 if "reg_score" in preds.columns:
@@ -103,6 +105,8 @@ class SurgeStrategyAdapter(BaseStrategyEngine):
             else:
                 preds = pd.DataFrame()
             if isinstance(preds, pd.DataFrame):
+                if preds.empty or "symbol" not in preds.columns:
+                    return pd.DataFrame(columns=["symbol", "surge_score"])
                 if "surge_score" not in preds.columns and "surge_prob_5d" in preds.columns:
                     preds = preds.rename(columns={"surge_prob_5d": "surge_score"})
                 if "surge_score" in preds.columns:
@@ -149,6 +153,8 @@ class VCPMLStrategyAdapter(BaseStrategyEngine):
             import numpy as np
             preds = inst.predict(prices_dict)
             if isinstance(preds, pd.DataFrame):
+                if preds.empty or "symbol" not in preds.columns:
+                    return pd.DataFrame(columns=["symbol", "vcp_ml_score"])
                 if "vcp_ml_score" not in preds.columns and "score" in preds.columns:
                     preds = preds.rename(columns={"score": "vcp_ml_score"})
                 elif "vcp_ml_score" not in preds.columns and "vcp_5d" in preds.columns:

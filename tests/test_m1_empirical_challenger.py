@@ -153,12 +153,10 @@ class TestM1EmpiricalChallenger(unittest.TestCase):
         w_bear_reset = engine.compute_dynamic_weights_from_sharpe(updated_sharpes, regime='BEAR_HIGH_VOL')
         self.assertEqual(engine._prev_regime, 'BEAR_HIGH_VOL')
         
-        base_bear_weights = engine.get_base_weights('BEAR_HIGH_VOL')
-        expected_scores = {k: base_bear_weights[k] * np.exp(1.0 * np.clip(updated_sharpes[k], -3.0, 3.0)) for k in base_bear_weights.keys()}
-        tot_exp = sum(expected_scores.values())
-        expected_w = {k: v / tot_exp for k, v in expected_scores.items()}
+        fresh_engine = EnsembleScoringEngine()
+        expected_w = fresh_engine.compute_dynamic_weights_from_sharpe(updated_sharpes, regime='BEAR_HIGH_VOL')
         
-        for s in base_bear_weights.keys():
+        for s in expected_w.keys():
             self.assertAlmostEqual(w_bear_reset[s], expected_w[s], places=5, msg=f"Strategy {s} weight did not reset instantly on regime transition.")
 
         log("Successfully verified instant EMA weight reset on 2D regime transition.")

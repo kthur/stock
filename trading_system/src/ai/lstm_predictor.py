@@ -113,7 +113,11 @@ class LSTMPredictor:
 
             stacked_feats = np.column_stack(normed_feats)
 
-            target_vals = group_sorted[target_col].values if target_col in group_sorted.columns else np.zeros(len(group_sorted))
+            if target_col in group_sorted.columns:
+                from src.ai.target_transform import transform_sharpe
+                target_vals = transform_sharpe(group_sorted[target_col].fillna(0.0)).values
+            else:
+                target_vals = np.zeros(len(group_sorted))
             idx_vals = group_sorted.index.values
 
             for i in range(len(group_sorted) - seq_len + 1):

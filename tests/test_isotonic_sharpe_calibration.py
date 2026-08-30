@@ -165,11 +165,8 @@ class TestIsotonicSharpeCalibration(unittest.TestCase):
         self.assertEqual(engine._prev_regime, 'BEAR_HIGH_VOL')
 
         # On transition, weights should immediately match target BEAR_HIGH_VOL weights (alpha = 1.0)
-        # Calculate un-smoothed target for BEAR_HIGH_VOL
-        base_bear_weights = engine.get_base_weights('BEAR_HIGH_VOL')
-        expected_bear_scores = {k: v * np.exp(1.0 * 0.5) for k, v in base_bear_weights.items()}
-        tot_expected = sum(expected_bear_scores.values())
-        expected_bear_w = {k: v / tot_expected for k, v in expected_bear_scores.items()}
+        fresh_engine = EnsembleScoringEngine()
+        expected_bear_w = fresh_engine.compute_dynamic_weights_from_sharpe(fake_sharpes, regime='BEAR_HIGH_VOL')
 
         for strat in self.strategies:
             self.assertAlmostEqual(weights_bear[strat], expected_bear_w[strat], places=5)

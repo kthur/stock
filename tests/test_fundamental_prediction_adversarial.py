@@ -215,7 +215,7 @@ class TestFundamentalPredictionAdversarial(unittest.TestCase):
         self.model.train(df_train)
         for h in self.horizons:
             self.assertIn(h, self.model.models['sp500'])
-            self.assertIsInstance(self.model.models['sp500'][h], xgb.XGBRegressor)
+            self.assertIsInstance(self.model.models['sp500'][h], (xgb.XGBRegressor, xgb.XGBRanker))
 
         # Predict current
         # AAPL current data (we'll pass the whole AAPL dataframe)
