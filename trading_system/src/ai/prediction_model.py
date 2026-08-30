@@ -1578,7 +1578,7 @@ class OnDevicePredictionModel:
         df_indices_arr = np.array(df_indices)
         return X_arr, y_arr, df_indices_arr
 
-    def train(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
+    def train(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True, n_jobs: Optional[int] = None, **kwargs):
         """Train XGBoost, LightGBM, and CatBoost regressors for each horizon.
 
         Validation strategy: 5-fold Walk-Forward (TimeSeriesSplit with 20-day gap).
@@ -1598,9 +1598,19 @@ class OnDevicePredictionModel:
 
         df_train = df_train.reset_index(drop=True)
         features = self.ALL_FEATURES
+
+        if n_jobs is not None:
+            intra_n_jobs = max(1, int(n_jobs))
+        else:
+            intra_n_jobs = max(1, (os.cpu_count() or 4))
+
         kw_xgb = dict(self._xgb_kwargs)
         kw_lgb = dict(self._lgb_kwargs)
         kw_cat = dict(self._cat_kwargs)
+
+        kw_xgb['n_jobs'] = intra_n_jobs
+        kw_lgb['n_jobs'] = intra_n_jobs
+        kw_cat['thread_count'] = intra_n_jobs
 
         # Sort by date to ensure walk-forward splits are chronological
         if 'date' in df_train.columns:
@@ -1952,7 +1962,7 @@ class OnDevicePredictionModel:
             except Exception:
                 pass
 
-    def train_surge(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
+    def train_surge(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True, n_jobs: Optional[int] = None, **kwargs):
         """Train XGBoost, LightGBM, and CatBoost classifiers for surge detection.
 
         Validation strategy: 5-fold Walk-Forward (TimeSeriesSplit with 20-day gap).
@@ -1970,9 +1980,18 @@ class OnDevicePredictionModel:
             logger.error(f"Missing features {missing} for surge {market}, skipping")
             return
 
+        if n_jobs is not None:
+            intra_n_jobs = max(1, int(n_jobs))
+        else:
+            intra_n_jobs = max(1, (os.cpu_count() or 4))
+
         kw_xgb = dict(self._surge_xgb_kwargs)
         kw_lgb = dict(self._surge_lgb_kwargs)
         kw_cat = dict(self._surge_cat_kwargs)
+
+        kw_xgb['n_jobs'] = intra_n_jobs
+        kw_lgb['n_jobs'] = intra_n_jobs
+        kw_cat['thread_count'] = intra_n_jobs
 
         # Sort by date to ensure walk-forward splits are chronological
         if 'date' in df_train.columns:

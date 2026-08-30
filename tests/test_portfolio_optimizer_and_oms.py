@@ -214,3 +214,58 @@ def test_oms_quantity_conversion_and_lot_rounding(tmp_path):
         [{"symbol": "005930", "name": "S", "market": "KOSPI", "close_price": 70000}],
         {"005930": 0.00001}, total_capital=100000000)
     assert tiny_plans == []
+
+
+def test_apply_portfolio_constraints_explicit_parameters():
+    """Verify apply_portfolio_constraints handles explicit parameter inputs without locals() probing."""
+    from src.analysis.portfolio_optimizer import apply_portfolio_constraints, calculate_hrp_weights
+
+    # Test single-stock capping and sector capping
+    raw_w = np.array([0.40, 0.30, 0.20, 0.10])
+    symbols = ["A", "B", "C", "D"]
+    sectors = ["Tech", "Tech", "Health", "Health"]
+
+    constrained_w = apply_portfolio_constraints(
+        weights=raw_w,
+        symbols=symbols,
+        sectors=sectors,
+        max_single_stock_weight=0.35,
+        max_sector_weight=0.60
+    )
+
+    assert len(constrained_w) == 4
+    assert np.all(constrained_w <= 0.35 + 1e-4)
+    assert np.isclose(np.sum(constrained_w), 1.0)
+    assert constrained_w[0] + constrained_w[1] <= 0.60 + 1e-4
+    assert constrained_w[2] + constrained_w[3] <= 0.60 + 1e-4
+
+    # Test calculate_hrp_weights passing sectors explicitly
+    cov = np.array([
+        [0.04, 0.01, 0.01],
+        [0.01, 0.09, 0.02],
+        [0.01, 0.02, 0.16]
+    ])
+    hrp_w = calculate_hrp_weights(cov, symbols=symbols, sectors=sectors)
+    assert len(hrp_w) == 3
+    assert np.isclose(np.sum(hrp_w), 1.0)
+    assert np.all(hrp_w > 0)
+
+
+def test_herc_with_sectors():
+    """Verify calculate_herc_weights properly accepts and propagates sectors to apply_portfolio_constraints."""
+    from src.analysis.portfolio_optimizer import calculate_herc_weights
+
+    cov = np.array([
+        [0.04, 0.01, 0.005, 0.002],
+        [0.01, 0.05, 0.004, 0.003],
+        [0.005, 0.004, 0.06, 0.01],
+        [0.002, 0.003, 0.01, 0.08]
+    ])
+    symbols = ["SYM1", "SYM2", "SYM3", "SYM4"]
+    sectors = ["Fin", "Fin", "Tech", "Tech"]
+
+    herc_w = calculate_herc_weights(cov, symbols=symbols, sectors=sectors, max_k=2)
+    assert len(herc_w) == 4
+    assert np.isclose(np.sum(herc_w), 1.0)
+    assert np.all(herc_w > 0)
+

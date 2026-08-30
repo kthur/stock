@@ -1,3 +1,4 @@
+import functools
 import os
 import joblib
 import numpy as np
@@ -30,10 +31,14 @@ def fit_scaler(df: pd.DataFrame, features: list, model_dir: str, market: str, ho
         logger.info(f"Saved feature scaler for {market} {horizon}d to {scaler_path}")
     except Exception as e:
         logger.warning(f"Failed to save scaler to {scaler_path}: {e}")
+    finally:
+        clear_scaler_cache()
     return scaler
 
-def load_scaler(model_dir: str, market: str, horizon: int) -> StandardScaler:
-    scaler_path = os.path.normpath(get_scaler_path(model_dir, market, horizon))
+@functools.lru_cache(maxsize=128)
+def _load_scaler_cached(norm_model_dir: str, market: str, horizon: int) -> StandardScaler:
+    """Internal thread-safe LRU-cached loader for StandardScaler artifacts."""
+    scaler_path = os.path.normpath(get_scaler_path(norm_model_dir, market, horizon))
     if os.path.exists(scaler_path):
         try:
             return joblib.load(scaler_path)
@@ -41,6 +46,19 @@ def load_scaler(model_dir: str, market: str, horizon: int) -> StandardScaler:
             logger.warning(f"Failed to load scaler from {scaler_path}: {e}")
     logger.warning(f"Scaler not found at {scaler_path}. Returning default StandardScaler.")
     return StandardScaler()
+
+def load_scaler(model_dir: str, market: str, horizon: int) -> StandardScaler:
+    """Public thread-safe LRU-cached loader for StandardScaler artifacts with normalized keys."""
+    norm_dir = os.path.normpath(str(model_dir)) if model_dir else ""
+    return _load_scaler_cached(norm_dir, str(market).lower(), int(horizon))
+
+def clear_scaler_cache() -> None:
+    """Clear in-memory LRU cache for loaded scalers."""
+    _load_scaler_cached.cache_clear()
+
+def get_scaler_cache_info():
+    """Return cache statistics (hits, misses, maxsize, currsize) for monitoring."""
+    return _load_scaler_cached.cache_info()
 
 def apply_scaler(df: pd.DataFrame, features: list, scaler: StandardScaler) -> pd.DataFrame:
     if df.empty:

@@ -633,17 +633,24 @@ class PortfolioAllocator:
         init_u = np.maximum(0.0, init_loss - init_alpha)
         init_x = np.concatenate([init_w, [init_alpha], init_u])
 
-        res = minimize(
-            ru_objective,
-            init_x,
-            method='SLSQP',
-            bounds=bounds_ru,
-            constraints=constraints_ru,
-            options={'maxiter': 100, 'ftol': 1e-5}
-        )
+        # Adaptive SLSQP iteration limit based on universe dimension N
+        maxiter_ru = min(250, max(50, 10 * N))
 
-        if not res.success or np.sum(res.x[:N]) <= 0:
-            # Fallback to standard QP with EVT-CVaR verification
+        res = None
+        try:
+            res = minimize(
+                ru_objective,
+                init_x,
+                method='SLSQP',
+                bounds=bounds_ru,
+                constraints=constraints_ru,
+                options={'maxiter': maxiter_ru, 'ftol': 1e-5}
+            )
+        except Exception as e:
+            logger.debug(f"[EVT-CVaR] SLSQP primary optimization exception: {e}")
+
+        if res is None or not res.success or np.sum(res.x[:N]) <= 0 or not np.all(np.isfinite(res.x[:N])):
+            # Graceful fallback to Cornish-Fisher smooth quadratic programming
             def std_objective(w):
                 ret = np.dot(w, mu)
                 var_p = float(w.T @ cov_shrunk @ w) if cov_shrunk.shape == (N, N) else float(np.var(np.dot(returns_matrix, w), ddof=1))
@@ -671,21 +678,40 @@ class PortfolioAllocator:
                     cvar_val = float(np.percentile(-port_rets, 95))
                 return max_cvar - cvar_val
 
-            res_std = minimize(
-                std_objective,
-                init_w,
-                method='SLSQP',
-                bounds=tuple((0.0, eff_max_w) for _ in range(N)),
-                constraints=[
-                    {'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0},
-                    {'type': 'ineq', 'fun': std_cvar_constraint}
-                ],
-                options={'maxiter': 50, 'ftol': 1e-5}
-            )
-            weights = res_std.x / np.sum(res_std.x) if res_std.success else init_w
+            maxiter_cf = min(150, max(40, 6 * N))
+            try:
+                res_std = minimize(
+                    std_objective,
+                    init_w,
+                    method='SLSQP',
+                    bounds=tuple((0.0, eff_max_w) for _ in range(N)),
+                    constraints=[
+                        {'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0},
+                        {'type': 'ineq', 'fun': std_cvar_constraint}
+                    ],
+                    options={'maxiter': maxiter_cf, 'ftol': 1e-5}
+                )
+                if res_std is not None and res_std.success and np.sum(res_std.x) > 0 and np.all(np.isfinite(res_std.x)):
+                    weights = np.maximum(0.0, res_std.x)
+                    weights = weights / np.sum(weights)
+                else:
+                    # Final analytical fallback: inverse-volatility / risk-parity weights clamped to eff_max_w
+                    vols = np.sqrt(np.maximum(np.diag(cov_shrunk), 1e-8)) if cov_shrunk.shape == (N, N) else np.ones(N)
+                    inv_vols = 1.0 / np.maximum(vols, 1e-4)
+                    w_rp = inv_vols / np.sum(inv_vols)
+                    weights = np.clip(w_rp, 0.0, eff_max_w)
+                    weights = weights / np.sum(weights)
+            except Exception as e:
+                logger.debug(f"[EVT-CVaR] Cornish-Fisher fallback QP exception: {e}")
+                weights = np.clip(init_w, 0.0, eff_max_w)
+                weights = weights / np.sum(weights)
         else:
             weights = np.maximum(0.0, res.x[:N])
-            weights = weights / np.sum(weights)
+            sum_w = np.sum(weights)
+            if sum_w > 0 and np.isfinite(sum_w):
+                weights = weights / sum_w
+            else:
+                weights = init_w
 
         return {sym: float(w) for sym, w in zip(symbols, weights)}
 

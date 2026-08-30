@@ -598,6 +598,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
             try:
                 df = _download_with_recovery(yf_tickers, fetch_start)
                 if df is not None and not df.empty:
+                    batch_price_data = {}
                     for yf_ticker in yf_tickers:
                         sym = ticker_to_sym.get(yf_ticker)
                         if not sym:
@@ -621,8 +622,19 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                             # P2: Data Quality Gate — adjust corporate actions and validate before DB write
                             is_valid, ticker_df = DataValidator.sanitize_and_validate_price_data(sym, ticker_df)
                             if is_valid:
-                                price_db.update_prices(sym, ticker_df)
-                                prefetched_count += 1
+                                if ticker_df is not None and not ticker_df.empty:
+                                    f64_cols = ticker_df.select_dtypes(include=['float64']).columns
+                                    if len(f64_cols) > 0:
+                                        ticker_df[f64_cols] = ticker_df[f64_cols].astype(np.float32)
+                                batch_price_data[sym] = ticker_df
+
+                    if batch_price_data:
+                        if hasattr(price_db, "update_prices_batch"):
+                            price_db.update_prices_batch(batch_price_data)
+                        else:
+                            for s, d in batch_price_data.items():
+                                price_db.update_prices(s, d)
+                        prefetched_count += len(batch_price_data)
             except Exception as e:
                 logger.debug(f"Batch download failed for chunk: {e}")
 
@@ -735,9 +747,9 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
         ohlcv_cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in result.columns]
         if ohlcv_cols:
             result[ohlcv_cols] = result[ohlcv_cols].ffill()
-            for col in ohlcv_cols:
-                if result[col].dtype == np.float64:
-                    result[col] = result[col].astype(np.float32)
+        f64_cols = result.select_dtypes(include=['float64']).columns
+        if len(f64_cols) > 0:
+            result[f64_cols] = result[f64_cols].astype(np.float32)
     return result
 
 
@@ -1636,6 +1648,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     try:
                         df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
                         if df is not None and not df.empty:
+                            f64_cols = df.select_dtypes(include=['float64']).columns
+                            if len(f64_cols) > 0:
+                                df[f64_cols] = df[f64_cols].astype(np.float32)
                             train_data_dict[sym] = df
                     except TimeoutError:
                         logger.warning(f"[{done_count+1}/{len(train_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
@@ -1679,7 +1694,11 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 sym = futures[future]
                 merged = future.result()
                 if merged[1] is not None:
-                    train_data_dict[sym] = merged[1]
+                    m_df = merged[1]
+                    f64_cols = m_df.select_dtypes(include=['float64']).columns
+                    if len(f64_cols) > 0:
+                        m_df[f64_cols] = m_df[f64_cols].astype(np.float32)
+                    train_data_dict[sym] = m_df
                 else:
                     train_data_dict.pop(sym, None)
 
@@ -1722,16 +1741,20 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             market_dfs = {m: pd.DataFrame() for m in ['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq']}
 
         # S8 fix: ThreadPoolExecutor avoids pickle serialization overhead of ProcessPool.
-        # Limit worker count to min(4, _CPU_WORKERS) to prevent XGBoost thread oversubscription
+        # Limit worker count to min(4, _CPU_WORKERS) to prevent XGBoost thread oversubscription.
+        # Dynamically compute intra_n_jobs per worker to eliminate OpenMP thread thrashing.
         _train_workers = max(1, min(4, _CPU_WORKERS))
+        _intra_n_jobs = max(1, _CPU_WORKERS // _train_workers)
+        logger.info(f"ML Parallel Training: {_train_workers} market workers with intra_n_jobs={_intra_n_jobs} per model")
+
         with storage.pipeline_stage("train_regression"):
             _train_failures = []
             with ThreadPoolExecutor(max_workers=_train_workers) as pool:
                 futures = {}
                 for m_name, m_df in market_dfs.items():
                     if not m_df.empty:
-                        logger.info(f"Training {m_name.upper()} regression model ({len(m_df)} rows)...")
-                        futures[pool.submit(model.train, m_df, market=m_name, save_after=True)] = m_name
+                        logger.info(f"Training {m_name.upper()} regression model ({len(m_df)} rows, intra_n_jobs={_intra_n_jobs})...")
+                        futures[pool.submit(model.train, m_df, market=m_name, save_after=True, n_jobs=_intra_n_jobs)] = m_name
                 for fut in as_completed(futures):
                     try:
                         fut.result()
@@ -1748,7 +1771,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 futures = {}
                 for m_name, m_df in market_dfs.items():
                     if not m_df.empty:
-                        futures[pool.submit(model.train_surge, m_df, market=m_name, save_after=True)] = m_name
+                        futures[pool.submit(model.train_surge, m_df, market=m_name, save_after=True, n_jobs=_intra_n_jobs)] = m_name
                 for fut in as_completed(futures):
                     try:
                         fut.result()
@@ -1867,6 +1890,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 try:
                     df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
                     if df is not None and not df.empty:
+                        f64_cols = df.select_dtypes(include=['float64']).columns
+                        if len(f64_cols) > 0:
+                            df[f64_cols] = df[f64_cols].astype(np.float32)
                         infer_data_dict[sym] = df
                 except TimeoutError:
                     logger.warning(f"[{count+1}/{len(all_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
@@ -1926,6 +1952,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         for fut in as_completed(futures):
             sym, merged = fut.result()
             if merged is not None:
+                f64_cols = merged.select_dtypes(include=['float64']).columns
+                if len(f64_cols) > 0:
+                    merged[f64_cols] = merged[f64_cols].astype(np.float32)
                 infer_data_dict[sym] = merged
             else:
                 infer_data_dict.pop(sym, None)
@@ -2899,102 +2928,321 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             with open(os.path.join(result_dir, f"{base_name}_{_m}.txt"), "w", encoding="utf-8") as _mf:
                 _write_content(_mf, _m_df, market_label=_m)
 
-    # 10g. Strategy 10: Event-Driven Momentum Engine
+    # =========================================================================
+    # Phase 10-Parallel: Concurrent Multi-Factor Strategy Scoring Engine
+    # =========================================================================
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    # 1. Pre-compute shared contexts & inputs
+    symbols_list = universe['symbol'].tolist() if 'symbol' in universe.columns else list(infer_data_dict.keys())
+    _fund_input = df_rim_input if ('df_rim_input' in locals() and df_rim_input is not None and not df_rim_input.empty) else None
+
+    # Pre-fetch DART filings & LLM sentiment once for all sentiment-dependent strategies
+    eff_filings = []
+    sentiment_map = {}
     m5_sentiment_metrics_list = []
     try:
         from src.core.event_driven import EventDrivenEngine
-        from src.core.llm_sentiment_engine import LLMSentimentEngine
-        logger.info("Computing Strategy 10: Event-Driven Momentum Scores with LLM/NLP Filing Sentiment...")
+        from src.core.llm_sentiment_engine import LLMSentimentEngine, DARTSECSentimentEngine
         _dart_key = getattr(cfg, 'dart_api_key', '') or ''
         if not _dart_key or _dart_key == 'your_dart_api_key_here':
-            logger.warning("[S-2 WARNING] DART_API_KEY is not configured. Event-Driven (Strategy 10) and Insider Buying (Strategy 29) "
+            logger.warning("[S-2 WARNING] DART_API_KEY is not configured. Event-Driven and Insider Buying "
                            "will fall back to volume-breakout-only mode for Korean stocks. Set DART_API_KEY in .env for full coverage.")
-        event_engine = EventDrivenEngine(dart_api_key=_dart_key)
-        sentiment_engine = LLMSentimentEngine(db_storage=storage)
-        eff_filings = event_engine.fetch_recent_dart_filings()
-        sentiment_map = {}
+        event_engine_init = EventDrivenEngine(dart_api_key=_dart_key)
+        sentiment_engine_init = LLMSentimentEngine(db_storage=storage if 'storage' in locals() else None)
+        eff_filings = event_engine_init.fetch_recent_dart_filings()
         if eff_filings:
-            sentiment_map = sentiment_engine.batch_analyze_filings(eff_filings)
+            sentiment_map = sentiment_engine_init.batch_analyze_filings(eff_filings)
             m5_sentiment_metrics_list = list(sentiment_map.values())
-        event_df = event_engine.compute_event_scores(
-            symbols=list(infer_data_dict.keys()),
-            prices_dict=infer_data_dict,
-            filings=eff_filings,
-            sentiment_map=sentiment_map
-        )
-        logger.info(f"Event-driven scores computed: {len(event_df)} symbols, empty={event_df.empty}")
-        _save_strategy_predictions_report(
-            event_df, "event_score",
-            "Strategy 10: Event-Driven Disclosure Catalyst Predictions",
-            "event_driven_predictions.txt", score_header="Event Score"
-        )
-    except Exception as _ev_e:
-        logger.warning(f"Event-driven score calculation skipped: {_ev_e}")
-        event_df = pd.DataFrame()
+    except Exception as _init_ev_e:
+        logger.warning(f"[PARALLEL SCORING] Pre-fetching DART filings/sentiment skipped: {_init_ev_e}")
 
-    # 10h. Strategy 11: MQ Factor Engine
-    try:
+    # Build filings_map for NLP Sentiment
+    filings_map = {}
+    if eff_filings:
+        for item in eff_filings:
+            if isinstance(item, dict):
+                _sym = str(item.get('stock_code') or item.get('symbol') or '').strip()
+                _txt = str(item.get('report_nm') or item.get('title') or item.get('content') or '').strip()
+                if _sym and _txt:
+                    filings_map[_sym] = (filings_map.get(_sym, '') + ' ' + _txt).strip()
+
+    # Build transcript_map for Earnings Tone Drift
+    tone_transcript_map = {}
+    if sentiment_map:
+        for s_k, s_val in sentiment_map.items():
+            s_score = s_val if isinstance(s_val, (int, float)) else getattr(s_val, 'sentiment_score', 0.5)
+            tone_transcript_map[s_k] = {'previous_quarter_tone': 0.5, 'current_quarter_tone': s_score}
+
+    # Build ARM fundamental dictionary with dynamic filing lag (KRX 45d, US 40d)
+    _arm_fund = {}
+    if 'infer_fund_cache' in locals() and infer_fund_cache:
+        for _sym, _fd in infer_fund_cache.items():
+            if _fd is None or len(_fd) == 0:
+                continue
+            _cur_dt = pd.to_datetime(date_str) if 'date_str' in locals() and date_str else pd.Timestamp.now()
+            if 'date_available' in _fd.columns:
+                _fd_valid = _fd[pd.to_datetime(_fd['date_available']) <= _cur_dt]
+            elif 'date' in _fd.columns:
+                _lag_d = 45 if (str(_sym).isdigit() or str(_sym).endswith(('.KS', '.KQ'))) else 40
+                _fd_valid = _fd[pd.to_datetime(_fd['date']) + pd.Timedelta(days=_lag_d) <= _cur_dt]
+            else:
+                _fd_valid = _fd
+
+            if _fd_valid.empty:
+                continue
+
+            _fd_sorted = _fd_valid.sort_values('date') if 'date' in _fd_valid.columns else _fd_valid
+            _last = _fd_sorted.iloc[-1]
+            _eps_g = 0.0
+            _rev_g = 0.0
+            if len(_fd_sorted) >= 2:
+                _prev = _fd_sorted.iloc[-2]
+                _pe = float(_prev.get('eps') or 0.0)
+                _pr = float(_prev.get('revenue') or 0.0)
+                if _pe != 0:
+                    _eps_g = float((float(_last.get('eps') or 0.0) - _pe) / abs(_pe))
+                if _pr != 0:
+                    _rev_g = float((float(_last.get('revenue') or 0.0) - _pr) / abs(_pr))
+            elif isinstance(_last, pd.Series):
+                _eps_g = float(_last.get('eps_growth_1y') or 0.0)
+                _rev_g = float(_last.get('revenue_growth_1y') or 0.0)
+            _arm_fund[_sym] = {
+                'eps_revision_pct': None,
+                'tp_revision_pct': None,
+                'eps_growth': _eps_g,
+                'revenue_growth': _rev_g,
+                'per': None,
+            }
+
+    sector_mapping = dict(zip(universe['symbol'], universe.get('sector', universe.get('industry', 'DEFAULT')))) if 'symbol' in universe.columns else {}
+
+    # 2. Define Strategy Task Functions
+    def _eval_event_driven() -> pd.DataFrame:
+        from src.core.event_driven import EventDrivenEngine
+        _dart_key = getattr(cfg, 'dart_api_key', '') or ''
+        eng = EventDrivenEngine(dart_api_key=_dart_key)
+        return eng.compute_event_scores(symbols=symbols_list, prices_dict=infer_data_dict, filings=eff_filings, sentiment_map=sentiment_map)
+
+    def _eval_mq_factor() -> pd.DataFrame:
         from src.core.mq_factor import MQFactorEngine
-        logger.info("Computing Strategy 11: Momentum Quality (MQ) Factor Scores...")
-        mq_engine = MQFactorEngine()
-        mq_df = mq_engine.compute_mq_scores(prices_dict=infer_data_dict, features_df=df_rim_input if 'df_rim_input' in locals() else None)
-        logger.info(f"MQ factor scores computed: {len(mq_df)} symbols, empty={mq_df.empty}")
-        _save_strategy_predictions_report(
-            mq_df, "mq_score",
-            "Strategy 11: Momentum Quality (MQ) Factor Predictions",
-            "mq_factor_predictions.txt", score_header="MQ Score"
-        )
-    except Exception as _mq_e:
-        logger.warning(f"MQ factor score calculation skipped: {_mq_e}")
-        mq_df = pd.DataFrame()
+        return MQFactorEngine().compute_mq_scores(prices_dict=infer_data_dict, features_df=_fund_input)
 
-    # 10i. Strategy 12: Options IV Skew Engine
-    try:
+    def _eval_iv_skew() -> pd.DataFrame:
         from src.core.iv_skew import IVSkewEngine
-        logger.info("Computing Strategy 12: Options IV Skew Scores...")
-        iv_skew_engine = IVSkewEngine()
-        iv_skew_df = iv_skew_engine.compute_iv_skew_scores(symbols=list(infer_data_dict.keys()), prices_dict=infer_data_dict)
-        logger.info(f"IV skew scores computed: {len(iv_skew_df)} symbols, empty={iv_skew_df.empty}")
-        _save_strategy_predictions_report(
-            iv_skew_df, "iv_skew_score",
-            "Strategy 12: Options Put/Call IV Skew Predictions",
-            "iv_skew_predictions.txt", score_header="IV Skew Score"
-        )
-    except Exception as _iv_e:
-        logger.warning(f"IV skew score calculation skipped: {_iv_e}")
-        iv_skew_df = pd.DataFrame()
+        return IVSkewEngine().compute_iv_skew_scores(symbols=symbols_list, prices_dict=infer_data_dict)
 
-    # 10j. Strategy 13: Order Flow Imbalance Engine
-    try:
+    def _eval_order_flow() -> pd.DataFrame:
         from src.core.order_flow import OrderFlowEngine
-        logger.info("Computing Strategy 13: Order Flow Imbalance Scores...")
-        of_engine = OrderFlowEngine()
-        order_flow_df = of_engine.compute_order_flow_scores(prices_dict=infer_data_dict)
-        logger.info(f"Order flow scores computed: {len(order_flow_df)} symbols, empty={order_flow_df.empty}")
-        _save_strategy_predictions_report(
-            order_flow_df, "order_flow_score",
-            "Strategy 13: Order Flow Imbalance (MFI) Predictions",
-            "order_flow_predictions.txt", score_header="Order Flow Score", header_width=16
-        )
-    except Exception as _of_e:
-        logger.warning(f"Order flow score calculation skipped: {_of_e}")
-        order_flow_df = pd.DataFrame()
+        return OrderFlowEngine().compute_order_flow_scores(prices_dict=infer_data_dict)
 
-    # 10k. Strategy 14: Short-Term Reversal Engine
-    try:
+    def _eval_short_term_reversal() -> pd.DataFrame:
         from src.core.short_term_reversal import ShortTermReversalEngine
-        logger.info("Computing Strategy 14: Short-Term Reversal Scores...")
-        reversal_engine = ShortTermReversalEngine()
-        reversal_df = reversal_engine.compute_reversal_scores(prices_dict=infer_data_dict, features_df=df_rim_input if 'df_rim_input' in locals() else None)
-        logger.info(f"Short-term reversal scores computed: {len(reversal_df)} symbols, empty={reversal_df.empty}")
-        _save_strategy_predictions_report(
-            reversal_df, "reversal_score",
-            "Strategy 14: Short-Term Mean Reversal Predictions",
-            "short_term_reversal_predictions.txt", score_header="Reversal Score", header_width=16
+        return ShortTermReversalEngine().compute_reversal_scores(prices_dict=infer_data_dict, features_df=_fund_input)
+
+    def _eval_arm_factor() -> pd.DataFrame:
+        from src.core.arm_factor import ARMFactorEngine
+        res = ARMFactorEngine().compute_scores(prices_dict=infer_data_dict, fundamentals_dict=_arm_fund)
+        if isinstance(res, dict):
+            return pd.DataFrame([{'symbol': k, 'arm_score': v} for k, v in res.items()])
+        return res if isinstance(res, pd.DataFrame) else pd.DataFrame()
+
+    def _eval_card_factor() -> pd.DataFrame:
+        from src.core.card_factor import CARDFactorEngine
+        res = CARDFactorEngine().compute_scores(prices_dict=infer_data_dict, indicators_df=indicator_infer if 'indicator_infer' in locals() else pd.DataFrame())
+        if isinstance(res, dict):
+            return pd.DataFrame([{'symbol': k, 'card_score': v} for k, v in res.items()])
+        return res if isinstance(res, pd.DataFrame) else pd.DataFrame()
+
+    def _eval_latr_factor() -> pd.DataFrame:
+        from src.core.latr_factor import LATRFactorEngine
+        res = LATRFactorEngine().compute_scores(infer_data_dict)
+        if isinstance(res, dict):
+            return pd.DataFrame([{'symbol': k, 'latr_score': v} for k, v in res.items()])
+        return res if isinstance(res, pd.DataFrame) else pd.DataFrame()
+
+    def _eval_inst_foreign_sector() -> pd.DataFrame:
+        from src.core.inst_foreign_sector import InstForeignSectorEngine
+        return InstForeignSectorEngine(accumulation_days=40).compute_scores(infer_data_dict, flow_data_dict=None, sector_mapping=sector_mapping)
+
+    def _eval_supply_chain() -> pd.DataFrame:
+        from src.core.supply_chain import SupplyChainEngine
+        return SupplyChainEngine().compute_scores(infer_data_dict, universe)
+
+    def _eval_sentiment() -> pd.DataFrame:
+        from src.core.llm_sentiment_engine import DARTSECSentimentEngine
+        eng = DARTSECSentimentEngine(db_storage=storage if 'storage' in locals() else None)
+        return eng.compute_scores(
+            universe=universe, filings_map=filings_map,
+            sentiment_map=sentiment_map if sentiment_map else None,
+            filings=eff_filings if eff_filings else None,
+            prices_dict=infer_data_dict
         )
-    except Exception as _rev_e:
-        logger.warning(f"Short-term reversal score calculation skipped: {_rev_e}")
-        reversal_df = pd.DataFrame()
+
+    def _eval_factor_neutralized() -> pd.DataFrame:
+        from src.core.multi_factor_neutralizer import MultiFactorNeutralizerEngine
+        return MultiFactorNeutralizerEngine().compute_scores(
+            prices_dict=infer_data_dict, universe=universe,
+            raw_scores=res_df if ('res_df' in locals() and res_df is not None and not res_df.empty) else None,
+            fundamentals_dict=infer_fund_cache if ('infer_fund_cache' in locals() and infer_fund_cache) else None
+        )
+
+    def _eval_vol_target() -> pd.DataFrame:
+        from src.core.vol_target import VolTargetingEngine
+        return VolTargetingEngine().compute_scores(infer_data_dict, universe)
+
+    def _eval_microstructure() -> pd.DataFrame:
+        from src.core.hft_engine import MicrostructureImbalanceEngine
+        return MicrostructureImbalanceEngine().compute_scores(infer_data_dict, universe)
+
+    def _eval_accruals_quality() -> pd.DataFrame:
+        from src.core.accruals_quality import AccrualsQualityEngine
+        return AccrualsQualityEngine(cfg).calculate_scores(symbols_list, features_df=_fund_input, prices_dict=infer_data_dict)
+
+    def _eval_short_squeeze() -> pd.DataFrame:
+        from src.core.short_interest_squeeze import ShortInterestSqueezeEngine
+        return ShortInterestSqueezeEngine(cfg).calculate_scores(symbols_list, prices_dict=infer_data_dict, features_df=_fund_input)
+
+    def _eval_valueup_catalyst() -> pd.DataFrame:
+        from src.core.valueup_catalyst import ValueUpCatalystEngine
+        return ValueUpCatalystEngine(cfg).calculate_scores(symbols_list, features_df=_fund_input, prices_dict=infer_data_dict)
+
+    def _eval_trend_efficiency() -> pd.DataFrame:
+        from src.core.trend_efficiency import TrendEfficiencyEngine
+        return TrendEfficiencyEngine(cfg).calculate_scores(symbols_list, prices_dict=infer_data_dict, features_df=_fund_input)
+
+    def _eval_gamma_squeeze() -> pd.DataFrame:
+        from src.core.gamma_squeeze import OptionsGammaSqueezeEngine
+        return OptionsGammaSqueezeEngine(cfg).calculate_scores(symbols_list, prices_dict=infer_data_dict)
+
+    def _eval_insider_buying() -> pd.DataFrame:
+        from src.core.insider_buying import InsiderBuyingEngine
+        return InsiderBuyingEngine(cfg).calculate_scores(symbols_list, prices_dict=infer_data_dict, insider_filings=eff_filings if eff_filings else None)
+
+    def _eval_earnings_tone_drift() -> pd.DataFrame:
+        from src.core.earnings_tone_drift import EarningsToneDriftEngine
+        return EarningsToneDriftEngine(cfg).calculate_scores(symbols_list, prices_dict=infer_data_dict, transcript_map=tone_transcript_map if tone_transcript_map else None, features_df=_fund_input)
+
+    def _eval_darkpool() -> pd.DataFrame:
+        from src.data_layer.darkpool_tracker import DarkPoolTrackerEngine
+        return DarkPoolTrackerEngine(cfg).calculate_scores(symbols_list, prices_dict=infer_data_dict)
+
+    def _eval_dual_correction() -> pd.DataFrame:
+        from src.core.dual_correction import DualCorrectionEngine
+        return DualCorrectionEngine(cfg).compute_scores(prices_dict=infer_data_dict, regime=current_2d_regime)
+
+    def _eval_index_rebalance() -> pd.DataFrame:
+        from src.core.index_rebalance import IndexRebalanceEngine
+        return IndexRebalanceEngine().compute_scores(prices_dict=infer_data_dict, universe=universe)
+
+    def _eval_overnight_gap_reversal() -> pd.DataFrame:
+        from src.core.overnight_gap_reversal import OvernightGapReversalEngine
+        return OvernightGapReversalEngine(cfg).calculate_scores(symbols_list, prices_dict=infer_data_dict)
+
+    def _eval_lstm() -> pd.DataFrame:
+        if hasattr(model, "predict_lstm"):
+            return model.predict_lstm(infer_data_dict, horizon=20)
+        else:
+            from src.ai.ml_strategy_adapters import LSTMStrategyAdapter
+            return LSTMStrategyAdapter(model_instance=model, config=cfg).compute_scores(infer_data_dict)
+
+    # Strategy Configuration Registry
+    STRATEGY_REGISTRY = [
+        {'key': 'event', 'fn': _eval_event_driven, 'col': 'event_score', 'title': 'Strategy 10: Event-Driven Disclosure Catalyst Predictions', 'file': 'event_driven_predictions.txt', 'hdr': 'Event Score', 'w': 14},
+        {'key': 'mq', 'fn': _eval_mq_factor, 'col': 'mq_score', 'title': 'Strategy 11: Momentum Quality (MQ) Factor Predictions', 'file': 'mq_factor_predictions.txt', 'hdr': 'MQ Score', 'w': 14},
+        {'key': 'iv_skew', 'fn': _eval_iv_skew, 'col': 'iv_skew_score', 'title': 'Strategy 12: Options Put/Call IV Skew Predictions', 'file': 'iv_skew_predictions.txt', 'hdr': 'IV Skew Score', 'w': 14},
+        {'key': 'order_flow', 'fn': _eval_order_flow, 'col': 'order_flow_score', 'title': 'Strategy 13: Order Flow Imbalance (MFI) Predictions', 'file': 'order_flow_predictions.txt', 'hdr': 'Order Flow Score', 'w': 16},
+        {'key': 'reversal', 'fn': _eval_short_term_reversal, 'col': 'reversal_score', 'title': 'Strategy 14: Short-Term Mean Reversal Predictions', 'file': 'short_term_reversal_predictions.txt', 'hdr': 'Reversal Score', 'w': 16},
+        {'key': 'arm', 'fn': _eval_arm_factor, 'col': 'arm_score', 'title': 'Strategy 15: Analyst Revision Momentum (ARM) Factor Predictions', 'file': 'arm_factor_predictions.txt', 'hdr': 'ARM Score', 'w': 12},
+        {'key': 'card', 'fn': _eval_card_factor, 'col': 'card_score', 'title': 'Strategy 16: Cross-Asset Regime Divergence (CARD) Factor Predictions', 'file': 'card_factor_predictions.txt', 'hdr': 'CARD Score', 'w': 14},
+        {'key': 'latr', 'fn': _eval_latr_factor, 'col': 'latr_score', 'title': 'Strategy 17: Liquidity-Adjusted Tail Risk (LATR) Factor Predictions', 'file': 'latr_factor_predictions.txt', 'hdr': 'LATR Score', 'w': 14},
+        {'key': 'inst_foreign_sector', 'fn': _eval_inst_foreign_sector, 'col': 'inst_foreign_sector_score', 'title': 'Strategy 18: Inst & Foreign 2-Month Accumulation & Sector Correlation Predictions', 'file': 'inst_foreign_sector_predictions.txt', 'hdr': 'IFS Score', 'w': 14},
+        {'key': 'supply_chain', 'fn': _eval_supply_chain, 'col': 'supply_chain_score', 'title': 'Strategy 19: Supply Chain Lead-Lag Momentum Predictions', 'file': 'supply_chain_predictions.txt', 'hdr': 'SC Score', 'w': 14},
+        {'key': 'sentiment', 'fn': _eval_sentiment, 'col': 'sentiment_score', 'title': 'Strategy 20: NLP & FinBERT Sentiment Catalyst Predictions', 'file': 'sentiment_predictions.txt', 'hdr': 'Sent Score', 'w': 14},
+        {'key': 'factor_neutralized', 'fn': _eval_factor_neutralized, 'col': 'factor_neutralized_score', 'title': 'Strategy 21: Multi-Factor Style Neutralized Pure Alpha Predictions', 'file': 'factor_neutralized_predictions.txt', 'hdr': 'FN Score', 'w': 14},
+        {'key': 'vol_target', 'fn': _eval_vol_target, 'col': 'vol_target_score', 'title': 'Strategy 22: Dynamic Volatility Targeting Risk Parity Predictions', 'file': 'vol_target_predictions.txt', 'hdr': 'VT Score', 'w': 14},
+        {'key': 'microstructure', 'fn': _eval_microstructure, 'col': 'microstructure_score', 'title': 'Strategy 23: Order Book Microstructure Imbalance Predictions', 'file': 'microstructure_predictions.txt', 'hdr': 'Micro Score', 'w': 14},
+        {'key': 'accruals_quality', 'fn': _eval_accruals_quality, 'col': 'accruals_quality_score', 'title': 'Strategy 24: Accruals Quality Anomaly Predictions', 'file': 'accruals_quality_predictions.txt', 'hdr': 'Accruals Score', 'w': 16},
+        {'key': 'short_squeeze', 'fn': _eval_short_squeeze, 'col': 'short_squeeze_score', 'title': 'Strategy 25: Short Interest & Squeeze Catalyst Predictions', 'file': 'short_squeeze_predictions.txt', 'hdr': 'Squeeze Score', 'w': 16},
+        {'key': 'valueup_catalyst', 'fn': _eval_valueup_catalyst, 'col': 'valueup_catalyst_score', 'title': 'Strategy 26: Value-Up & Shareholder Yield Predictions', 'file': 'valueup_catalyst_predictions.txt', 'hdr': 'ValueUp Score', 'w': 16},
+        {'key': 'trend_efficiency', 'fn': _eval_trend_efficiency, 'col': 'trend_efficiency_score', 'title': 'Strategy 27: Kaufman Trend Efficiency Predictions', 'file': 'trend_efficiency_predictions.txt', 'hdr': 'Trend Score', 'w': 16},
+        {'key': 'gamma_squeeze', 'fn': _eval_gamma_squeeze, 'col': 'gamma_squeeze_score', 'title': 'Strategy 28: Options Gamma Squeeze Predictions', 'file': 'gamma_squeeze_predictions.txt', 'hdr': 'Gamma Score', 'w': 16},
+        {'key': 'insider_buying', 'fn': _eval_insider_buying, 'col': 'insider_buying_score', 'title': 'Strategy 29: Insider Buying Catalyst Predictions', 'file': 'insider_buying_predictions.txt', 'hdr': 'Insider Score', 'w': 16},
+        {'key': 'earnings_tone_drift', 'fn': _eval_earnings_tone_drift, 'col': 'earnings_tone_drift_score', 'title': 'Strategy 30: Earnings Tone Drift NLP Predictions', 'file': 'earnings_tone_drift_predictions.txt', 'hdr': 'Tone Score', 'w': 16},
+        {'key': 'darkpool', 'fn': _eval_darkpool, 'col': 'darkpool_score', 'title': 'Strategy 31: HFT Order Flow & Dark Pool Predictions', 'file': 'hft_order_flow_predictions.txt', 'hdr': 'HFT Score', 'w': 16},
+        {'key': 'dual_correction', 'fn': _eval_dual_correction, 'col': 'dual_correction_score', 'title': 'Strategy 32: Dual Correction Predictions', 'file': 'dual_correction_predictions.txt', 'hdr': 'Dual Score', 'w': 16},
+        {'key': 'index_rebalance', 'fn': _eval_index_rebalance, 'col': 'index_rebalance_score', 'title': 'Strategy 33: Index Rebalance Predictions', 'file': 'index_rebalance_predictions.txt', 'hdr': 'Rebal Score', 'w': 16},
+        {'key': 'overnight_gap_reversal', 'fn': _eval_overnight_gap_reversal, 'col': 'overnight_gap_score', 'title': 'Strategy 34: Overnight Gap Reversal Predictions', 'file': 'overnight_gap_predictions.txt', 'hdr': 'Gap Score', 'w': 16},
+        {'key': 'lstm', 'fn': _eval_lstm, 'col': 'lstm_score', 'title': 'Strategy 6: Strict Causal LSTM Predictions', 'file': 'lstm_predictions.txt', 'hdr': 'LSTM Score', 'w': 14},
+    ]
+
+    # 3. Concurrent Execution via ThreadPoolExecutor
+    _score_workers = max(1, min(8, getattr(cfg, 'strategy_scoring_workers', os.cpu_count() or 4)))
+    logger.info(f"[PARALLEL FACTOR SCORING] Evaluating {len(STRATEGY_REGISTRY)} factor strategies concurrently with {_score_workers} worker threads...")
+
+    def _execute_single_strat(strat_spec: dict):
+        _s_key = strat_spec['key']
+        try:
+            _res = strat_spec['fn']()
+            if not isinstance(_res, pd.DataFrame):
+                _res = pd.DataFrame()
+            return _s_key, _res
+        except Exception as _err:
+            logger.warning(f"[PARALLEL SCORING] Strategy '{_s_key}' computation failed: {_err}")
+            return _s_key, pd.DataFrame()
+
+    _raw_strat_outputs = {}
+    with ThreadPoolExecutor(max_workers=_score_workers) as executor:
+        _future_map = {executor.submit(_execute_single_strat, s): s['key'] for s in STRATEGY_REGISTRY}
+        for future in as_completed(_future_map):
+            _s_key, _df_res = future.result()
+            _raw_strat_outputs[_s_key] = _df_res
+
+    # 4. Deterministic Report Generation & Local Variable Assignment
+    for spec in STRATEGY_REGISTRY:
+        _k = spec['key']
+        _df_s = _raw_strat_outputs.get(_k, pd.DataFrame())
+        _scol = spec['col']
+        if _df_s is not None and not _df_s.empty:
+            if _scol not in _df_s.columns:
+                # Handle alternative score column names (e.g. neutralized_score, lstm_return_20d)
+                for alt_c in ['neutralized_score', 'lstm_return_20d', 'score']:
+                    if alt_c in _df_s.columns:
+                        _scol = alt_c
+                        break
+            if _scol in _df_s.columns:
+                _save_strategy_predictions_report(
+                    _df_s, _scol, spec['title'], spec['file'],
+                    score_header=spec['hdr'], header_width=spec['w']
+                )
+
+    # Assign local DataFrame variables for downstream pipeline compatibility
+    event_df = _raw_strat_outputs.get('event', pd.DataFrame())
+    mq_df = _raw_strat_outputs.get('mq', pd.DataFrame())
+    iv_skew_df = _raw_strat_outputs.get('iv_skew', pd.DataFrame())
+    order_flow_df = _raw_strat_outputs.get('order_flow', pd.DataFrame())
+    reversal_df = _raw_strat_outputs.get('reversal', pd.DataFrame())
+    arm_df = _raw_strat_outputs.get('arm', pd.DataFrame())
+    card_df = _raw_strat_outputs.get('card', pd.DataFrame())
+    latr_df = _raw_strat_outputs.get('latr', pd.DataFrame())
+    inst_foreign_sector_df = _raw_strat_outputs.get('inst_foreign_sector', pd.DataFrame())
+    supply_chain_df = _raw_strat_outputs.get('supply_chain', pd.DataFrame())
+    sentiment_df = _raw_strat_outputs.get('sentiment', pd.DataFrame())
+    factor_neutralized_df = _raw_strat_outputs.get('factor_neutralized', pd.DataFrame())
+    vol_target_df = _raw_strat_outputs.get('vol_target', pd.DataFrame())
+    microstructure_df = _raw_strat_outputs.get('microstructure', pd.DataFrame())
+    accruals_quality_df = _raw_strat_outputs.get('accruals_quality', pd.DataFrame())
+    short_squeeze_df = _raw_strat_outputs.get('short_squeeze', pd.DataFrame())
+    valueup_catalyst_df = _raw_strat_outputs.get('valueup_catalyst', pd.DataFrame())
+    trend_efficiency_df = _raw_strat_outputs.get('trend_efficiency', pd.DataFrame())
+    gamma_squeeze_df = _raw_strat_outputs.get('gamma_squeeze', pd.DataFrame())
+    insider_buying_df = _raw_strat_outputs.get('insider_buying', pd.DataFrame())
+    earnings_tone_drift_df = _raw_strat_outputs.get('earnings_tone_drift', pd.DataFrame())
+    darkpool_df = _raw_strat_outputs.get('darkpool', pd.DataFrame())
+    dual_correction_df = _raw_strat_outputs.get('dual_correction', pd.DataFrame())
+    index_rebalance_df = _raw_strat_outputs.get('index_rebalance', pd.DataFrame())
+    overnight_gap_df = _raw_strat_outputs.get('overnight_gap_reversal', pd.DataFrame())
+    lstm_df_for_ens = _raw_strat_outputs.get('lstm', pd.DataFrame())
 
     # Backfill realized outcomes for previously stored ensemble predictions so that
     # rolling Sharpe weighting & calibrator fitting operate on real realized returns.
@@ -3047,414 +3295,6 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
 
     # Force Garbage Collection before heavy Ensemble Scoring
     gc.collect()
-
-    # Strategy 15: Analyst Revision Momentum (ARM) Factor
-    try:
-        from src.core.arm_factor import ARMFactorEngine
-        arm_engine = ARMFactorEngine()
-        _arm_fund = {}
-        if 'infer_fund_cache' in locals() and infer_fund_cache:
-            for _sym, _fd in infer_fund_cache.items():
-                if _fd is None or len(_fd) == 0:
-                    continue
-                # Enforce 60-day filing lag to prevent lookahead bias
-                _cur_dt = pd.to_datetime(date_str) if 'date_str' in locals() and date_str else pd.Timestamp.now()
-                if 'date_available' in _fd.columns:
-                    _fd_valid = _fd[pd.to_datetime(_fd['date_available']) <= _cur_dt]
-                elif 'date' in _fd.columns:
-                    _lag_d = 45 if (str(_sym).isdigit() or str(_sym).endswith(('.KS', '.KQ'))) else 40
-                    _fd_valid = _fd[pd.to_datetime(_fd['date']) + pd.Timedelta(days=_lag_d) <= _cur_dt]
-                else:
-                    _fd_valid = _fd
-
-                if _fd_valid.empty:
-                    continue
-
-                _fd_sorted = _fd_valid.sort_values('date') if 'date' in _fd_valid.columns else _fd_valid
-                _last = _fd_sorted.iloc[-1]
-                _eps_g = 0.0
-                _rev_g = 0.0
-                if len(_fd_sorted) >= 2:
-                    _prev = _fd_sorted.iloc[-2]
-                    _pe = float(_prev.get('eps') or 0.0)
-                    _pr = float(_prev.get('revenue') or 0.0)
-                    if _pe != 0:
-                        _eps_g = float((float(_last.get('eps') or 0.0) - _pe) / abs(_pe))
-                    if _pr != 0:
-                        _rev_g = float((float(_last.get('revenue') or 0.0) - _pr) / abs(_pr))
-                elif isinstance(_last, pd.Series):
-                    _eps_g = float(_last.get('eps_growth_1y') or 0.0)
-                    _rev_g = float(_last.get('revenue_growth_1y') or 0.0)
-                _arm_fund[_sym] = {
-                    'eps_revision_pct': None,
-                    'tp_revision_pct': None,
-                    'eps_growth': _eps_g,
-                    'revenue_growth': _rev_g,
-                    'per': None,
-                }
-        arm_scores = arm_engine.compute_scores(prices_dict=infer_data_dict, fundamentals_dict=_arm_fund)
-        if isinstance(arm_scores, pd.DataFrame):
-            arm_df = arm_scores
-        elif isinstance(arm_scores, dict):
-            arm_df = pd.DataFrame([{'symbol': k, 'arm_score': v} for k, v in arm_scores.items()])
-        else:
-            arm_df = pd.DataFrame()
-        _save_strategy_predictions_report(
-            arm_df, "arm_score",
-            "Strategy 15: Analyst Revision Momentum (ARM) Factor Predictions",
-            "arm_factor_predictions.txt", score_header="ARM Score", header_width=12
-        )
-    except Exception as _arm_e:
-        logger.warning(f"ARM factor computation failed: {_arm_e}")
-        arm_df = pd.DataFrame()
-
-    # Strategy 16: Cross-Asset Regime Divergence (CARD) Factor
-    try:
-        from src.core.card_factor import CARDFactorEngine
-        card_engine = CARDFactorEngine()
-        card_scores = card_engine.compute_scores(prices_dict=infer_data_dict, indicators_df=indicator_infer if 'indicator_infer' in locals() else pd.DataFrame())
-        if isinstance(card_scores, pd.DataFrame):
-            card_df = card_scores
-        elif isinstance(card_scores, dict):
-            card_df = pd.DataFrame([{'symbol': k, 'card_score': v} for k, v in card_scores.items()])
-        else:
-            card_df = pd.DataFrame()
-        _save_strategy_predictions_report(
-            card_df, "card_score",
-            "Strategy 16: Cross-Asset Regime Divergence (CARD) Factor Predictions",
-            "card_factor_predictions.txt", score_header="CARD Score"
-        )
-    except Exception as _card_e:
-        logger.warning(f"CARD factor computation failed: {_card_e}")
-        card_df = pd.DataFrame()
-
-    # Strategy 17: Liquidity-Adjusted Tail Risk (LATR) Factor
-    try:
-        from src.core.latr_factor import LATRFactorEngine
-        latr_engine = LATRFactorEngine()
-        latr_scores = latr_engine.compute_scores(infer_data_dict)
-        if isinstance(latr_scores, dict):
-            latr_df = pd.DataFrame([{'symbol': k, 'latr_score': v} for k, v in latr_scores.items()])
-        else:
-            latr_df = latr_scores
-        _save_strategy_predictions_report(
-            latr_df, "latr_score",
-            "Strategy 17: Liquidity-Adjusted Tail Risk (LATR) Factor Predictions",
-            "latr_factor_predictions.txt", score_header="LATR Score"
-        )
-    except Exception as _latr_e:
-        logger.warning(f"LATR factor computation failed: {_latr_e}")
-        latr_df = pd.DataFrame()
-
-    # Strategy 18: Inst & Foreign 2-Month Accumulation & Sector Correlation
-    try:
-        from src.core.inst_foreign_sector import InstForeignSectorEngine
-        ifs_engine = InstForeignSectorEngine(accumulation_days=40)
-        sector_mapping = dict(zip(universe['symbol'], universe.get('sector', universe.get('industry', 'DEFAULT')))) if 'symbol' in universe.columns else {}
-        inst_foreign_sector_df = ifs_engine.compute_scores(infer_data_dict, flow_data_dict=None, sector_mapping=sector_mapping)
-        _save_strategy_predictions_report(
-            inst_foreign_sector_df, "inst_foreign_sector_score",
-            "Strategy 18: Inst & Foreign 2-Month Accumulation & Sector Correlation Predictions",
-            "inst_foreign_sector_predictions.txt", score_header="IFS Score"
-        )
-    except Exception as _ifs_e:
-        logger.warning(f"Inst & Foreign sector strategy computation failed: {_ifs_e}")
-        inst_foreign_sector_df = pd.DataFrame()
-
-    # Strategy 19: Supply Chain Lead-Lag Momentum Engine
-    try:
-        from src.core.supply_chain import SupplyChainEngine
-        sc_engine = SupplyChainEngine()
-        supply_chain_df = sc_engine.compute_scores(infer_data_dict, universe)
-        _save_strategy_predictions_report(
-            supply_chain_df, "supply_chain_score",
-            "Strategy 19: Supply Chain Lead-Lag Momentum Predictions",
-            "supply_chain_predictions.txt", score_header="SC Score"
-        )
-    except Exception as _sc_e:
-        logger.warning(f"Supply chain strategy computation failed: {_sc_e}")
-        supply_chain_df = pd.DataFrame()
-
-    # Strategy 20: NLP & FinBERT Sentiment Catalyst Engine
-    try:
-        from src.core.llm_sentiment_engine import DARTSECSentimentEngine
-        sent_engine = DARTSECSentimentEngine(db_storage=storage if 'storage' in locals() else None)
-        filings_map: dict[str, str] = {}
-        if 'eff_filings' in locals() and eff_filings:
-            for item in eff_filings:
-                if isinstance(item, dict):
-                    sym = str(item.get('stock_code') or item.get('symbol') or '').strip()
-                    txt = str(item.get('report_nm') or item.get('title') or item.get('content') or '').strip()
-                    if sym and txt:
-                        filings_map[sym] = (filings_map.get(sym, '') + ' ' + txt).strip()
-
-        sentiment_df = sent_engine.compute_scores(
-            universe=universe,
-            filings_map=filings_map,
-            sentiment_map=sentiment_map if ('sentiment_map' in locals() and sentiment_map) else None,
-            filings=eff_filings if ('eff_filings' in locals() and eff_filings) else None,
-            prices_dict=infer_data_dict if ('infer_data_dict' in locals() and infer_data_dict) else None
-        )
-        _save_strategy_predictions_report(
-            sentiment_df, "sentiment_score",
-            "Strategy 20: NLP & FinBERT Sentiment Catalyst Predictions",
-            "sentiment_predictions.txt", score_header="Sent Score"
-        )
-    except Exception as _sent_e:
-        logger.warning(f"Sentiment strategy computation failed: {_sent_e}")
-        sentiment_df = pd.DataFrame()
-
-    # Strategy 21: Multi-Factor Risk & Style Neutralizer Engine
-    try:
-        from src.core.multi_factor_neutralizer import MultiFactorNeutralizerEngine
-        fn_engine = MultiFactorNeutralizerEngine()
-        factor_neutralized_df = fn_engine.compute_scores(
-            prices_dict=infer_data_dict if ('infer_data_dict' in locals() and infer_data_dict) else None,
-            universe=universe,
-            raw_scores=res_df if ('res_df' in locals() and res_df is not None and not res_df.empty) else None,
-            fundamentals_dict=infer_fund_cache if ('infer_fund_cache' in locals() and infer_fund_cache) else None
-        )
-        _scol = 'factor_neutralized_score' if (factor_neutralized_df is not None and 'factor_neutralized_score' in factor_neutralized_df.columns) else 'neutralized_score'
-        _save_strategy_predictions_report(
-            factor_neutralized_df, _scol,
-            "Strategy 21: Multi-Factor Style Neutralized Pure Alpha Predictions",
-            "factor_neutralized_predictions.txt", score_header="FN Score"
-        )
-    except Exception as _fn_e:
-        logger.warning(f"Multi-factor neutralizer strategy computation failed: {_fn_e}")
-        factor_neutralized_df = pd.DataFrame()
-
-    # Strategy 22: Dynamic Volatility Targeting Engine
-    try:
-        from src.core.vol_target import VolTargetingEngine
-        vt_engine = VolTargetingEngine()
-        vol_target_df = vt_engine.compute_scores(infer_data_dict, universe)
-        _save_strategy_predictions_report(
-            vol_target_df, "vol_target_score",
-            "Strategy 22: Dynamic Volatility Targeting Risk Parity Predictions",
-            "vol_target_predictions.txt", score_header="VT Score"
-        )
-    except Exception as _vt_e:
-        logger.warning(f"Volatility targeting strategy computation failed: {_vt_e}")
-        vol_target_df = pd.DataFrame()
-
-    # Strategy 23: Order Book Microstructure Imbalance Engine
-    try:
-        from src.core.hft_engine import MicrostructureImbalanceEngine
-        micro_engine = MicrostructureImbalanceEngine()
-        microstructure_df = micro_engine.compute_scores(infer_data_dict, universe)
-        _save_strategy_predictions_report(
-            microstructure_df, "microstructure_score",
-            "Strategy 23: Order Book Microstructure Imbalance Predictions",
-            "microstructure_predictions.txt", score_header="Micro Score"
-        )
-    except Exception as _micro_e:
-        logger.warning(f"Microstructure strategy computation failed: {_micro_e}")
-        microstructure_df = pd.DataFrame()
-
-    # Strategy 24: Accruals Quality Anomaly Engine
-    try:
-        from src.core.accruals_quality import AccrualsQualityEngine
-        aq_engine = AccrualsQualityEngine(cfg)
-        _fund_input = df_rim_input if 'df_rim_input' in locals() else None
-        accruals_quality_df = aq_engine.calculate_scores(universe['symbol'].tolist(), features_df=_fund_input, prices_dict=infer_data_dict)
-        _save_strategy_predictions_report(
-            accruals_quality_df, "accruals_quality_score",
-            "Strategy 24: Accruals Quality Anomaly Predictions",
-            "accruals_quality_predictions.txt", score_header="Accruals Score", header_width=16
-        )
-    except Exception as _aq_e:
-        logger.warning(f"Accruals quality strategy computation failed: {_aq_e}")
-        accruals_quality_df = pd.DataFrame()
-
-    # Strategy 25: Short Interest & Squeeze Engine
-    try:
-        from src.core.short_interest_squeeze import ShortInterestSqueezeEngine
-        sq_engine = ShortInterestSqueezeEngine(cfg)
-        _fund_input = df_rim_input if 'df_rim_input' in locals() else None
-        short_squeeze_df = sq_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict, features_df=_fund_input)
-        _save_strategy_predictions_report(
-            short_squeeze_df, "short_squeeze_score",
-            "Strategy 25: Short Interest & Squeeze Catalyst Predictions",
-            "short_squeeze_predictions.txt", score_header="Squeeze Score", header_width=16
-        )
-    except Exception as _sq_e:
-        logger.warning(f"Short squeeze strategy computation failed: {_sq_e}")
-        short_squeeze_df = pd.DataFrame()
-
-    # Strategy 26: Value-Up & Shareholder Yield Catalyst Engine
-    try:
-        from src.core.valueup_catalyst import ValueUpCatalystEngine
-        vu_engine = ValueUpCatalystEngine(cfg)
-        _fund_input = df_rim_input if 'df_rim_input' in locals() else None
-        valueup_catalyst_df = vu_engine.calculate_scores(universe['symbol'].tolist(), features_df=_fund_input, prices_dict=infer_data_dict)
-        _save_strategy_predictions_report(
-            valueup_catalyst_df, "valueup_catalyst_score",
-            "Strategy 26: Value-Up & Shareholder Yield Predictions",
-            "valueup_catalyst_predictions.txt", score_header="ValueUp Score", header_width=16
-        )
-    except Exception as _vu_e:
-        logger.warning(f"Value-Up catalyst strategy computation failed: {_vu_e}")
-        valueup_catalyst_df = pd.DataFrame()
-
-    # Strategy 27: Kaufman Trend Efficiency Engine
-    try:
-        from src.core.trend_efficiency import TrendEfficiencyEngine
-        te_engine = TrendEfficiencyEngine(cfg)
-        _fund_input = df_rim_input if 'df_rim_input' in locals() else None
-        trend_efficiency_df = te_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict, features_df=_fund_input)
-        _save_strategy_predictions_report(
-            trend_efficiency_df, "trend_efficiency_score",
-            "Strategy 27: Kaufman Trend Efficiency Predictions",
-            "trend_efficiency_predictions.txt", score_header="Trend Score", header_width=16
-        )
-    except Exception as _te_e:
-        logger.warning(f"Trend efficiency strategy computation failed: {_te_e}")
-        trend_efficiency_df = pd.DataFrame()
-
-    # Strategy 28: Options Gamma Squeeze Engine
-    try:
-        from src.core.gamma_squeeze import OptionsGammaSqueezeEngine
-        gamma_engine = OptionsGammaSqueezeEngine(cfg)
-        gamma_squeeze_df = gamma_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict)
-        _save_strategy_predictions_report(
-            gamma_squeeze_df, "gamma_squeeze_score",
-            "Strategy 28: Options Gamma Squeeze Predictions",
-            "gamma_squeeze_predictions.txt", score_header="Gamma Score", header_width=16
-        )
-    except Exception as _gs_e:
-        logger.warning(f"Gamma squeeze strategy computation failed: {_gs_e}")
-        gamma_squeeze_df = pd.DataFrame()
-
-    # Strategy 29: Insider Buying Catalyst Engine
-    try:
-        from src.core.insider_buying import InsiderBuyingEngine
-        insider_engine = InsiderBuyingEngine(cfg)
-        filings_to_pass = eff_filings if 'eff_filings' in locals() and eff_filings else None
-        insider_buying_df = insider_engine.calculate_scores(
-            universe['symbol'].tolist(),
-            prices_dict=infer_data_dict,
-            insider_filings=filings_to_pass,
-        )
-        logger.info(f"[Strategy 29] Insider Buying Catalyst computed: {len(insider_buying_df)} rows")
-        _save_strategy_predictions_report(
-            insider_buying_df, "insider_buying_score",
-            "Strategy 29: Insider Buying Catalyst Predictions",
-            "insider_buying_predictions.txt", score_header="Insider Score", header_width=16
-        )
-    except Exception as _ib_e:
-        logger.warning(f"Insider buying strategy computation failed: {_ib_e}")
-        insider_buying_df = pd.DataFrame()
-
-    # Strategy 30: Earnings Tone Drift Engine
-    try:
-        from src.core.earnings_tone_drift import EarningsToneDriftEngine
-        tone_engine = EarningsToneDriftEngine(cfg)
-        t_map = {}
-        if 'sentiment_map' in locals() and sentiment_map:
-            for s_k, s_val in sentiment_map.items():
-                s_score = s_val if isinstance(s_val, (int, float)) else getattr(s_val, 'sentiment_score', 0.5)
-                t_map[s_k] = {'previous_quarter_tone': 0.5, 'current_quarter_tone': s_score}
-        _fund_input = df_rim_input if 'df_rim_input' in locals() else None
-        earnings_tone_drift_df = tone_engine.calculate_scores(
-            universe['symbol'].tolist(),
-            prices_dict=infer_data_dict,
-            transcript_map=t_map if t_map else None,
-            features_df=_fund_input,
-        )
-        logger.info(f"[Strategy 30] Earnings Tone Drift computed: {len(earnings_tone_drift_df)} rows")
-        _save_strategy_predictions_report(
-            earnings_tone_drift_df, "earnings_tone_drift_score",
-            "Strategy 30: Earnings Tone Drift NLP Predictions",
-            "earnings_tone_drift_predictions.txt", score_header="Tone Score", header_width=16
-        )
-    except Exception as _et_e:
-        logger.warning(f"Earnings tone drift strategy computation failed: {_et_e}")
-        earnings_tone_drift_df = pd.DataFrame()
-
-    # Strategy 31: Dark Pool & Off-Exchange Volume Divergence Engine
-    try:
-        from src.data_layer.darkpool_tracker import DarkPoolTrackerEngine
-        dp_engine = DarkPoolTrackerEngine(cfg)
-        darkpool_df = dp_engine.calculate_scores(
-            universe['symbol'].tolist(),
-            prices_dict=infer_data_dict
-        )
-        logger.info(f"[Strategy 31] Dark Pool Volume Divergence computed: {len(darkpool_df)} rows")
-        _save_strategy_predictions_report(
-            darkpool_df, "darkpool_score",
-            "Strategy 31: HFT Order Flow & Dark Pool Predictions",
-            "hft_order_flow_predictions.txt", score_header="HFT Score", header_width=16
-        )
-    except Exception as _dp_e:
-        logger.warning(f"Darkpool score computation failed: {_dp_e}")
-        darkpool_df = pd.DataFrame()
-
-    # Strategy 32: Dual Correction Strategy Engine
-    try:
-        from src.core.dual_correction import DualCorrectionEngine
-        dc_engine = DualCorrectionEngine(cfg)
-        dual_correction_df = dc_engine.compute_scores(
-            prices_dict=infer_data_dict,
-            regime=current_2d_regime
-        )
-        logger.info(f"[Strategy 32] Dual Correction computed: {len(dual_correction_df)} rows")
-        _save_strategy_predictions_report(
-            dual_correction_df, "dual_correction_score",
-            "Strategy 32: Dual Correction Predictions",
-            "dual_correction_predictions.txt", score_header="Dual Score", header_width=16
-        )
-    except Exception as _dc_e:
-        logger.warning(f"Dual correction strategy computation failed: {_dc_e}")
-        dual_correction_df = pd.DataFrame()
-
-    # Strategy 33: Index Rebalance Structural Flow Engine
-    try:
-        from src.core.index_rebalance import IndexRebalanceEngine
-        ir_engine = IndexRebalanceEngine()
-        index_rebalance_df = ir_engine.compute_scores(
-            prices_dict=infer_data_dict,
-            universe=universe
-        )
-        logger.info(f"[Strategy 33] Index Rebalance computed: {len(index_rebalance_df)} rows")
-        _save_strategy_predictions_report(
-            index_rebalance_df, "index_rebalance_score",
-            "Strategy 33: Index Rebalance Predictions",
-            "index_rebalance_predictions.txt", score_header="Rebal Score", header_width=16
-        )
-    except Exception as _ir_e:
-        logger.warning(f"Index rebalance strategy computation failed: {_ir_e}")
-        index_rebalance_df = pd.DataFrame()
-
-    # Strategy 34: Overnight Gap Reversal Engine
-    try:
-        from src.core.overnight_gap_reversal import OvernightGapReversalEngine
-        ogr_engine = OvernightGapReversalEngine(cfg)
-        overnight_gap_df = ogr_engine.calculate_scores(
-            universe['symbol'].tolist(),
-            prices_dict=infer_data_dict
-        )
-        logger.info(f"[Strategy 34] Overnight Gap Reversal computed: {len(overnight_gap_df)} rows")
-        _save_strategy_predictions_report(
-            overnight_gap_df, "overnight_gap_score",
-            "Strategy 34: Overnight Gap Reversal Predictions",
-            "overnight_gap_predictions.txt", score_header="Gap Score", header_width=16
-        )
-    except Exception as _ogr_e:
-        logger.warning(f"Overnight gap reversal strategy computation failed: {_ogr_e}")
-        overnight_gap_df = pd.DataFrame()
-
-    # Strategy 6: Strict Causal LSTM deep learning predictions
-    logger.info("Computing Strategy 6: Strict Causal LSTM predictions...")
-    try:
-        if hasattr(model, "predict_lstm"):
-            lstm_df_for_ens = model.predict_lstm(infer_data_dict, horizon=20)
-        else:
-            from src.ai.ml_strategy_adapters import LSTMStrategyAdapter
-            lstm_adapter = LSTMStrategyAdapter(model_instance=model, config=cfg)
-            lstm_df_for_ens = lstm_adapter.compute_scores(infer_data_dict)
-    except Exception as _lstm_err:
-        logger.warning(f"LSTM prediction inference failed: {_lstm_err}. Using empty DataFrame.")
     # Strategy Execution Health Gate: Check non-empty strategies
     _all_strategy_dfs = {
         'regression': res_df, 'surge': surge_df, 'lead_lag': lead_lag_df, 'vcp_rule': vcp_results,

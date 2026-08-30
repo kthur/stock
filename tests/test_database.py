@@ -293,5 +293,88 @@ class TestStockPriceDBConcurrency(unittest.TestCase):
         self.assertTrue(errors.empty(), f"Errors occurred during concurrent StockPriceDB updates: {list(errors.queue)}")
 
 
+class TestStockPriceDBBatchUpsert(unittest.TestCase):
+    """StockPriceDB.update_prices_batch test suite"""
+
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.db_path = self.tmp.name
+        self.tmp.close()
+        self.db = StockPriceDB(db_path=self.db_path)
+
+    def tearDown(self):
+        self.db.close()
+        import gc
+        gc.collect()
+        Path(self.db_path).unlink(missing_ok=True)
+
+    def test_update_prices_batch_multiple_symbols(self):
+        """Verify batch upserting multiple symbols in a single transaction."""
+        import pandas as pd
+        dates = pd.date_range("2026-01-01", periods=5, freq="D")
+        batch_data = {
+            "AAPL": pd.DataFrame({
+                "Open": [150.0, 151.0, 152.0, 153.0, 154.0],
+                "High": [155.0, 156.0, 157.0, 158.0, 159.0],
+                "Low": [149.0, 150.0, 151.0, 152.0, 153.0],
+                "Close": [154.0, 155.0, 156.0, 157.0, 158.0],
+                "Volume": [1000, 1100, 1200, 1300, 1400]
+            }, index=dates),
+            "MSFT": pd.DataFrame({
+                "Open": [300.0, 301.0, 302.0, 303.0, 304.0],
+                "High": [305.0, 306.0, 307.0, 308.0, 309.0],
+                "Low": [299.0, 300.0, 301.0, 302.0, 303.0],
+                "Close": [304.0, 305.0, 306.0, 307.0, 308.0],
+                "Volume": [2000, 2100, 2200, 2300, 2400]
+            }, index=dates),
+            "005930": pd.DataFrame({
+                "Open": [70000.0, 70100.0, 70200.0, 70300.0, 70400.0],
+                "High": [70500.0, 70600.0, 70700.0, 70800.0, 70900.0],
+                "Low": [69500.0, 69600.0, 69700.0, 69800.0, 69900.0],
+                "Close": [70200.0, 70300.0, 70400.0, 70500.0, 70600.0],
+                "Volume": [1000000, 1100000, 1200000, 1300000, 1400000]
+            }, index=dates)
+        }
+
+        total_upserted = self.db.update_prices_batch(batch_data)
+        self.assertEqual(total_upserted, 15)
+
+        aapl_df = self.db.get_prices("AAPL")
+        self.assertEqual(len(aapl_df), 5)
+        self.assertAlmostEqual(aapl_df.iloc[0]["Close"], 154.0)
+
+        msft_df = self.db.get_prices("MSFT")
+        self.assertEqual(len(msft_df), 5)
+        self.assertAlmostEqual(msft_df.iloc[-1]["Close"], 308.0)
+
+        krx_df = self.db.get_prices("005930")
+        self.assertEqual(len(krx_df), 5)
+        self.assertAlmostEqual(krx_df.iloc[0]["Close"], 70200.0)
+
+    def test_update_prices_batch_empty_and_corrupt(self):
+        """Verify empty and invalid batch inputs are handled gracefully."""
+        import pandas as pd
+        self.assertEqual(self.db.update_prices_batch({}), 0)
+        self.assertEqual(self.db.update_prices_batch({"EMPTY": pd.DataFrame()}), 0)
+
+    def test_update_prices_backward_compatibility(self):
+        """Verify single symbol update_prices still functions identically via delegation."""
+        import pandas as pd
+        dates = pd.date_range("2026-02-01", periods=3, freq="D")
+        df = pd.DataFrame({
+            "Open": [100.0, 101.0, 102.0],
+            "High": [105.0, 106.0, 107.0],
+            "Low": [99.0, 100.0, 101.0],
+            "Close": [103.0, 104.0, 105.0],
+            "Volume": [500, 600, 700]
+        }, index=dates)
+
+        count = self.db.update_prices("GOOG", df)
+        self.assertEqual(count, 3)
+
+        retrieved = self.db.get_prices("GOOG")
+        self.assertEqual(len(retrieved), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

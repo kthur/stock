@@ -576,7 +576,8 @@ class ExecutionOMSEngine:
                 if adv_in_pred is not None and float(adv_in_pred) > 0:
                     adv_val = float(adv_in_pred)
                     adv_floor = 10_000.0 if curr_iso == 'USD' else 10_000_000.0
-                    max_adv_amount = max(adv_floor, max_adv_ratio * adv_val)
+                    # Bounded ADV floor: min(max_adv_ratio * adv, max(adv_floor, 0.50 * adv)) to protect illiquid micro-caps
+                    max_adv_amount = min(max_adv_ratio * adv_val, max(adv_floor, 0.50 * adv_val))
                     if effective_target_amount > max_adv_amount:
                         logger.info(f"[OMS ADV CAPACITY] {sym} target amount {effective_target_amount:,.0f} capped to {max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
                         effective_target_amount = max_adv_amount
@@ -1038,7 +1039,7 @@ class ExecutionOMSEngine:
         tp_t1 = min(regime_params.get('tp_tier1', 0.08), tp_t2 * 0.7)
         tp_t3 = max(0.25, tp_t2 + 0.15)
         sl_mult = regime_params.get('sl_atr_mult', 1.5)
-        ts_mult = regime_params.get('ts_atr_mult', atr_multiplier)
+        ts_mult = atr_multiplier if atr_multiplier is not None else regime_params.get('ts_atr_mult', 2.0)
         max_holding_days = regime_params.get('max_holding_days', 30)
 
         for sym, h_info in current_holdings.items():
@@ -1065,10 +1066,22 @@ class ExecutionOMSEngine:
             unrealized_return = (curr_p - entry_p) / entry_p
             p_df = prices_dict.get(sym) if prices_dict else None
 
+            # Dynamic volatility scaling if price history < 14 rows
+            vol_20d = h_info.get("volatility_20d")
+            if vol_20d is None:
+                ann_vol = h_info.get("annualized_volatility") or h_info.get("annualized_vol") or h_info.get("volatility") or h_info.get("vol")
+                if ann_vol is not None and float(ann_vol) > 0:
+                    vol_20d = float(ann_vol) / np.sqrt(252.0)
+
+            if vol_20d is not None and float(vol_20d) > 0:
+                vol_scale = max(0.01, min(0.20, float(vol_20d)))
+            else:
+                vol_scale = 0.02
+
             # Compute ATR, 20-day high, and 50-day MA if available
             high_20 = max(curr_p, entry_p)
             ma_50 = entry_p * 0.95
-            atr = curr_p * 0.02
+            atr = curr_p * vol_scale
             is_down_day = False
             vol_ratio = 1.0
 
@@ -1088,7 +1101,7 @@ class ExecutionOMSEngine:
                     tr3 = (l_s - c_s.shift(1)).abs()
                     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
                     atr_val = tr.tail(14).dropna().mean()
-                    atr = float(atr_val) if (pd.notna(atr_val) and atr_val > 0) else curr_p * 0.02
+                    atr = float(atr_val) if (pd.notna(atr_val) and atr_val > 0) else curr_p * vol_scale
                     if len(c_s) >= 50:
                         ma_50 = float(c_s.tail(50).mean())
                     if len(c_s) >= 2:
@@ -1096,6 +1109,12 @@ class ExecutionOMSEngine:
                     if vol_col and len(p_df[vol_col]) >= 20:
                         vol_s = pd.to_numeric(p_df[vol_col], errors='coerce')
                         vol_ratio = float(vol_s.iloc[-1] / max(vol_s.tail(20).mean(), 1.0))
+            elif isinstance(p_df, pd.DataFrame) and len(p_df) > 0:
+                high_col = next((c for c in p_df.columns if str(c).lower() == 'high'), None)
+                if high_col:
+                    h_max = pd.to_numeric(p_df[high_col], errors='coerce').dropna().max()
+                    if pd.notna(h_max) and float(h_max) > 0:
+                        high_20 = max(high_20, float(h_max))
 
             # 1. Emergency Order Flow Shock Exit
             is_shock, shock_reason = self.check_order_flow_shock_exit(mfi, is_down_day, vol_ratio, obi)

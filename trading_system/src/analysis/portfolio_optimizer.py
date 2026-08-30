@@ -1,3 +1,16 @@
+"""
+Portfolio Optimization Engine (Functional APIs):
+Canonical analytical engine providing functional implementations of:
+- Equal Risk Contribution / Risk Parity (calculate_risk_parity_weights)
+- 2D Regime-Adaptive Black-Litterman (calculate_black_litterman_weights)
+- Ledoit-Wolf Covariance Shrinkage & Spectral Denoising (shrink_covariance_matrix)
+- Hierarchical Risk Parity (HRP) & Return-Tilted HRP (calculate_hrp_weights)
+- Hierarchical Equal Risk Contribution (HERC) (calculate_herc_weights)
+- Portfolio Constraints & Multi-Factor Neutralization (apply_portfolio_constraints)
+
+For object-oriented risk wrapper, see `src.risk.portfolio_optimizer.PortfolioOptimizer`.
+"""
+
 import logging
 from typing import Optional, Any
 
@@ -509,7 +522,7 @@ def calculate_hrp_weights(
         sum_w = float(np.sum(weights))
         if sum_w > 1e-12 and np.isfinite(sum_w):
             weights = weights / sum_w
-            return apply_portfolio_constraints(weights, symbols=symbols, sectors=sectors if 'sectors' in locals() else None)
+            return apply_portfolio_constraints(weights, symbols=symbols, sectors=sectors)
 
     except Exception as e:
         logger.error(f"HRP optimization exception: {e}. Falling back to Risk Parity.")
@@ -521,6 +534,7 @@ def calculate_hrp_weights(
 def calculate_herc_weights(
     cov_matrix: np.ndarray,
     symbols: Optional[list] = None,
+    sectors: Optional[list] = None,
     linkage_method: str = "ward",
     max_k: int = 5,
     risk_measure: str = "volatility"
@@ -602,13 +616,14 @@ def calculate_herc_weights(
             return apply_portfolio_constraints(
                 herc_w,
                 symbols=symbols,
+                sectors=sectors,
                 max_single_stock_weight=0.20,
                 max_sector_weight=0.35
             )
         return np.full(n, 1.0 / n)
     except Exception as e:
         logger.debug(f"[HERC] Fallback to HRP: {e}")
-        return calculate_hrp_weights(cov_matrix, symbols=symbols)
+        return calculate_hrp_weights(cov_matrix, symbols=symbols, sectors=sectors)
 
 
 def apply_portfolio_constraints(
@@ -630,45 +645,64 @@ def apply_portfolio_constraints(
     n = len(weights)
     w = np.copy(weights)
 
-    # 1. Single stock weight capping (max 10.0%, at least 1.0/n for small portfolio sizes)
+    # 1. Single stock weight capping and Sector weight capping with joint iterative convergence
     cap_weight = max(max_single_stock_weight, 1.0 / n) if n > 0 else max_single_stock_weight
-    for _ in range(10):
-        over_mask = w > cap_weight
-        if not np.any(over_mask):
-            break
-        excess = np.sum(w[over_mask] - cap_weight)
-        w[over_mask] = cap_weight
-        under_mask = ~over_mask
-        if np.any(under_mask) and np.sum(w[under_mask]) > 1e-12:
-            w[under_mask] += excess * (w[under_mask] / np.sum(w[under_mask]))
-        else:
-            break
 
-    # 2. Sector weight capping (max 25.0%) if sectors provided
-    if sectors and len(sectors) == n:
-        import pandas as pd
-        sec_series = pd.Series(sectors)
-        num_unique_sectors = max(1, len(sec_series.unique()))
-        eff_max_sec = max(max_sector_weight, 1.0 / num_unique_sectors)
+    for _outer in range(5):
+        changed = False
+
+        # Single stock weight capping
         for _ in range(10):
-            df_w = pd.DataFrame({'weight': w, 'sector': sec_series})
-            sec_sums = df_w.groupby('sector')['weight'].sum()
-            over_sectors = sec_sums[sec_sums > eff_max_sec + 1e-6]
-            if over_sectors.empty:
+            over_mask = w > cap_weight + 1e-8
+            if not np.any(over_mask):
                 break
-
-            excess_total = 0.0
-            for sec, total_s in over_sectors.items():
-                scale = eff_max_sec / total_s
-                sec_mask = (sec_series == sec).values
-                excess_total += float(np.sum(w[sec_mask] * (1.0 - scale)))
-                w[sec_mask] *= scale
-
-            under_mask = ~sec_series.isin(over_sectors.index).values
+            changed = True
+            excess = np.sum(w[over_mask] - cap_weight)
+            w[over_mask] = cap_weight
+            under_mask = ~over_mask
             if np.any(under_mask) and np.sum(w[under_mask]) > 1e-12:
-                w[under_mask] += excess_total * (w[under_mask] / np.sum(w[under_mask]))
+                available_room = np.maximum(0.0, cap_weight - w[under_mask])
+                if np.sum(available_room) > 1e-12:
+                    alloc = excess * (available_room / np.sum(available_room))
+                    w[under_mask] += np.minimum(available_room, alloc)
+                else:
+                    w[under_mask] += excess * (w[under_mask] / np.sum(w[under_mask]))
             else:
                 break
+
+        # Sector weight capping if sectors provided
+        if sectors and len(sectors) == n:
+            import pandas as pd
+            sec_series = pd.Series(sectors)
+            num_unique_sectors = max(1, len(sec_series.unique()))
+            eff_max_sec = max(max_sector_weight, 1.0 / num_unique_sectors)
+            for _ in range(10):
+                df_w = pd.DataFrame({'weight': w, 'sector': sec_series})
+                sec_sums = df_w.groupby('sector')['weight'].sum()
+                over_sectors = sec_sums[sec_sums > eff_max_sec + 1e-6]
+                if over_sectors.empty:
+                    break
+                changed = True
+                excess_total = 0.0
+                for sec, total_s in over_sectors.items():
+                    scale = eff_max_sec / total_s
+                    sec_mask = (sec_series == sec).values
+                    excess_total += float(np.sum(w[sec_mask] * (1.0 - scale)))
+                    w[sec_mask] *= scale
+
+                under_mask = ~sec_series.isin(over_sectors.index).values
+                if np.any(under_mask) and np.sum(w[under_mask]) > 1e-12:
+                    available_room = np.maximum(0.0, cap_weight - w[under_mask])
+                    if np.sum(available_room) > 1e-12:
+                        alloc = excess_total * (available_room / np.sum(available_room))
+                        w[under_mask] += np.minimum(available_room, alloc)
+                    else:
+                        w[under_mask] += excess_total * (w[under_mask] / np.sum(w[under_mask]))
+                else:
+                    break
+
+        if not changed:
+            break
 
     # 3. Factor exposure capping (e.g. Beta, Size, Value <= max_factor_exposure)
     if factor_loadings is not None:
@@ -695,12 +729,28 @@ def apply_portfolio_constraints(
             logger.debug(f"Factor constraint application skipped: {_fe}")
 
     w = np.nan_to_num(w, nan=0.0, posinf=0.0, neginf=0.0)
-    w = np.clip(w, 0.0, 1.0)
+    w = np.clip(w, 0.0, cap_weight)
     sum_w = float(np.sum(w))
     if sum_w > 1e-12:
         w /= sum_w
     else:
         w = np.full(n, 1.0 / n) if n > 0 else w
+
+    for _ in range(5):
+        over = w > cap_weight + 1e-6
+        if not np.any(over):
+            break
+        excess = np.sum(w[over] - cap_weight)
+        w[over] = cap_weight
+        under = ~over
+        if np.any(under) and np.sum(w[under]) > 1e-12:
+            room = np.maximum(0.0, cap_weight - w[under])
+            if np.sum(room) > 1e-12:
+                w[under] += excess * (room / np.sum(room))
+            else:
+                break
+        else:
+            break
 
     return w
 

@@ -607,67 +607,87 @@ class StockPriceDB:
                 conn.close()
         self.logger.info(f"StockPriceDB initialized at {self.db_path}")
 
-    def update_prices(self, symbol: str, df: pd.DataFrame, bypass_validation: bool = False) -> int:
-        """OHLCV DataFrame을 DB에 batch upsert. 반환: 저장된 행 수 (Retry Lock 포함)"""
-        if df is None or df.empty:
+    def update_prices_batch(self, price_data: Dict[str, pd.DataFrame], bypass_validation: bool = False) -> int:
+        """OHLCV DataFrames dictionary를 단일 SQLite 트랜잭션으로 batch upsert. 반환: 저장된 총 행 수"""
+        if not price_data:
             return 0
 
-        symbol = normalize_symbol(symbol)
-
+        # Import DataValidator conditionally once per batch if validation needed
+        validator_func = None
         if not bypass_validation:
-            from src.data_layer.data_validator import DataValidator
-            if not DataValidator.validate_price_data(symbol, df):
-                self.logger.warning(f"[StockPriceDB] Price data validation failed for {symbol}. Upsert aborted.")
-                return 0
-
-        # Ensure DatetimeIndex if integer index with Date column is provided
-        if not isinstance(df.index, pd.DatetimeIndex) and any(str(c).lower() in ('date', 'datetime', 'time') for c in df.columns):
-            date_col = next(c for c in df.columns if str(c).lower() in ('date', 'datetime', 'time'))
-            df = df.copy()
-            df.set_index(pd.to_datetime(df[date_col], errors='coerce'), inplace=True)
-
-        # Pre-resolve column indices for ultra-fast itertuples extraction
-        col_list = list(df.columns)
-        lower_cols = [str(c).lower() for c in col_list]
-        open_pos = lower_cols.index("open") if "open" in lower_cols else None
-        high_pos = lower_cols.index("high") if "high" in lower_cols else None
-        low_pos = lower_cols.index("low") if "low" in lower_cols else None
-        close_pos = lower_cols.index("close") if "close" in lower_cols else None
-        vol_pos = lower_cols.index("volume") if "volume" in lower_cols else None
+            try:
+                from src.data_layer.data_validator import DataValidator
+                validator_func = DataValidator.validate_price_data
+            except (ImportError, ModuleNotFoundError):
+                try:
+                    from data_validator import DataValidator
+                    validator_func = DataValidator.validate_price_data
+                except Exception:
+                    validator_func = None
 
         import math
-        records = []
-        for row in df.itertuples(index=True):
-            idx = row[0]
-            d_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
-            try:
-                op = float(row[open_pos + 1]) if open_pos is not None else 0.0
-                hi = float(row[high_pos + 1]) if high_pos is not None else 0.0
-                lo = float(row[low_pos + 1]) if low_pos is not None else 0.0
-                cl = float(row[close_pos + 1]) if close_pos is not None else 0.0
-                vol_f = float(row[vol_pos + 1]) if vol_pos is not None else 0.0
+        all_records = []
+        symbols_updated = []
 
-                if not math.isfinite(vol_f):
-                    vol_f = 0.0
-                vol = int(vol_f) if (math.isfinite(vol_f) and vol_f >= 0) else 0
-
-                if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl)):
-                    continue
-                if cl <= 0.0 or op <= 0.0 or hi <= 0.0 or lo <= 0.0:
-                    continue
-                # Enforce logical OHLC consistency (fix minor data feed rounding errors or skip corrupt rows)
-                if hi < lo or op > hi or op < lo or cl > hi or cl < lo:
-                    hi = max(hi, op, cl, lo)
-                    lo = min(lo, op, cl, hi)
-                    if hi <= 0.0 or lo <= 0.0 or hi < lo:
-                        continue
-            except (ValueError, TypeError, IndexError):
+        for raw_symbol, df in price_data.items():
+            if df is None or df.empty:
                 continue
-            records.append((symbol, d_str, op, hi, lo, cl, vol))
-        if not records:
+
+            symbol = normalize_symbol(raw_symbol)
+
+            if validator_func is not None:
+                if not validator_func(symbol, df):
+                    self.logger.warning(f"[StockPriceDB] Price data validation failed for {symbol}. Upsert skipped.")
+                    continue
+
+            # Ensure DatetimeIndex if integer index with Date column is provided
+            if not isinstance(df.index, pd.DatetimeIndex) and any(str(c).lower() in ('date', 'datetime', 'time') for c in df.columns):
+                date_col = next(c for c in df.columns if str(c).lower() in ('date', 'datetime', 'time'))
+                df = df.copy()
+                df.set_index(pd.to_datetime(df[date_col], errors='coerce'), inplace=True)
+
+            # Pre-resolve column indices for ultra-fast itertuples extraction
+            col_list = list(df.columns)
+            lower_cols = [str(c).lower() for c in col_list]
+            open_pos = lower_cols.index("open") if "open" in lower_cols else None
+            high_pos = lower_cols.index("high") if "high" in lower_cols else None
+            low_pos = lower_cols.index("low") if "low" in lower_cols else None
+            close_pos = lower_cols.index("close") if "close" in lower_cols else None
+            vol_pos = lower_cols.index("volume") if "volume" in lower_cols else None
+
+            for row in df.itertuples(index=True):
+                idx = row[0]
+                d_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
+                try:
+                    op = float(row[open_pos + 1]) if open_pos is not None else 0.0
+                    hi = float(row[high_pos + 1]) if high_pos is not None else 0.0
+                    lo = float(row[low_pos + 1]) if low_pos is not None else 0.0
+                    cl = float(row[close_pos + 1]) if close_pos is not None else 0.0
+                    vol_f = float(row[vol_pos + 1]) if vol_pos is not None else 0.0
+
+                    if not math.isfinite(vol_f):
+                        vol_f = 0.0
+                    vol = int(vol_f) if (math.isfinite(vol_f) and vol_f >= 0) else 0
+
+                    if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl)):
+                        continue
+                    if cl <= 0.0 or op <= 0.0 or hi <= 0.0 or lo <= 0.0:
+                        continue
+                    # Enforce logical OHLC consistency (fix minor data feed rounding errors or skip corrupt rows)
+                    if hi < lo or op > hi or op < lo or cl > hi or cl < lo:
+                        hi = max(hi, op, cl, lo)
+                        lo = min(lo, op, cl, hi)
+                        if hi <= 0.0 or lo <= 0.0 or hi < lo:
+                            continue
+                except (ValueError, TypeError, IndexError):
+                    continue
+                all_records.append((symbol, d_str, op, hi, lo, cl, vol))
+            symbols_updated.append(symbol)
+
+        if not all_records:
             return 0
 
-        def _do_update():
+        def _do_batch_update():
             with StockPriceDB._SHARED_WRITE_LOCK:
                 conn = self._get_conn()
                 try:
@@ -675,7 +695,7 @@ class StockPriceDB:
                         INSERT OR REPLACE INTO stock_prices
                         (symbol, date, open, high, low, close, volume, updated_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                    """, records)
+                    """, all_records)
                     conn.commit()
                 except Exception:
                     conn.rollback()
@@ -683,13 +703,19 @@ class StockPriceDB:
 
         try:
             from src.data_layer.hybrid_storage import execute_sqlite_with_retry
-            execute_sqlite_with_retry(_do_update)
+            execute_sqlite_with_retry(_do_batch_update)
         except (ImportError, ModuleNotFoundError):
-            _do_update()
+            _do_batch_update()
 
-        count = len(records)
-        self.logger.info(f"Upserted {count} price rows for {symbol}")
-        return count
+        total_count = len(all_records)
+        self.logger.info(f"Upserted {total_count} price rows across {len(symbols_updated)} symbols in batch")
+        return total_count
+
+    def update_prices(self, symbol: str, df: pd.DataFrame, bypass_validation: bool = False) -> int:
+        """OHLCV DataFrame을 DB에 batch upsert. 반환: 저장된 행 수 (Retry Lock 포함)"""
+        if df is None or df.empty:
+            return 0
+        return self.update_prices_batch({symbol: df}, bypass_validation=bypass_validation)
 
     @staticmethod
     def validate_and_clean_price_series(df: pd.DataFrame, max_daily_jump: float = 0.65) -> pd.DataFrame:

@@ -352,5 +352,58 @@ class TestStatArbBatching(unittest.TestCase):
         self.assertIsInstance(pairs, list)
 
 
+class TestEVTCVaROptimizationAdaptive(unittest.TestCase):
+    """Unit tests for adaptive iteration limits and Cornish-Fisher QP fallback in optimize_with_evt_cvar_constraint."""
+
+    def setUp(self):
+        self.allocator = PortfolioAllocator()
+        np.random.seed(42)
+
+    def test_optimize_with_evt_cvar_constraint_adaptive_dimensions(self):
+        """Verify optimize_with_evt_cvar_constraint converges cleanly across small and medium universes."""
+        # 1. 5-asset universe
+        n = 5
+        symbols = [f"STOCK_{i}" for i in range(n)]
+        dates = pd.date_range("2026-01-01", periods=100, freq="B")
+        rets = np.random.normal(0.0005, 0.02, size=(100, n))
+        df_rets = pd.DataFrame(rets, index=dates, columns=symbols)
+        mu = pd.Series(np.mean(rets, axis=0) * 252, index=symbols)
+
+        weights = self.allocator.optimize_with_evt_cvar_constraint(
+            expected_returns=mu,
+            returns_df=df_rets,
+            max_cvar=0.05,
+            confidence=0.95
+        )
+
+        self.assertEqual(len(weights), n)
+        self.assertAlmostEqual(sum(weights.values()), 1.0, places=4)
+        for sym, w in weights.items():
+            self.assertGreaterEqual(w, 0.0)
+
+    def test_optimize_with_evt_cvar_tight_constraint_fallback(self):
+        """Verify graceful fallback to Cornish-Fisher QP when CVaR constraint is extremely tight."""
+        n = 4
+        symbols = [f"VOL_STOCK_{i}" for i in range(n)]
+        dates = pd.date_range("2026-01-01", periods=100, freq="B")
+        # High volatility returns
+        rets = np.random.normal(0.001, 0.05, size=(100, n))
+        df_rets = pd.DataFrame(rets, index=dates, columns=symbols)
+        mu = pd.Series([0.15, 0.20, 0.10, 0.05], index=symbols)
+
+        # Extremely tight max_cvar = 0.001 (impossible for 5% daily vol), triggers fallback
+        weights = self.allocator.optimize_with_evt_cvar_constraint(
+            expected_returns=mu,
+            returns_df=df_rets,
+            max_cvar=0.001,
+            confidence=0.95
+        )
+
+        self.assertEqual(len(weights), n)
+        self.assertAlmostEqual(sum(weights.values()), 1.0, places=4)
+        for sym, w in weights.items():
+            self.assertGreaterEqual(w, 0.0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

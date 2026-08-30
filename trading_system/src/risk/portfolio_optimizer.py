@@ -1,9 +1,13 @@
 """
-Portfolio Optimizer Module:
+Portfolio Optimizer Module (Object-Oriented Risk Wrapper):
+Object-oriented risk management wrapper implementing:
 - Risk Parity (Equal Risk Contribution) Allocation
 - Mean-Variance / Sharpe Optimization with Covariance Matrix & EVT-CVaR Loss Budget Constraints
 - Dynamic Factor & Sector Exposure Control (Neutralization & Constraint)
 - Dynamic Band Rebalancing Signal Trigger Evaluation
+
+For functional/analytical HRP, Black-Litterman, Ledoit-Wolf shrinkage, and HERC routines used by pipeline,
+see `src.analysis.portfolio_optimizer`.
 """
 
 import numpy as np
