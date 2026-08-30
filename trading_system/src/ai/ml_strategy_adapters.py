@@ -36,11 +36,19 @@ class RegressionStrategyAdapter(BaseStrategyEngine):
         indicators_df: Optional[pd.DataFrame] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        if self.model_instance is None:
-            return pd.DataFrame(columns=["symbol", "reg_score"])
+        inst = self.model_instance
+        if inst is None:
+            from src.ai.prediction_model import OnDevicePredictionModel
+            inst = OnDevicePredictionModel(config=self.config)
         try:
             import numpy as np
-            preds = self.model_instance.predict_all(prices_dict, fundamentals_dict=fundamentals_dict)
+            if hasattr(inst, "process_and_predict_all"):
+                preds = inst.process_and_predict_all(prices_dict, indicator_df=indicators_df)
+            elif hasattr(inst, "predict_all"):
+                res = inst.predict_all(prices_dict, indicator_df=indicators_df)
+                preds = res[0] if isinstance(res, tuple) else res
+            else:
+                preds = pd.DataFrame()
             if isinstance(preds, pd.DataFrame):
                 if "reg_score" not in preds.columns and "expected_return_5d" in preds.columns:
                     preds = preds.rename(columns={"expected_return_5d": "reg_score"})
@@ -80,11 +88,19 @@ class SurgeStrategyAdapter(BaseStrategyEngine):
         indicators_df: Optional[pd.DataFrame] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        if self.model_instance is None:
-            return pd.DataFrame(columns=["symbol", "surge_score"])
+        inst = self.model_instance
+        if inst is None:
+            from src.ai.prediction_model import OnDevicePredictionModel
+            inst = OnDevicePredictionModel(config=self.config)
         try:
             import numpy as np
-            preds = self.model_instance.predict_surge_all(prices_dict)
+            if hasattr(inst, "predict_surge_all"):
+                preds = inst.predict_surge_all(prices_dict, indicator_df=indicators_df)
+            elif hasattr(inst, "predict_all"):
+                res = inst.predict_all(prices_dict, indicator_df=indicators_df)
+                preds = res[1] if isinstance(res, tuple) else res
+            else:
+                preds = pd.DataFrame()
             if isinstance(preds, pd.DataFrame):
                 if "surge_score" not in preds.columns and "surge_prob_5d" in preds.columns:
                     preds = preds.rename(columns={"surge_prob_5d": "surge_score"})
@@ -124,14 +140,18 @@ class VCPMLStrategyAdapter(BaseStrategyEngine):
         indicators_df: Optional[pd.DataFrame] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        if self.model_instance is None:
-            return pd.DataFrame(columns=["symbol", "vcp_ml_score"])
+        inst = self.model_instance
+        if inst is None:
+            from src.ai.vcp_ml_predictor import VCPSurgePredictor
+            inst = VCPSurgePredictor()
         try:
             import numpy as np
-            preds = self.model_instance.predict(prices_dict)
+            preds = inst.predict(prices_dict)
             if isinstance(preds, pd.DataFrame):
                 if "vcp_ml_score" not in preds.columns and "score" in preds.columns:
                     preds = preds.rename(columns={"score": "vcp_ml_score"})
+                elif "vcp_ml_score" not in preds.columns and "vcp_5d" in preds.columns:
+                    preds = preds.rename(columns={"vcp_5d": "vcp_ml_score"})
                 if "vcp_ml_score" in preds.columns:
                     preds["vcp_ml_score"] = pd.to_numeric(preds["vcp_ml_score"], errors="coerce").fillna(0.0)
                 return preds
@@ -168,8 +188,12 @@ class LeadLagStrategyAdapter(BaseStrategyEngine):
         indicators_df: Optional[pd.DataFrame] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        if self.model_instance is not None and hasattr(self.model_instance, "compute_scores"):
-            return self.model_instance.compute_scores(prices_dict=prices_dict, **kwargs)
+        inst = self.model_instance
+        if inst is None:
+            from src.core.lead_lag import LeadLagEngine
+            inst = LeadLagEngine(config=self.config)
+        if hasattr(inst, "compute_scores"):
+            return inst.compute_scores(prices_dict=prices_dict, **kwargs)
         return pd.DataFrame(columns=["symbol", "ll_score"])
 
 
@@ -201,7 +225,17 @@ class VCPRuleStrategyAdapter(BaseStrategyEngine):
     ) -> pd.DataFrame:
         if self.model_instance is not None and hasattr(self.model_instance, "compute_scores"):
             return self.model_instance.compute_scores(prices_dict=prices_dict, **kwargs)
-        return pd.DataFrame(columns=["symbol", "vcp_rule_score"])
+        from src.ai.vcp_detector import detect_vcp
+        records = []
+        if prices_dict:
+            for sym, df in prices_dict.items():
+                try:
+                    res = detect_vcp(df)
+                    v_score = (res.get('vcp_score', 0.0) / 100.0) if res else 0.50
+                    records.append({'symbol': str(sym), 'vcp_rule_score': float(np.clip(v_score, 0.0, 1.0))})
+                except Exception:
+                    records.append({'symbol': str(sym), 'vcp_rule_score': 0.50})
+        return pd.DataFrame(records)
 
 
 @register_strategy(
@@ -270,8 +304,12 @@ class SentimentStrategyAdapter(BaseStrategyEngine):
         indicators_df: Optional[pd.DataFrame] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        if self.model_instance is not None and hasattr(self.model_instance, "compute_scores"):
-            return self.model_instance.compute_scores(prices_dict=prices_dict, **kwargs)
+        inst = self.model_instance
+        if inst is None:
+            from src.core.llm_sentiment_engine import DARTSECSentimentEngine
+            inst = DARTSECSentimentEngine()
+        if hasattr(inst, "compute_scores"):
+            return inst.compute_scores(prices_dict=prices_dict, **kwargs)
         return pd.DataFrame(columns=["symbol", "sentiment_score"])
 
 
@@ -303,4 +341,15 @@ class DarkPoolStrategyAdapter(BaseStrategyEngine):
     ) -> pd.DataFrame:
         if self.model_instance is not None and hasattr(self.model_instance, "compute_scores"):
             return self.model_instance.compute_scores(prices_dict=prices_dict, **kwargs)
-        return pd.DataFrame(columns=["symbol", "darkpool_score"])
+        from src.core.hft_engine import MicrostructureImbalanceEngine
+        engine = MicrostructureImbalanceEngine()
+        res = engine.compute_scores(prices_dict=prices_dict, **kwargs)
+        if isinstance(res, pd.DataFrame):
+            if 'darkpool_score' not in res.columns and 'microstructure_score' in res.columns:
+                res = res.rename(columns={'microstructure_score': 'darkpool_score'})
+            elif 'darkpool_score' not in res.columns and 'hft_score' in res.columns:
+                res = res.rename(columns={'hft_score': 'darkpool_score'})
+            if 'darkpool_score' in res.columns:
+                res['darkpool_score'] = pd.to_numeric(res['darkpool_score'], errors='coerce').fillna(0.50)
+            return res
+        return pd.DataFrame([{'symbol': str(s), 'darkpool_score': 0.50} for s in prices_dict.keys()])

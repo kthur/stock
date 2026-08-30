@@ -75,6 +75,10 @@ class IndexRebalanceEngine(BaseStrategyEngine):
                 universe = fundamentals_dict
             elif isinstance(prices_dict, pd.DataFrame):
                 universe = prices_dict
+            elif isinstance(prices_dict, dict) and prices_dict:
+                universe = pd.DataFrame([{"symbol": str(s), "name": str(s), "market": "GLOBAL"} for s in prices_dict.keys()])
+            elif "symbols" in kwargs and kwargs["symbols"]:
+                universe = pd.DataFrame([{"symbol": str(s), "name": str(s), "market": "GLOBAL"} for s in kwargs["symbols"]])
             else:
                 return pd.DataFrame(columns=["symbol", "name", "market", "index_rebalance_score", "predicted_flow_krw"])
 

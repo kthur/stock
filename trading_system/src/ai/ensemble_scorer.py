@@ -950,7 +950,7 @@ class EnsembleScoringEngine:
         vix_val: Optional[float] = None,
         factor_ic_dict: Optional[Dict[str, float]] = None,
         factor_crowding_penalties: Optional[Dict[str, float]] = None,
-        pruning_threshold: Optional[float] = -2.0,
+        pruning_threshold: Optional[float] = -0.50,
         smooth_downside_mode: bool = True,
         market: str = "global"
     ) -> Dict[str, float]:
@@ -1008,7 +1008,7 @@ class EnsembleScoringEngine:
         scores = {}
         for strategy, base_w in base_weights.items():
             sharpe = clean_sharpes.get(strategy, 0.0)
-            if pruning_threshold is not None and sharpe < pruning_threshold and not smooth_downside_mode:
+            if pruning_threshold is not None and sharpe < pruning_threshold:
                 # Hard gate pruning for severely underperforming strategies
                 scores[strategy] = 0.0
                 continue
@@ -1085,14 +1085,12 @@ class EnsembleScoringEngine:
             return base_weights
         dynamic_weights = {k: float(v / total_score) for k, v in scores.items()}
 
-        # Enforce minimum weight floor to prevent permanent zero-weight deadlock.
-        # Strategies pruned to 0.0 receive a small exploratory allocation so they
-        # can generate fresh performance data and eventually recover.
-        STRATEGY_WEIGHT_FLOOR = 0.01  # 1% minimum per strategy
+        # Enforce minimum weight floor on active (non-pruned) strategies to prevent zero-weight deadlock.
+        STRATEGY_WEIGHT_FLOOR = 0.01  # 1% minimum per active strategy
         n_strategies = len(dynamic_weights)
         if n_strategies > 0:
             for k in dynamic_weights:
-                if dynamic_weights[k] < STRATEGY_WEIGHT_FLOOR and k in base_weights:
+                if 0.0 < dynamic_weights[k] < STRATEGY_WEIGHT_FLOOR and k in base_weights:
                     dynamic_weights[k] = STRATEGY_WEIGHT_FLOOR
             # Re-normalize after floor enforcement
             floor_total = sum(dynamic_weights.values())

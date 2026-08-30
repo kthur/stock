@@ -646,7 +646,7 @@ def apply_portfolio_constraints(
     w = np.copy(weights)
 
     # 1. Single stock weight capping and Sector weight capping with joint iterative convergence
-    cap_weight = max(max_single_stock_weight, 1.0 / n) if n > 0 else max_single_stock_weight
+    cap_weight = max_single_stock_weight if (n * max_single_stock_weight > 1.0) else 1.0
 
     for _outer in range(5):
         changed = False
@@ -675,7 +675,7 @@ def apply_portfolio_constraints(
             import pandas as pd
             sec_series = pd.Series(sectors)
             num_unique_sectors = max(1, len(sec_series.unique()))
-            eff_max_sec = max(max_sector_weight, 1.0 / num_unique_sectors)
+            eff_max_sec = max_sector_weight if (num_unique_sectors * max_sector_weight > 1.0) else 1.0
             for _ in range(10):
                 df_w = pd.DataFrame({'weight': w, 'sector': sec_series})
                 sec_sums = df_w.groupby('sector')['weight'].sum()

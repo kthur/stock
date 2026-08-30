@@ -2931,7 +2931,6 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     # =========================================================================
     # Phase 10-Parallel: Concurrent Multi-Factor Strategy Scoring Engine
     # =========================================================================
-    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     # 1. Pre-compute shared contexts & inputs
     symbols_list = universe['symbol'].tolist() if 'symbol' in universe.columns else list(infer_data_dict.keys())

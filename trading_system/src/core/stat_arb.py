@@ -745,9 +745,24 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
                         if not m_val.empty:
                             market_map[sym] = m_val.iloc[-1]
 
+            all_syms = list(prices_dict.keys()) if prices_dict else []
+            if "symbols" in kwargs and kwargs["symbols"]:
+                for s in kwargs["symbols"]:
+                    if str(s) not in all_syms:
+                        all_syms.append(str(s))
+
             pairs = self.find_cointegrated_pairs(prices_dict, market_map=market_map)
-            return self.get_symbol_stat_arb_scores(pairs)
+            res = self.get_symbol_stat_arb_scores(pairs)
+            if res.empty:
+                return pd.DataFrame([{"symbol": s, "stat_arb_score": 0.50, "long_only_mode": False} for s in all_syms])
+            
+            existing_syms = set(res["symbol"])
+            missing = [{"symbol": s, "stat_arb_score": 0.50, "long_only_mode": False} for s in all_syms if s not in existing_syms]
+            if missing:
+                res = pd.concat([res, pd.DataFrame(missing)], ignore_index=True)
+            return res
 
         except Exception as e:
             logger.warning(f"[StatArbEngine] compute_scores failed: {e}")
-            return pd.DataFrame(columns=["symbol", "stat_arb_score", "long_only_mode"])
+            all_syms = list(prices_dict.keys()) if prices_dict else []
+            return pd.DataFrame([{"symbol": s, "stat_arb_score": 0.50, "long_only_mode": False} for s in all_syms])
