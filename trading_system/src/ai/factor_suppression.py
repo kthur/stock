@@ -143,17 +143,28 @@ class RegimeFactorSuppressionEngine:
 
         return self.default_theta, self.default_lambda
 
-    def _get_high_risk_clusters(self, regime_label: str) -> List[str]:
-        """Returns list of high-risk redundant factor clusters for the given regime."""
+    def _get_high_risk_clusters(
+        self,
+        regime_label: str,
+        cluster_sharpes: Optional[Dict[str, float]] = None
+    ) -> List[str]:
+        """Returns list of high-risk redundant factor clusters for the given regime.
+        If cluster_sharpes is provided, only clusters with negative performance (Sharpe < -0.20)
+        are actively suppressed, preserving profitable cross-sectional signals."""
         reg_str = str(regime_label).upper()
-        if reg_str in self.HIGH_RISK_CLUSTERS_PER_REGIME:
-            return self.HIGH_RISK_CLUSTERS_PER_REGIME[reg_str]
+        base_clusters = self.HIGH_RISK_CLUSTERS_PER_REGIME.get(reg_str, None)
+        if base_clusters is None:
+            for k, v in self.HIGH_RISK_CLUSTERS_PER_REGIME.items():
+                if k in reg_str:
+                    base_clusters = v
+                    break
+        if base_clusters is None:
+            base_clusters = ['MOMENTUM']
 
-        for k, v in self.HIGH_RISK_CLUSTERS_PER_REGIME.items():
-            if k in reg_str:
-                return v
-
-        return ['MOMENTUM']
+        if cluster_sharpes:
+            active_clusters = [c for c in base_clusters if float(cluster_sharpes.get(c, -0.5)) < -0.20]
+            return active_clusters
+        return base_clusters
 
     def compute_penalties(
         self,
@@ -162,50 +173,44 @@ class RegimeFactorSuppressionEngine:
         theta: Optional[float] = None,
         lambda_penalty: Optional[float] = None,
         consensus_precision: Optional[Dict[str, float]] = None,
-        vif_dict: Optional[Dict[str, float]] = None
+        vif_dict: Optional[Dict[str, float]] = None,
+        cluster_sharpes: Optional[Dict[str, float]] = None
     ) -> Dict[str, float]:
         """
-        Computes pairwise correlation excess penalties P_i(R) for all strategies in corr_matrix.
-        Includes direct multi-way collinearity damping via vif_dict.
+        Computes dynamic suppression penalty multiplier p_i for each strategy.
+        p_i = min( 1 / sqrt(1 + lambda * sum(c_ij * excess_ij^2)), vif_damping )
         """
-        if corr_matrix is None or corr_matrix.empty:
-            return {}
+        eff_theta, eff_lambda = self._get_regime_params(regime_label)
+        theta_val = theta if theta is not None else eff_theta
+        lambda_val = lambda_penalty if lambda_penalty is not None else eff_lambda
 
-        theta_eff, lambda_eff = self._get_regime_params(regime_label)
-        theta = theta if theta is not None else theta_eff
-        lambda_penalty = lambda_penalty if lambda_penalty is not None else lambda_eff
-
+        high_risk_clusters = self._get_high_risk_clusters(regime_label, cluster_sharpes=cluster_sharpes)
         strats = list(corr_matrix.columns)
-        n = len(strats)
-        high_risk_clusters = self._get_high_risk_clusters(regime_label)
-
         penalties = {}
-        for i in range(n):
-            strat_i = strats[i]
+
+        for strat_i in strats:
             cluster_i = self.STRATEGY_TO_CLUSTER.get(strat_i, 'OTHER')
             is_high_risk_i = cluster_i in high_risk_clusters
 
             weighted_excess_sq_sum = 0.0
-            for j in range(n):
-                if i == j:
+            for strat_j in strats:
+                if strat_i == strat_j:
                     continue
-                strat_j = strats[j]
-                cluster_j = self.STRATEGY_TO_CLUSTER.get(strat_j, 'OTHER')
 
-                rho_ij = float(corr_matrix.iloc[i, j])
-                excess = max(0.0, abs(rho_ij) - theta)
+                cluster_j = self.STRATEGY_TO_CLUSTER.get(strat_j, 'OTHER')
+                is_same_cluster = (cluster_i == cluster_j and cluster_i != 'OTHER')
+
+                rho_ij = float(corr_matrix.loc[strat_i, strat_j])
+                excess = max(0.0, abs(rho_ij) - theta_val)
+
                 if excess <= 0.0:
                     continue
 
-                # Cluster relationship coefficient
-                if cluster_i == cluster_j and cluster_i != 'OTHER':
-                    c_base = 1.5  # Intra-cluster redundancy is punished more severely
+                # Multiplier c_ij for intra-cluster vs inter-cluster correlation
+                if is_same_cluster:
+                    c_base = 2.0 if is_high_risk_i else 1.5
                 else:
-                    c_base = 0.5  # Inter-cluster redundancy is punished moderately
-
-                # High-risk regime multiplier
-                if is_high_risk_i:
-                    c_base *= 1.5
+                    c_base = 1.0
 
                 # Asymmetric protection: if strategy i is superior to strategy j, dampen i's penalty from j
                 if consensus_precision:
@@ -217,15 +222,18 @@ class RegimeFactorSuppressionEngine:
 
                 weighted_excess_sq_sum += c_base * (excess ** 2)
 
-            denom = np.sqrt(1.0 + lambda_penalty * weighted_excess_sq_sum)
-            penalty_i = float(1.0 / denom)
+            denom = np.sqrt(1.0 + lambda_val * weighted_excess_sq_sum)
+            corr_penalty = float(1.0 / denom)
 
             # Direct VIF multi-way collinearity damping
+            vif_damping = 1.0
             if vif_dict and strat_i in vif_dict:
                 vif_val = float(vif_dict[strat_i])
                 if vif_val > 5.0:
                     vif_damping = min(1.0, np.sqrt(5.0 / max(vif_val, 1e-6)))
-                    penalty_i *= vif_damping
+
+            # Prevent double-penalizing: apply the stricter of correlation excess or VIF damping
+            penalty_i = min(corr_penalty, vif_damping)
 
             # Consensus Precision Relief: Prevent over-suppression when strategy has high precision
             if consensus_precision and strat_i in consensus_precision:
@@ -247,7 +255,9 @@ class RegimeFactorSuppressionEngine:
         lambda_penalty: Optional[float] = None,
         tuned_params: Optional[Dict[str, Any]] = None,
         use_entropy_allocation: bool = False,
-        vif_dict: Optional[Dict[str, float]] = None
+        vif_dict: Optional[Dict[str, float]] = None,
+        consensus_precision: Optional[Dict[str, float]] = None,
+        cluster_sharpes: Optional[Dict[str, float]] = None
     ) -> Dict[str, float]:
         """
         Applies regime-specific correlation factor noise dampening penalties to base strategy weights.
@@ -275,7 +285,9 @@ class RegimeFactorSuppressionEngine:
                         regime_label=regime_label,
                         theta=eff_theta,
                         lambda_penalty=eff_lambda,
-                        vif_dict=vif_dict
+                        consensus_precision=consensus_precision,
+                        vif_dict=vif_dict,
+                        cluster_sharpes=cluster_sharpes
                     )
                     w0_vec = np.array([float(base_weights[s] * penalties.get(s, 1.0)) for s in strats], dtype=np.float64)
                     w0_sum = float(np.sum(w0_vec))
@@ -298,7 +310,9 @@ class RegimeFactorSuppressionEngine:
             regime_label=regime_label,
             theta=eff_theta,
             lambda_penalty=eff_lambda,
-            vif_dict=vif_dict
+            consensus_precision=consensus_precision,
+            vif_dict=vif_dict,
+            cluster_sharpes=cluster_sharpes
         )
 
         # Apply penalties to base weights

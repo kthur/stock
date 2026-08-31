@@ -288,19 +288,19 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
         raw_op_m = np.where(
             result['ttm_revenue'] > 0,
             result['ttm_operating_income'] / np.maximum(result['ttm_revenue'], 1e-6),
-            0.0
+            np.nan
         )
-        result['operating_margin'] = np.clip(np.where(np.isfinite(raw_op_m), raw_op_m, 0.0), -10.0, 10.0)
+        result['operating_margin'] = np.clip(np.where(np.isfinite(raw_op_m), raw_op_m, np.nan), -10.0, 10.0)
     if 'ttm_revenue' in result.columns and 'ttm_net_income' in result.columns:
         raw_np_m = np.where(
             result['ttm_revenue'] > 0,
             result['ttm_net_income'] / np.maximum(result['ttm_revenue'], 1e-6),
-            0.0
+            np.nan
         )
-        result['net_profit_margin'] = np.clip(np.where(np.isfinite(raw_np_m), raw_np_m, 0.0), -10.0, 10.0)
+        result['net_profit_margin'] = np.clip(np.where(np.isfinite(raw_np_m), raw_np_m, np.nan), -10.0, 10.0)
     if 'ttm_eps' in result.columns:
-        raw_eps_g = result['ttm_eps'].pct_change(4).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-        result['eps_growth_1y'] = np.clip(np.where(np.isfinite(raw_eps_g), raw_eps_g, 0.0), -10.0, 10.0)
+        raw_eps_g = result['ttm_eps'].pct_change(4).replace([np.inf, -np.inf], np.nan)
+        result['eps_growth_1y'] = np.clip(np.where(np.isfinite(raw_eps_g), raw_eps_g, np.nan), -10.0, 10.0)
 
     return result
 

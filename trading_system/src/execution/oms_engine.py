@@ -65,8 +65,10 @@ class ExecutionOMSEngine:
     Order Management & Execution Engine for Stock Trading System.
     Generates actionable trade execution plans and monitors slippage and tracking error.
     """
-    def __init__(self, db_path: str = "trade_logs.db"):
+    def __init__(self, db_path: str = "trade_logs.db", lot_size_krx: int = 1, config: Optional[Any] = None):
         self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
+        self.config = config
+        self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 1
         self._mem_conn = sqlite3.connect(":memory:") if self.db_path == ":memory:" else None
         self._init_db()
 
@@ -469,15 +471,21 @@ class ExecutionOMSEngine:
                 # C-3 Fix: Only apply to KRX markets (US stocks can move >30% normally)
                 change_pct_raw = pred.get("change_pct") or pred.get("daily_return")
                 change_pct: Optional[float] = None
+                is_explicit_percent = False
                 if change_pct_raw is not None:
                     try:
-                        change_pct = float(change_pct_raw)
+                        if isinstance(change_pct_raw, str):
+                            if "%" in change_pct_raw:
+                                is_explicit_percent = True
+                            change_pct = float(change_pct_raw.replace("%", "").strip())
+                        else:
+                            change_pct = float(change_pct_raw)
                     except (ValueError, TypeError):
                         change_pct = None
 
                 if change_pct is not None and is_krx:
-                    # S-5 Fix: Unified percentage-to-decimal normalization (>=0.50 -> /100)
-                    c_norm = change_pct / 100.0 if abs(change_pct) >= 0.50 else change_pct
+                    # S-5 Fix: Unified percentage-to-decimal normalization
+                    c_norm = change_pct / 100.0 if (is_explicit_percent or abs(change_pct) >= 0.50) else change_pct
                     if c_norm >= 0.295 and action == "BUY":
                         logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{c_norm:.2%}), skipping buy execution.")
                         continue
@@ -524,8 +532,8 @@ class ExecutionOMSEngine:
                         _is_net = "ensemble_expected_return" in pred
                         _exp_ret_raw = pred.get("ensemble_expected_return") if _is_net else pred.get("expected_return", 0.0)
                         raw_exp_ret = float(_exp_ret_raw or 0.0)
-                        # Pipeline expected returns can be percentage scale (e.g. 15.0 for 15%) or decimal (e.g. 0.05 for 5%)
-                        exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.50 else raw_exp_ret
+                        # Pipeline expected returns are percentage scale (e.g. 15.0 for 15%, 0.15 for 0.15%)
+                        exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.001 else raw_exp_ret
                         hurdle = safety_margin if _is_net else (friction_cost + safety_margin)
 
                         if exp_ret_frac <= hurdle:
@@ -538,8 +546,8 @@ class ExecutionOMSEngine:
                 try:
                     vol_20d = float(pred.get("volatility_20d", 0.02) or 0.02)
                     raw_gap = float(change_pct or 0.0)
-                    # S-4/S-5 Fix: Unified normalization threshold >= 0.50
-                    gap_ret = raw_gap / 100.0 if abs(raw_gap) >= 0.50 else raw_gap
+                    # S-4/S-5 Fix: Unified normalization
+                    gap_ret = raw_gap / 100.0 if (is_explicit_percent or abs(raw_gap) >= 0.50) else raw_gap
                     # Short-term reversal strategy is specifically designed for oversold bounce; exempt it
                     is_oversold_play = any(k in pred for k in ["short_term_reversal", "oversold_bounce"])
                     if not is_oversold_play and gap_ret < -max(3.0 * vol_20d, 0.05):
@@ -592,15 +600,28 @@ class ExecutionOMSEngine:
                                 pass
                 else:
                     adv_val = 1_000_000_000.0 if curr_iso == "KRW" else 1_000_000.0
+                # Market-specific standard lot size constraints (KRX: lot_size_krx or 1 share, TSE/HOSE/HKEX: 100 shares, US: 1 share)
+                if is_krx or str(market).upper() in ("KOSPI", "KOSDAQ", "KRX") or curr_iso == "KRW":
+                    lot_size = getattr(self, 'lot_size_krx', 1)
+                elif str(market).upper() in ("JAPAN_TSE", "VIETNAM_HOSE", "HKEX") or curr_iso in ("JPY", "VND", "HKD") or sym.endswith((".T", ".VN", ".HK")):
+                    lot_size = 100
+                else:
+                    lot_size = 1
+                min_order_qty = lot_size
 
                 raw_quantity = int(effective_target_amount // target_price) if (target_price > 0 and np.isfinite(target_price) and np.isfinite(effective_target_amount)) else 0
-                # Market-specific standard lot size constraints (KRX: 10 shares, TSE/HOSE/HKEX: 100 shares, US: 1 share)
-                if is_krx or str(market).upper() in ("KOSPI", "KOSDAQ", "KRX") or curr_iso == "KRW":
-                    quantity = (raw_quantity // 10) * 10
-                elif str(market).upper() in ("JAPAN_TSE", "VIETNAM_HOSE", "HKEX") or curr_iso in ("JPY", "VND", "HKD"):
-                    quantity = (raw_quantity // 100) * 100
-                else:
-                    quantity = raw_quantity
+                quantity = (raw_quantity // lot_size) * lot_size
+
+                if quantity < min_order_qty:
+                    min_order_cost = float(min_order_qty * target_price)
+                    # If effective amount covers at least 50% of 1 lot and does not breach position cap
+                    if effective_target_amount >= 0.50 * min_order_cost and min_order_cost <= (float(tot_cap) * 0.25):
+                        quantity = int(min_order_qty)
+                    else:
+                        logger.info(f"[OMS MIN LOT] {sym} target amount {effective_target_amount:,.0f} < 1 lot ({min_order_cost:,.0f}), skipping order.")
+                        if status != "HEDGE_FLAG":
+                            continue
+
                 if (quantity <= 0 or not math.isfinite(quantity)) and status != "HEDGE_FLAG":
                     continue
 
@@ -622,22 +643,21 @@ class ExecutionOMSEngine:
                 if not is_preassigned_strategy:
                     if avg_half_life <= 2.0 and part_ratio > 0.01:
                         exec_strategy = "FAST_VWAP"
-                        slice_count = min(6, max(2, int(np.ceil(part_ratio / 0.005))))
-                    elif avg_half_life >= 25.0 and part_ratio > 0.01:
-                        exec_strategy = "MIDPOINT_PEG"
-                        slice_count = min(12, max(4, int(np.ceil(part_ratio / 0.005))))
-                    elif part_ratio > 0.03:
-                        exec_strategy = "DYNAMIC_VWAP"
-                        slice_count = min(10, max(3, int(np.ceil(part_ratio / 0.01))))
-                    elif avg_half_life >= 15.0:
-                        exec_strategy = "MIDPOINT_PEG"
-                        slice_count = min(5, max(2, int(np.ceil(part_ratio / 0.005))))
-                    elif part_ratio > 0.01:
+                        slice_count = 3
+                    elif avg_half_life <= 5.0 and part_ratio > 0.005:
                         exec_strategy = "TWAP"
-                        slice_count = min(5, max(2, int(np.ceil(part_ratio / 0.005))))
+                        slice_count = 4
+                    elif avg_half_life >= 25.0:
+                        exec_strategy = "PATIENT_TWAP"
+                        slice_count = 8
                     else:
                         exec_strategy = "DIRECT"
                         slice_count = 1
+
+                # Ensure tranche slices respect minimum lot size (each slice >= 1 lot)
+                if quantity > 0 and lot_size > 0:
+                    max_possible_slices = max(1, quantity // lot_size)
+                    slice_count = min(slice_count, max_possible_slices)
 
                 # Gate 7.6: VPIN Order Flow Toxicity Gate (Easley, Lopez de Prado, O'Hara 2012)
                 # If adverse informed toxic order flow is detected (vpin > 0.70):
@@ -656,6 +676,7 @@ class ExecutionOMSEngine:
                     slice_count = max(2, slice_count // 2)
                 elif spread_val > 0.01:
                     logger.warning(f"[OMS GATE 7.6] {sym} Wide spread ({spread_val:.4f} > 0.01) detected. Routing to PASSIVE_LIMIT.")
+
                 # Gate 7.7: Opening Gap Overheat & Dip-Buying Gating
                 # If opening gap is excessive (> +5.0%), avoid buying the peak of the opening surge.
                 # Route to DIP_LIMIT at 1.5% below open price to enter on intraday pullback.
@@ -669,6 +690,7 @@ class ExecutionOMSEngine:
                 target_take_profit = round(target_price * 1.12, 2) if sleeve_type == "FAST_MOMENTUM" else round(target_price * 1.25, 2)
                 target_stop_loss = round(target_price * 0.96, 2) if sleeve_type == "FAST_MOMENTUM" else round(target_price * 0.92, 2)
 
+                order_amount = round(float(quantity * target_price), 2)
                 plan_entry = {
                     "order_id": order_id,
                     "symbol": sym,
@@ -679,6 +701,9 @@ class ExecutionOMSEngine:
                     "target_amount": round(target_amount, 2),
                     "target_price": round(target_price, 2),
                     "quantity": quantity,
+                    "lot_size": lot_size,
+                    "min_order_qty": min_order_qty,
+                    "order_amount": order_amount,
                     "execution_strategy": exec_strategy,
                     "slice_count": slice_count,
                     "sleeve_type": sleeve_type,

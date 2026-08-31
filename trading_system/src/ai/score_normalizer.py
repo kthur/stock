@@ -36,7 +36,7 @@ class CrossSectionalScoreNormalizer:
         ----------
         method : str
             'percentile_rank' / 'rank_percentile' : Uniform ranking in [0.005, 0.995]
-            'winsorized_zscore' / 'zscore' : Gaussian CDF mapping Phi(Z) in [0.005, 0.995]
+            'winsorized_zscore' / 'zscore' : Gaussian CDF mapping Phi(Z) in [0.005, 0.995] (Preserves fat-tail dispersion)
         min_symbols_per_market : int
             Minimum symbol count to perform per-market partitioning before falling back to regional/global.
         """

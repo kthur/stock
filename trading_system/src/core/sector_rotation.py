@@ -29,10 +29,11 @@ class SectorRotationEngine(BaseStrategyEngine):
     per-symbol sector rotation scores [0, 1] based on sector momentum ranking.
     """
 
-    def __init__(self, w_20d: float = 0.6, w_60d: float = 0.4, config: Optional[Any] = None):
+    def __init__(self, w_20d: float = 0.30, w_60d: float = 0.40, w_126d: float = 0.30, config: Optional[Any] = None):
         # Key Sector Indexes / Representative ETFs
         self.w_20d = w_20d
         self.w_60d = w_60d
+        self.w_126d = w_126d
         self.sector_benchmarks = {
             'IT_SEMICON': ['091160.KS', 'XLK'],
             'BATTERY_AUTO': ['305720.KS', 'XLY'],
@@ -258,14 +259,18 @@ class SectorRotationEngine(BaseStrategyEngine):
                 if len(close) < 20:
                     continue
 
-                # R6-7 Fix: True 20-day and 60-day lookback indexing (-21 and -61 relative to -1)
+                # Multi-horizon lookback indexing (-21, -61, -127 relative to -1)
                 p20 = float(close.iloc[-21]) if len(close) >= 21 else float(close.iloc[0])
                 p60 = float(close.iloc[-61]) if len(close) >= 61 else float(close.iloc[0])
+                p126 = float(close.iloc[-127]) if len(close) >= 127 else float(close.iloc[0])
                 ret_20d = float(close.iloc[-1] / p20 - 1.0) if (len(close) >= 20 and p20 > 0) else 0.0
                 ret_60d = float(close.iloc[-1] / p60 - 1.0) if (len(close) >= 60 and p60 > 0) else ret_20d
+                ret_126d = float(close.iloc[-1] / p126 - 1.0) if (len(close) >= 126 and p126 > 0) else ret_60d
 
-                # Composite Momentum Score
-                mom_score = self.w_20d * ret_20d + self.w_60d * ret_60d
+                # Composite Structural Sector Momentum Score
+                w_126_val = getattr(self, 'w_126d', 0.30)
+                w_sum = self.w_20d + self.w_60d + w_126_val
+                mom_score = (self.w_20d * ret_20d + self.w_60d * ret_60d + w_126_val * ret_126d) / max(w_sum, 1e-6)
                 raw_sec = eff_sector_map.get(sym, "General")
                 norm_sec = self.normalize_sector(raw_sec, symbol=sym)
                 records.append({'symbol': sym, 'mom_raw': mom_score, 'sector': norm_sec})

@@ -3857,10 +3857,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             with open(bl_path, "w", encoding="utf-8") as f_bl:
                 f_bl.write("=== Black-Litterman Optimal Asset Allocation ===\n")
                 f_bl.write(f"Date: {kst_now_str}\n\n")
-                f_bl.write(f"{'Rank':<5}{'Symbol':<10}{'Weight (%)':<15}{'Allocation (KRW)':<20}\n")
-                f_bl.write("-" * 50 + "\n")
+                f_bl.write(f"{'Rank':<5}{'Symbol':<10}{'Shares':<10}{'Lot':<6}{'Weight (%)':<15}{'Allocation (KRW)':<20}\n")
+                f_bl.write("-" * 66 + "\n")
                 for rank, (_, row) in enumerate(bl_alloc_df.iterrows(), 1):
-                    f_bl.write(f"{rank:<5}{row['symbol']:<10}{row['weight']*100:>12.2f}%   {row['allocation_amount']:>18,.0f}\n")
+                    sh_val = int(row.get('shares', 0)) if pd.notna(row.get('shares')) else 0
+                    lot_val = int(row.get('lot_size', 1)) if pd.notna(row.get('lot_size')) else 1
+                    f_bl.write(f"{rank:<5}{row['symbol']:<10}{sh_val:>8,d}  {lot_val:>4d}  {row['weight']*100:>12.2f}%   {row['allocation_amount']:>18,.0f}\n")
             logger.info(f"Saved Black-Litterman portfolio allocation to {bl_path}")
     except Exception as _bl_e:
         logger.warning(f"Black-Litterman portfolio allocation output skipped: {_bl_e}")
@@ -4231,16 +4233,18 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             f.write(f"Current Market Regime Detected: {current_regime_label} (Code: {current_regime})\n")
             f.write(f"Maximum Total Allocation Allowed: {max_alloc*100:.1f}%\n\n")
 
-            f.write(f"{'No.':<4} {'Symbol':<12} {'Name':<20} {'Market':<14} {'Return':<10} {'Volatility':<12} {'Weight':<10} {'Amount':<15}\n")
-            f.write("-" * 96 + "\n")
+            f.write(f"{'No.':<4} {'Symbol':<12} {'Name':<18} {'Market':<12} {'Shares':<9} {'Lot':<5} {'Return':<8} {'Vol':<8} {'Weight':<9} {'Amount':<14}\n")
+            f.write("-" * 105 + "\n")
             for rank, (_, row) in enumerate(alloc_df.iterrows(), 1):
-                name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
-                f.write(f"{rank:<4} {row['symbol']:<12} {name_str:<20} {str(row['market']):<14} {row['predicted_return']:>9.2f}% {row['volatility']*100:>11.2f}% {row['weight']*100:>9.2f}% {row['allocation_amount']:>14,.0f}\n")
+                name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                sh_val = int(row.get('shares', 0)) if pd.notna(row.get('shares')) else 0
+                lot_val = int(row.get('lot_size', 1)) if pd.notna(row.get('lot_size')) else 1
+                f.write(f"{rank:<4} {row['symbol']:<12} {name_str:<18} {str(row['market']):<12} {sh_val:>8,d} {lot_val:>4d} {row['predicted_return']:>7.2f}% {row['volatility']*100:>7.2f}% {row['weight']*100:>8.2f}% {row['allocation_amount']:>13,.0f}\n")
 
             allocated_weight = alloc_df['weight'].sum()
             cash_weight = 1.0 - allocated_weight
             cash_amount = cash_weight * cfg.portfolio_capital_krw
-            f.write("-" * 96 + "\n")
+            f.write("-" * 105 + "\n")
             f.write(f"Allocated Capital: {allocated_weight*100:>5.2f}% ({alloc_df['allocation_amount'].sum():>14,.0f})\n")
             f.write(f"Remaining Cash   : {cash_weight*100:>5.2f}% ({cash_amount:>14,.0f})\n")
         logger.info(f"Saved portfolio allocation recommendations to {alloc_output_path}")

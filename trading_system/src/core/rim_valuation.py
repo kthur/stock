@@ -847,8 +847,8 @@ class RIMValuationEngine(BaseStrategyEngine):
                     vix = float(indicators_df['vix'].iloc[-1])
                 except Exception:
                     pass
-            allow_proxy = bool(prices_dict) or kwargs.get("allow_price_proxy", False)
-            p_dict = prices_dict if isinstance(prices_dict, dict) else None
+            p_dict = prices_dict if isinstance(prices_dict, dict) else kwargs.get("prices_dict", None)
+            allow_proxy = kwargs.get("allow_price_proxy", False)
             return self.compute_rim_scores(features_df, us10y_yield=us10y, vix_val=vix, prices_dict=p_dict, allow_price_proxy=allow_proxy)
         except Exception as e:
             logger.warning(f"[RIMValuationEngine] compute_scores failed: {e}")

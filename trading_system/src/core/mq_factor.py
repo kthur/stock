@@ -90,13 +90,21 @@ class MQFactorEngine(BaseStrategyEngine):
                     effective_days = max(1, len(close) - 21)
 
                 raw_mom = (p_t21 / p_base - 1.0) if p_base > 0 else 0.0
-                raw_mom = float(raw_mom) if np.isfinite(raw_mom) else 0.0
                 if 60 <= effective_days < 231 and raw_mom > -0.8:
                     power = min(3.0, 231.0 / effective_days)
-                    price_mom = float(np.clip(((1.0 + raw_mom) ** power) - 1.0, -0.95, 2.0))
+                    base_mom = float(np.clip(((1.0 + raw_mom) ** power) - 1.0, -0.95, 2.0))
                 else:
-                    price_mom = float(np.clip(raw_mom, -0.95, 2.0))
-                price_mom = price_mom if np.isfinite(price_mom) else 0.0
+                    base_mom = float(np.clip(raw_mom, -0.95, 2.0))
+                base_mom = base_mom if np.isfinite(base_mom) else 0.0
+
+                # Idiosyncratic / Volatility-Adjusted Momentum (Blitz, Huij & Martens 2011)
+                sub_series = close.iloc[-min(len(close), effective_days + 21):-21] if len(close) > 25 else close
+                ret_series = sub_series.pct_change().dropna()
+                vol_mom = float(ret_series.std() * np.sqrt(252)) if len(ret_series) > 10 else 0.25
+                vol_mom = vol_mom if (np.isfinite(vol_mom) and vol_mom > 0.01) else 0.25
+                # Blend 65% raw momentum + 35% risk-scaled idiosyncratic momentum
+                risk_adj_mom = base_mom / max(vol_mom, 0.10) * 0.20
+                price_mom = float(np.clip(0.65 * base_mom + 0.35 * risk_adj_mom, -0.95, 2.0))
 
                 records.append({
                     'symbol': sym,

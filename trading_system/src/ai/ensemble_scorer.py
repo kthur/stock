@@ -828,12 +828,15 @@ class EnsembleScoringEngine:
                 sharpes[strategy] = 0.0
         return sharpes
 
-    def apply_vix_override(self, weights: Dict[str, float], vix_val: Optional[float] = None) -> Dict[str, float]:
-        if vix_val is None or vix_val <= 20.0:
+    def apply_vix_override(self, weights: Dict[str, float], vix_val: Optional[float] = None,
+                           vix_baseline: Optional[float] = None) -> Dict[str, float]:
+        base_vix = float(vix_baseline) if (vix_baseline is not None and np.isfinite(vix_baseline) and vix_baseline > 0) else 20.0
+        base_vix = float(np.clip(base_vix, 16.0, 28.0))
+        if vix_val is None or vix_val <= base_vix:
             return weights
         w = dict(weights)
         # Continuous stress factor [0.0, 1.0]
-        vix_stress = float(np.clip((vix_val - 20.0) / 25.0, 0.0, 1.0))
+        vix_stress = float(np.clip((vix_val - base_vix) / 25.0, 0.0, 1.0))
         # Decay momentum strategies smoothly
         for k in ['surge', 'vcp_ml', 'trend_efficiency', 'short_squeeze', 'gamma_squeeze']:
             if k in w:
@@ -1027,7 +1030,7 @@ class EnsembleScoringEngine:
 
         # Cap the dynamic multiplier range: exp(gamma*clip(sharpe, ±L)) with
         # L = ln(sqrt(MAX_MULTIPLIER_RATIO))/gamma keeps the multiplier ratio
-        # <= MAX_MULTIPLIER_RATIO (prevents e^6 ≈ 400:1 single-strategy dominance).
+        # <= MAX_MULTIPLIER_RATIO (prevents single-strategy extreme dominance while allowing high-conviction tilt).
         max_multiplier_ratio = 5.0
         sharpe_clip = float(np.log(np.sqrt(max_multiplier_ratio)) / max(gamma, 1e-6))
         scores = {}
@@ -2943,6 +2946,23 @@ class EnsembleScoringEngine:
                 if mkt in ['SP500', 'NASDAQ', 'RUSSELL2000'] and turnover > 0 and turnover < min_us_turnover:
                     return True
             return False
+
+        # ─── Minimum Order Quantity & Lot Size Feasibility ──────────────────────
+        def _calc_lot_size(row: pd.Series) -> int:
+            sym = str(row.get('symbol', ''))
+            mkt = str(row.get('market', '')).upper()
+            if mkt in ['JAPAN_TSE', 'VIETNAM_HOSE', 'HKEX'] or sym.endswith(('.T', '.VN', '.HK')):
+                return 100
+            return 1
+
+        merged['lot_size'] = merged.apply(_calc_lot_size, axis=1)
+        merged['min_order_qty'] = merged['lot_size']
+        close_series = pd.to_numeric(merged.get('close', merged.get('close_price', 0.0)), errors='coerce').fillna(0.0)
+        merged['min_order_amount'] = close_series * merged['lot_size'].astype(float)
+
+        port_cap = getattr(self.config, 'portfolio_capital_krw', 100_000_000.0) if self.config else 100_000_000.0
+        # If single lot cost exceeds total portfolio capital (e.g. Berkshire A on small retail capital), mark unexecutable
+        merged['is_lot_executable'] = merged['min_order_amount'] <= (float(port_cap) * 0.90)
 
         # Apply illiquid/preferred tag (zero-weight or filter out for top recommendations)
         illiquid_mask = merged.apply(_is_illiquid_or_preferred, axis=1)

@@ -664,7 +664,7 @@ class OnDevicePredictionModel:
                             model,
                             str(model_path),
                             {"market": mkt, "horizon": h, "train_date": current_date, "model_type": "xgb_surge"},
-                            feature_names=self.SURGE_FEATURES,
+                            feature_names=self.ALL_FEATURES,
                         )
                 # LightGBM
                 for market, models in self.surge_lgb_models.items():
@@ -675,7 +675,7 @@ class OnDevicePredictionModel:
                             model,
                             str(model_path),
                             {"market": mkt, "horizon": h, "train_date": current_date, "model_type": "lgb_surge"},
-                            feature_names=self.SURGE_FEATURES,
+                            feature_names=self.ALL_FEATURES,
                         )
                 # CatBoost
                 for market, models in self.surge_cat_models.items():
@@ -686,7 +686,7 @@ class OnDevicePredictionModel:
                             model,
                             str(model_path),
                             {"market": mkt, "horizon": h, "train_date": current_date, "model_type": "cat_surge"},
-                            feature_names=self.SURGE_FEATURES,
+                            feature_names=self.ALL_FEATURES,
                         )
                 logger.info(f"Surge models saved atomically to {self.model_dir}")
         except Exception as e:
@@ -2107,7 +2107,11 @@ class OnDevicePredictionModel:
             tscv_surge = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=embargo_gap) if (use_wf and len(df_train) >= 200) else None
             raw_target_col = f'raw_surge_target_{h}d'
             if raw_target_col not in df_train.columns:
-                if 'Close' in df_train.columns and 'symbol' in df_train.columns:
+                if f'target_surge_{h}d' in df_train.columns:
+                    raw_target_col = f'target_surge_{h}d'
+                elif f'target_{h}d' in df_train.columns:
+                    raw_target_col = f'target_{h}d'
+                elif 'Close' in df_train.columns and 'symbol' in df_train.columns:
                     logger.info(f"Computing {raw_target_col} from Close for surge training")
                     df_train[raw_target_col] = df_train.groupby('symbol')['Close'].transform(
                         lambda x: x.shift(-h) / x - 1
@@ -2124,19 +2128,32 @@ class OnDevicePredictionModel:
             logger.info(f"Training surge model (XGB/LGB/Cat) for {market} {h}d horizon (thresh={eff_thresh*100:.1f}%)...")
             X = df_h_surge[features]
             # Surge label uses raw return thresholded (not Sharpe-scaled)
-            target = (df_h_surge[raw_target_col] >= eff_thresh).astype(int)
+            s_raw = df_h_surge[raw_target_col]
+            if set(s_raw.unique()).issubset({0, 1, 0.0, 1.0}) and len(s_raw.unique()) >= 2:
+                target = s_raw.astype(int)
+            else:
+                target = (s_raw >= eff_thresh).astype(int)
             pos_count = target.sum()
 
-            if pos_count == 0:
-                q95 = df_h_surge[raw_target_col].quantile(0.95)
-                if q95 > 0:
-                    eff_thresh = float(q95)
-                    target = (df_h_surge[raw_target_col] >= eff_thresh).astype(int)
-                    pos_count = target.sum()
+            # If single-class target, find a 2-class quantile split across candidate target columns
+            if len(np.unique(target)) < 2:
+                for col in [f'target_{h}d', f'raw_surge_target_{h}d', f'target_surge_{h}d']:
+                    if col in df_h_surge.columns:
+                        s_c = df_h_surge[col]
+                        if set(s_c.unique()).issubset({0, 1, 0.0, 1.0}) and len(s_c.unique()) >= 2:
+                            target = s_c.astype(int)
+                            pos_count = target.sum()
+                            break
+                        q_val = float(s_c.quantile(0.90))
+                        cand_target = (s_c > q_val).astype(int)
+                        if len(np.unique(cand_target)) >= 2:
+                            target = cand_target
+                            pos_count = target.sum()
+                            break
 
             neg_count = len(target) - pos_count
 
-            if pos_count == 0:
+            if pos_count == 0 or neg_count == 0:
                 logger.warning(f"No surge samples for {market} {h}d, skipping")
                 continue
 

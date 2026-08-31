@@ -172,10 +172,9 @@ class SlippageFeedbackEngine:
             scaling = float(np.clip(avg_slip / self.default_slippage_bps, 0.5, 5.0)) if self.default_slippage_bps > 0 else 1.0
             if not math.isfinite(scaling):
                 scaling = 1.0
-            # Square-root market impact power exponent alpha in [0.10, 1.00] (Almgren-Chriss / Kyle standard)
-            alpha = float(np.clip(0.50 * (scaling ** 0.5), 0.10, 1.00))
-            if not math.isfinite(alpha):
-                alpha = 0.50
+            # Square-root market impact power exponent alpha = 0.50 (Almgren-Chriss / Kyle standard)
+            # Level scaling is handled via cost_scaling_factor to avoid double counting
+            alpha = 0.50
 
             final_mkt_map = {}
             for mkt, val_list in mkt_slippage.items():

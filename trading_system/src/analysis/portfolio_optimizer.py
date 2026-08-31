@@ -12,7 +12,7 @@ For object-oriented risk wrapper, see `src.risk.portfolio_optimizer.PortfolioOpt
 """
 
 import logging
-from typing import Optional, Any
+from typing import Optional, Any, Union, List, Dict
 
 
 import numpy as np
@@ -368,8 +368,11 @@ def calculate_hrp_weights(
     linkage_method: str = "ward",
     use_rmt_denoising: bool = True,
     expected_returns: Optional[np.ndarray] = None,
-    alpha_tilt_exponent: float = 1.0
-) -> np.ndarray:
+    alpha_tilt_exponent: float = 1.0,
+    prices: Optional[Union[np.ndarray, List[float], Dict[str, float]]] = None,
+    total_capital: Optional[float] = None,
+    lot_sizes: Optional[Union[np.ndarray, List[int], Dict[str, int], int]] = None
+) -> Union[np.ndarray, Dict[str, Any]]:
     """
     Computes Hierarchical Risk Parity (HRP) weights based on Marcos Lopez de Prado's algorithm.
     Enhanced with:
@@ -377,6 +380,7 @@ def calculate_hrp_weights(
     2. Ward / Complete hierarchical clustering (eliminates single-linkage chaining artifacts).
     3. Quasi-diagonalization & Hierarchical Recursive Bisection.
     4. Return-Tilted HRP (R-HRP): Conviction alpha tilting based on risk-adjusted expected returns.
+    5. Discrete Lot-Size Sizing: Accounts for minimum order quantities and lot sizes when prices/capital provided.
     """
     if cov_matrix is None or not isinstance(cov_matrix, (np.ndarray, list)):
         logger.error("Invalid covariance matrix for HRP: not a numpy array.")
@@ -523,7 +527,17 @@ def calculate_hrp_weights(
         sum_w = float(np.sum(weights))
         if sum_w > 1e-12 and np.isfinite(sum_w):
             weights = weights / sum_w
-            return apply_portfolio_constraints(weights, symbols=symbols, sectors=sectors)
+            constrained_weights = apply_portfolio_constraints(weights, symbols=symbols, sectors=sectors)
+            if prices is not None and total_capital is not None and float(total_capital) > 0:
+                disc = discretize_weights_to_lot_sizes(
+                    constrained_weights,
+                    prices=prices,
+                    total_capital=float(total_capital),
+                    lot_sizes=lot_sizes,
+                    max_single_cap=0.20
+                )
+                return disc['realized_weights']
+            return constrained_weights
 
     except Exception as e:
         logger.error(f"HRP optimization exception: {e}. Falling back to Risk Parity.")
@@ -754,5 +768,177 @@ def apply_portfolio_constraints(
             break
 
     return w
+
+
+def discretize_weights_to_lot_sizes(
+    weights: Union[np.ndarray, List[float], Dict[str, float]],
+    prices: Union[np.ndarray, List[float], Dict[str, float]],
+    total_capital: float,
+    lot_sizes: Optional[Union[np.ndarray, List[int], Dict[str, int], int]] = None,
+    min_order_quantities: Optional[Union[np.ndarray, List[int], Dict[str, int], int]] = None,
+    max_single_cap: float = 0.20,
+    allow_greedy_remainder: bool = True
+) -> Dict[str, Any]:
+    """
+    Converts continuous portfolio weights into executable discrete lot-sized integer shares.
+
+    Parameters
+    ----------
+    weights : array-like or dict of symbol -> weight
+    prices : array-like or dict of symbol -> latest close price
+    total_capital : float, total cash/portfolio capital available
+    lot_sizes : array-like or dict or int, lot size per asset (e.g. 1 for US/KRX, 100 for JP/VN)
+    min_order_quantities : array-like or dict or int, minimum order shares per asset
+    max_single_cap : float, maximum allowed weight per single asset (e.g. 0.20)
+    allow_greedy_remainder : bool, whether to allocate residual cash to top remaining lots
+
+    Returns
+    -------
+    Dict with:
+      - 'shares': np.ndarray of discrete integer shares
+      - 'amounts': np.ndarray of discrete capital allocated per asset (shares * price)
+      - 'realized_weights': np.ndarray of actual weights (amounts / total_capital)
+      - 'lot_sizes': np.ndarray of lot size applied per asset
+      - 'min_order_quantities': np.ndarray of min order qty per asset
+      - 'unallocated_cash': float, leftover cash
+      - 'total_allocated': float, total cash allocated
+      - 'is_executable': np.ndarray of bool, whether asset received >= min_order_quantity
+    """
+    if isinstance(weights, dict):
+        symbols = list(weights.keys())
+        w_arr = np.array([float(weights[s]) for s in symbols], dtype=float)
+        if isinstance(prices, dict):
+            p_arr = np.array([float(prices.get(s, 0.0) or 0.0) for s in symbols], dtype=float)
+        else:
+            p_arr = np.asarray(prices, dtype=float)
+        if isinstance(lot_sizes, dict):
+            l_arr = np.array([int(lot_sizes.get(s, 1) or 1) for s in symbols], dtype=int)
+        elif isinstance(lot_sizes, (int, float)):
+            l_arr = np.full(len(symbols), max(1, int(lot_sizes)), dtype=int)
+        elif lot_sizes is not None:
+            l_arr = np.asarray(lot_sizes, dtype=int)
+        else:
+            l_arr = np.ones(len(symbols), dtype=int)
+
+        if isinstance(min_order_quantities, dict):
+            m_arr = np.array([int(min_order_quantities.get(s, l_arr[i]) or l_arr[i]) for i, s in enumerate(symbols)], dtype=int)
+        elif isinstance(min_order_quantities, (int, float)):
+            m_arr = np.full(len(symbols), max(1, int(min_order_quantities)), dtype=int)
+        elif min_order_quantities is not None:
+            m_arr = np.asarray(min_order_quantities, dtype=int)
+        else:
+            m_arr = np.copy(l_arr)
+    else:
+        w_arr = np.asarray(weights, dtype=float)
+        p_arr = np.asarray(prices, dtype=float) if prices is not None else np.zeros_like(w_arr)
+        n = len(w_arr)
+        if isinstance(lot_sizes, (int, float)):
+            l_arr = np.full(n, max(1, int(lot_sizes)), dtype=int)
+        elif lot_sizes is not None:
+            l_arr = np.asarray(lot_sizes, dtype=int)
+        else:
+            l_arr = np.ones(n, dtype=int)
+
+        if isinstance(min_order_quantities, (int, float)):
+            m_arr = np.full(n, max(1, int(min_order_quantities)), dtype=int)
+        elif min_order_quantities is not None:
+            m_arr = np.asarray(min_order_quantities, dtype=int)
+        else:
+            m_arr = np.copy(l_arr)
+
+    n = len(w_arr)
+    if n == 0 or total_capital <= 0:
+        return {
+            'shares': np.array([], dtype=int),
+            'amounts': np.array([]),
+            'realized_weights': np.array([]),
+            'lot_sizes': np.array([], dtype=int),
+            'min_order_quantities': np.array([], dtype=int),
+            'unallocated_cash': float(total_capital),
+            'total_allocated': 0.0,
+            'is_executable': np.array([], dtype=bool)
+        }
+
+    # Ensure clean price and lot arrays
+    p_arr = np.where(np.isfinite(p_arr) & (p_arr > 0), p_arr, 0.0)
+    l_arr = np.maximum(1, np.where(np.isfinite(l_arr), l_arr, 1))
+    m_arr = np.maximum(l_arr, np.where(np.isfinite(m_arr), m_arr, l_arr))
+    w_arr = np.nan_to_num(w_arr, nan=0.0)
+    w_arr = np.clip(w_arr, 0.0, max_single_cap)
+
+    # 1. Compute initial raw and lot-sized share quantities
+    target_capital = w_arr * float(total_capital)
+    raw_shares = np.where(p_arr > 0, target_capital / p_arr, 0.0)
+    shares = np.where(p_arr > 0, (raw_shares // l_arr) * l_arr, 0).astype(int)
+
+    # 2. Check minimum order feasibility & rounding up for high-conviction borderline allocations
+    max_single_amount = float(total_capital * max_single_cap * 1.15)
+    for i in range(n):
+        if p_arr[i] <= 0:
+            shares[i] = 0
+            continue
+        min_order_cost = float(m_arr[i] * p_arr[i])
+        if shares[i] < m_arr[i]:
+            # If target capital covers at least 50% of the minimum lot cost and does not exceed cap
+            if target_capital[i] >= 0.50 * min_order_cost and min_order_cost <= max_single_amount:
+                shares[i] = int(m_arr[i])
+            else:
+                shares[i] = 0
+
+    # 3. Budget enforcement: ensure sum(shares * price) <= total_capital
+    allocated_amounts = shares.astype(float) * p_arr
+    total_allocated = float(np.sum(allocated_amounts))
+
+    if total_allocated > total_capital:
+        # Scale down or prune assets starting from lowest relative allocation / lowest weight
+        sort_indices = np.argsort(w_arr)  # Smallest weights first
+        for idx in sort_indices:
+            if total_allocated <= total_capital:
+                break
+            if shares[idx] > 0 and p_arr[idx] > 0:
+                cost_i = float(shares[idx] * p_arr[idx])
+                shares[idx] = 0
+                total_allocated -= cost_i
+
+    # 4. Greedy remainder lot allocation: distribute residual cash to top assets with highest remainder
+    remaining_cash = float(total_capital - np.sum(shares.astype(float) * p_arr))
+    if allow_greedy_remainder and remaining_cash > 0:
+        # Priority based on fractional lot remainder and original weight
+        lot_costs = l_arr.astype(float) * p_arr
+        valid_mask = (p_arr > 0) & (lot_costs > 0) & (shares >= m_arr)
+        if np.any(valid_mask):
+            remainders = np.where(valid_mask, (raw_shares - shares.astype(float)) / l_arr.astype(float) + (w_arr * 0.1), -1.0)
+            priority_order = np.argsort(-remainders)  # Highest remainder first
+
+            for p_idx in priority_order:
+                if remaining_cash <= 0:
+                    break
+                if not valid_mask[p_idx]:
+                    continue
+                lot_cost = float(lot_costs[p_idx])
+                max_pos_cap = float(total_capital * max_single_cap)
+                curr_pos_val = float(shares[p_idx] * p_arr[p_idx])
+
+                while remaining_cash >= lot_cost and (curr_pos_val + lot_cost) <= max_pos_cap:
+                    shares[p_idx] += int(l_arr[p_idx])
+                    remaining_cash -= lot_cost
+                    curr_pos_val += lot_cost
+
+    final_amounts = shares.astype(float) * p_arr
+    final_total_alloc = float(np.sum(final_amounts))
+    realized_weights = final_amounts / max(float(total_capital), 1e-6)
+    is_executable = (shares >= m_arr) & (shares > 0)
+
+    return {
+        'shares': shares,
+        'amounts': final_amounts,
+        'realized_weights': realized_weights,
+        'lot_sizes': l_arr,
+        'min_order_quantities': m_arr,
+        'unallocated_cash': float(total_capital - final_total_alloc),
+        'total_allocated': final_total_alloc,
+        'is_executable': is_executable
+    }
+
 
 

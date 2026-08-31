@@ -159,7 +159,21 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         # R5-6: 50% Fast RSI-5 + 50% Standard RSI-14
         rsi_oversold_term = 0.5 * np.clip((35.0 - rsi_14) / 20.0, -0.2, 0.3) + 0.5 * np.clip((30.0 - rsi_5) / 20.0, -0.2, 0.3)
 
-        raw_oversold = -1.0 * ret_5d + 0.1 * consec - 0.2 * dist_lower_band + bounce_bonus + rsi_oversold_term
+        # Standardize individual signals cross-sectionally when N >= 5 to prevent single-variable domination
+        if len(close_2d.columns) >= 5:
+            def _robust_norm(s):
+                s_num = pd.to_numeric(pd.Series(s), errors='coerce').fillna(0.0)
+                std = float(s_num.std())
+                return (s_num - s_num.mean()) / (std if std > 1e-6 else 1.0)
+
+            z_ret = _robust_norm(-ret_5d)
+            z_consec = _robust_norm(consec)
+            z_dist = _robust_norm(-dist_lower_band)
+            z_rsi = _robust_norm(rsi_oversold_term)
+            raw_oversold = 0.35 * z_ret.values + 0.25 * z_consec.values + 0.20 * z_dist.values + 0.20 * z_rsi.values + bounce_bonus
+        else:
+            raw_oversold = -1.0 * ret_5d + 0.1 * consec - 0.2 * dist_lower_band + bounce_bonus + rsi_oversold_term
+
         oversold_metric = pd.to_numeric(pd.Series(raw_oversold, index=close_2d.columns), errors='coerce').fillna(0.0).clip(-10.0, 10.0)
 
         res_df = pd.DataFrame({

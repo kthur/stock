@@ -625,13 +625,14 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
                 current_spread = float(s1_log[-1] - (slope * s2_log[-1] + intercept))
                 z_score = float((current_spread - spread_mean) / spread_std)
 
-                # R7-5 Fix: Harmonize stop loss threshold (3.5) with Kalman structural break threshold (3.5)
+                # Half-life adaptive entry threshold: faster mean-reverting pairs (shorter half-life) have lower hurdle
+                eff_entry_z = max(1.2, min(min_zscore, 1.0 + half_life / 15.0))
                 signal = "NEUTRAL"
                 if abs(z_score) > 3.5 or half_life > 60.0:
                     signal = "STOP_LOSS_NEUTRAL"
-                elif z_score >= min_zscore:
+                elif z_score >= eff_entry_z:
                     signal = f"SHORT_{s1}_LONG_{s2}"
-                elif z_score <= -min_zscore:
+                elif z_score <= -eff_entry_z:
                     signal = f"LONG_{s1}_SHORT_{s2}"
 
                 found_pairs.append({

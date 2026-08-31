@@ -510,8 +510,67 @@ class PortfolioAllocator:
                     sec_mask = df_candidates['sector'] == sec
                     df_candidates.loc[sec_mask, 'weight'] *= scale
 
-        # Compute capital allocation amounts
-        df_candidates['allocation_amount'] = df_candidates['weight'] * total_portfolio_value
+        # Compute capital allocation amounts and discrete lot sizing
+        latest_prices = []
+        lot_size_list = []
+        min_order_qty_list = []
+
+        for _, row in df_candidates.iterrows():
+            sym = str(row['symbol'])
+            mkt = str(row.get('market', '')).upper()
+            p_val = 0.0
+            if prices_dict and sym in prices_dict and not prices_dict[sym].empty:
+                df_p = prices_dict[sym]
+                c_col = 'Close' if 'Close' in df_p.columns else ('close' if 'close' in df_p.columns else None)
+                if c_col:
+                    cl_series = df_p[c_col]
+                    if isinstance(cl_series, pd.DataFrame):
+                        cl_series = cl_series.iloc[:, 0]
+                    p_val = float(cl_series.iloc[-1])
+            if (p_val <= 0 or np.isnan(p_val)) and 'close' in row and pd.notna(row['close']):
+                p_val = float(row['close'])
+            if (p_val <= 0 or np.isnan(p_val)) and 'close_price' in row and pd.notna(row['close_price']):
+                p_val = float(row['close_price'])
+
+            latest_prices.append(max(0.0, p_val))
+
+            # Market-specific standard lot size (KRX: 1, US: 1, JP/VN/HK: 100)
+            if mkt in ['JAPAN_TSE', 'VIETNAM_HOSE', 'HKEX'] or sym.endswith(('.T', '.VN', '.HK')):
+                l_sz = 100
+            else:
+                l_sz = 1
+            lot_size_list.append(l_sz)
+            min_order_qty_list.append(l_sz)
+
+        # Apply discrete lot-sizing allocation
+        from src.analysis.portfolio_optimizer import discretize_weights_to_lot_sizes
+        has_prices = any(p > 0 for p in latest_prices)
+        if has_prices and total_portfolio_value > 0:
+            disc_result = discretize_weights_to_lot_sizes(
+                weights=df_candidates['weight'].values,
+                prices=latest_prices,
+                total_capital=total_portfolio_value,
+                lot_sizes=lot_size_list,
+                min_order_quantities=min_order_qty_list,
+                max_single_cap=self.max_single_position,
+                allow_greedy_remainder=True
+            )
+            df_candidates['shares'] = disc_result['shares']
+            df_candidates['lot_size'] = disc_result['lot_sizes']
+            df_candidates['min_order_qty'] = disc_result['min_order_quantities']
+            df_candidates['executable_amount'] = disc_result['amounts']
+            df_candidates['realized_weight'] = disc_result['realized_weights']
+            df_candidates['is_executable'] = disc_result['is_executable']
+            df_candidates['allocation_amount'] = disc_result['amounts']
+            df_candidates['weight'] = np.where(disc_result['shares'] > 0, disc_result['realized_weights'], df_candidates['weight'])
+        else:
+            df_candidates['shares'] = 0
+            df_candidates['lot_size'] = lot_size_list
+            df_candidates['min_order_qty'] = min_order_qty_list
+            df_candidates['executable_amount'] = df_candidates['weight'] * total_portfolio_value
+            df_candidates['realized_weight'] = df_candidates['weight']
+            df_candidates['is_executable'] = True
+            df_candidates['allocation_amount'] = df_candidates['weight'] * total_portfolio_value
 
         return df_candidates.sort_values('weight', ascending=False).reset_index(drop=True)
 
@@ -526,7 +585,7 @@ class PortfolioAllocator:
         """
         Calculates Black-Litterman optimal asset allocation weights.
         """
-        from src.analysis.portfolio_optimizer import calculate_black_litterman_weights
+        from src.analysis.portfolio_optimizer import calculate_black_litterman_weights, discretize_weights_to_lot_sizes
         symbols = [s for s in predicted_returns.keys() if s in prices_dict]
         if len(symbols) < 2:
             return pd.DataFrame()
@@ -563,10 +622,34 @@ class PortfolioAllocator:
             tau=tau
         )
 
+        latest_prices = []
+        lot_sizes = []
+        for s in valid_symbols:
+            df_p = prices_dict[s]
+            c = df_p['Close'].iloc[:, 0] if isinstance(df_p['Close'], pd.DataFrame) else df_p['Close']
+            latest_prices.append(float(c.iloc[-1]))
+            if str(s).endswith(('.T', '.VN', '.HK')):
+                lot_sizes.append(100)
+            else:
+                lot_sizes.append(1)
+
+        disc = discretize_weights_to_lot_sizes(
+            weights=bl_weights,
+            prices=latest_prices,
+            total_capital=total_portfolio_value,
+            lot_sizes=lot_sizes,
+            max_single_cap=self.max_single_position,
+            allow_greedy_remainder=True
+        )
+
         res_df = pd.DataFrame({
             'symbol': valid_symbols,
-            'weight': bl_weights,
-            'allocation_amount': bl_weights * total_portfolio_value
+            'weight': disc['realized_weights'],
+            'allocation_amount': disc['amounts'],
+            'shares': disc['shares'],
+            'lot_size': disc['lot_sizes'],
+            'min_order_qty': disc['min_order_quantities'],
+            'is_executable': disc['is_executable']
         }).sort_values(by='weight', ascending=False).reset_index(drop=True)
 
         return res_df
