@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **31대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D/Dual 시장 레짐 기반 앙상블, 포트폴리오 최적화, 자율 주문 실행(OMS)을 수행합니다:
+통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **34대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D/Dual 시장 레짐 기반 앙상블, 포트폴리오 최적화, 자율 주문 실행(OMS)을 수행합니다:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -37,6 +37,9 @@
 | **29** | Insider Buying | 임원/대주주 내부자 매수 공시 및 수급 수치화 | 앙상블 피처 결합 |
 | **30** | Darkpool & HFT Flow | 다크풀 블록트레이드 & HFT 마이크로스프레드 모멘텀 | `darkpool_predictions.txt` |
 | **31** | Earnings Tone Drift | 실적 발표 콘퍼런스콜 텍스트 톤 변화 감성 퀀트 | `earnings_tone_drift_predictions.txt` |
+| **32** | Cross-Asset Spillover Momentum | 업종별 거시지표(SOX/FX/WTI/TNX/VIX/Gold/DXY/SP500) 탄력도 벡터 기반 글로벌 매크로 임펄스 & 주가 미가격 리드-래그 파급 | `cross_asset_spillover_predictions.txt` |
+| **33** | Supply Chain GNN | 글로벌 밸류체인 2-hop 그래프 메시지 패싱 + 불위그 쇼크 비선형 증폭 & 업종 플로우 유동성 모멘텀 | `supply_chain_gnn_predictions.txt` |
+| **34** | Range Expansion Breakout | 변동성 압축(NR7/볼린저 스퀴즈/Inside Day) 후 REF≥1.5 폭발적 레인지 확장 + RVOL≥1.8 거래량 서지 + CLV≥0.65 | `range_expansion_predictions.txt` |
 
 ## Pipeline
 
@@ -64,14 +67,14 @@
     c. Lead-Lag 2-tier inference
     d. Stat-Arb pair cointegration scanning (순수 통계적 유의 페어만 선별)
     e. Sector Rotation relative momentum scoring
-    f. 31-Strategy factor scoring
+    f. 34-Strategy factor scoring
     g. CrossSectionalScoreNormalizer (Percentile Rank / Winsorized Gaussian CDF [0, 1])
-    h. 31-Strategy Dynamic Weighted Ensemble Scoring (PCA-ZCA Whitening, Gram-Schmidt Decorrelation, Missing Strategy Zero-Weighting, Microstructure friction costs deduction & RiskManager Crisis Gating)
+    h. 34-Strategy Dynamic Weighted Ensemble Scoring (PCA-ZCA Whitening, Gram-Schmidt Decorrelation, Missing Strategy Zero-Weighting, Microstructure friction costs deduction & RiskManager Crisis Gating)
 11. Portfolio Optimization & Execution:
     a. Hierarchical Risk Parity (HRP), Ledoit-Wolf Covariance Shrinkage & Black-Litterman
     b. EVT-CVaR Tail Risk Budgeting & Leland No-Trade Buffer Bands (새 진입/전량 청산 바이패스)
     c. Execution OMS 7-Safety Gates, Almgren-Chriss Slicing & Slippage Feedback Loop (`trade_logs.db`)
-12. Save predictions to DB & 31-Strategy Ensemble Output + Strategy Data Coverage Report
+12. Save predictions to DB & 34-Strategy Ensemble Output + Strategy Data Coverage Report
 13. Save output files & Update GitHub Pages HTML Report (KST Timezone)
 ```
 
@@ -86,7 +89,7 @@ flowchart TB
         EData["Earnings & Fundamental Fetcher\n(Adaptive Retry, Dynamic Market Filing Lag)")]
     end
 
-    subgraph Strategies ["31-Strategy Multi-Factor Engine"]
+    subgraph Strategies ["34-Strategy Multi-Factor Engine"]
         Reg["1. XGBoost Regression"]
         Surge["2. Surge Classifier"]
         LL["3. Lead-Lag Shift (+1d US)"]
@@ -118,6 +121,9 @@ flowchart TB
         Insider["29. Insider Buying"]
         Darkpool["30. Darkpool & HFT Flow"]
         ToneDrift["31. Earnings Tone Drift"]
+        CAS["32. Cross-Asset Spillover"]
+        SCGNN["33. Supply Chain GNN"]
+        REB["34. Range Expansion Breakout"]
     end
 
     subgraph Control ["Regime & Risk Control Layer"]
@@ -159,10 +165,10 @@ flowchart TB
 | `trading_system/run_pipeline.py` | 통합 파이프라인 오케스트레이션 |
 | `src/ai/prediction_model.py` | OnDevicePredictionModel: 회귀 + surge + lead-lag + 동적 filing lag + 메모리 최적화 |
 | `src/ai/score_normalizer.py` | CrossSectionalScoreNormalizer: Percentile Rank / Winsorized Gaussian CDF 횡단면 정규화 |
-| `src/ai/ensemble_scorer.py` | EnsembleScoringEngine: 31대 전략 앙상블 + 2D 레짐 + Decision Rationale + 순예상수익률 정렬 + 미시구조 거래비용 |
+| `src/ai/ensemble_scorer.py` | EnsembleScoringEngine: 34대 전략 앙상블 + 2D 레짐 + Decision Rationale + 순예상수익률 정렬 + 미시구조 거래비용 |
 | `src/ai/factor_orthogonalizer.py` | FactorOrthogonalizerEngine: PCA-ZCA symmetric whitening & Gram-Schmidt decorrelation |
 | `src/ai/factor_suppression.py` | FactorSuppressionEngine: VIF & 2D 레짐 기반 팩터 노이즈 억제 |
-| `src/analysis/coverage_analyzer.py` | StrategyCoverageAnalyzer: 31대 전략 커버리지 및 최빈 데이터 결측(Missingness) 정밀 분석 |
+| `src/analysis/coverage_analyzer.py` | StrategyCoverageAnalyzer: 34대 전략 커버리지 및 최빈 데이터 결측(Missingness) 정밀 분석 |
 | `src/analysis/portfolio_optimizer.py` | PortfolioOptimizer: HRP (Hierarchical Risk Parity), Black-Litterman & Ledoit-Wolf 공분산 축소 |
 | `src/risk/portfolio_allocator.py` | PortfolioAllocator: EVT-CVaR 극단값 꼬리위험 예산 & Leland 동적 버퍼 밴드 |
 | `src/risk/risk_manager.py` | RiskManager & CrisisDetector: 거시 위기 단계 판정 및 VIX 속도/기간구조 기반 완충 제어 |
@@ -192,6 +198,9 @@ flowchart TB
 | `src/core/insider_buying.py` | InsiderBuyingEngine: 임원/대주주 내부자 매수 공시 수치화 |
 | `src/core/darkpool_tracker.py` | DarkpoolTrackerEngine: 다크풀 블록트레이드 & HFT 마이크로스프레드 모멘텀 |
 | `src/core/tone_drift.py` | ToneDriftEngine: 실적 발표 콘퍼런스콜 텍스트 톤 변화 감성 퀀트 |
+| `src/core/cross_asset_spillover.py` | CrossAssetSpilloverEngine: 업종별 거시지표 탄력도 벡터(SOX/FX/WTI/TNX/VIX/Gold/DXY/SP500) 기반 글로벌 매크로 임펄스 & 미가격 리드-래그 파급 |
+| `src/core/supply_chain_gnn.py` | SupplyChainGNNEngine: 글로벌 밸류체인 2-hop 그래프 메시지 패싱 + 불위그 쇼크 비선형 증폭 & 업종 플로우 유동성 모멘텀 |
+| `src/core/range_expansion_breakout.py` | RangeExpansionBreakoutEngine: NR7/볼린저 스퀴즈/Inside Day 변동성 압축 후 REF≥1.5 레인지 확장 + RVOL≥1.8 거래량 서지 + CLV≥0.65 종가 품질 |
 | `src/core/sector_rotation.py` | SectorRotationEngine: 업종 모멘텀 및 순환매 스코어링 |
 | `src/core/stat_arb.py` | StatisticalArbitrageEngine: Log 가격 공적분 잔차 평균회귀 |
 | `src/ai/vcp_detector.py` | 규칙 기반 VCP 패턴 검출 |
@@ -213,8 +222,8 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 
 | 파일 | 전략 | 내용 |
 |------|------|------|
-| `ensemble_predictions.txt` | 31대 앙상블 | 31대 전략 동적 앙상블 TOP 100 및 Decision Rationale (KST) |
-| `strategy_data_coverage_report.txt` | 결측 분석 | 31대 전략별 데이터 커버리지 및 결측 사유 비율 |
+| `ensemble_predictions.txt` | 34대 앙상블 | 34대 전략 동적 앙상블 TOP 100 및 Decision Rationale (KST) |
+| `strategy_data_coverage_report.txt` | 결측 분석 | 34대 전략별 데이터 커버리지 및 결측 사유 비율 |
 | `pipeline_result.txt` | 회귀 | 종목별 horizon별 예상수익률 |
 | `surge_predictions.txt` | Surge | Horizon별 20%↑ 확률 TOP20 (scale_pos_weight 캡 적용) |
 | `lead_lag_predictions.txt` | Lead-Lag | 업종 지수/대형주 Leader 움직임 기반 follower 점수 |
@@ -227,6 +236,9 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 | `factor_neutralized_predictions.txt` | Factor Neutral | Fama-French 5-Factor 노출 제거 순수 알파 |
 | `vol_target_predictions.txt` | Vol Targeting | 변동성 타겟팅 리스크 파리티 점수 |
 | `microstructure_predictions.txt` | Microstructure | 호가 불균형 & 종가 오버나이트 갭 스코어 |
+| `cross_asset_spillover_predictions.txt` | Cross-Asset Spillover | 업종별 거시지표 탄력도 벡터 기반 매크로 임펄스 스코어 |
+| `supply_chain_gnn_predictions.txt` | Supply Chain GNN | 2-hop GNN 밸류체인 메시지 패싱 파급 스코어 |
+| `range_expansion_predictions.txt` | Range Expansion Breakout | NR7/볼린저 스퀴즈 압축 후 폭발적 레인지 확장 + 거래량 서지 스코어 |
 
 ---
 
@@ -258,5 +270,6 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 | R11 | 2026-08-10 | 31대 전략 다변화 확장 (Supply Chain, FinBERT Sentiment, Factor Neutralizer, Vol Targeting, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Efficiency, Gamma Squeeze, Insider Buying, Tone Drift, HFT) 및 EVT-CVaR, Leland No-Trade 버퍼 밴드 통합 |
 | R12 | 2026-08-17 | 엔드투엔드 파이프라인 30개 이슈 감사 및 수정 완료, 단일 `tests/` 디렉토리 통합, GHA 5-matrix 워크플로우 안정화, GitHub Pages 대시보드 UX 전면 개편 |
 | R13 | 2026-08-22 | 6차 고도화 완결 (V6-01 ~ V6-35, F01 ~ F10): 31대 전략 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 결측 전략 제로 가중치 재정규화, 시장별 동적 Filing Lag (KRX 45d / US 40d), 층화 샘플링, 적응형 타임아웃, VIX 기간구조 완충, Almgren-Chriss 최적 집행 및 단일 `tests/` 스위트 1,569+ 전수 테스트 100% 통과 |
+| R14 | 2026-09-01 | 34대 전략 문서화 완결: Cross-Asset Spillover Momentum(#32), Supply Chain GNN(#33), Range Expansion Breakout(#34) 신규 전략 추가 및 AGENTS.md 전면 동기화 |
 
 

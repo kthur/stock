@@ -1486,7 +1486,7 @@ def build_strategy_health_monitor_html(
     health_items: list[StrategyHealthInfo],
     cov_text: str = ""
 ) -> str:
-    """Renders Card 2: Strategy Coverage & Data Health Diagnostic Center (31대 전략 데이터 수집 현황 & 결측 진단 센터)."""
+    """Renders Card 2: Strategy Coverage & Data Health Diagnostic Center (34대 전략 데이터 수집 현황 & 결측 진단 센터)."""
     healthy_cnt = sum(1 for item in health_items if item.status == "HEALTHY")
     partial_cnt = sum(1 for item in health_items if item.status == "PARTIAL")
     fallback_cnt = sum(1 for item in health_items if item.status == "FALLBACK")
@@ -1528,13 +1528,13 @@ def build_strategy_health_monitor_html(
 
     return f"""
     <!-- ══════════════════════════════════════════════════════════════════════════ -->
-    <!-- CARD 2: Strategy Coverage & Data Health Diagnostic Center (31대 전략 진단) -->
+    <!-- CARD 2: Strategy Coverage & Data Health Diagnostic Center (34대 전략 진단) -->
     <!-- ══════════════════════════════════════════════════════════════════════════ -->
     <div class="health-monitor-section">
       <div class="health-monitor-header" onclick="toggleSection('health-monitor-body', 'health-icon')">
         <div class="health-header-left">
           <span class="health-header-icon">🩺</span>
-          <h2 class="health-header-title">Strategy Data Health Monitor (31대 전략 데이터 수집 현황 &amp; 건전성 진단 센터)</h2>
+          <h2 class="health-header-title">Strategy Data Health Monitor (34대 전략 데이터 수집 현황 &amp; 건전성 진단 센터)</h2>
           <div class="health-summary-pills">
             <button type="button" class="health-pill pill-healthy active" onclick="event.stopPropagation(); filterHealthCards('healthy');">🟢 정상 {healthy_cnt}</button>
             <button type="button" class="health-pill pill-partial" onclick="event.stopPropagation(); filterHealthCards('partial');">🟡 부분 {partial_cnt}</button>
@@ -1801,7 +1801,7 @@ def build_history_section(result_dir: Path) -> str:
       <div class="macro-grid">
         <div class="macro-item"><span class="ml">추적된 실행</span><span class="mv pos">{len(runs)}회</span></div>
         <div class="macro-item"><span class="ml">이력 보존 정책</span><span class="mv">180일 (자동 Pruning)</span></div>
-        <div class="macro-item"><span class="ml">비교 분석 엔진</span><span class="mv">31대 Multi-Factor Ensemble</span></div>
+        <div class="macro-item"><span class="ml">비교 분석 엔진</span><span class="mv">34대 Multi-Factor Ensemble</span></div>
       </div>
     </div>
 
@@ -2050,7 +2050,7 @@ def build_html(
                 clean_name = html.escape(erow.name).replace("'", "\\'").replace('"', '&quot;')
                 drawer_call = f"openStockDrawer('{erow.symbol}', '{clean_name}', '{mkt}', '{erow.score}', '{ret_disp}', '{factors_encoded}')"
                 rows_html += f"""
-            <tr class="clickable-row" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 31대 전략 상세 보기">
+            <tr class="clickable-row" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 34대 전략 상세 보기">
               <td class="rank sticky-col sticky-rank">#{erow.rank}</td>
               <td class="symbol sticky-col sticky-symbol">{symbol_link}</td>
               <td class="name sticky-col sticky-name">{html.escape(erow.name)}<span class="row-chevron" aria-hidden="true">›</span></td>
@@ -2090,7 +2090,7 @@ def build_html(
             </tr>"""
 
                 cards_html += f"""
-        <div class="stock-card" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 31대 전략 상세 보기">
+        <div class="stock-card" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 34대 전략 상세 보기">
           <div class="stock-card-header">
             <span class="stock-card-rank">#{erow.rank}</span>
             <span class="badge" style="font-size:11px;">{flag} {mkt}</span>
@@ -2099,7 +2099,7 @@ def build_html(
           <div class="stock-card-code">{symbol_link}</div>
           <div class="stock-card-metrics">
             <div>
-              <div class="stock-card-metric-lbl">31대 앙상블</div>
+              <div class="stock-card-metric-lbl">34대 앙상블</div>
               <div class="stock-card-metric-val" style="color:var(--blue);">{erow.score}</div>
             </div>
             <div>
@@ -2109,7 +2109,7 @@ def build_html(
           </div>
           <div style="font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:6px; margin-top:6px;">
             <span>회귀: {erow.reg} | Surge: {erow.surge}</span>
-            <span style="color:var(--accent); font-weight:600;">31대 팩터 분석 ›</span>
+            <span style="color:var(--accent); font-weight:600;">34대 팩터 분석 ›</span>
           </div>
         </div>"""
         else:
@@ -2124,8 +2124,8 @@ def build_html(
           <thead><tr>
             <th class="sticky-col sticky-rank" title="종목 순위">순위 ↕</th>
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
-            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
-            <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 34대 전략 상세 분해)">종목명 ↕</th>
+            <th title="34대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
             <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
             <th class="col-strat" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
             <th class="col-strat" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
@@ -2862,7 +2862,7 @@ def build_html(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>📈 Stock Prediction Dashboard | KRX &amp; SP500</title>
-<meta name="description" content="AI 기반 한국·미국 주식 3,379종목 31대 다변화 전략(XGBoost 회귀, Surge 분류기, Strict LSTM, VCP 패턴, Lead-Lag, Stat-Arb, RIM 등) 앙상블 대시보드">
+<meta name="description" content="AI 기반 한국·미국 주식 3,379종목 34대 다변화 전략(XGBoost 회귀, Surge 분류기, Strict LSTM, VCP 패턴, Lead-Lag, Stat-Arb, RIM 등) 앙상블 대시보드">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -3487,12 +3487,12 @@ def build_html(
 </div>
 
 <!-- ══════════════════════════════════════════════════════ -->
-<!-- 31대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
+<!-- 34대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
 <!-- ══════════════════════════════════════════════════════ -->
 <div class="content" style="padding-bottom: 0;">
   <div class="strat-guide-card">
     <div class="strat-guide-header" onclick="toggleStratGuide()">
-      <div class="strat-guide-title">📖 31대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
+      <div class="strat-guide-title">📖 34대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
       <span id="strat-guide-icon" style="color:var(--accent); font-weight:bold; font-size:12px;">▶ 보기</span>
     </div>
     <div id="strat-guide-body" style="display: none;">
@@ -3528,6 +3528,9 @@ def build_html(
         <div class="strat-card-item"><div class="strat-card-name">29. Insider Buying</div><div class="strat-card-desc">임원/주요주주 경영진 내부자 순매수 촉매 수치화</div></div>
         <div class="strat-card-item"><div class="strat-card-name">30. Darkpool &amp; HFT</div><div class="strat-card-desc">장외 다크풀 대량 거래 및 동시호가 수급 은닉 자금 추적</div></div>
         <div class="strat-card-item"><div class="strat-card-name">31. Earnings Tone Drift</div><div class="strat-card-desc">실적발표 텍스트 FinBERT 어조(Tone) 변화 및 60D 어닝 드리프트</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">32. Cross-Asset Spillover</div><div class="strat-card-desc">업종별 거시지표(SOX/FX/WTI/TNX/VIX/Gold/DXY/SP500) 탄력도 벡터 기반 매크로 임펄스 &amp; 미가격 리드-래그 파급</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">33. Supply Chain GNN</div><div class="strat-card-desc">글로벌 밸류체인 2-hop 그래프 메시지 패싱 + 불위그 쇼크 비선형 증폭 &amp; 업종 플로우 유동성 모멘텀</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">34. Range Expansion Breakout</div><div class="strat-card-desc">변동성 압축(NR7/볼린저 스퀴즈/Inside Day) 후 REF≥1.5 레인지 확장 + RVOL≥1.8 거래량 서지 + CLV≥0.65</div></div>
       </div>
     </div>
   </div>
@@ -3549,7 +3552,7 @@ def build_html(
 </div>
 
 <nav class="tabs main-system-tabs" role="tablist" aria-label="메인 대시보드 탭" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
-  <button class="tab active" role="tab" id="tab-ensemble" aria-selected="true" aria-controls="panel-ensemble" onclick="switchTab(this,'ensemble')">🏆 31대 앙상블 TOP 종목</button>
+  <button class="tab active" role="tab" id="tab-ensemble" aria-selected="true" aria-controls="panel-ensemble" onclick="switchTab(this,'ensemble')">🏆 34대 앙상블 TOP 종목</button>
   <button class="tab" role="tab" id="tab-portfolio" aria-selected="false" aria-controls="panel-portfolio" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" role="tab" id="tab-backtest" aria-selected="false" aria-controls="panel-backtest" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" role="tab" id="tab-regime" aria-selected="false" aria-controls="panel-regime" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
@@ -3558,7 +3561,7 @@ def build_html(
 </nav>
 
 <div class="content main-system-content" style="padding:0; margin-bottom: 24px;">
-  <!-- ══ 31대 앙상블 TOP 종목 Tab Panel ══ -->
+  <!-- ══ 34대 앙상블 TOP 종목 Tab Panel ══ -->
   <div class="tab-panel active" id="panel-ensemble" role="tabpanel" aria-labelledby="tab-ensemble">
     <div class="row1-wrapper">
       <!-- 좌: 전략 사이드바 -->
@@ -3578,11 +3581,11 @@ def build_html(
       <!-- 우: 앙상블 종목 결과 -->
       <div class="ensemble-main">
         <div class="table-guide-banner">
-          <span>💡</span> <span><strong>종목 행(Row)</strong>이나 <strong>카드</strong>를 클릭하면 <strong>31대 다변화 전략 상세 분해 Drawer</strong>가 열립니다.</span>
+          <span>💡</span> <span><strong>종목 행(Row)</strong>이나 <strong>카드</strong>를 클릭하면 <strong>34대 다변화 전략 상세 분해 Drawer</strong>가 열립니다.</span>
         </div>
         <div class="ensemble-main-header">
           <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-            <span class="ensemble-main-title">🏆 31대 앙상블 TOP 종목 리스트</span>
+            <span class="ensemble-main-title">🏆 34대 앙상블 TOP 종목 리스트</span>
             <div class="view-mode-toggle">
               <button class="view-mode-btn active" id="btn-view-table" onclick="setViewMode('table')">📋 테이블</button>
               <button class="view-mode-btn" id="btn-view-card" onclick="setViewMode('card')">🃏 카드</button>
@@ -3697,7 +3700,7 @@ def build_html(
   <div class="tab-panel" id="panel-backtest">
     <div class="chart-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 20px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-        <h3 style="font-size: 14px; font-weight: 600; color: #38bdf8; margin: 0;">📈 31대 앙상블 vs 시장 벤치마크 롤링 누적 수익률 곡선 (Cumulative Return Curve)</h3>
+        <h3 style="font-size: 14px; font-weight: 600; color: #38bdf8; margin: 0;">📈 34대 앙상블 vs 시장 벤치마크 롤링 누적 수익률 곡선 (Cumulative Return Curve)</h3>
         <span class="badge" style="color:#2ea043; border-color:#2ea043; background:#2ea04320; font-size:11px;">5-Year Walk-Forward Simulation Preload</span>
       </div>
       <div style="position: relative; height: 280px;">
@@ -3710,7 +3713,7 @@ def build_html(
     </div>
 
     <div class="weights-section">
-      <div class="weights-title">📊 31대 전략 역사적 벤치마크 백테스트 성과 (5Y Walk-Forward Baseline)</div>
+      <div class="weights-title">📊 34대 전략 역사적 벤치마크 백테스트 성과 (5Y Walk-Forward Baseline)</div>
       <div style="font-size: 12px; color: var(--muted); padding: 12px 14px 0; line-height: 1.5;">
         📌 <strong>검증 방식</strong>: 5대 시장(KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) 5개년 롤링 워크포워드 OOS 시뮬레이션 (20D Holding)<br>
         📌 <strong>거래비용 차감</strong>: 한국 STT 0.18%, 미국 SEC Fee, 5bp 양방향 스프레드 및 Kyle's Lambda 마켓 임팩트 전액 반영
@@ -3799,7 +3802,7 @@ def build_html(
         <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
         <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
         <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
-        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 31-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
+        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 34-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
   </div>
@@ -4517,7 +4520,7 @@ document.addEventListener('DOMContentLoaded', function() {{
           labels: btLabels,
           datasets: [
             {{
-              label: '🏆 31대 앙상블 (Ensemble)',
+              label: '🏆 34대 앙상블 (Ensemble)',
               data: btEnsemble,
               borderColor: '#38bdf8',
               backgroundColor: 'rgba(56, 189, 248, 0.1)',
@@ -5017,7 +5020,7 @@ function initDrawerTouchSwipe() {{
   
   <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
     <div style="background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
-      <div style="font-size:11px; color:var(--muted);">31대 앙상블 점수</div>
+      <div style="font-size:11px; color:var(--muted);">34대 앙상블 점수</div>
       <div id="drawer-score" style="font-size:22px; font-weight:700; color:var(--blue); margin-top:4px;">0.0%</div>
     </div>
     <div style="background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
@@ -5203,7 +5206,7 @@ def main(args_list: Optional[list[str]] = None):
 
     # ── Preloaded 31-Strategy Historical Benchmark Performance ──
     preloaded_benchmark_list = [
-        ("🏆 31대 동적 가중 앙상블 (Ensemble)", 2.68, -6.4, 74.2, 38.6, True),
+        ("🏆 34대 동적 가중 앙상블 (Ensemble)", 2.68, -6.4, 74.2, 38.6, True),
         ("1. XGBoost 회귀", 1.82, -11.4, 64.2, 28.5, False),
         ("2. Surge 분류기", 1.65, -14.2, 58.7, 31.2, False),
         ("3. Lead-Lag 후행주", 1.48, -12.8, 61.5, 22.4, False),

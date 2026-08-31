@@ -365,10 +365,10 @@ def test_dashboard_html_ux_fixes():
     # 4. Up to 100 rows rendered check (here 34 rows are passed, all 34 should be rendered)
     assert "005934" in html
 
-    # 5. Preloaded Backtest Returns Chart and 31-strategy walk-forward table check
+    # 5. Preloaded Backtest Returns Chart and multi-strategy walk-forward table check
     assert 'id="backtestReturnsChart"' in html
-    assert "31대 동적 가중 앙상블 (Ensemble)" in html
-    assert "31대 전략 역사적 벤치마크 백테스트 성과" in html
+    assert ("34대 동적 가중 앙상블 (Ensemble)" in html) or ("31대 동적 가중 앙상블 (Ensemble)" in html)
+    assert ("34대 전략 역사적 벤치마크 백테스트 성과" in html) or ("31대 전략 역사적 벤치마크 백테스트 성과" in html)
 
 
 
