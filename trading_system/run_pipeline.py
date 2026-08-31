@@ -3832,6 +3832,38 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         with open(cov_output_path, "w", encoding="utf-8") as f_cov:
             f_cov.write("\n\n".join(report_sections))
         logger.info(f"Saved Strategy Data Coverage report to {cov_output_path}")
+
+        # Generate detailed Symbol Exclusion Diagnostics (JSON & Text Summary)
+        try:
+            from src.analysis.symbol_inspector import SymbolInspector
+            sym_inspector = SymbolInspector(
+                price_db=price_db if 'price_db' in locals() else None,
+                indicator_storage=storage if 'storage' in locals() else None,
+                oms_engine=oms_engine if 'oms_engine' in locals() else None
+            )
+            diag_batch = sym_inspector.generate_batch_diagnostics(
+                universe_df=universe if 'universe' in locals() else None,
+                ensemble_df=ensemble_df if 'ensemble_df' in locals() else None,
+                order_plans_df=order_plans if 'order_plans' in locals() else None,
+            )
+
+            diag_json_path = os.path.join(result_dir, "symbol_exclusion_diagnostics.json")
+            with open(diag_json_path, "w", encoding="utf-8") as f_dj:
+                json.dump(diag_batch, f_dj, ensure_ascii=False, indent=2)
+
+            diag_txt_path = os.path.join(result_dir, "symbol_exclusion_diagnostics.txt")
+            with open(diag_txt_path, "w", encoding="utf-8") as f_dt:
+                f_dt.write(f"=== Symbol Exclusion Diagnostics Summary ({kst_now_str}) ===\n")
+                f_dt.write(f"Total Evaluated: {diag_batch.get('total_symbols_evaluated', 0):,} symbols\n\n")
+                f_dt.write("Stage Breakdown:\n")
+                for stg, cnt in diag_batch.get("stage_breakdown", {}).items():
+                    f_dt.write(f"  - {stg:<16}: {cnt:>5,} symbols\n")
+                f_dt.write("\nTop Exclusion Reasons:\n")
+                for r_k, r_v in list(diag_batch.get("top_exclusion_reasons", {}).items())[:10]:
+                    f_dt.write(f"  - {r_k:<30}: {r_v:>5,} symbols\n")
+            logger.info(f"Saved Symbol Exclusion Diagnostics to {diag_json_path} and {diag_txt_path}")
+        except Exception as _diag_e:
+            logger.warning(f"Symbol Exclusion Diagnostics generation skipped: {_diag_e}")
     except Exception as _cov_e:
         logger.warning(f"Strategy Coverage analysis skipped: {_cov_e}")
 
