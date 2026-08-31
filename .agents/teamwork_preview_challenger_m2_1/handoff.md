@@ -1,100 +1,112 @@
-# Handoff Report — Challenger M2-1 (FactorOrthogonalizerEngine Stress Test)
+# Challenger Evaluation Report: Milestone 2 (R2: 31-Strategy Canonical Sequence & Verification)
+
+**Challenger Agent**: `teamwork_preview_challenger_m2_1`  
+**Target Worker**: `teamwork_preview_worker_m2`  
+**Parent Orchestrator**: `b672d6c7-56c6-40df-9cff-af49d8b4ec1c`  
+**Timestamp**: 2026-09-01T00:24:00Z  
+**Type**: Hard Handoff (Challenger Verdict Complete)  
+**Verdict**: **APPROVE**
+
+---
 
 ## 1. Observation
 
-### Implementation & Test Files Inspected
-- `trading_system/src/ai/factor_orthogonalizer.py` (lines 1-149): `FactorOrthogonalizerEngine` implementing PCA ZCA Symmetric Decorrelation (`_pca_zca_symmetric`) and Gram-Schmidt Sequential Decorrelation (`_gram_schmidt`).
-- `tests/test_factor_orthogonalization.py` (lines 1-147): Unit test suite covering Gram-Schmidt decorrelation, PCA variance preservation, cross-strategy correlation reduction (< 0.30), score range preservation [0.0, 1.0], and latency benchmarking.
-- `tests/test_factor_ortho_empirical_stress.py`: Newly created empirical stress test suite covering degenerate cases: perfectly collinear strategy columns, singular covariance matrices, zero-variance features, random uniform noise, and extreme input dimensions.
-- `tests/test_factor_ortho_forensics.py`: Benchmark script measuring numerical behavior, ridge regularization mechanics, rank correlation preservation, and execution latency.
+1. **Strategy Sequence & 1..31 Canonical Bijection**:
+   - `trading_system/scripts/verify_gha_artifacts.py` (`STRATEGIES` list, lines 29–37):
+     `["regression", "surge", "lead_lag", "vcp_rule", "vcp_ml", "lstm", "stat_arb", "sector_rotation", "rim_valuation", "event_driven", "mq_factor", "iv_skew", "order_flow", "short_term_reversal", "arm_factor", "card_factor", "latr_factor", "inst_foreign_sector", "supply_chain", "sentiment", "factor_neutralized", "vol_target", "microstructure", "accruals_quality", "short_squeeze", "valueup_catalyst", "trend_efficiency", "gamma_squeeze", "insider_buying", "darkpool", "earnings_tone_drift"]`
+     Strictly reflects 31 strategies with Strategy 30 = `darkpool` and Strategy 31 = `earnings_tone_drift`.
+   - `trading_system/scripts/verify_gha_artifacts.py` (`STRATEGY_PANEL_ALIASES`, lines 406–439):
+     Contains 32 entries (31 strategies + ensemble) supporting all hyphen, underscore, and shorthand variations.
+   - `trading_system/run_pipeline.py` (`verification_files`, lines 4338–4373):
+     Contains all 31 strategy `.txt` files in exact 1..31 canonical order plus 3 auxiliary verification files (`ensemble_predictions.txt`, `strategy_data_coverage_report.txt`, `portfolio_allocation.txt`).
+   - `AGENTS.md` (Table lines 12–43, Mermaid lines 119–120, Key Files lines 193–194):
+     Aligned with canonical ordering (30: `darkpool`, 31: `earnings_tone_drift`).
+   - `.agents/skills/gha-artifact-verifier/SKILL.md`:
+     Fully aligned with 31 strategies, output artifact paths, and non-zero validation rules.
 
-### Test Execution Commands & Results
-1. **Existing Unit Test Suite Execution (`tests/test_factor_orthogonalization.py`)**:
-   - Command: `.venv\Scripts\python.exe -m pytest tests/test_factor_orthogonalization.py`
-   - Result: `6 passed in 58.96s` (Task ID `task-25`). All 6 unit tests passed cleanly when run individually.
+2. **Empirical Adversarial Testing**:
+   - Created `tests/test_adversarial_verify_artifacts.py` containing 62 adversarial stress test cases targeting:
+     - Missing directories and missing strategy files
+     - Empty (0-byte) and whitespace-only files
+     - "데이터 없음" and "No data" placeholders
+     - Header-only files without data lines
+     - Boundary counts (< 10 items fail, >= 10 items pass)
+     - All-zero prediction values (0.0 returns in regression, 0.0% in surge/vcp_ml, 0.00 scores in generic strategies)
+     - Corrupt / binary garbage / non-ASCII / NaN / inf / malformed line inputs
+     - HTML dashboard verification: missing `index.html`, < 2 markets, header-only `<th>` rows, < 5 rows per panel, and valid 31 panels
+     - Ensemble verification: missing/empty files, weight parsing, and recommendation count extraction
+     - Subprocess CLI execution with `--strict` (returns exit code 1 on failure) and `--json` (emits valid JSON)
+   - Executed adversarial test suite: **62 passed, 0 failed in 14.52s**.
 
-2. **Empirical Stress Test Suite Execution (`tests/test_factor_ortho_empirical_stress.py`)**:
-   - Command: `.venv\Scripts\python.exe -m unittest tests/test_factor_ortho_empirical_stress.py`
-   - Result: `Ran 9 tests in 0.152s — OK` (Task ID `task-39`). Also confirmed via pytest (`9 passed in 45.03s`, Task ID `task-29`).
-   - Covered Scenarios:
-     - `test_perfectly_collinear_columns_pca`: 17 identical columns passed without NaN/Inf or matrix inversion crash.
-     - `test_perfectly_collinear_columns_gram_schmidt`: 17 identical columns passed with zero-variance fallback.
-     - `test_linear_combination_collinearity`: Exact linear combination $C_3 = 0.5 C_1 + 0.5 C_2$ passed.
-     - `test_singular_covariance_matrix_small_n`: $N = 5 < K = 17$ (rank deficient matrix) passed.
-     - `test_zero_variance_features`: Features with constant values (0.0, 0.5, 1.0) passed without division by zero.
-     - `test_all_zero_variance_matrix`: Matrix where all features are constant 0.5 passed.
-     - `test_random_uniform_scores`: Independent uniform random scores $U(0,1)$ passed correlation suppression check.
-     - `test_high_correlation_uniform_scores`: High base correlation ($\approx 0.80$) reduced to off-diagonal mean correlation $< 0.30$.
-     - `test_single_row_and_single_col`: $N=1$ and $K=1$ edge cases passed.
+3. **Full Milestone 2 Test Suite Execution**:
+   - Executed across 7 test modules:
+     - `tests/test_verify_gha_artifacts.py`: 8 passed
+     - `tests/test_adversarial_verify_artifacts.py`: 62 passed
+     - `tests/test_merge_generic_strategies.py`: 18 passed
+     - `tests/test_strategy_correlation_monitor.py`: 3 passed
+     - `tests/test_merge_predictions_stress.py`: 40 passed
+     - `tests/test_score_normalizer.py`: 45 passed
+     - `tests/test_critical_bugs.py`: 5 passed
+   - **Total: 181 passed, 0 failed in 17.24s**.
 
-3. **Combined Test Suite & Load Sensitivity (`task-46`)**:
-   - Command: `.venv\Scripts\python.exe -m pytest tests/test_factor_orthogonalization.py tests/test_factor_ortho_empirical_stress.py -v`
-   - Result: `14 passed, 1 failed in 54.19s`.
-   - Failure detail: `TestFactorOrthogonalization::test_benchmark_orthogonalization_latency`
-     `AssertionError: 63.33850000373786 not less than 50.0`.
-   - Cause: Under heavy multi-process background CPU contention (multiple concurrent pytest runners), wall-clock latency reached 63.34 ms vs single-process execution time of 3.5 - 12.0 ms.
+4. **Live Artifact Verification Tool Execution**:
+   - Ran `verify_gha_artifacts.py` against `trading_system/result` and `gh-pages`:
+     - All 32 HTML panels in `gh-pages/index.html` were successfully verified with valid rows (`ensemble`: 376, `regression`: 40, `surge`: 40, `lead_lag`: 14, `vcp_rule`: 10, `vcp_ml`: 40, `lstm`: 303, `stat_arb`: 12, `sector_rotation`: 18, `rim_valuation`: 18, `event_driven`: 18, `mq_factor`: 18, `iv_skew`: 18, `order_flow`: 18, `short_term_reversal`: 18, `arm_factor`: 204, `card_factor`: 204, `latr_factor`: 10, `inst_foreign_sector`: 10, `supply_chain`: 105, `sentiment`: 6, `factor_neutralized`: 105, `vol_target`: 105, `microstructure`: 105, `accruals_quality`: 6, `short_squeeze`: 6, `valueup_catalyst`: 6, `trend_efficiency`: 6, `gamma_squeeze`: 105, `insider_buying`: 104, `darkpool`: 102, `earnings_tone_drift`: 6).
+     - Split artifact file checking handled fragmented local cache entries cleanly without crashes or exceptions.
 
-4. **Verbatim Inspection of Collinear Matrix Processing (`task-49`)**:
-   - Output:
-     ```
-     RAW HEAD:
-               s1        s2        s3
-     0  0.342911  0.342911  0.159334
-     1  0.258365  0.258365  0.578664
-     ORTHO HEAD:
-               s1        s2        s3
-     0  0.384220  0.384220  0.124223
-     1  0.336924  0.336924  0.531733
-     CLIPPED FRACTION:
-      s1    0
-     s2    0
-     s3    2
-     ```
+---
 
 ## 2. Logic Chain
 
-1. **Numerical Stability Mechanism**:
-   - In `_pca_zca_symmetric` (lines 120-147), standardizing features with `col_stds = np.where(col_stds < 1e-8, 1e-6, col_stds)` (line 65) guarantees that constant zero-variance features do not produce `ZeroDivisionError` or `NaN` values during $(X - \text{means}) / \text{stds}$.
-   - For singular covariance matrices ($N < K$) or perfectly collinear columns ($\text{rank}(C) < K$), the correlation matrix $C = \frac{X_{bar}^T X_{bar}}{N-1}$ has zero or near-zero eigenvalues. Line 136 applies ridge regularization `eigenvalues = np.maximum(eigenvalues, self.ridge_epsilon)` with default $\epsilon = 10^{-6}$. This bounds $1 / \sqrt{\lambda_i} \le 1000.0$, preventing floating-point overflow or matrix singularity exceptions during ZCA transform matrix calculation $C^{-1/2} = V \Lambda^{-1/2} V^T$.
-   - Output values $X_{ortho}$ are explicitly clipped to $[0.0, 1.0]$ at line 78 (`np.clip(X_ortho, 0.0, 1.0)`), guaranteeing strict adherence to probability/score bounds.
+1. **Bijection Verification**:
+   - Tracing Strategy 1 to 31 across `PROJECT.md`, `AGENTS.md`, `SKILL.md`, `run_pipeline.py`, and `verify_gha_artifacts.py` confirms exact 1:1 bijection.
+   - Strategy 30 is unequivocally `darkpool` (`darkpool_predictions.txt`), and Strategy 31 is `earnings_tone_drift` (`earnings_tone_drift_predictions.txt`).
+   - Strategy 6 (`lstm`) is positioned at index 6 across all registries and output checkers.
 
-2. **Gram-Schmidt Robustness Mechanism**:
-   - In `_gram_schmidt` (lines 81-118), when a feature vector $x_k$ is perfectly collinear with preceding vectors $u_j$, the residual vector $u_k = x_k - \sum \text{proj}_{u_j}(x_k)$ has standard deviation $u_{std} \le 10^{-8}$. Line 111 detects $u_{std} \le 10^{-8}$ and falls back to line 114: `rescaled = means[k] * np.ones(N)`. This prevents division by zero in $(u_k / u_{std})$.
+2. **Verifier Robustness**:
+   - `verify_gha_artifacts.py` strictly adheres to non-zero validation rules (count >= 10 for strategies, count >= 5 for HTML panels).
+   - Under adversarial stress (corrupted text, missing files, 0-byte files, NaN/inf strings), the verifier safely marks candidates as `valid=False` without uncaught exceptions.
+   - `--strict` properly triggers exit code 1, which ensures GitHub Actions CI fails fast when data corruption or missing predictions occur.
 
-3. **Decorrelation & Rank Preservation Evaluation**:
-   - When input features exhibit high mutual correlation ($\text{mean } r \ge 0.65$), ZCA symmetric decorrelation reduces pairwise off-diagonal correlation to $< 0.30$ (empirically measured at $\approx 0.0000 - 0.05$).
-   - Spearman rank correlation between raw strategy score sum and orthogonalized strategy score sum is $\ge 0.70$ (empirically measured at $0.78$), demonstrating that relative ranking order of symbols is preserved.
+3. **Regression Safety**:
+   - 181 unit, integration, and stress tests pass with 0 failures, ensuring complete backwards compatibility and no unintended side effects.
 
-4. **Latency & Performance Sensitivity**:
-   - Baseline computation of ZCA decorrelation for $3,379 \text{ symbols} \times 17 \text{ factors}$ takes $\approx 3.5\text{ ms} - 12.0\text{ ms}$ under dedicated CPU conditions.
-   - Under heavy CPU load/contention (parallel pytest runs), execution time can temporarily spike to 63.34 ms.
+---
 
 ## 3. Caveats
 
-- **CPU Contention Jitter on Latency Benchmark**: Wall-clock performance measurements depend on background CPU load. While standard algorithmic complexity ($O(N K^2)$) executes in < 12 ms, test runners executing under high CPU contention may occasionally exceed the 50 ms assertion threshold.
-- **Clipping Behavior on Extreme Collinearity**: When strategy columns are 100% collinear, ZCA scaling by $1/\sqrt{10^{-6}} = 1000.0$ can push raw rescaled orthogonal scores beyond $[0.0, 1.0]$, relying on `np.clip(X_ortho, 0.0, 1.0)` to enforce score bounds.
-- **Sample Size Requirement ($N \ge 2$)**: Lines 47-48 specify a guard clause returning a copy of input `score_df` if $N < 2$ or $K < 2$. Decorrelation is skipped for $N < 2$ as sample covariance requires at least 2 observations.
+1. Local `trading_system/result` directory contains split artifact fragments from earlier selective runs; when full 5-market pipeline runs locally or in CI, all market files are generated and validated.
+2. `stat_arb_predictions.txt` remains an optional strategy output when no cointegrated pairs meet the significance threshold, but is now properly registered in `verification_files` and `verify_gha_artifacts.py`.
+
+---
 
 ## 4. Conclusion
 
-`FactorOrthogonalizerEngine` passed all empirical challenges, stress tests, and degenerate case evaluations. The implementation in `trading_system/src/ai/factor_orthogonalizer.py` is mathematically sound, robust against singular/collinear matrices, zero-variance features, and uniform random noise, and meets SLA performance and score range constraints under normal execution conditions.
+**Verdict: APPROVE**
+
+Milestone 2 (R2: 31-Strategy Canonical Sequence & Verification) meets all requirements:
+1. Strict 1..31 canonical sequence is unified across `run_pipeline.py`, `verify_gha_artifacts.py`, `AGENTS.md`, `PROJECT.md`, and `SKILL.md`.
+2. `verify_gha_artifacts.py` is resilient against empty, missing, and corrupt artifacts, with comprehensive unit and adversarial test coverage (70 combined tests).
+3. 100% test suite pass rate achieved (181/181 passed).
+
+Ready to proceed to Milestone 3 (R3: Dashboard Metric Consolidation & UX Enhancement).
+
+---
 
 ## 5. Verification Method
 
-To independently verify these findings, execute the following commands in the project directory:
+To independently reproduce and verify this challenger assessment:
 
-```bash
-# 1. Run unit test suite
-.venv\Scripts\python.exe -m pytest tests/test_factor_orthogonalization.py -v
+```powershell
+# 1. Run adversarial test suite
+.venv\Scripts\pytest.exe tests/test_adversarial_verify_artifacts.py -v
 
-# 2. Run empirical stress test suite (degenerate cases)
-.venv\Scripts\python.exe -m pytest tests/test_factor_ortho_empirical_stress.py -v
+# 2. Run combined M2 verification test suite
+.venv\Scripts\pytest.exe tests/test_verify_gha_artifacts.py tests/test_adversarial_verify_artifacts.py tests/test_merge_generic_strategies.py tests/test_strategy_correlation_monitor.py tests/test_merge_predictions_stress.py tests/test_score_normalizer.py tests/test_critical_bugs.py -v
 
-# 3. Run forensic benchmark script
-.venv\Scripts\python.exe tests/test_factor_ortho_forensics.py
+# 3. Run GHA artifact verifier CLI tool
+.venv\Scripts\python.exe trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages
+
+# 4. Test CLI strict exit code on empty directory
+.venv\Scripts\python.exe trading_system/scripts/verify_gha_artifacts.py --result-dir nonexistent --gh-pages-dir nonexistent --strict
 ```
-
-Invalidation conditions:
-- Any `ZeroDivisionError`, `LinAlgError`, `NaN`, or `Inf` generated during orthogonalization.
-- Pairwise off-diagonal correlation after orthogonalization exceeding 0.30 on correlated test inputs.
-- Scores falling outside $[0.0, 1.0]$.

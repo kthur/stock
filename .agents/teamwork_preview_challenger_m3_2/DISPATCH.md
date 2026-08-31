@@ -1,21 +1,14 @@
-## 2026-08-05T02:20:58Z
+## 2026-08-31T15:30:43Z
 
-You are Challenger 2 (Pipeline Resilience & Edge Case Stress Tester) for the Stock Trading System Deep Audit.
+You are a Challenger (teamwork_preview_challenger).
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m3_2\
+Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Project Scope path: d:\Finance\code\stock\PROJECT.md
+Worker Handoff path: d:\Finance\code\stock\.agents\teamwork_preview_worker_m3\handoff.md
 
-Working directory: `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m3_2`
-Original request file: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
-
-Your task:
-Empirically stress-test and challenge pipeline resilience, SQLite WAL concurrency, process exit codes, and mobile/desktop UI responsiveness recommendations.
-
-Challenge focus:
-1. Stress test SQLite WAL mode write lock mutex under high concurrent thread writes.
-2. Challenge `run_pipeline.py` partial success exit code logic under missing output file scenarios.
-3. Challenge Mobile UI 375px/414px table scrolling and sticky header performance.
-
-Instructions:
-- Read `ORIGINAL_REQUEST.md` and `SYSTEM_IMPROVEMENT_REPORT.md`.
-- Inspect code and test edge cases.
-- Write your challenge findings to `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m3_2\handoff.md`.
-- Include a clear verdict: `APPROVE` or `REJECT` with empirical evidence.
-- Send a completion message back to parent.
+Mission: Adversarially challenge Milestone 3 (R3: Artifact Verifier Compatibility & Responsive UX).
+1. Read ORIGINAL_REQUEST.md, PROJECT.md, and M3 Worker handoff.
+2. Run erify_gha_artifacts.py against newly generated gh-pages/index.html to ensure 100% pass across all 31 strategy HTML panels without any broken tab IDs or data format regressions.
+3. Run tests: pytest tests/test_verify_gha_artifacts.py tests/test_report_generator_hrp.py tests/test_report_ux_and_rounding.py -v.
+4. Deliver your verdict (APPROVE or REQUEST_CHANGES) in handoff.md.
+5. Send a message to your caller parent with your verdict.

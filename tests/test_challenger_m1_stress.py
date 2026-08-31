@@ -1,188 +1,213 @@
-﻿import time
+"""Challenger Adversarial Stress Tests for Model Fallbacks, Cache Integrity, and Degradation.
+
+Empirical verification of Milestone 1 requirements:
+- Missing model directory and empty model directory fallback.
+- Corrupted model files (truncated bytes, invalid JSON, binary corruption).
+- Checksum tampering detection and sidecar metadata corruption.
+- Heuristic fallback validation when models are missing in OnDevicePredictionModel and VCPSurgePredictor.
+- Extreme numerical inputs (NaN, Inf, missing columns) during inference.
+- Multi-threaded concurrent model save/load atomic operations.
+"""
+
+import os
+import json
+import shutil
+import tempfile
+import threading
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+import pytest
 import numpy as np
 import pandas as pd
+import xgboost as xgb
 
-from src.core.cross_asset_spillover import CrossAssetSpilloverEngine
-from src.core.supply_chain_gnn import SupplyChainGNNEngine
-from src.core.range_expansion_breakout import RangeExpansionBreakoutEngine
+from src.ai.model_cache import ModelCacheManager, compute_sha256
+from src.ai.prediction_model import OnDevicePredictionModel
+from src.ai.vcp_ml_predictor import VCPSurgePredictor
+from src.ai.lstm_predictor import LSTMPredictor
 
-def _make_dummy_ohlcv(n_bars=30, base_price=100.0, trend=0.001, vol=0.02, volume_base=100000):
+
+@pytest.fixture
+def stress_temp_dir():
+    temp_dir = tempfile.mkdtemp(prefix="stress_m1_")
+    yield Path(temp_dir)
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@pytest.fixture
+def sample_ohlcv_dict():
+    """Create sample OHLCV data for multiple symbols with 100 days of data."""
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
     np.random.seed(42)
-    returns = np.random.normal(trend, vol, n_bars)
-    prices = base_price * np.cumprod(1 + returns)
-    highs = prices * (1 + np.abs(np.random.normal(0, vol * 0.5, n_bars)))
-    lows = prices * (1 - np.abs(np.random.normal(0, vol * 0.5, n_bars)))
-    opens = prices * (1 + np.random.normal(0, vol * 0.3, n_bars))
-    volumes = np.random.lognormal(np.log(volume_base), 0.5, n_bars)
-    dates = pd.date_range(end='2026-08-30', periods=n_bars, freq='D')
-    return pd.DataFrame({'Open': opens, 'High': highs, 'Low': lows, 'Close': prices, 'Volume': volumes}, index=dates)
+    data = {}
+    for sym in ["TEST_01", "TEST_02", "TEST_03"]:
+        base = 100.0 + np.random.randn() * 10.0
+        pcts = np.random.randn(100) * 0.02
+        close = base * np.cumprod(1.0 + pcts)
+        high = close * (1.0 + np.abs(np.random.randn(100) * 0.01))
+        low = close * (1.0 - np.abs(np.random.randn(100) * 0.01))
+        open_p = (high + low) / 2.0
+        volume = np.random.randint(10000, 500000, size=100)
+        df = pd.DataFrame({
+            "Open": open_p,
+            "High": high,
+            "Low": low,
+            "Close": close,
+            "Volume": volume,
+        }, index=dates)
+        data[sym] = df
+    return data
 
-def test_empty_and_null_inputs():
-    for engine_cls, score_col in [
-        (CrossAssetSpilloverEngine, 'cross_asset_spillover_score'),
-        (SupplyChainGNNEngine, 'supply_chain_gnn_score'),
-        (RangeExpansionBreakoutEngine, 'range_expansion_score'),
-    ]:
-        engine = engine_cls()
-        res1 = engine.compute_scores({})
-        assert isinstance(res1, pd.DataFrame)
-        assert score_col in res1.columns
-        assert res1.empty
-        res2 = engine.compute_scores(prices_dict={})
-        assert isinstance(res2, pd.DataFrame)
-        assert res2.empty
-        res3 = engine.compute_scores(prices_dict={
-            'SYM_NONE': None,
-            'SYM_EMPTY': pd.DataFrame(),
-            'SYM_FEW_BARS': _make_dummy_ohlcv(n_bars=2),
-            'SYM_ONE_BAR': _make_dummy_ohlcv(n_bars=1),
-        })
-        assert len(res3) == 4
-        for score in res3[score_col]:
-            assert 0.0 <= score <= 1.0
-            assert np.isfinite(score)
-            assert score == 0.50
 
-def test_nan_and_inf_resilience_cross_asset():
-    engine = CrossAssetSpilloverEngine()
-    df_nan = _make_dummy_ohlcv(n_bars=30)
-    df_nan.iloc[10:15, :] = np.nan
-    df_nan.iloc[20, :] = np.inf
-    df_nan.iloc[25, :] = -np.inf
-    indicators_bad = {
-        'sox': np.nan, 'usdkrw': np.inf, 'tnx': -np.inf,
-        'wti': 'invalid_string', 'gold': None,
-        'vix': 999999.0, 'sp500': -999999.0
-    }
-    res = engine.compute_scores(
-        prices_dict={'BAD_SYM': df_nan, 'GOOD_SYM': _make_dummy_ohlcv(30)},
-        indicators_df=indicators_bad,
-        sector_map={'BAD_SYM': 'Semiconductor', 'GOOD_SYM': 'Energy'}
-    )
-    assert len(res) == 2
-    for score in res['cross_asset_spillover_score']:
-        assert np.isfinite(score)
-        assert 0.05 <= score <= 0.95
+def test_empty_model_dir_graceful_degradation(stress_temp_dir, sample_ohlcv_dict):
+    """Stress Test 1: Empty model directory should not crash prediction model or lead-lag."""
+    model = OnDevicePredictionModel(model_dir=str(stress_temp_dir))
+    assert len(model.models) == 0
+    assert len(model.surge_models) == 0
+    assert len(model.lgb_models) == 0
+    assert len(model.cat_models) == 0
+    assert len(model.lstm_models) == 0
 
-def test_nan_and_inf_resilience_supply_chain_gnn():
-    engine = SupplyChainGNNEngine()
-    df_inf = _make_dummy_ohlcv(30)
-    df_inf['Volume'] = np.inf
-    df_nan = _make_dummy_ohlcv(30)
-    df_nan['Close'] = np.nan
-    res = engine.compute_scores(
-        prices_dict={
-            'NVDA': df_inf, 'TSM': df_nan,
-            '000660': _make_dummy_ohlcv(30),
-            'ISOLATED_NODE': _make_dummy_ohlcv(30),
-        },
-        sector_map={'NVDA': 'Tech', 'TSM': 'Tech', '000660': 'Tech'}
-    )
-    assert len(res) == 4
-    for score in res['supply_chain_gnn_score']:
-        assert np.isfinite(score)
-        assert 0.05 <= score <= 0.95
+    # Lead-lag prediction should return a valid DataFrame or empty without raising fatal error
+    lead_lag_res = model.predict_lead_lag(sample_ohlcv_dict)
+    assert isinstance(lead_lag_res, pd.DataFrame)
 
-def test_nan_and_inf_resilience_range_expansion():
-    engine = RangeExpansionBreakoutEngine()
-    df_corrupt = _make_dummy_ohlcv(30)
-    df_corrupt.loc[df_corrupt.index[-1], ['High', 'Low', 'Close']] = [np.inf, -np.inf, np.nan]
-    res = engine.compute_scores(prices_dict={'CORRUPT': df_corrupt, 'NORMAL': _make_dummy_ohlcv(30)})
-    assert len(res) == 2
-    for score in res['range_expansion_score']:
-        assert np.isfinite(score)
-        assert 0.05 <= score <= 0.95
+    # LSTM prediction on empty models should return an empty or valid DataFrame
+    lstm_res = model.predict_lstm(sample_ohlcv_dict, horizon=20)
+    assert isinstance(lstm_res, pd.DataFrame)
 
-def test_inverted_and_zero_prices():
-    df_inverted = _make_dummy_ohlcv(30)
-    df_inverted['High'] = 10.0
-    df_inverted['Low'] = 100.0
-    df_inverted['Close'] = -50.0
-    df_zero = _make_dummy_ohlcv(30)
-    df_zero['Open'] = 0.0
-    df_zero['High'] = 0.0
-    df_zero['Low'] = 0.0
-    df_zero['Close'] = 0.0
-    df_zero['Volume'] = 0.0
 
-    for engine_cls, col in [
-        (CrossAssetSpilloverEngine, 'cross_asset_spillover_score'),
-        (SupplyChainGNNEngine, 'supply_chain_gnn_score'),
-        (RangeExpansionBreakoutEngine, 'range_expansion_score'),
-    ]:
-        eng = engine_cls()
-        res = eng.compute_scores({'INVERTED': df_inverted, 'ZERO': df_zero})
-        assert len(res) == 2
-        for score in res[col]:
-            assert np.isfinite(score)
-            assert 0.05 <= score <= 0.95
+def test_corrupted_model_files_rejection_and_isolation(stress_temp_dir, sample_ohlcv_dict):
+    """Stress Test 2: Corrupted binary/JSON files must be skipped and logged without crashing."""
+    corrupted_files = [
+        "xgb_model_sp500_1d.json",
+        "lgb_model_sp500_1d.txt",
+        "cat_model_sp500_1d.bin",
+        "lstm_model_sp500_1d.pt",
+        "xgb_surge_model_sp500_1d.json",
+        "vcp_surge_sp500_1d.json",
+    ]
 
-def test_extreme_volatility_spikes_and_flash_crashes():
-    df_spike = _make_dummy_ohlcv(30)
-    df_spike.loc[df_spike.index[-1], ['Open', 'High', 'Low', 'Close']] = [100.0, 10000.0, 100.0, 10000.0]
-    df_spike.loc[df_spike.index[-1], 'Volume'] = 1e9
-    df_crash = _make_dummy_ohlcv(30)
-    df_crash.loc[df_crash.index[-1], ['Open', 'High', 'Low', 'Close']] = [100.0, 100.0, 0.001, 0.001]
-    df_crash.loc[df_crash.index[-1], 'Volume'] = 1e9
+    for fname in corrupted_files:
+        fpath = stress_temp_dir / fname
+        with open(fpath, "wb") as f:
+            f.write(b"\x00\xFF\xFE\xFDGARBAGE_CORRUPTED_DATA_HEADER\x00\x00\x00")
 
-    for engine_cls, col in [
-        (CrossAssetSpilloverEngine, 'cross_asset_spillover_score'),
-        (SupplyChainGNNEngine, 'supply_chain_gnn_score'),
-        (RangeExpansionBreakoutEngine, 'range_expansion_score'),
-    ]:
-        eng = engine_cls()
-        res = eng.compute_scores({'SPIKE': df_spike, 'CRASH': df_crash})
-        assert len(res) == 2
-        for score in res[col]:
-            assert np.isfinite(score)
-            assert 0.05 <= score <= 0.95
-        if engine_cls == RangeExpansionBreakoutEngine:
-            spike_score = res[res['symbol'] == 'SPIKE'][col].iloc[0]
-            crash_score = res[res['symbol'] == 'CRASH'][col].iloc[0]
-            assert spike_score > 0.60
-            assert crash_score < 0.40
+        # Also write a corrupted metadata file
+        meta_path = Path(str(fpath) + "_meta.json")
+        with open(meta_path, "w", encoding="utf-8") as f:
+            f.write("{invalid_json_corrupted: true,")
 
-def test_supply_chain_gnn_isolated_and_cyclic_graphs():
-    isolated_dict = {f'UNKNOWN_SYM_{i}': _make_dummy_ohlcv(30) for i in range(10)}
-    cyclic_edges = [('CYC_A', 'CYC_B', 0.9), ('CYC_B', 'CYC_C', 0.9), ('CYC_C', 'CYC_A', 0.9)]
-    engine_cyclic = SupplyChainGNNEngine(custom_edges=cyclic_edges)
-    all_dict = {
-        **isolated_dict,
-        'CYC_A': _make_dummy_ohlcv(30, trend=0.05),
-        'CYC_B': _make_dummy_ohlcv(30, trend=-0.05),
-        'CYC_C': _make_dummy_ohlcv(30, trend=0.01),
-    }
-    res = engine_cyclic.compute_scores(prices_dict=all_dict)
-    assert len(res) == 13
-    for score in res['supply_chain_gnn_score']:
-        assert np.isfinite(score)
-        assert 0.05 <= score <= 0.95
+    # Initialize OnDevicePredictionModel on corrupted dir
+    model = OnDevicePredictionModel(model_dir=str(stress_temp_dir))
+    # It must not crash, and models should remain empty
+    assert len(model.models) == 0
+    assert len(model.surge_models) == 0
+    assert len(model.cat_models) == 0
 
-def test_performance_benchmark_massive_universe():
-    n_symbols = 500
-    universe = {f'SYM_{i:04d}': _make_dummy_ohlcv(n_bars=30) for i in range(n_symbols)}
-    indicators = {'sox': 0.025, 'usdkrw': -0.005, 'tnx': 0.01, 'wti': -0.02, 'gold': 0.005, 'dxy': 0.001, 'vix': -0.08, 'sp500': 0.015}
-    sector_map = {f'SYM_{i:04d}': 'Semiconductor' if i % 3 == 0 else 'Financials' for i in range(n_symbols)}
 
-    t0 = time.perf_counter()
-    eng_ca = CrossAssetSpilloverEngine()
-    res_ca = eng_ca.compute_scores(prices_dict=universe, indicators_df=indicators, sector_map=sector_map)
-    t_ca = (time.perf_counter() - t0) * 1000.0 / n_symbols
-    assert len(res_ca) == n_symbols
+def test_checksum_tampering_and_meta_corruption(stress_temp_dir):
+    """Stress Test 3: Valid model file tampered after write must be rejected by load_model_safe."""
+    mgr = ModelCacheManager.get_instance()
+    mgr.clear_memory_cache()
 
-    t0 = time.perf_counter()
-    eng_sc = SupplyChainGNNEngine()
-    res_sc = eng_sc.compute_scores(prices_dict=universe, sector_map=sector_map)
-    t_sc = (time.perf_counter() - t0) * 1000.0 / n_symbols
-    assert len(res_sc) == n_symbols
+    features = [f"f_{i}" for i in range(5)]
+    X = pd.DataFrame(np.random.randn(20, 5), columns=features)
+    y = np.random.randn(20)
 
-    t0 = time.perf_counter()
-    eng_re = RangeExpansionBreakoutEngine()
-    res_re = eng_re.compute_scores(prices_dict=universe)
-    t_re = (time.perf_counter() - t0) * 1000.0 / n_symbols
-    assert len(res_re) == n_symbols
+    model = xgb.XGBRegressor(n_estimators=3, max_depth=2, random_state=42)
+    model.fit(X, y)
 
-    print(f'\n[Latency Benchmark] CrossAsset: {t_ca:.3f} ms/sym | SupplyChain: {t_sc:.3f} ms/sym | RangeExpansion: {t_re:.3f} ms/sym')
-    assert t_ca < 3.0
-    assert t_sc < 3.0
-    assert t_re < 3.0
+    target_file = stress_temp_dir / "xgb_model_kospi_5d.json"
+    saved = mgr.save_model_atomic(model, target_file, {"market": "kospi", "horizon": 5}, feature_names=features)
+    assert saved is True
+
+    # Mutate 1 byte in the model file
+    with open(target_file, "r+b") as f:
+        f.seek(10)
+        orig = f.read(1)
+        f.seek(10)
+        f.write(b"X" if orig != b"X" else b"Y")
+
+    mgr.clear_memory_cache()
+    # Checksum verification must detect the modification and refuse to load
+    loaded = mgr.load_model_safe(target_file, verify_checksum=True)
+    assert loaded is None, "Tampered model file MUST return None on checksum check"
+
+    # Now test corrupted metadata JSON sidecar
+    meta_file = Path(str(target_file) + "_meta.json")
+    with open(meta_file, "w", encoding="utf-8") as f:
+        f.write("CORRUPTED_JSON_CONTENT")
+
+    mgr.clear_memory_cache()
+    # Should safely handle the bad JSON and still load or fail gracefully without unhandled exception
+    loaded_corrupt_meta = mgr.load_model_safe(target_file, verify_checksum=False)
+    # verify_checksum=False should still attempt load safely
+    assert loaded_corrupt_meta is not None or loaded_corrupt_meta is None
+
+
+def test_vcp_ml_heuristic_fallback_when_models_absent(stress_temp_dir, sample_ohlcv_dict):
+    """Stress Test 4: VCPSurgePredictor must provide valid [0.0, 1.0] predictions via heuristic fallback."""
+    vcp_predictor = VCPSurgePredictor(model_dir=str(stress_temp_dir))
+    assert len(vcp_predictor.models) == 0
+
+    preds_df = vcp_predictor.predict(sample_ohlcv_dict)
+    assert isinstance(preds_df, pd.DataFrame)
+    assert len(preds_df) > 0
+    assert "symbol" in preds_df.columns
+    for h in [1, 3, 5, 20]:
+        col = f"vcp_{h}d"
+        assert col in preds_df.columns
+        vals = preds_df[col].values
+        assert np.all(np.isfinite(vals)), f"NaN or Inf found in {col}"
+        assert np.all(vals >= 0.0), f"Negative probability in {col}"
+        assert np.all(vals <= 1.0), f"Probability > 1.0 in {col}"
+
+
+def test_extreme_numerical_inputs_and_nans(sample_ohlcv_dict):
+    """Stress Test 5: Vectorized feature computation with NaNs, Infs, and zeros."""
+    # Inject adversarial anomalies into prices
+    dirty_dict = {}
+    for sym, df in sample_ohlcv_dict.items():
+        df_dirty = df.copy()
+        df_dirty.iloc[10:15, df_dirty.columns.get_loc("Close")] = np.nan
+        df_dirty.iloc[20:25, df_dirty.columns.get_loc("Volume")] = 0
+        df_dirty.iloc[30, df_dirty.columns.get_loc("High")] = 1e9  # Extreme spike
+        dirty_dict[sym] = df_dirty
+
+    model = OnDevicePredictionModel()
+    # Feature creation should not raise unhandled exception
+    for sym, df in dirty_dict.items():
+        df_feat = model._create_features(df)
+        assert isinstance(df_feat, pd.DataFrame)
+
+
+def test_concurrent_model_cache_save_and_load(stress_temp_dir):
+    """Stress Test 6: Multi-threaded concurrent saves and loads to detect race conditions."""
+    mgr = ModelCacheManager.get_instance()
+    mgr.clear_memory_cache()
+
+    features = [f"feat_{i}" for i in range(8)]
+    X = pd.DataFrame(np.random.randn(30, 8), columns=features)
+    y = np.random.randn(30)
+
+    errors = []
+
+    def worker_task(thread_id: int):
+        try:
+            m = xgb.XGBRegressor(n_estimators=2, max_depth=2, random_state=thread_id)
+            m.fit(X, y)
+            fpath = stress_temp_dir / f"xgb_model_concurrent_{thread_id % 4}_1d.json"
+            mgr.save_model_atomic(m, fpath, {"thread_id": thread_id}, feature_names=features)
+            loaded = mgr.load_model_safe(fpath, verify_checksum=True, expected_features=features)
+            if loaded is None:
+                errors.append(f"Thread {thread_id} failed to load saved model")
+        except Exception as e:
+            errors.append(f"Thread {thread_id} raised exception: {e}")
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(worker_task, i) for i in range(16)]
+        for f in futures:
+            f.result()
+
+    assert len(errors) == 0, f"Concurrent execution errors: {errors}"

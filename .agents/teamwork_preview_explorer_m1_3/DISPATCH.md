@@ -1,16 +1,12 @@
-## 2026-08-29T13:35:52Z
-<USER_REQUEST>
-You are explorer_m1_3 for Milestone 1: Strategy Fallback Scoring & Report Saving.
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3
+## 2026-08-31T14:54:29Z
+You are an Explorer (teamwork_preview_explorer).
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\
+Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Project Scope path: d:\Finance\code\stock\PROJECT.md
 
-Please read:
-- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-- d:\Finance\code\stock\PROJECT.md
-
-Scope: Pipeline strategy report saving and multi-market file output (`trading_system/run_pipeline.py`).
-Investigate:
-1. In `_save_strategy_predictions_report()`, how NaN scores are handled and why 0-row files (`Total symbols evaluated: 0`) were generated.
-2. How `run_pipeline.py` saves per-market split files `<strategy>_<MARKET>.txt` across all 5 markets (`SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`).
-3. Formulate concrete recommendations to ensure non-empty valid rankings are formatted and written across all 5 markets for all 31+ strategies.
-4. Write your report to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\handoff.md`.
-</USER_REQUEST>
+Mission: Investigate Milestone 1 (R1: Model Training & Inference Pipelines Integrity).
+1. Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md, PROJECT.md, and investigate train_models.py, run_pipeline.py (model training/inference routines), src/ai/prediction_model.py, vcp_ml_predictor.py, and lstm_predictor.py.
+2. Verify how Regression, Surge, VCP ML, and LSTM models are trained per market when SKIP_TRAINING is False and how they are loaded/inferred when SKIP_TRAINING is True.
+3. Check error handling, fallback heuristics, and model artifact paths in trading_system/models/.
+4. Prepare recommendations for the Worker and write your report to d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\report.md and a handoff.md in your working directory.
+5. Send a message to your caller parent with your findings summary and file paths.

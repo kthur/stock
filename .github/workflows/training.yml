@@ -84,6 +84,8 @@ jobs:
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('trading_system/requirements.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
 
       - name: Install dependencies
         run: |
@@ -121,6 +123,9 @@ jobs:
         with:
           path: trading_system/models
           key: ai-models-${{ matrix.target }}-${{ steps.date.outputs.date }}
+          restore-keys: |
+            ai-models-${{ matrix.target }}-
+            ai-models-
 
       - name: Run training pipeline for ${{ matrix.target }}
         id: run

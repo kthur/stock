@@ -1,20 +1,8 @@
-## 2026-08-05T02:20:58Z
-You are Reviewer 2 (UI/UX & GHA Verification Reviewer) for the Stock Trading System Deep Audit.
-
-Working directory: `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m3_2`
-Original request file: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
-
-Your task:
-Perform an objective peer review of the Dashboard UI/UX responsiveness and GHA Artifact Verification analysis in `SYSTEM_IMPROVEMENT_REPORT.md` at `d:\Finance\code\stock\SYSTEM_IMPROVEMENT_REPORT.md`.
-
-Review focus:
-1. Dashboard UI/UX layout evaluation (Mobile 375/414px vs Desktop 1920px, sticky navigation, sticky table header CSS recommendation).
-2. Macro indicator live badge protection (`DataValidator.clean_macro_value()`).
-3. GHA Artifact Verifier evaluation across all 14 strategy panels on `gh-pages/index.html` and 18-strategy alignment details.
-
-Instructions:
-- Read `ORIGINAL_REQUEST.md` and `SYSTEM_IMPROVEMENT_REPORT.md`.
-- Inspect `gh-pages/index.html` and `trading_system/scripts/verify_gha_artifacts.py`.
-- Write your complete review to `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m3_2\handoff.md`.
-- Include a clear verdict: `APPROVE` or `REQUEST_CHANGES` with detailed reasoning.
-- Send a completion message back to parent with your verdict and key review findings.
+## 2026-08-31T15:30:42Z
+Mission: Review Milestone 3 (R3: Metric Consolidation Accuracy & Data Integrity).
+1. Read ORIGINAL_REQUEST.md, PROJECT.md, and M3 Worker handoff.
+2. Verify that all quantitative metrics (Regime 2D, Crisis Level, VIX velocity, Strategy Coverage, Missingness Reasons, CPCV/PBO, HRP Weights, EVT-CVaR, Leland Bands, Realized Slippage) accurately render without NaN, corrupt formatting, or missing keys.
+3. Validate gh-pages/index.html generation: python trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html.
+4. Provide a clear verdict (APPROVE or REQUEST_CHANGES) with detailed rationale in your handoff.md.
+5. Write your report to d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m3_2\review_report.md and a handoff.md.
+6. Send a message to your caller parent with your verdict and summary.

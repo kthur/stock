@@ -1,17 +1,15 @@
-## 2026-08-29T14:09:14Z
-You are reviewer_m2_1 for Milestone 2: Multi-Market Merge Synchronization.
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1
+## 2026-08-31T15:19:39Z
 
-Please read:
-- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-- d:\Finance\code\stock\PROJECT.md
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md
+You are a Reviewer (teamwork_preview_reviewer).
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\
+Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Project Scope path: d:\Finance\code\stock\PROJECT.md
+Worker Handoff path: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md
 
-Your task:
-1. Examine code changes made by worker_m2 in:
-   - `trading_system/merge_predictions.py`
-   - `tests/test_merge_generic_strategies.py`
-2. Run test suite:
-   `.venv\Scripts\pytest.exe tests/test_merge_generic_strategies.py tests/test_report_generator_hrp.py tests/test_challenger_rim_2_stress.py -v`
-3. Verify correctness of `discover_target_markets()`, `_extract_ensemble_market_section()`, `merge_generic_strategy_files()`, and footer stripping.
-4. Record your explicit verdict (APPROVE or REQUEST_CHANGES) and evidence in `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\handoff.md` and send a message back.
+Mission: Review Milestone 2 (R2: 31-Strategy Canonical Sequence Unification).
+1. Read ORIGINAL_REQUEST.md, PROJECT.md, and M2 Worker handoff.
+2. Review changes made in trading_system/run_pipeline.py (STRATEGY_REGISTRY, verification_files), AGENTS.md, trading_system/scripts/verify_gha_artifacts.py (all 31 strategies, panel aliases, 31-column matrix), and .agents/skills/gha-artifact-verifier/SKILL.md.
+3. Run verification tests: `pytest tests/test_verify_gha_artifacts.py tests/test_strategy_correlation_monitor.py tests/test_score_normalizer.py -v`.
+4. Provide a clear verdict (APPROVE or REQUEST_CHANGES) with detailed rationale in your handoff.md.
+5. Write your report to d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\review_report.md and a handoff.md.
+6. Send a message to your caller parent with your verdict and summary.

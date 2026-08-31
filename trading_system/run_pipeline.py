@@ -3199,6 +3199,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
 
     # Strategy Configuration Registry
     STRATEGY_REGISTRY = [
+        {'key': 'lstm', 'fn': _eval_lstm, 'col': 'lstm_score', 'title': 'Strategy 6: Strict Causal LSTM Predictions', 'file': 'lstm_predictions.txt', 'hdr': 'LSTM Score', 'w': 14},
         {'key': 'event', 'fn': _eval_event_driven, 'col': 'event_score', 'title': 'Strategy 10: Event-Driven Disclosure Catalyst Predictions', 'file': 'event_driven_predictions.txt', 'hdr': 'Event Score', 'w': 14},
         {'key': 'mq', 'fn': _eval_mq_factor, 'col': 'mq_score', 'title': 'Strategy 11: Momentum Quality (MQ) Factor Predictions', 'file': 'mq_factor_predictions.txt', 'hdr': 'MQ Score', 'w': 14},
         {'key': 'iv_skew', 'fn': _eval_iv_skew, 'col': 'iv_skew_score', 'title': 'Strategy 12: Options Put/Call IV Skew Predictions', 'file': 'iv_skew_predictions.txt', 'hdr': 'IV Skew Score', 'w': 14},
@@ -3219,15 +3220,14 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         {'key': 'trend_efficiency', 'fn': _eval_trend_efficiency, 'col': 'trend_efficiency_score', 'title': 'Strategy 27: Kaufman Trend Efficiency Predictions', 'file': 'trend_efficiency_predictions.txt', 'hdr': 'Trend Score', 'w': 16},
         {'key': 'gamma_squeeze', 'fn': _eval_gamma_squeeze, 'col': 'gamma_squeeze_score', 'title': 'Strategy 28: Options Gamma Squeeze Predictions', 'file': 'gamma_squeeze_predictions.txt', 'hdr': 'Gamma Score', 'w': 16},
         {'key': 'insider_buying', 'fn': _eval_insider_buying, 'col': 'insider_buying_score', 'title': 'Strategy 29: Insider Buying Catalyst Predictions', 'file': 'insider_buying_predictions.txt', 'hdr': 'Insider Score', 'w': 16},
-        {'key': 'earnings_tone_drift', 'fn': _eval_earnings_tone_drift, 'col': 'earnings_tone_drift_score', 'title': 'Strategy 30: Earnings Tone Drift NLP Predictions', 'file': 'earnings_tone_drift_predictions.txt', 'hdr': 'Tone Score', 'w': 16},
-        {'key': 'darkpool', 'fn': _eval_darkpool, 'col': 'darkpool_score', 'title': 'Strategy 31: HFT Order Flow & Dark Pool Predictions', 'file': 'hft_order_flow_predictions.txt', 'hdr': 'HFT Score', 'w': 16},
+        {'key': 'darkpool', 'fn': _eval_darkpool, 'col': 'darkpool_score', 'title': 'Strategy 30: HFT Order Flow & Dark Pool Predictions', 'file': 'darkpool_predictions.txt', 'hdr': 'Darkpool Score', 'w': 16},
+        {'key': 'earnings_tone_drift', 'fn': _eval_earnings_tone_drift, 'col': 'earnings_tone_drift_score', 'title': 'Strategy 31: Earnings Tone Drift NLP Predictions', 'file': 'earnings_tone_drift_predictions.txt', 'hdr': 'Tone Score', 'w': 16},
         {'key': 'dual_correction', 'fn': _eval_dual_correction, 'col': 'dual_correction_score', 'title': 'Strategy 32: Dual Correction Predictions', 'file': 'dual_correction_predictions.txt', 'hdr': 'Dual Score', 'w': 16},
         {'key': 'index_rebalance', 'fn': _eval_index_rebalance, 'col': 'index_rebalance_score', 'title': 'Strategy 33: Index Rebalance Predictions', 'file': 'index_rebalance_predictions.txt', 'hdr': 'Rebal Score', 'w': 16},
         {'key': 'overnight_gap_reversal', 'fn': _eval_overnight_gap_reversal, 'col': 'overnight_gap_score', 'title': 'Strategy 34: Overnight Gap Reversal Predictions', 'file': 'overnight_gap_predictions.txt', 'hdr': 'Gap Score', 'w': 16},
         {'key': 'cross_asset_spillover', 'fn': _eval_cross_asset_spillover, 'col': 'cross_asset_spillover_score', 'title': 'Strategy 35: Cross-Asset Spillover Momentum Predictions', 'file': 'cross_asset_spillover_predictions.txt', 'hdr': 'Spillover Score', 'w': 16},
         {'key': 'supply_chain_gnn', 'fn': _eval_supply_chain_gnn, 'col': 'supply_chain_gnn_score', 'title': 'Strategy 36: Supply Chain GNN & Sector Flow Predictions', 'file': 'supply_chain_gnn_predictions.txt', 'hdr': 'SC GNN Score', 'w': 16},
         {'key': 'range_expansion_breakout', 'fn': _eval_range_expansion_breakout, 'col': 'range_expansion_score', 'title': 'Strategy 37: Range Expansion Breakout Predictions', 'file': 'range_expansion_predictions.txt', 'hdr': 'Breakout Score', 'w': 16},
-        {'key': 'lstm', 'fn': _eval_lstm, 'col': 'lstm_score', 'title': 'Strategy 6: Strict Causal LSTM Predictions', 'file': 'lstm_predictions.txt', 'hdr': 'LSTM Score', 'w': 14},
     ]
 
     # 3. Concurrent Execution via ThreadPoolExecutor
@@ -4341,14 +4341,35 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         "lead_lag_predictions.txt",
         "vcp_patterns.txt",
         "vcp_ml_predictions.txt",
+        "lstm_predictions.txt",
         "stat_arb_predictions.txt",
         "sector_predictions.txt",
         "rim_predictions.txt",
+        "event_driven_predictions.txt",
+        "mq_factor_predictions.txt",
+        "iv_skew_predictions.txt",
+        "order_flow_predictions.txt",
+        "short_term_reversal_predictions.txt",
         "arm_factor_predictions.txt",
         "card_factor_predictions.txt",
         "latr_factor_predictions.txt",
         "inst_foreign_sector_predictions.txt",
+        "supply_chain_predictions.txt",
+        "sentiment_predictions.txt",
+        "factor_neutralized_predictions.txt",
+        "vol_target_predictions.txt",
+        "microstructure_predictions.txt",
+        "accruals_quality_predictions.txt",
+        "short_squeeze_predictions.txt",
+        "valueup_catalyst_predictions.txt",
+        "trend_efficiency_predictions.txt",
+        "gamma_squeeze_predictions.txt",
+        "insider_buying_predictions.txt",
+        "darkpool_predictions.txt",
+        "earnings_tone_drift_predictions.txt",
         "ensemble_predictions.txt",
+        "strategy_data_coverage_report.txt",
+        "portfolio_allocation.txt",
     ]
     critical_files = ["pipeline_result.txt", "surge_predictions.txt", "ensemble_predictions.txt"]
     _verification_failures = []

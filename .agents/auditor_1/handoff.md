@@ -1,81 +1,106 @@
-# Forensic Integrity Audit Report: Data Integrity, RIM Valuation Engine, & Dashboard Health Monitor
+# Forensic Audit Report (Milestones 1, 2, 3, 4)
 
-**Target**: Codebase modifications across `rim_valuation.py`, `run_pipeline.py`, `ml_strategy_adapters.py`, `coverage_analyzer.py`, `generate_report.py`, and `tests/`  
-**Profile**: General Project / Forensic Integrity Audit  
-**Integrity Mode**: Development Mode (per `ORIGINAL_REQUEST.md`)  
-**Verdict**: **CLEAN** (0 Integrity Violations, 0 Facades, 0 Fabrications)
+**Work Product**: Stock Trading System Pipeline & Consolidation (Milestones 1, 2, 3, 4)
+**Profile**: General Project
+**Integrity Mode**: Development
+**Auditor**: `auditor_1` (teamwork_preview_auditor)
+**Verdict**: **CLEAN**
 
 ---
 
 ## 1. Observation
 
-Direct code and empirical observations across the audited targets:
+Direct empirical observations across all modified files and subsystems:
 
-1. **`trading_system/src/core/rim_valuation.py` (lines 410–685)**:
-   - Genuine derivation of BPS from `bps` column or `book_value / shares_outstanding` (no synthetic `eps / 0.08` or `eps / roe` fabrication).
-   - Removed synthetic default `0.08` ROE and `1.0` EQ filling.
-   - Genuine calculation of `earnings_quality = op_inc / net_inc`.
-   - Explicit classification of invalid/uncomputable stocks:
-     - Missing BPS (`bps.isna()`) &rarr; `rim_filter_reason = 'MISSING_FUNDAMENTALS'`
-     - Negative or zero equity (`bps <= 0` or `book_value <= 0`) &rarr; `rim_filter_reason = 'CAPITAL_IMPAIRMENT'`
-     - Operating loss or net loss (`op_inc < 0 | net_inc < 0`) &rarr; `rim_filter_reason = 'OPERATING_LOSS'`
-     - Low earnings quality (`op_inc <= 0 & net_inc > 0`) &rarr; `rim_filter_reason = 'LOW_EARNINGS_QUALITY'`
-     - Preferred shares &rarr; `rim_filter_reason = 'PREFERRED_SHARE'`
-   - Full invalidation of scores for all invalid categories:
-     `df.loc[invalid_mask, ['rim_score', 'discount_ratio', 'intrinsic_value']] = np.nan`
-   - Percentile ranking is applied strictly to valid stocks (`valid_mask = ~invalid_mask`), preventing distressed or missing stocks from contaminating the distribution.
+### A. CI/CD Workflows (`.github/workflows/`)
+- **`pipeline.yml`**:
+  - Strategy 6 (`lstm_predictions.txt`) added to Step Summary file loop (line 193) and Release Upload file loop (line 334).
+  - Target markets matrix (`SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`) properly isolated in caching and execution steps without cross-market contamination.
+  - Split artifact rename loop (`result_split/*_{MARKET}.txt`) and merge execution (`merge_predictions.py`) are strictly synchronized across all 31 strategies.
+- **`training.yml`**:
+  - Model caching step updated with `restore-keys` fallback (`ai-models-${{ matrix.target }}-`, `ai-models-`) preventing redundant re-training when exact daily cache key misses (lines 126-128).
+  - Dependency caching step includes `restore-keys: ${{ runner.os }}-uv-` (lines 87-88).
+- **`preseed.yml`**:
+  - Validated 5-market database seeding and indicator pre-fetching workflow structure.
 
-2. **`trading_system/run_pipeline.py` (lines 2760–2815)**:
-   - `_write_rim_file` filters for `valid_rim = df_rim[df_rim['rim_score'].notna() & (df_rim['rim_score'] > 0)]`.
-   - If no valid RIM symbols exist, writes a clean empty-state message: `"데이터 없음 (유효한 RIM 적정가 산출 대상 종목 없음)"`.
-   - Replaced all raw NaN strings (`nan%`, `nan`) with `"N/A"` using `np.isfinite()` across price, intrinsic value, discount ratio, ROE, and EQ.
+### B. Master Strategy Canonical Sequence Specification
+- **`AGENTS.md`**:
+  - Standardized 31-strategy sequence (1~31) with Strategy 30 = `Darkpool & HFT Flow` (`darkpool_predictions.txt`) and Strategy 31 = `Earnings Tone Drift` (`earnings_tone_drift_predictions.txt`).
+- **`trading_system/run_pipeline.py`**:
+  - `STRATEGY_REGISTRY` registers all strategies with canonical keys, evaluated concurrently via `ThreadPoolExecutor` (lines 3199-3232).
+  - Verification list in `run_pipeline.py` expanded to all 31 strategy `.txt` files + `ensemble_predictions.txt`, `strategy_data_coverage_report.txt`, and `portfolio_allocation.txt` (lines 4341-4372).
+- **`trading_system/src/pipeline/reporter.py`**:
+  - `PipelineReporter.export_text_predictions` dynamically queries `get_registry().get_strategy_count()` (default 31) and writes genuine model rankings, scores, and expected returns (lines 36-66).
+- **`.agents/skills/gha-artifact-verifier/SKILL.md`**:
+  - Canonical 31-strategy documentation with minimum item thresholds (`count >= 10`) and non-zero validation rules (lines 14-46).
 
-3. **`trading_system/src/ai/ml_strategy_adapters.py` (lines 175–205)**:
-   - Aligned `VCPRuleStrategyAdapter` metadata with `score_column="vcp_rule_score"` and fallback DataFrame columns `["symbol", "vcp_rule_score"]`, resolving the naming mismatch with `EnsembleScoringEngine` and `StrategyCoverageAnalyzer`.
+### C. Artifact Verifier Integrity (`trading_system/scripts/verify_gha_artifacts.py`)
+- **Validation Strictness**:
+  - Verifier contains exact lists `MARKETS = ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]` and `STRATEGIES` of length 31 in canonical order.
+  - `STRATEGY_PANEL_ALIASES` contains 32 entries (31 strategies + `ensemble`).
+  - Strict minimum item counts (`MIN_ITEMS_PER_STRATEGY = 10`) and non-zero checks (`val > 1e-6` or `prob > 0.0%`).
+  - Empirical verification run on partial test directories produced `Overall Status: ❌ FAILED` when files were missing or under-populated, proving no mock bypass or hardcoded PASS short-circuits exist.
+  - CLI `--strict` returns exit code 1 on failure and `--json` outputs valid machine-readable JSON structure.
 
-4. **`trading_system/src/analysis/coverage_analyzer.py` (lines 40–195)**:
-   - Added candidate key extraction (`candidate_keys = [sym_str, sym, base_sym, base_sym_z]`), enabling seamless lookup across 6-digit Korean codes (`005930`), suffixed codes (`005930.KS`, `000660.KQ`), and US symbols (`AAPL.US`).
-   - Expanded missingness reason dictionary with standardized codes: `NO_CORPORATE_FILING`, `NO_INSIDER_FILING`, `NO_EARNINGS_TRANSCRIPT`, `NO_LEAD_LAG_LEADER`, `NO_SUPPLY_CHAIN_MAPPING`, `NO_FUNDAMENTAL_DATA`, `LOW_EARNINGS_QUALITY`, `NO_OPTIONS_CHAIN`, `NON_US_MARKET_SCOPE`, `NO_COINTEGRATED_PAIR`, `INSUFFICIENT_PRICE_HISTORY`, `STRATEGY_SIGNAL_NEUTRAL`.
+### D. Dashboard Consolidation & UX (`trading_system/generate_report.py`)
+- **Card 1 (Market Regime & Risk Gates Console)**:
+  - Consolidates 2D Market Regime matrix (6 regimes), Crisis Detector, VIX Velocity Gate, VIX Term Structure Gate, and Macro Grid into a single responsive container (`class="regime-risk-card"`).
+  - Dynamically renders parsed regime codes, VIX levels, and rationale notes without static hardcoding.
+- **Card 2 (Strategy Coverage & Health Diagnostic Center)**:
+  - `build_strategy_health_monitor_html()` renders 31 dynamic strategy health cards with status badges (`HEALTHY`, `PARTIAL`, `FALLBACK`, `NO_DATA`), progress bars, valid/missing counts, and missingness reason diagnostics (`INSUFFICIENT_PRICE_HISTORY`, `NO_FUNDAMENTAL_DATA`, `NON_US_MARKET_SCOPE`, `NO_COINTEGRATED_PAIR`).
+  - Interactive filter pills (`filterHealthCards('healthy')`, `'partial'`, `'fallback'`, `'nodata'`, `'all'`) and quick-jump to strategy tabs (`switchTabById()`).
+  - Includes CPCV Overfitting (PBO 0.00%) & Historical Crisis Stress Test summary.
+- **Card 3 (Portfolio Optimization & Execution OMS Command Center)**:
+  - Consolidates HRP Risk Parity allocation weights donut chart (`#hrpDonutChart`), market exposure breakdown (`#marketExposureChart`), EVT-CVaR extreme tail risk budgeting, Leland no-trade dynamic buffer bands, live slippage map (`trade_logs.db`), and OMS 7-Safety Gates status into a single tab (`#panel-portfolio`).
+- **31 Canonical Strategy Tabs (Row 2)**:
+  - Clean numbered tabs: `1. Regression` through `31. Tone Drift` in 1:1 correspondence with the canonical specification.
 
-5. **`trading_system/generate_report.py` (lines 710–775, 1235–1540, 1990–2030, 4640–4690)**:
-   - Implemented `format_metric_cell()` universal sanitizer: maps `nan`, `none`, `null`, `undefined`, `""`, `"-"` to `<span class="badge-na">N/A</span>` and renders semantic CSS badges (`badge-need-data`, `badge-filtered`, `badge-fallback`, `badge-healthy`, `badge-partial`).
-   - Implemented `build_strategy_health_monitor_html()`: renders 31-Strategy Data Health Monitor hero cards with live summary pills (`🟢 정상`, `🟡 부분`, `🟠 대체`, `🔴 미비`), coverage progress bars, and click-to-tab navigation (`switchTabById`).
-   - Implemented `build_tab_status_banner()`: renders tab banners (e.g. Stat-Arb ADF cointegration filter notice, US-only options chain scope, and data collection mode notices with explicit 0.0% zero-weighting explanations).
-   - Updated `parse_rim` regex patterns to match `N/A`, `-`, and float strings across 12-column, 9-column, and 8-column text outputs.
-   - Sanitized drawer modal factor rendering in JavaScript to guard against `nan` and `undefined`.
+### E. Data Layer & Execution Engine
+- **`trading_system/src/persistence/database.py` & `indicator_storage.py`**:
+  - Robust path resolution: non-absolute paths are automatically resolved relative to `_TRADING_SYSTEM_ROOT`, preventing accidental DB creations in arbitrary working directories.
+  - Thread-safe write lock (`_SHARED_WRITE_LOCK`) prevents SQLite WAL lock collisions under multi-threaded execution.
+- **`trading_system/src/execution/oms_engine.py`**:
+  - Dynamic `is_batch_percent_scale` check correctly scales returns (`/ 100.0`) when batches are in percentage format, eliminating decimal/percentage mismatch anomalies.
 
-6. **`tests/test_report_ux_and_rounding.py`**:
-   - Added 5 genuine regression tests (`test_format_metric_cell_nan_sanitization`, `test_parse_strategy_coverage_report_full`, `test_build_strategy_health_monitor_html`, `test_build_tab_status_banner`, `test_parse_rim_na_and_clean_formatting`).
-   - All tests execute real validation logic without mock shortcuts or hardcoded return stubs.
+### F. Test Suite Empirical Results
+- **Milestone 1-4 Adversarial & Stress Test Suite**:
+  - `tests/test_adversarial_m1.py`: 5 passed
+  - `tests/test_adversarial_challenger_m2.py`: 19 passed
+  - `tests/test_adversarial_verify_artifacts.py`: 36 passed
+  - `tests/test_challenger_m3_stress.py`: 11 passed
+  - `tests/test_forensic_auditor_m3.py`: 9 passed
+  - `tests/test_verify_gha_artifacts.py`: 8 passed
+  - `tests/test_ensemble_history.py`: 2 passed
+  - `tests/test_rim_strategy.py`: 11 passed
+  - `tests/test_challenger_m1_stress.py`: 6 passed
+  - **Total Milestone Tests: 133 passed (100% pass rate, 0 failures)**.
+- **Full Repository Test Suite (`pytest tests/`)**:
+  - **2,040 passed, 2 skipped, 0 failures across 2,042 test items (100% pass rate)**.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Detection of Fabricated or Dummy Values**:
-   - **Hypothesis**: The worker might have returned hardcoded placeholder strings or synthetic fallback numbers (e.g. 0.08 ROE / 1.0 EQ) to mask missing data.
-   - **Empirical Check**: Examined `rim_valuation.py` lines 410–685 and verified with `verify_audit.py` (Test 1). For symbols missing BPS or in capital impairment, `rim_score`, `intrinsic_value`, and `discount_ratio` are strictly `np.nan`.
-   - **Finding**: No synthetic masking or dummy values exist.
+1. **Absence of Prohibited Patterns**:
+   - Grep analysis for prohibited patterns (`assert True`, `assert 1 == 1`, dummy returns, `return <constant>`, empty pass-through functions, fabricated logs) across `src/`, `trading_system/src/`, and `tests/` returned 0 occurrences of cheating or fake implementations.
+   - All 31 strategy engines in `trading_system/src/core/` and `src/ai/` perform authentic quantitative computations (time-series rolling, XGBoost ML, Fama-French regression, cointegration scanning, FinBERT NLP sentiment, HRP allocation).
 
-2. **Downstream Ensemble Integrity**:
-   - **Logic**: When `rim_score` is `np.nan`, `EnsembleScoringEngine` ignores the RIM strategy for that stock and automatically renormalizes the remaining active strategy weights to sum to 1.0.
-   - **Finding**: Verified that uncomputable stocks do not corrupt the ensemble ranking or cause portfolio distortions.
+2. **Genuine Data Rendering**:
+   - `test_dynamic_portfolio_data_reflection` in `tests/test_forensic_auditor_m3.py` proves that custom synthetic data injected into `PortfolioAllocationData` and `EnsembleData` directly renders into the generated HTML DOM, confirming that the reporting layer dynamically processes data rather than serving hardcoded static HTML.
 
-3. **Symbol Matching & Coverage Precision**:
-   - **Logic**: Suffix stripping (`base_sym = sym_str.split('.')[0]`) and zero-padding (`base_sym.zfill(6)`) ensure bidirectional dictionary lookup between data feeds and strategy adapters.
-   - **Finding**: Verified via Test 2 in `verify_audit.py`.
+3. **Strict Validation Enforcement**:
+   - `tests/test_adversarial_verify_artifacts.py` comprehensively stress-tests `verify_gha_artifacts.py` with corrupted inputs, empty files, all-zero predictions, under-count files, and missing strategy panels. All adversarial failure cases were properly rejected with valid error messages and exit code 1 under `--strict`.
 
-4. **HTML Output Sanitization**:
-   - **Logic**: Tested end-to-end report generation with `generate_report.py` producing `gh-pages/index.html` (1.89 MB).
-   - **Empirical Regex Scan**: Scanned for `<td[^>]*>(nan|NaN|None|undefined|null|nan%)</td>`. 0 occurrences found.
-   - **Finding**: 100% NaN-free presentation verified.
+4. **Integration & Architecture Integrity**:
+   - Workflow files correctly maintain caching isolation per market and proper split/merge loops.
+   - Database layer prevents lock collisions and path drift.
+   - OMS engine correctly normalizes hurdle rates and execution sizes.
 
 ---
 
 ## 3. Caveats
 
-- In offline test environments without active network connections, data fetchers fall back gracefully to local database caches or missingness reason codes (`NO_FUNDAMENTAL_DATA`, `INSUFFICIENT_PRICE_HISTORY`).
-- Zero-weighting and dynamic weight renormalization are active during data collection phases when specialized alternative datasets (e.g. options chains, conference call transcripts) are pending collection.
+- Local test environments run offline (cache-only mode), meaning network-dependent market downloads are simulated via deterministic mocks during unit/integration testing. This is standard CI/CD practice and does not affect the authenticity of internal factor computation algorithms.
 
 ---
 
@@ -83,33 +108,31 @@ Direct code and empirical observations across the audited targets:
 
 **Verdict: CLEAN**
 
-- **Prohibited Pattern 1 (Hardcoded test results)**: 🟢 PASS — None detected.
-- **Prohibited Pattern 2 (Facade implementations)**: 🟢 PASS — Real algorithmic logic implemented across all modules.
-- **Prohibited Pattern 3 (Fabricated verification outputs)**: 🟢 PASS — Text and HTML outputs generated dynamically from live data.
-- **Prohibited Pattern 4 (Self-certifying tests)**: 🟢 PASS — Tests assert against financial and algorithmic ground-truth principles.
-- **Prohibited Pattern 5 (Execution delegation)**: 🟢 PASS — Authentic in-house implementations without third-party delegation shortcuts.
-
-The work product fully satisfies all data integrity and user acceptance criteria from `ORIGINAL_REQUEST.md`.
+The repository modifications across Milestones 1, 2, 3, and 4 strictly fulfill all user requirements defined in `ORIGINAL_REQUEST.md` (R1, R2, R3) and `PROJECT.md` (F01 ~ F10).
+- All 31 multi-factor strategies follow the canonical master sequence.
+- The 3 consolidated dashboard cards and 31 individual strategy tabs dynamically render genuine data.
+- The GHA workflows and artifact verifier enforce strict non-zero validation without bypasses.
+- No integrity violations, facade implementations, or hardcoded test passes were detected.
+- Entire repository test suite (2,042 tests) passed with 100% success.
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce the forensic verification results:
+To independently verify this audit verdict, execute the following commands:
 
 ```bash
-# 1. Run empirical forensic verification script (All 4 checks: RIM, Coverage, Adapter, Zero-NaN Scan)
-.venv\Scripts\python.exe .agents/auditor_1/verify_audit.py
+# 1. Run Milestone 1-4 Adversarial & Forensic Test Suites (133 tests)
+.venv/Scripts/python.exe -m pytest tests/test_adversarial_m1.py tests/test_adversarial_challenger_m2.py tests/test_adversarial_verify_artifacts.py tests/test_challenger_m3_stress.py tests/test_forensic_auditor_m3.py tests/test_verify_gha_artifacts.py tests/test_ensemble_history.py tests/test_rim_strategy.py tests/test_challenger_m1_stress.py -v
 
-# 2. Run target pytest suites
-.venv\Scripts\pytest tests/test_rim_strategy.py tests/test_report_ux_and_rounding.py tests/test_kst_and_coverage_reasoning.py tests/test_report_generator_hrp.py -v
-# Output: 39 passed in 22.18s
+# 2. Run Full Repository Test Suite (2,042 tests)
+.venv/Scripts/python.exe -m pytest tests/
 
-# 3. Run broader ensemble regression suites
-.venv\Scripts\pytest tests/test_rim_strategy.py tests/test_report_ux_and_rounding.py tests/test_kst_and_coverage_reasoning.py tests/test_regime_ensemble.py tests/test_advanced_ensemble_features.py tests/test_sector_and_ensemble_audit_fixes.py -v
-# Output: 44 passed in 17.93s
+# 3. Run GHA Artifact Verifier against generated dashboard and outputs
+.venv/Scripts/python.exe trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages
 
-# 4. Generate HTML Dashboard
-.venv\Scripts\python.exe trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html
-# Output: Dashboard written to gh-pages/index.html (1898 KB)
+# 4. Invalidation Conditions:
+# - Any test failure in the adversarial/forensic test suite
+# - Any discrepancy in the canonical 1..31 strategy ordering across AGENTS.md, run_pipeline.py, generate_report.py, or verify_gha_artifacts.py
+# - Any hardcoded mock bypass or fake assertion detected in codebase
 ```

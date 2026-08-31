@@ -1,11 +1,17 @@
-# Progress - explorer_m1_3
+# Progress — M1-3 Explorer
 
-Last visited: 2026-08-29T13:38:55Z
+Last visited: 2026-08-31T14:58:38Z
 
-- [x] Initialized DISPATCH.md, BRIEFING.md, progress.md
+## Status
+- [x] Initialized DISPATCH, BRIEFING, progress
 - [x] Read ORIGINAL_REQUEST.md and PROJECT.md
-- [x] Investigate `_save_strategy_predictions_report()` in `trading_system/run_pipeline.py`
-- [x] Analyze NaN score handling and root cause of 0-row files (`Total symbols evaluated: 0`)
-- [x] Analyze per-market split file `<strategy>_<MARKET>.txt` generation for all 5 markets
-- [x] Formulate concrete recommendations and verification methods
-- [x] Write handoff.md and report to parent
+- [x] Investigate run_pipeline.py and training/inference routines
+- [x] Investigate src/ai/prediction_model.py (Regression & Surge models)
+- [x] Investigate src/ai/vcp_ml_predictor.py (VCP ML models)
+- [x] Investigate src/ai/lstm_predictor.py (Strict Causal LSTM models)
+- [x] Investigate trading_system/models/ directory and model serialization paths (model_cache.py, model_io.py)
+- [x] Analyze SKIP_TRAINING True vs False behavior across all 5 markets
+- [x] Analyze error handling and fallback heuristics across all 4 core ML models
+- [x] Verified unit tests for prediction models (10/10 passed)
+- [x] Compiled comprehensive report.md and handoff.md
+- [x] Sending summary message to caller parent

@@ -16,3 +16,22 @@ Adversarially challenge and stress-test the dashboard report generator:
 Your working directory is `d:\Finance\code\stock\.agents\challenger_2`.
 Write your verdict and stress-test results to `d:\Finance\code\stock\.agents\challenger_2\handoff.md`.
 Use `send_message` to notify the orchestrator when finished.
+
+## 2026-08-31T20:56:30Z
+You are challenger_2 (teamwork_preview_challenger).
+Working directory: d:/Finance/code/stock/.agents/challenger_2/
+Workspace root: d:/Finance/code/stock
+
+You must read d:/Finance/code/stock/.agents/ORIGINAL_REQUEST.md and d:/Finance/code/stock/PROJECT.md.
+
+Task:
+Empirically challenge the dashboard layout, data seeding, and strategy execution pipeline:
+1. Validate that the 3 consolidated cards in `generate_report.py` and `gh-pages/index.html` contain all required sub-components:
+   - Card 1: 2D Market Regime, Crisis Detector, VIX Velocity & Term Structure, Macro indicators.
+   - Card 2: 31 Strategy Health Monitor, Missingness Reasons, CPCV/PBO Stress Test, click-to-jump buttons.
+   - Card 3: HRP Donut, Market Exposure, EVT-CVaR Tail Risk, Leland Buffer Bands, Slippage Feedback.
+2. Validate that all 31 strategy tabs are in exact 1..31 canonical sequence.
+3. Execute `.venv\Scripts\python.exe -m pytest tests/test_dashboard_3cards.py tests/test_canonical_31_strategies.py tests/test_verify_gha_artifacts.py -v`.
+4. Run `.venv\Scripts\python.exe trading_system/scripts/verify_gha_artifacts.py --strict`.
+5. Write your findings to `d:/Finance/code/stock/.agents/challenger_2/handoff.md` with explicit Verdict: APPROVE or REJECT.
+6. Send a message to parent with your verdict and handoff file path.

@@ -1,15 +1,15 @@
-## 2026-08-29T13:59:36Z
-You are explorer_m2_2 for Milestone 2: Multi-Market Merge Synchronization.
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2
+## 2026-08-31T15:09:28Z
+You are an Explorer (teamwork_preview_explorer).
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\
+Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Project Scope path: d:\Finance\code\stock\PROJECT.md
 
-Please read:
-- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-- d:\Finance\code\stock\PROJECT.md
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md
-
-Scope: 31+ Strategy file mapping, schema consistency, and merge tests.
-Investigate:
-1. In `merge_predictions.py`, review `merge_generic_strategy_files()` and the list of strategy files merged. Check alignment for `rim_predictions.txt`, `sentiment_predictions.txt`, `earnings_tone_drift_predictions.txt`, `accruals_quality_predictions.txt`, `valueup_catalyst_predictions.txt`, `insider_buying_predictions.txt`, and all other 31 strategies.
-2. Review existing tests in `tests/test_merge_generic_strategies.py`. Identify what new test cases or assertions are needed.
-3. Formulate concrete implementation recommendations for 100% strategy merge parity.
-4. Write your report to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\handoff.md`.
+Mission: Investigate Milestone 2 (R2: GHA Artifact Verifier & SKILL.md 31-Strategy Expansion).
+1. Read ORIGINAL_REQUEST.md, PROJECT.md, trading_system/scripts/verify_gha_artifacts.py, and .agents/skills/gha-artifact-verifier/SKILL.md.
+2. Plan the exact code updates for verify_gha_artifacts.py:
+   - Update `STRATEGIES` list to contain all 31 strategies in exact canonical order (1 to 31).
+   - Add file mapping and verification methods for strategies 24..31 (`accruals_quality`, `short_squeeze`, `valueup_catalyst`, `trend_efficiency`, `gamma_squeeze`, `insider_buying`, `darkpool`, `earnings_tone_drift`).
+   - Update `verify_gh_pages()` `panels_to_check` to verify all 31 strategy panels in HTML.
+3. Plan the documentation updates in .agents/skills/gha-artifact-verifier/SKILL.md to enumerate all 31 strategies in the verification table.
+4. Write your report to d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\report.md and a handoff.md in your working directory.
+5. Send a message to your caller parent with your findings summary.

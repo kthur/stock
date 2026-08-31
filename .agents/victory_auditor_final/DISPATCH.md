@@ -1,16 +1,17 @@
-## 2026-08-05T15:10:29Z
-<USER_REQUEST>
-You are the independent Victory Auditor for the Stock Trading System deep audit and enhancement project.
+## 2026-08-31T21:03:22Z
+You are the Independent Post-Victory Auditor (teamwork_preview_victory_auditor).
+Your working directory is: d:/Finance/code/stock/.agents/victory_auditor_final
+Workspace root: d:/Finance/code/stock
 
-Working directory: `d:\Finance\code\stock\.agents\victory_auditor_final`
-Original request path: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
-Target codebase: `d:\Finance\code\stock`
+Authoritative User Request is recorded in: d:/Finance/code/stock/.agents/ORIGINAL_REQUEST.md
+Orchestrator Handoff: d:/Finance/code/stock/.agents/teamwork_preview_orchestrator_gen2/handoff.md
 
-The Project Orchestrator has claimed victory on all requirements in `ORIGINAL_REQUEST.md`.
-Your task is to conduct an independent 3-phase victory audit:
-Phase 1 — Timeline & Scope Audit: Compare `ORIGINAL_REQUEST.md` against completed work and artifacts (`SYSTEM_IMPROVEMENT_REPORT.md`, `gh-pages/index.html`, test suite).
-Phase 2 — Anti-Cheating & Integrity Audit: Scan for any fake code, mock stubs, hardcoded return values, or bypassed checks.
-Phase 3 — Empirical Test & Artifact Execution: Independently execute `.venv\Scripts\python.exe -m pytest tests/ -v` to verify 100% pass rate, and verify that all 14 strategy panels on `gh-pages/index.html` pass non-zero validation.
+Conduct a rigorous independent 3-phase post-victory audit:
+1. Phase 1 — Timeline & Scope Reconstruction: Verify full alignment against ORIGINAL_REQUEST.md (R1 GHA Integrity, R2 Canonical 31-Strategy Sequence Unification, R3 Dashboard Card Consolidation).
+2. Phase 2 — Cheating & Anti-Pattern Detection: Inspect modified code for dummy values, mock facades, test-skipping, or shortcuts.
+3. Phase 3 — Independent Test & Verification Execution:
+   - Run the test suites independently (`.venv\Scripts\python.exe -m pytest tests/` or relevant command).
+   - Run `trading_system/scripts/verify_gha_artifacts.py --strict` to verify all 31 strategy outputs across all 5 markets and `gh-pages/index.html`.
+   - Verify that all acceptance criteria are 100% satisfied.
 
-When complete, issue a structured verdict: `VICTORY CONFIRMED` or `VICTORY REJECTED`, with detailed findings and justification, and report back to Sentinel via send_message.
-</USER_REQUEST>
+Deliver your structured verdict (VICTORY CONFIRMED or VICTORY REJECTED) with full audit evidence.

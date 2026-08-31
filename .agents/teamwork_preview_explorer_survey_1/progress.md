@@ -1,12 +1,13 @@
-# Progress — teamwork_preview_explorer_survey_1
+# Progress Log
 
-Last visited: 2026-08-29T13:33:00Z
+Last visited: 2026-08-31T23:53:35+09:00
 
-## Status
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Investigate `trading_system/generate_report.py` structure and parsing functions
-- [x] Inspect strategy files produced by `run_pipeline.py` or existing in `trading_system/result/` or `trading_system/`
-- [x] Trace file naming, header formats, parser schemas, and missing strategies
-- [x] Check table rendering, JS interactivity, market tabs, and missing value handling
-- [x] Compile 5-component handoff report (`handoff.md`)
-- [ ] Send summary message to parent
+- [x] Initialized workspace and briefing
+- [x] Read ORIGINAL_REQUEST.md and AGENTS.md
+- [x] Investigate all GitHub Actions workflows in `.github/workflows/` (`pipeline.yml`, `preseed.yml`, `training.yml`, `pytest.yml`, `realtime_monitor.yml`, `weekly_hpo.yml`)
+- [x] Investigate data seeding & fetching scripts (`run_pipeline.py`, `download_db.py`, `indicator_storage.py`, `database.py`, `earnings_data.py`)
+- [x] Investigate 5-market handling across models (Regression, Surge, VCP ML, LSTM, Lead-Lag)
+- [x] Trace caching, artifact upload/download, storage integrity (SQLite WAL, mutex locks, Azure Blob redirect handler)
+- [x] Identify discrepancies, edge cases, bugs, and missing steps (pipeline.yml line 193/333 lstm omission, verify_gha_artifacts 23 vs 31 strategies)
+- [x] Compile survey_report.md and handoff.md
+- [x] Send message to caller parent

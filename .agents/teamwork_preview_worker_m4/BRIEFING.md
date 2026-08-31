@@ -1,57 +1,50 @@
-# BRIEFING — 2026-08-21T10:27:30Z
+# BRIEFING — 2026-09-01T00:36:21+09:00
 
 ## Mission
-Implement fixes for V5-24 (calculate_realized_slippage signature & SlippageMetrics unpacking) and V5-25 (real-time inverse ETF current price dynamic hedge sizing) in oms_engine.py and slippage_feedback.py.
+Execute Milestone 4: Final E2E Verification & Test Suite Validation across full repository test suite, GHA artifact verifier, and report generation.
 
 ## 🔒 My Identity
 - Archetype: worker
-- Roles: implementer, qa, specialist
-- Working directory: D:\Finance\code\stock\.agents\teamwork_preview_worker_m4\
-- Original parent: 6ca0b715-13b6-471b-8297-997f4c66f01d
-- Milestone: Milestone 4 (Domain 4: V5-24 ~ V5-25)
+- Roles: [implementer, qa, specialist]
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m4\
+- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Milestone: Milestone 4
 
 ## 🔒 Key Constraints
-- Exclusive write boundaries:
-  - `trading_system/src/execution/oms_engine.py`
-  - `trading_system/src/execution/slippage_feedback.py`
-- DO NOT CHEAT: genuine logic, real state, no hardcoded test shortcuts.
-- Independent auditor verification.
+- Genuine implementation and execution only (no hardcoding, dummy results, facade code).
+- Run full pytest test suite.
+- Run GHA artifact verifier with --strict.
+- Generate and verify gh-pages/index.html.
+- Provide comprehensive test breakdown, counts, and artifact validation in report.md and handoff.md.
 
 ## Current Parent
-- Conversation ID: 6ca0b715-13b6-471b-8297-997f4c66f01d
-- Updated: 2026-08-21T10:27:30Z
+- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Updated: not yet
 
 ## Task Summary
-- **What to build**:
-  - V5-24: Fix `calculate_realized_slippage(*args, **kwargs)` signature in `slippage_feedback.py` and `SlippageMetrics` dataclass unpacking in `oms_engine.py` Gate 7.3 so closed-loop slippage multiplier feedback functions without TypeError.
-  - V5-25: Replace hardcoded 10,000 KRW hedge target price in `oms_engine.py` Gate 8 with `_get_latest_price()` querying prices_dict, predictions, or storage cache for authentic dynamic 1:1 inverse ETF sizing.
-- **Success criteria**:
-  - All tests in OMS and slippage test suites pass (22/22 tests).
-  - Closed-loop slippage multiplier works cleanly without TypeError.
-  - Dynamic inverse ETF sizing uses actual current_price accurately.
+- **What to build**: Full E2E validation, full pytest run, verify artifact integrity, generate gh-pages report, verify HTML rendering, produce report.md and handoff.md.
+- **Success criteria**: 100% test pass, verify_gha_artifacts passes with zero errors, index.html generated properly, all 31 strategies valid.
+- **Interface contracts**: PROJECT.md / SCOPE.md / AGENTS.md
+- **Code layout**: PROJECT.md
 
 ## Key Decisions Made
-- `calculate_realized_slippage` in `slippage_feedback.py` accepts `*args, **kwargs` to guard against any calling convention.
-- `oms_engine.py` Gate 7.3 instantiates `SlippageFeedbackEngine(db_path=self.db_path).calculate_realized_slippage()` and safely extracts `cost_scaling_factor` or `recommended_market_impact_multiplier`, passing `slippage_multiplier` into `estimate_transaction_cost_rate`.
-- `ExecutionOMSEngine._get_latest_price()` dynamically resolves current price from `prices_dict`, `top_predictions`, and `StockPriceDB`, with fallback to default market tick prices.
+- Use .venv\Scripts\python.exe and pytest to execute test suite and scripts.
 
 ## Change Tracker
-- **Files modified**:
-  - `trading_system/src/execution/slippage_feedback.py`: Added `*args, **kwargs` to `calculate_realized_slippage`.
-  - `trading_system/src/execution/oms_engine.py`: Added `_get_latest_price()`, updated `generate_order_plan()` parameters, updated Gate 7.3 slippage feedback call & unpacking, updated Gate 8 dynamic hedge price and quantity calculation.
-- **Build status**: PASS (22/22 pytest tests passing, standalone verification passing)
+- **Files modified**: None yet
+- **Build status**: Pending test execution
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: 22 passed in 38.35s
-- **Lint status**: Clean
-- **Tests added/modified**: Verified against `test_portfolio_optimizer_and_oms.py`, `test_slippage_feedback.py`, `test_adaptive_execution_feedback.py`, `test_krx_overnight_and_hurdle.py`, `test_challenger_m4_2.py`
+- **Build/test result**: Pending
+- **Lint status**: N/A
+- **Tests added/modified**: Validation run
 
 ## Loaded Skills
-- None
+- **Source**: d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md
+- **Local copy**: d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md
+- **Core methodology**: Automated verification tool for 31 strategies and GHA artifact outputs
 
 ## Artifact Index
-- `D:\Finance\code\stock\.agents\teamwork_preview_worker_m4\DISPATCH.md` — Assignment
-- `D:\Finance\code\stock\.agents\teamwork_preview_worker_m4\BRIEFING.md` — Persistent working memory
-- `D:\Finance\code\stock\.agents\teamwork_preview_worker_m4\progress.md` — Liveness and progress tracker
-- `D:\Finance\code\stock\.agents\teamwork_preview_worker_m4\handoff.md` — Final 5-component handoff report
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m4\report.md — Comprehensive validation report
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m4\handoff.md — 5-component handoff report

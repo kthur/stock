@@ -1,14 +1,12 @@
-# Progress Tracker - Worker M4
+# Progress Log - Milestone 4 Worker
 
-Last visited: 2026-08-21T10:27:30Z
-Status: Completed Implementation & Verification
+Last visited: 2026-09-01T00:50:25+09:00
 
-## Tasks
-- [x] Read referenced documents: ORIGINAL_REQUEST.md, system_improvement_report_v5.md (Domain 4: V5-24 ~ V5-25), explorer survey handoff.md
-- [x] Inspect existing `trading_system/src/execution/oms_engine.py` and `trading_system/src/execution/slippage_feedback.py`
-- [x] Inspect existing tests `tests/test_portfolio_optimizer_and_oms.py`, `tests/test_slippage_feedback.py`, `tests/test_adaptive_execution_feedback.py`, `tests/test_krx_overnight_and_hurdle.py`, `tests/test_challenger_m4_2.py`
-- [x] Implement V5-24: fix `calculate_realized_slippage(*args, **kwargs)` signature and `SlippageMetrics` dataclass unpacking in `oms_engine.py:440-455` and `slippage_feedback.py:56`
-- [x] Implement V5-25: dynamic hedge sizing with `_get_latest_price()` for inverse ETF hedge orders in `oms_engine.py:570-600`
-- [x] Run pytest on test suites and verify 100% pass (22/22 tests passing)
-- [x] Run isolation verification script for V5-24 and V5-25 (all assertions passed)
-- [x] Write handoff.md and send message to parent
+## Status
+- [x] Initialized DISPATCH, BRIEFING, progress logs
+- [ ] Task 1: Running full pytest test suite across tests/ (Task-13 actively running, currently ~35%)
+- [ ] Task 2: Run GHA artifact verification tool (--strict)
+- [ ] Task 3: Generate and verify gh-pages/index.html
+- [ ] Task 4: Verify 31 strategies & 3 consolidated cards
+- [ ] Task 5: Write report.md and handoff.md
+- [ ] Task 6: Send completion message to parent orchestrator

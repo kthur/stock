@@ -1,13 +1,12 @@
-## 2026-08-29T13:28:03Z
-User/Parent Request:
-You are teamwork_preview_explorer_survey_2.
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2
+## 2026-08-31T14:49:35Z
+You are a Survey Explorer (teamwork_preview_explorer).
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\
+Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
 
-Please read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md.
-Your task: Deeply investigate pipeline result files, strategy output schema, and merge synchronization.
-Focus areas:
-1. Examine `trading_system/` and `trading_system/result/`, `trading_system/run_pipeline.py`, `trading_system/merge_predictions.py`, `src/ai/ensemble_scorer.py`, and the output generation of all 31+ strategies.
-2. Check the exact filenames, headers, delimiters, columns, and data formats produced by each strategy (e.g. rim_predictions.txt, sentiment_predictions.txt, tone_drift / earnings_tone_drift, accruals_quality, value_up / valueup_catalyst, insider_buying, etc.).
-3. Identify any discrepancies between how pipeline files are saved/named vs how `generate_report.py` expects them.
-4. Check multi-market support (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ), UTF-8 encoding, and schema alignment.
-5. Write your comprehensive findings and recommendations to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md` and send a message back with your summary.
+Mission: Survey and investigate requirement R2: 31-Strategy Canonical Sequence Unification.
+1. Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md and AGENTS.md.
+2. Investigate the 31 strategies definitions and order in AGENTS.md, run_pipeline.py, src/ai/ensemble_scorer.py, src/pipeline/reporter.py, generate_report.py, trading_system/scripts/verify_gha_artifacts.py, and text output generators.
+3. Check the sequence of all 31 strategies (1 to 31) across all prediction text outputs (pipeline_result.txt, surge_predictions.txt, etc.) and gh-pages/index.html tabs/sections.
+4. Identify any inconsistencies, mismatched strategy numbers, ordering differences, or naming discrepancies across the entire codebase.
+5. Write a comprehensive survey report to d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\survey_report.md and a handoff.md in your working directory.
+6. Send a message to your caller parent with your findings summary and file paths.

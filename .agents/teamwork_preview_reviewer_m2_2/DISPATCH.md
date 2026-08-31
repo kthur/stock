@@ -1,15 +1,9 @@
-## 2026-08-29T14:09:14Z
-You are reviewer_m2_2 for Milestone 2: Multi-Market Merge Synchronization.
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2
+## 2026-08-31T15:19:39Z
 
-Please read:
-- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-- d:\Finance\code\stock\PROJECT.md
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md
-
-Your task:
-1. Independently review multi-market merge synchronization across all 5 core markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ) plus KONEX.
-2. Check header deduplication for `Pair`, `No.`, `Symbol`, `Rank`, and `Filters:`.
-3. Run test suite:
-   `.venv\Scripts\pytest.exe tests/test_merge_generic_strategies.py tests/test_report_generator_hrp.py tests/test_challenger_rim_2_stress.py -v`
-4. Record your explicit verdict (APPROVE or REQUEST_CHANGES) and evidence in `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2\handoff.md` and send a message back.
+Review Milestone 2 (R2: Artifact Verification & SKILL Coverage).
+1. Read ORIGINAL_REQUEST.md, PROJECT.md, and M2 Worker handoff.
+2. Verify that verify_gha_artifacts.py correctly checks all 31 strategies and all 31 HTML panels without skipping any extended alpha factor.
+3. Run the verifier script: `python trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages`.
+4. Provide a clear verdict (APPROVE or REQUEST_CHANGES) with detailed rationale in your handoff.md.
+5. Write your report to d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2\review_report.md and a handoff.md.
+6. Send a message to your caller parent with your verdict and summary.

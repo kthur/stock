@@ -1,64 +1,48 @@
-# BRIEFING — 2026-08-29T14:10:40Z
+# BRIEFING — 2026-09-01T00:22:00+09:00
 
 ## Mission
-Objective and adversarial review of Milestone 2: Multi-Market Merge Synchronization implemented by worker_m2 in `trading_system/merge_predictions.py` and `tests/test_merge_generic_strategies.py`.
+Review Milestone 2 (R2: 31-Strategy Canonical Sequence Unification).
 
 ## 🔒 My Identity
-- Archetype: reviewer_critic
+- Archetype: reviewer
 - Roles: reviewer, critic
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1
-- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Milestone: Milestone 2: Multi-Market Merge Synchronization
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\
+- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Milestone: Milestone 2 (R2)
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Check for integrity violations (hardcoded outputs, dummy logic, bypassing core work)
-- Verify claims and independently execute test suites
-- Actively stress-test edge cases and assumptions
+- Evidence-based review with adversarial integrity checking
+- Check for hardcoded results, dummy implementations, bypassed tasks
 
 ## Current Parent
-- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Updated: 2026-08-29T14:09:14Z
+- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Updated: 2026-09-01T00:22:00+09:00
 
 ## Review Scope
-- **Files reviewed**:
-  - `trading_system/merge_predictions.py`
-  - `tests/test_merge_generic_strategies.py`
-- **Context files**:
-  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
-  - `d:\Finance\code\stock\PROJECT.md`
-  - `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md`
-- **Interface contracts**: `PROJECT.md`, `AGENTS.md`
-- **Review criteria**: correctness, completeness, code quality, adversarial stress testing, non-regression, test coverage
+- **Files to review**:
+  - `trading_system/run_pipeline.py` (STRATEGY_REGISTRY, verification_files)
+  - `AGENTS.md`
+  - `trading_system/scripts/verify_gha_artifacts.py` (all 31 strategies, panel aliases, 31-column matrix)
+  - `.agents/skills/gha-artifact-verifier/SKILL.md`
+- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`
+- **Review criteria**: correctness, canonical 31-strategy sequence alignment (1 to 31), test pass, integrity checks
 
 ## Review Checklist
-- **Items reviewed**:
-  - `discover_target_markets()`: verified multi-location discovery, multi-probe file checking, and dynamic suffix discovery with negative exclusion list
-  - `_extract_ensemble_market_section()`: verified flexible regex matching, line-by-line fallback parser, and trailing footer sanitization
-  - `merge_generic_strategy_files()`: verified header recognition (`Rank`, `Pair`, `No.`, `Symbol`, `Filters:`, dividers) and deduplication into single header block
-  - Footer stripping: verified removal of `--- Data Quality Notes`, `--- Applied Strategy Weights`, `--- Executive Summary`, `=== Dynamic`
-  - 31-Strategy Parity: verified all 31+ strategy files and darkpool aliases merged in `main()`
+- **Items reviewed**: `run_pipeline.py`, `AGENTS.md`, `verify_gha_artifacts.py`, `SKILL.md`, `test_verify_gha_artifacts.py`, `test_score_normalizer.py`, `test_strategy_correlation_monitor.py`
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims verified via code inspection and test execution.
+- **Unverified claims**: None
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - H1: Gating solely on surge predictions drops markets without surge -> Fixed by multi-probe in `discover_target_markets()`.
-  - H2: Variable/non-standard borders break section extraction -> Handled by tier-1 flexible regex + tier-2 line parser fallback.
-  - H3: Trailing footers leak into table rows -> Handled by explicit footer stripping loop.
-  - H4: Header leakage across split files -> Handled by prefix deduplication in `merge_generic_strategy_files()`.
-  - H5: Empty market / partial data handling -> Correctly outputs "데이터 없음" when all empty, or ignores empty markets when partial data exists.
-  - H6: Self-referencing file overwrite -> Handled by pre-reading and `all_fallbacks_self_ref` check.
-- **Vulnerabilities found**: None. Implementation is resilient against malicious/malformed inputs, empty files, and partial runs.
-- **Untested angles**: None.
+- **Hypotheses tested**: Checked for fake/hardcoded results, missing aliases, broken regex parsers, panel omission.
+- **Vulnerabilities found**: None.
+- **Untested angles**: All major paths tested with 125 automated unit and integration tests.
 
 ## Key Decisions Made
-- Confirmed full compliance with requirements for Milestone 2.
-- Issued APPROVE verdict.
+- Confirmed Strategy 30 = `darkpool` and Strategy 31 = `earnings_tone_drift` canonical alignment across all layers.
+- Issued verdict: APPROVE.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\DISPATCH.md` — Log of incoming dispatches
-- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\progress.md` — Liveness heartbeat
-- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\BRIEFING.md` — Agent memory
-- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\handoff.md` — Final review and challenge report
+- `review_report.md` — Detailed review report
+- `handoff.md` — 5-component handoff report

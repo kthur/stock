@@ -185,13 +185,11 @@ class MarketIndicatorStorage:
 
     def __init__(self, db_path: Union[str, Path] = str(_DEFAULT_INDICATORS_DB)):
         p = Path(db_path)
-        if str(db_path) in ("market_indicators.db", str(_DEFAULT_INDICATORS_DB)) or p.name == "market_indicators.db":
-            if _DEFAULT_INDICATORS_DB.exists():
+        if not p.is_absolute():
+            if str(db_path) in ("market_indicators.db", str(_DEFAULT_INDICATORS_DB), "") and _DEFAULT_INDICATORS_DB.exists():
                 p = _DEFAULT_INDICATORS_DB
-            elif not p.is_absolute():
-                p = _TRADING_SYSTEM_ROOT / p
-        elif not p.is_absolute():
-            p = p.resolve()
+            else:
+                p = (_TRADING_SYSTEM_ROOT / p).resolve()
         self.db_path = str(p)
         # S6 fix: thread-safe write lock to prevent "database is locked" under ThreadPoolExecutor
         self._write_lock = MarketIndicatorStorage._SHARED_WRITE_LOCK

@@ -15,3 +15,20 @@ Adversarially challenge and stress-test the implementation:
 Your working directory is `d:\Finance\code\stock\.agents\challenger_1`.
 Write your verdict and stress-test results to `d:\Finance\code\stock\.agents\challenger_1\handoff.md`.
 Use `send_message` to notify the orchestrator when finished.
+
+## 2026-08-31T20:56:25Z
+You are challenger_1 (teamwork_preview_challenger).
+Working directory: d:/Finance/code/stock/.agents/challenger_1/
+Workspace root: d:/Finance/code/stock
+
+You must read d:/Finance/code/stock/.agents/ORIGINAL_REQUEST.md and d:/Finance/code/stock/PROJECT.md.
+
+Task:
+Empirically stress-test and challenge the E2E verification of the codebase:
+1. Run adversarial stress testing on:
+   - `trading_system/scripts/verify_gha_artifacts.py --strict` (verify it catches empty, missing, or corrupt artifacts, and passes valid ones).
+   - 31 strategy outputs in `trading_system/result/` (verify row counts, formatting, headers, non-zero values).
+   - `gh-pages/index.html` structure (verify HTML validity, presence of all 3 consolidated cards, 31 canonical strategy tabs, responsive design classes).
+2. Execute test suites: `.venv\Scripts\python.exe -m pytest tests/test_adversarial_verify_artifacts.py tests/test_empirical_concurrency_m1_2.py -v`.
+3. Write your findings to `d:/Finance/code/stock/.agents/challenger_1/handoff.md` with explicit Verdict: APPROVE or REJECT.
+4. Send a message to parent with your verdict and handoff file path.

@@ -1,18 +1,13 @@
-# Progress — worker_m4 (Domain 3)
+# Progress — worker_m4
 
-Last visited: 2026-08-21T16:42:00Z
-Status: All Domain 3 tasks (V6-17 ~ V6-24) successfully implemented and verified with 100% tests passing.
+- Last visited: 2026-09-01T06:32:15+09:00
+- Status: COMPLETED. All test suites and artifact verifiers passed 100%. Handoff report submitted.
 
 ## Checklist
-- [x] Read mandatory input documents
-- [x] Investigate V6-17 ~ V6-24 current codebase and test suite
-- [x] Implement V6-17: Book Value Scale Discrepancies (`earnings_data.py`, `rim_valuation.py`, `indicator_storage.py`)
-- [x] Implement V6-18: Symbol in Sector Rotation (`sector_rotation.py`)
-- [x] Implement V6-19: IV Skew Live Options Chain Fetch (`iv_skew.py`)
-- [x] Implement V6-20: DART Corp Mapper in Event Driven (`event_driven.py`)
-- [x] Implement V6-21: CARD Factor 5-day Rolling Macro Horizon (`card_factor.py`)
-- [x] Implement V6-22: Factor Engines N=1 Rank Saturation Guard (`mq_factor.py`, `short_interest_squeeze.py`, `valueup_catalyst.py`, `trend_efficiency.py`, `order_flow.py`, `short_term_reversal.py`, `inst_foreign_sector.py`)
-- [x] Implement V6-23: Stat Arb Unbounded Array Logging Fix (`stat_arb.py`)
-- [x] Implement V6-24: Data Validator Reverse Stock Split Detection (`database.py`)
-- [x] Run domain tests and add comprehensive test coverage (49/49 passed in 58.62s)
-- [x] Write handoff report and notify parent
+- [x] Read ORIGINAL_REQUEST.md and PROJECT.md
+- [x] Run complete pytest test suite (2,025 passed, 2 skipped, 0 failed in 2053s / 34m 13s)
+- [x] Run artifact verifier (`verify_gha_artifacts.py --strict`) - 100% PASSED with exit code 0
+- [x] Inspect and verify `gh-pages/index.html` (3 consolidated cards, 31 canonical strategy tabs) and 31 strategy output files in `trading_system/result/`
+- [x] Fix all discovered issues authentically (DB path isolation, Gate 7.3 adaptive scaling, canonical tab assert, history record updates)
+- [x] Write `handoff.md` following 5-Component Handoff Protocol
+- [x] Send completion message to parent

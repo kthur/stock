@@ -101,14 +101,12 @@ class AsyncDBBase:
 
     def __init__(self, db_path: Union[str, Path]):
         p = Path(db_path)
-        if str(db_path) in ("trade_logs.db",) or p.name == "trade_logs.db":
-            cand = _TRADING_SYSTEM_ROOT / "trade_logs.db"
-            if cand.exists():
-                p = cand
-            elif not p.is_absolute():
-                p = _TRADING_SYSTEM_ROOT / p
-        elif not p.is_absolute():
-            p = p.resolve()
+        if not p.is_absolute():
+            cand = _TRADING_SYSTEM_ROOT / p
+            if str(db_path) in ("trade_logs.db", "") and (_TRADING_SYSTEM_ROOT / "trade_logs.db").exists():
+                p = _TRADING_SYSTEM_ROOT / "trade_logs.db"
+            else:
+                p = cand.resolve()
         self.db_path = p
         self.logger = logger
         self._db_initialized = False
@@ -538,13 +536,11 @@ class StockPriceDB:
 
     def __init__(self, db_path: Union[str, Path] = str(_DEFAULT_STOCK_PRICES_DB)):
         p = Path(db_path)
-        if str(db_path) in ("stock_prices.db", str(_DEFAULT_STOCK_PRICES_DB)) or p.name == "stock_prices.db":
-            if _DEFAULT_STOCK_PRICES_DB.exists():
+        if not p.is_absolute():
+            if str(db_path) in ("stock_prices.db", str(_DEFAULT_STOCK_PRICES_DB), "") and _DEFAULT_STOCK_PRICES_DB.exists():
                 p = _DEFAULT_STOCK_PRICES_DB
-            elif not p.is_absolute():
-                p = _TRADING_SYSTEM_ROOT / p
-        elif not p.is_absolute():
-            p = p.resolve()
+            else:
+                p = (_TRADING_SYSTEM_ROOT / p).resolve()
         self.db_path = p
         self.logger = logger
         self._local = threading.local()

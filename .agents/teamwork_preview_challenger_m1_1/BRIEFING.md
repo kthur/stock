@@ -1,67 +1,51 @@
-# BRIEFING — 2026-08-29T13:54:00Z
+# BRIEFING — 2026-09-01T00:10:00Z
 
 ## Mission
-Adversarial stress testing and empirical challenge for Milestone 1 (Strategy Fallback Scoring & Report Saving) covering the 6 modified strategy engines: rim_valuation, accruals_quality, valueup_catalyst, llm_sentiment_engine, insider_buying, and earnings_tone_drift.
+Adversarially challenge Milestone 1 (R1: GHA Pipeline & Caching Integrity) by writing and executing empirical tests, validating YAML syntax, checking artifact zips, cache keys, multi-market splits, and pipeline integrity.
 
 ## 🔒 My Identity
-- Archetype: challenger (critic, specialist)
+- Archetype: challenger
 - Roles: critic, specialist
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_1
-- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Milestone: Milestone 1
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_1\
+- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Milestone: M1 (R1: GHA Pipeline & Caching Integrity)
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code.
-- Write tests, generators, oracles, and stress harnesses to empirically challenge worker_m1's changes.
-- Must independently execute tests via terminal command.
-- Write all findings to handoff.md and send explicit verdict (APPROVE or REQUEST_CHANGES) via send_message.
+- Review-only — do NOT modify implementation code directly (report findings)
+- Must empirically verify all claims via code/tests execution
+- If a bug cannot be reproduced empirically, it does not count
 
 ## Current Parent
-- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Updated: 2026-08-29T13:54:00Z
+- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Updated: 2026-09-01T00:10:00Z
 
 ## Review Scope
-- **Files to review**:
-  - `trading_system/src/core/rim_valuation.py`
-  - `trading_system/src/core/accruals_quality.py`
-  - `trading_system/src/core/valueup_catalyst.py`
-  - `trading_system/src/core/llm_sentiment_engine.py`
-  - `trading_system/src/core/insider_buying.py`
-  - `trading_system/src/core/earnings_tone_drift.py`
-  - `trading_system/run_pipeline.py` (_save_strategy_predictions_report)
-- **Interface contracts**:
-  - Return finite valid floats [0.0, 1.0] when price data is available.
-  - Return np.nan when all data (fundamentals, filings, prices) is missing.
-  - Never crash with unhandled exceptions across adversarial edge cases.
-- **Review criteria**: Correctness, mathematical validity, robustness, exception safety, adversarial coverage.
+- **Files to review**: `.github/workflows/pipeline.yml`, `.github/workflows/preseed.yml`, `.github/workflows/training.yml`, `.github/workflows/pytest.yml`, `.github/workflows/realtime_monitor.yml`, `.github/workflows/weekly_hpo.yml`
+- **Interface contracts**: `PROJECT.md`, `AGENTS.md`
+- **Review criteria**: YAML validity, cache key/restore-key integrity, artifact upload/download consistency, matrix target names across 5 markets, strategy output listings, failure modes, race conditions
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Empty prices_dict with/without fundamentals/filings (PASSED)
-  - Single-day OHLCV DataFrame (PASSED)
-  - Zero volume / flat prices / constant prices (PASSED)
-  - All NaN columns / partial NaN columns (PASSED)
-  - Infinite (+inf / -inf) values in prices and features (PASSED)
-  - Mixed symbol types & market suffixes (PASSED)
-  - Extreme market volatility / large numbers / tiny numbers (PASSED)
-  - Zero-division avoidance across CMF, KER, UDVR, MAS, PEAD (PASSED)
-  - Capital impairment guard in RIM (PASSED)
-- **Vulnerabilities found**: None that compromise system integrity or break contracts. (Note: symbol types should be string-typed).
-- **Untested angles**: Live real-time streaming WebSocket feeds (out of scope for M1 offline batch scoring).
+  - H1: Missing files or inconsistent naming in workflow artifact uploads / downloads / release / step summaries (`lstm_predictions.txt` parity confirmed).
+  - H2: Cache key mismatch or cache pollution between markets/runners in `training.yml`, `pipeline.yml`, `preseed.yml` (matrix.target isolation and restore-keys verified).
+  - H3: YAML syntax breaks, matrix definition mismatches (all 6 workflow YAMLs valid, 5-market CORE_5 targets matched).
+  - H4: Multi-market execution edge cases (simulated split and merge in `test_adversarial_m1.py` passed).
+- **Vulnerabilities found**: None. System is resilient.
+- **Untested angles**: Live GitHub runner environment execution (simulated locally).
 
 ## Loaded Skills
-- **Source**: gha-artifact-verifier (d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md)
-- **Core methodology**: Verifies pipeline outputs across 31 multi-factor strategies and 5 markets, ensuring non-zero data and deployment.
+- **Source**: `d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md`
+- **Local copy**: `d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md`
+- **Core methodology**: Automated verification of GHA pipeline outputs across 5 markets and 31 strategies.
 
 ## Key Decisions Made
-- [2026-08-29] Created `tests/test_challenger_m1_adversarial_deep.py` containing 39 deep adversarial stress tests.
-- [2026-08-29] Verified 95/95 tests passing across combined M1 test suite.
-- [2026-08-29] Verdict: APPROVE Milestone 1.
+- Verdict: **APPROVE**.
+- Milestone 1 meets all empirical integrity criteria.
 
 ## Artifact Index
-- `.agents/teamwork_preview_challenger_m1_1/DISPATCH.md` — Record of dispatch
-- `.agents/teamwork_preview_challenger_m1_1/BRIEFING.md` — Situational awareness
-- `.agents/teamwork_preview_challenger_m1_1/progress.md` — Liveness heartbeat
-- `.agents/teamwork_preview_challenger_m1_1/handoff.md` — Final handoff report
-- `tests/test_challenger_m1_adversarial_deep.py` — Deep adversarial empirical test suite
+- `BRIEFING.md` — persistent situational memory
+- `progress.md` — heartbeat and task progress
+- `DISPATCH.md` — incoming message log
+- `handoff.md` — hard handoff evaluation report
+- `tests/test_adversarial_m1.py` — empirical adversarial test suite

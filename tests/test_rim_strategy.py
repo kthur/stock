@@ -163,7 +163,7 @@ Rank Symbol    Name                Market    Price       Intrinsic V0  Discount 
         rim_rows=rows
     )
 
-    assert "💎 RIM Valuation" in html
+    assert "RIM Valuation" in html
     assert 'id="panel-rim"' in html
     assert "17 Strategies" in html or "14 Strategies" in html or "Strategies" in html
 
@@ -502,7 +502,7 @@ Rank Symbol    Name                Market    Price       Intrinsic V0  Discount 
         rim_rows=rows
     )
 
-    assert "💎 RIM Valuation" in html_out
+    assert "RIM Valuation" in html_out
     for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
         assert f'data-market="{mkt}"' in html_out
     assert "삼성전자" in html_out

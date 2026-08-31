@@ -1,24 +1,24 @@
-## 2026-08-21T10:20:35Z
-You are Worker M4 for the Stock Trading System.
-Your working directory is: D:\Finance\code\stock\.agents\teamwork_preview_worker_m4\
+## 2026-08-31T15:36:21Z
 
-Read:
-1. D:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-2. D:\Finance\code\stock\system_improvement_report_v5.md (Focus on Domain 4: V5-24 ~ V5-25)
-3. D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md
+Mission: Execute Milestone 4 (Final E2E Verification & Test Suite Validation).
+Tasks to execute:
+1. Run the full pytest test suite across the repository:
+   `pytest tests/ -v` (or split by directories if large, ensuring all tests run).
+2. Run the GHA artifact verification tool on local results:
+   `python trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages --strict`
+3. Generate the latest dashboard HTML and check file integrity:
+   `python trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html`
+4. Confirm:
+   - 100% of tests pass without any failing tests.
+   - All 31 strategies produce valid non-zero predictions across markets.
+   - `gh-pages/index.html` renders all 3 consolidated cards and 31 canonical strategy tabs with valid data rows.
+5. Write your comprehensive report to d:\Finance\code\stock\.agents\teamwork_preview_worker_m4\report.md and a handoff.md in your working directory.
+6. Send a message to your caller parent with your summary, full test counts, and artifact validation results.
 
-Your exclusive write boundaries:
-- `trading_system/src/execution/oms_engine.py`
-- `trading_system/src/execution/slippage_feedback.py`
-Do NOT modify files outside your boundary.
+## 2026-08-31T15:40:16Z
 
-MANDATORY INTEGRITY WARNING:
-DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+Please report the full test suite results and GHA artifact verification outputs for Milestone 4.
 
-Tasks to implement:
-- **V5-24**: In `oms_engine.py:363-365` and `slippage_feedback.py:56`, fix `calculate_realized_slippage()` signature and `SlippageMetrics` dataclass unpacking so that closed-loop slippage multiplier feedback functions without `TypeError`.
-- **V5-25**: In `oms_engine.py:493-494`, replace hardcoded `10000.0` KRW hedge target price with actual real-time current price of the inverse ETF (`current_price` from market data / quote), ensuring exact 1:1 dynamic hedge sizing.
+## 2026-08-31T15:50:12Z
 
-Run relevant tests using `.venv\Scripts\python.exe -m pytest tests/test_execution_oms.py tests/test_slippage_feedback.py -v`.
-Write your full report to `D:\Finance\code\stock\.agents\teamwork_preview_worker_m4\handoff.md`.
-Send message to parent when done.
+Please provide your current progress on executing pytest tests/ and verify_gha_artifacts.py.

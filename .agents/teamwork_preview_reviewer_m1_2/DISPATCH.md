@@ -1,16 +1,15 @@
-## 2026-08-29T13:49:06Z
-You are reviewer_m1_2 for Milestone 1.
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2
+﻿## 2026-08-31T15:02:02Z
 
-Please read:
-- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-- d:\Finance\code\stock\PROJECT.md
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
+You are a Reviewer (teamwork_preview_reviewer).
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\
+Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Project Scope path: d:\Finance\code\stock\PROJECT.md
+Worker Handoff path: d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
 
-Your task:
-1. Independently review fallback proxy scoring behavior across all 5 markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ).
-2. Check that when prices_dict is provided, proxy scores are bounded in [0.05, 0.95], and when all data is absent (prices_dict is None), np.nan is returned to preserve adversarial zero-data test contracts.
-3. Check `_save_strategy_predictions_report()` in `trading_system/run_pipeline.py`.
-4. Run the test suite:
-   `.venv\Scripts\pytest.exe tests/test_rim_strategy.py tests/test_strategies_24_to_27.py tests/test_llm_sentiment_engine.py tests/test_score_normalizer.py tests/test_critical_bugs.py tests/test_adversarial_m1_challenger.py tests/test_deficient_strategies_remediation.py -v`
-5. Record your explicit verdict (APPROVE or REQUEST_CHANGES) and evidence in `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\handoff.md` and send a message back.
+Mission: Review Milestone 1 (R1: 5-Market Data Seeding & Model Pipeline Integrity).
+1. Read ORIGINAL_REQUEST.md, PROJECT.md, and examine workflow definitions for all 5 markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ).
+2. Verify that data seeding, DB caching, dynamic filing lag, and model training paths work without errors.
+3. Run verification tests: pytest tests/test_database.py tests/test_multi_market_expansion.py tests/test_database_concurrency.py -v.
+4. Provide a clear verdict (APPROVE or REQUEST_CHANGES) with rationale in your handoff.md.
+5. Write your report to d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\review_report.md and a handoff.md.
+6. Send a message to your caller parent with your verdict and summary.

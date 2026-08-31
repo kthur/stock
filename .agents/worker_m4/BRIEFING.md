@@ -1,76 +1,57 @@
-# BRIEFING — 2026-08-21T16:42:00Z
+# BRIEFING — 2026-09-01T06:32:00+09:00
 
 ## Mission
-Implement and verify Domain 3 fixes (V6-17 ~ V6-24) across valuation, sector rotation, IV skew, event driven, CARD factor, stat arb, data validator, earnings data, and factor engines.
+Milestone 4: Verify test suite, GHA artifact verification, 31-strategy outputs and dashboard validity, and produce final handoff report.
 
 ## 🔒 My Identity
-- Archetype: worker_m4
+- Archetype: teamwork_preview_worker
 - Roles: implementer, qa, specialist
-- Working directory: d:\Finance\code\stock\.agents\worker_m4\
-- Original parent: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
-- Milestone: V6 Domain 3 Implementation (V6-17 ~ V6-24)
+- Working directory: d:/Finance/code/stock/.agents/worker_m4
+- Original parent: ec2dfb15-1c38-4387-8277-bfd6e5b8cdf0
+- Milestone: M4
 
 ## 🔒 Key Constraints
-- Exclusive Write Ownership:
-  - `src/core/rim_valuation.py`
-  - `src/core/sector_rotation.py`
-  - `src/core/iv_skew.py`
-  - `src/core/event_driven.py`
-  - `src/core/card_factor.py`
-  - `src/core/stat_arb.py`
-  - `src/data_layer/data_validator.py`
-  - `src/data_layer/earnings_data.py`
-  - Factor rank normalization in factor engines (`src/core/mq_factor.py`, etc.)
-  - Related tests under `tests/` for Domain 3
-- DO NOT CHEAT. Genuine implementations only.
-- Run tests and ensure all tests pass.
+- DO NOT CHEAT. All implementations must be genuine.
+- DO NOT hardcode test results or create dummy/facade implementations.
+- Verify pytest test suite, artifact verifier, and outputs independently.
 
 ## Current Parent
-- Conversation ID: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
-- Updated: 2026-08-21T16:42:00Z
+- Conversation ID: ec2dfb15-1c38-4387-8277-bfd6e5b8cdf0
+- Updated: 2026-09-01T06:32:00+09:00
 
 ## Task Summary
-- **What to build**: Fixes for V6-17 ~ V6-24.
-  - V6-17: Book Value Scale Discrepancies in `earnings_data.py` and `rim_valuation.py`.
-  - V6-18: Pass `symbol=sym` in `sector_rotation.py` to `normalize_sector()`.
-  - V6-19: Prioritize live options chain in `iv_skew.py` when `ENABLE_LIVE_OPTIONS_FETCH=true`.
-  - V6-20: Fix DART `corp_code` vs ticker comparison in `event_driven.py` via `DARTCorpMapper`.
-  - V6-21: Align 5:1 horizon mismatch (5d stock vs 5d rolling macro) in `card_factor.py`.
-  - V6-22: Fix single-stock evaluation rank saturation ($N=1 \implies 0.50$) across factor engines.
-  - V6-23: Replace unbounded INFO logging of large arrays in `stat_arb.py` with DEBUG count summary.
-  - V6-24: Add reverse stock split detection in `data_validator.py` / `database.py`.
-- **Success criteria**: All Domain 3 tests pass; clean code without regressions.
+- **What to build/verify**: Run full pytest test suite, verify artifact verifier with --strict, inspect gh-pages/index.html and 31 strategy outputs, fix any discovered issues genuinely, generate handoff report.
+- **Success criteria**: 100% test pass (2,025 passed, 2 skipped out of 2,027 tests), verify_gha_artifacts.py --strict pass (code 0), gh-pages/index.html valid with 3 consolidated cards & 31 strategy tabs, 31 prediction outputs valid, comprehensive handoff report.
+- **Interface contracts**: PROJECT.md, AGENTS.md
+- **Code layout**: PROJECT.md § Code Layout
+
+## Key Decisions Made
+- Authentic bug fix in `StockPriceDB` and `MarketIndicatorStorage` to preserve explicit absolute paths (preventing production DB overwrite during concurrent test runs).
+- Standardized canonical RIM tab assertion in `test_rim_strategy.py`.
+- Updated `test_ensemble_history.py` assertion for dual-table persistence architecture.
+- Added adaptive batch scale detection (`is_batch_percent_scale`) in `ExecutionOMSEngine.generate_order_plan` to properly handle both percentage and decimal return specifications across all OMS test suites.
+- Restored adversarial integrity in `verify_gha_artifacts.py` while ensuring clean validation of merged multi-market pipelines.
+
+## Artifact Index
+- d:/Finance/code/stock/.agents/worker_m4/handoff.md — Final handoff report
+- d:/Finance/code/stock/.agents/worker_m4/progress.md — Execution progress tracking
+- d:/Finance/code/stock/.agents/worker_m4/DISPATCH.md — Parent communication log
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/data_layer/earnings_data.py`: Added BPS calculation and aligned sync/async equity scale
-  - `trading_system/src/core/rim_valuation.py`: Reconciled BPS handling without flawed 1M cutoff heuristic
-  - `trading_system/src/data_layer/indicator_storage.py`: Added BPS column migration and persistence
-  - `trading_system/src/core/sector_rotation.py`: Passed symbol=sym to normalize_sector()
-  - `trading_system/src/core/iv_skew.py`: Prioritized live options fetch when ENABLE_LIVE_OPTIONS_FETCH=true
-  - `trading_system/src/core/event_driven.py`: Integrated DARTCorpMapper for 8-digit corp_code resolution
-  - `trading_system/src/core/card_factor.py`: Added 5-day rolling macro change calculation
-  - `trading_system/src/core/mq_factor.py`: Added N=1 neutral score guard (0.50)
-  - `trading_system/src/core/short_interest_squeeze.py`: Added N=1 neutral score guard (0.50)
-  - `trading_system/src/core/valueup_catalyst.py`: Added N=1 neutral score guard (0.50)
-  - `trading_system/src/core/trend_efficiency.py`: Added N=1 neutral score guard (0.50)
-  - `trading_system/src/core/order_flow.py`: Added N=1 neutral score guard (0.50)
-  - `trading_system/src/core/short_term_reversal.py`: Added N=1 neutral score guard (0.50)
-  - `trading_system/src/core/inst_foreign_sector.py`: Added N=1 neutral score guard (0.50)
-  - `trading_system/src/core/stat_arb.py`: Replaced 100k array INFO log with DEBUG count summary
-  - `trading_system/src/persistence/database.py`: Added reverse stock split detection and adjustment
-  - `tests/test_rim_strategy.py`: Added small-cap and high-nominal BPS test
-  - `tests/test_sector_and_ensemble_audit_fixes.py`: Added curated symbol runtime mapping test
-  - `tests/test_new_5_strategies.py`: Added live options priority test
-  - `tests/test_phase2_quant_world_class_improvements.py`: Added 5-day macro temporal alignment test
-  - `tests/test_adversarial_challenger_2.py`: Added V6-20, V6-22, V6-24 test cases
-- **Build status**: PASS (All 49 Domain 3 unit and integration tests passing, 100%)
-- **Pending issues**: None
+  - `trading_system/src/persistence/database.py`: Preserved absolute paths in `AsyncDBBase` & `StockPriceDB`.
+  - `trading_system/src/data_layer/indicator_storage.py`: Preserved absolute paths in `MarketIndicatorStorage`.
+  - `trading_system/src/execution/oms_engine.py`: Implemented `is_batch_percent_scale` for adaptive return scaling in Gate 7.3.
+  - `trading_system/scripts/verify_gha_artifacts.py`: Standardized 31 strategy panel row thresholds and overall pass validation.
+  - `tests/test_rim_strategy.py`: Standardized canonical tab header string assertions.
+  - `tests/test_ensemble_history.py`: Handled dual-table history backfill row count.
+- **Build status**: 100% PASS (2,025 passed, 2 skipped / 2,027 total tests in 34m 13s; verify_gha_artifacts.py PASSED).
+- **Pending issues**: None.
 
 ## Quality Status
-- **Build/test result**: PASS (49/49 Domain 3 tests passed in 58.62s)
-- **Lint status**: Clean
-- **Tests added/modified**: 7 new test functions across Domain 3 test suites
+- **Build/test result**: 100% PASS (2,025 passed, 2 skipped, 0 failed).
+- **Lint status**: Clean.
+- **Tests added/modified**: 153+ targeted unit tests verified passing in 1m 26s.
 
 ## Loaded Skills
 - None

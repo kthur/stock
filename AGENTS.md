@@ -35,8 +35,8 @@
 | **27** | Kaufman Trend Efficiency | 5D/10D/20D KER(트렌드 효율성) + Hurst Exponent 고순도 추세 필터 | 앙상블 피처 결합 |
 | **28** | Gamma Squeeze | 옵션 미결제약정 및 콜 옵션 델타 가속도 기반 숏/델타 스퀴즈 | 앙상블 피처 결합 |
 | **29** | Insider Buying | 임원/대주주 내부자 매수 공시 및 수급 수치화 | 앙상블 피처 결합 |
-| **30** | Earnings Tone Drift | 실적 발표 콘퍼런스콜 텍스트 톤 변화 감성 퀀트 | 앙상블 피처 결합 |
-| **31** | High-Frequency Execution | 호가 불균형 & 마이크로스프레드 고빈도 모멘텀 | 앙상블 피처 결합 |
+| **30** | Darkpool & HFT Flow | 다크풀 블록트레이드 & HFT 마이크로스프레드 모멘텀 | `darkpool_predictions.txt` |
+| **31** | Earnings Tone Drift | 실적 발표 콘퍼런스콜 텍스트 톤 변화 감성 퀀트 | `earnings_tone_drift_predictions.txt` |
 
 ## Pipeline
 
@@ -116,8 +116,8 @@ flowchart TB
         TrendEff["27. Trend Efficiency"]
         GammaSq["28. Gamma Squeeze"]
         Insider["29. Insider Buying"]
-        ToneDrift["30. Earnings Tone Drift"]
-        HFT["31. HFT Order Flow"]
+        Darkpool["30. Darkpool & HFT Flow"]
+        ToneDrift["31. Earnings Tone Drift"]
     end
 
     subgraph Control ["Regime & Risk Control Layer"]
@@ -190,8 +190,8 @@ flowchart TB
 | `src/core/trend_efficiency.py` | TrendEfficiencyEngine: Kaufman KER + Hurst Exponent 고순도 추세 필터 |
 | `src/core/gamma_squeeze.py` | GammaSqueezeEngine: 옵션 미결제약정 및 콜델타 가속도 기반 숏/델타 스퀴즈 |
 | `src/core/insider_buying.py` | InsiderBuyingEngine: 임원/대주주 내부자 매수 공시 수치화 |
-| `src/core/tone_drift.py` | ToneDriftEngine: 실적 발표 콘퍼런스콜 텍스트 톤 변화 감성 퀀트 |
 | `src/core/darkpool_tracker.py` | DarkpoolTrackerEngine: 다크풀 블록트레이드 & HFT 마이크로스프레드 모멘텀 |
+| `src/core/tone_drift.py` | ToneDriftEngine: 실적 발표 콘퍼런스콜 텍스트 톤 변화 감성 퀀트 |
 | `src/core/sector_rotation.py` | SectorRotationEngine: 업종 모멘텀 및 순환매 스코어링 |
 | `src/core/stat_arb.py` | StatisticalArbitrageEngine: Log 가격 공적분 잔차 평균회귀 |
 | `src/ai/vcp_detector.py` | 규칙 기반 VCP 패턴 검출 |

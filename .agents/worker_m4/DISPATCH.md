@@ -1,37 +1,55 @@
-## 2026-08-21T16:31:51Z
-You are worker_m4 (Domain 3 Implementation Worker: V6-17 ~ V6-24).
-Your working directory is: d:\Finance\code\stock\.agents\worker_m4\
+## 2026-08-31T20:08:39Z
 
-Mandatory inputs to read before starting:
-1. d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-2. d:\Finance\code\stock\system_improvement_report_v6.md (Sections 4.1~4.8 for Domain 3: V6-17 ~ V6-24)
-3. d:\Finance\code\stock\.agents\explorer_3\analysis.md (Domain 3 section)
-4. d:\Finance\code\stock\AGENTS.md
+You are worker_m4 (teamwork_preview_worker).
+Working directory: d:/Finance/code/stock/.agents/worker_m4/
+Workspace root: d:/Finance/code/stock
 
-Exclusive Write Ownership:
-- `src/core/rim_valuation.py`
-- `src/core/sector_rotation.py`
-- `src/core/iv_skew.py`
-- `src/core/event_driven.py`
-- `src/core/card_factor.py`
-- `src/core/stat_arb.py`
-- `src/data_layer/data_validator.py`
-- `src/data_layer/earnings_data.py`
-- Factor rank normalization in `src/core/mq_factor.py`, `src/core/order_flow.py`, `src/core/short_term_reversal.py`, `src/core/arm_factor.py`, `src/core/latr_factor.py`, `src/core/inst_foreign_sector.py`, `src/core/supply_chain.py`, `src/core/accruals_quality.py`, `src/core/short_squeeze.py`, `src/core/value_up.py`, `src/core/trend_efficiency.py`, `src/core/gamma_squeeze.py`, `src/core/insider_buying.py`, `src/core/tone_drift.py`, `src/core/darkpool_tracker.py`, etc.
-- Related tests under `tests/` for Domain 3
+You must strictly follow the integrity rules:
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-Tasks:
-- V6-17: Synchronous vs Asynchronous Book Value Scale Discrepancies in `src/data_layer/earnings_data.py` and `src/core/rim_valuation.py` (Total Equity vs BPS scale alignment and remove flawed `bv > 1_000_000` heuristic).
-- V6-18: Pass `symbol=sym` to `normalize_sector()` in `src/core/sector_rotation.py` to prevent bypassing curated symbol GICS sector map.
-- V6-19: Prioritize live options chain fetch in `src/core/iv_skew.py` when `ENABLE_LIVE_OPTIONS_FETCH=true` instead of price proxy subordination.
-- V6-20: Fix 8-digit DART `corp_code` vs 6-digit stock ticker string comparison in `src/core/event_driven.py` by integrating with `DARTCorpMapper`.
-- V6-21: Align 5:1 temporal horizon mismatch (5-day stock vs 1-day macro) in `src/core/card_factor.py` to 5-day rolling macro change.
-- V6-22: Fix single-stock evaluation rank saturation ($N=1 \implies \text{rank}=0.98$) across factor engines with $N=1$ neutral score guard (0.50).
-- V6-23: Replace unbounded `INFO` logging of 100,000-element NumPy arrays in `src/core/stat_arb.py` with `DEBUG` count summary.
-- V6-24: Add reverse stock split detection ($>+50\%$ price jump + volume contraction) in `src/data_layer/data_validator.py` and prevent false-positive spike interpolation.
+Context:
+Milestones 1, 2, and 3 are completed:
+- M1 (R1): GHA workflows (.github/workflows/pipeline.yml, preseed.yml, training.yml) patched for 5 markets, cache fallbacks, LSTM inclusion.
+- M2 (R2): 31-Strategy canonical sequence (1~31) unified across AGENTS.md, run_pipeline.py, reporter.py, verify_gha_artifacts.py, and .agents/skills/gha-artifact-verifier/SKILL.md.
+- M3 (R3): Dashboard metric consolidation & UX enhancement in generate_report.py (3 single consolidated cards: Market Regime & Risk Gates, Strategy Coverage & Missingness Center, Portfolio Optimization & Execution OMS; 31 canonical strategy tabs; responsive desktop/mobile layouts; index.html generated).
 
-Verification:
-- Run pytest on Domain 3 tests: `.venv\Scripts\python.exe -m pytest tests/test_rim_valuation.py tests/test_sector_rotation.py tests/test_iv_skew.py tests/test_event_driven.py tests/test_card_factor.py tests/test_stat_arb.py tests/test_data_validator.py -q`
-- Ensure all tests pass.
-- Write your report to `d:\Finance\code\stock\.agents\worker_m4\handoff.md`.
-- Send a completion message with summary of modified files, test results, and status.
+Your task:
+1. Read d:/Finance/code/stock/.agents/ORIGINAL_REQUEST.md and d:/Finance/code/stock/PROJECT.md.
+2. Run the complete pytest test suite using the Python environment:
+   `.venv\Scripts\python.exe -m pytest tests/ -v` (or run without -v if output is too long, and check summary count, passed/failed).
+3. Run the artifact verifier:
+   `.venv\Scripts\python.exe trading_system/scripts/verify_gha_artifacts.py --strict`
+4. Inspect and verify:
+   - `gh-pages/index.html` exists and is non-empty, contains the 3 consolidated cards, and 31 strategy tabs.
+   - All 31 strategy prediction files in `trading_system/result/` or `trading_system/` exist and are valid.
+5. If any test fails or artifact check fails, fix the underlying issue authentically and re-verify.
+6. Write a comprehensive handoff report to `d:/Finance/code/stock/.agents/worker_m4/handoff.md` detailing:
+   - Pytest test execution results (total tests, passed, failed, skipped, execution time).
+   - Artifact verifier execution results.
+   - Confirmation of 31-strategy outputs and dashboard validity.
+   - Verdict: DONE.
+7. Send a message to parent with your status and handoff file path.
+
+## 2026-08-31T20:23:53Z
+
+**Context**: Full E2E Test Suite & Artifact Verification for Milestone 4
+**Content**: Checking in on progress of pytest execution and artifact verification.
+**Action**: Please reply with your current status or ETA when ready.
+
+## 2026-08-31T20:34:35Z
+
+**Context**: Milestone 4 Verification
+**Content**: Checking in on final test summary and handoff status.
+**Action**: Please send your completion status or latest update.
+
+## 2026-08-31T20:45:49Z
+
+**Context**: Milestone 4 E2E Verification
+**Content**: Status query: Has the final pytest full test suite finished, and what were the final results?
+**Action**: Please respond with the test suite stats and write your final handoff.md.
+
+## 2026-08-31T20:51:14Z
+
+**Context**: Milestone 4 E2E Verification
+**Content**: Status query: How is the full pytest run progressing?
+**Action**: Please respond with the current percentage / count or handoff when ready.

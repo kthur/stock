@@ -1,44 +1,38 @@
-# BRIEFING — 2026-08-29T14:02:05Z
+# BRIEFING — 2026-08-31T15:12:35Z
 
 ## Mission
-Investigate `trading_system/merge_predictions.py` architecture, market discovery logic, and section extraction regex for Milestone 2: Multi-Market Merge Synchronization.
+Investigate Milestone 2 (R2: 31-Strategy Canonical Sequence in Pipeline & Core Engines) and identify exact edits needed.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: investigator, synthesizer
+- Roles: read-only investigation, code analysis, synthesis, handoff report
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_1
-- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Milestone: Milestone 2: Multi-Market Merge Synchronization
+- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Milestone: Milestone 2 (R2)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Follow Handoff Protocol (5 sections: Observation, Logic Chain, Caveats, Conclusion, Verification Method)
-- Communicate via send_message to parent caller
+- Read-only investigation — do NOT implement / modify source code directly
+- Write only to own folder (.agents/teamwork_preview_explorer_m2_1/)
+- Provide exact lines, before/after code snippets, and evidence chains
 
 ## Current Parent
-- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Updated: not yet
+- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Updated: 2026-08-31T15:12:35Z
 
 ## Investigation State
-- **Explored paths**:
-  - `d:\Finance\code\stock\trading_system\merge_predictions.py` (lines 1-750)
-  - `d:\Finance\code\stock\trading_system\run_pipeline.py` (lines 3960-4250)
-  - `d:\Finance\code\stock\trading_system\generate_report.py` (lines 270-450)
-  - `d:\Finance\code\stock\.github\workflows\pipeline.yml` (lines 200-350)
-  - `d:\Finance\code\stock\tests\test_merge_generic_strategies.py`
-  - `d:\Finance\code\stock\tests\test_challenger_rim_2_stress.py`
-  - Current artifact files in `d:\Finance\code\stock\trading_system\result/`
-- **Key findings**:
-  - Market Discovery bug: Single probe file `surge_predictions_{m}.txt` causes markets without surge predictions to be dropped; if-else structure prevents fallback from executing when any one market is found.
-  - Section Extraction Regex bug: `rf"(==={{10,}}\s*\n\[{re.escape(market)}\][^\n]*\n==={{10,}}\s*\n.*?)(?=\n==={{10,}}|\Z)"` fails if header has fewer `=` characters, lacks top `===`, uses dashes `---`, or if input split file is missing the `[{market}]` section (or only contains other markets due to artifact copy).
-  - Lookahead `(?=\n==={{10,}}|\Z)` swallows trailing footer sections like `--- Data Quality Notes ---` into the market section text.
-- **Unexplored areas**: None for M2 scope.
+- **Explored paths**: `ORIGINAL_REQUEST.md`, `PROJECT.md`, `AGENTS.md`, `trading_system/run_pipeline.py`, `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/pipeline/reporter.py`, `trading_system/generate_report.py`, `trading_system/merge_predictions.py`, `trading_system/scripts/verify_gha_artifacts.py`, `.agents/skills/gha-artifact-verifier/SKILL.md`
+- **Key findings**: 
+  - Canonical strategy sequence is 1..31 with Strategy 30 = `darkpool` (`darkpool_predictions.txt`) and Strategy 31 = `earnings_tone_drift` (`earnings_tone_drift_predictions.txt`).
+  - Identified exact line changes for `STRATEGY_REGISTRY` (lines 3201-3231) and `verification_files` (lines 4338-4352) in `run_pipeline.py`.
+  - Identified exact updates for `AGENTS.md` lines 38-39, 119-120, and 193-194.
+  - Identified expansion required for `verify_gha_artifacts.py` from 23 to 31 strategies.
+- **Unexplored areas**: None (Milestone 2 investigation fully completed).
 
 ## Key Decisions Made
-- Formulated multi-pattern extractor and wildcard market discovery algorithm for `merge_predictions.py`.
+- Completed detailed report `report.md` and standard 5-component handoff report `handoff.md`.
 
 ## Artifact Index
-- DISPATCH.md — Initial task dispatch
-- BRIEFING.md — Situational awareness
-- progress.md — Heartbeat progress
-- handoff.md — Comprehensive handoff report
+- `DISPATCH.md` — record of received instructions
+- `BRIEFING.md` — persistent situational awareness
+- `report.md` — Milestone 2 detailed investigation report
+- `handoff.md` — standard 5-component handoff report

@@ -1,18 +1,11 @@
-﻿## 2026-08-28T23:02:55Z
-You are Reviewer 2 (Dashboard & Pipeline Data Quality Reviewer).
-
-Read ORIGINAL_REQUEST.md at d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md and the Worker handoff report at d:\Finance\code\stock\.agents\worker_data_integrity\handoff.md.
-
-Review the dashboard reporting and health monitor implementation:
-1. trading_system/generate_report.py and gh-pages/index.html:
-   - Verify that the Strategy Data Status Summary Card / Health Monitor is rendered at the top with summary pills, 31 strategy cards, and click-to-tab navigation (switchTabById).
-   - Verify that all raw nan, None, null, and undefined strings are eliminated from HTML table cells and replaced with semantic badges (badge-na, badge-need-data, badge-filtered, badge-fallback, badge-healthy, badge-partial).
-   - Verify that tab status notice/warning banners are displayed when a strategy or market has 0 or incomplete data.
-   - Verify that openStockDrawer in JS handles null/NaN values safely.
-2. Run end-to-end HTML dashboard generation:
-   .venv\Scripts\python.exe trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html
-3. Inspect gh-pages/index.html to confirm zero unhandled nan text in tables and valid DOM structure.
-
-Your working directory is d:\Finance\code\stock\.agents\reviewer_2.
-Write your verdict (APPROVE or REQUEST_CHANGES) and full review report to d:\Finance\code\stock\.agents\reviewer_2\handoff.md.
-Use send_message to notify the orchestrator when finished.
+## 2026-08-31T20:56:25Z
+Conduct an independent review of the repository against all acceptance criteria from ORIGINAL_REQUEST.md (R1, R2, R3) and PROJECT.md:
+1. Verify correctness, completeness, robustness, and interface conformance of all components:
+   - 31-strategy sequence (1. regression ~ 31. earnings_tone_drift).
+   - Unified 3 cards in `trading_system/generate_report.py` and `gh-pages/index.html`.
+   - GHA artifact verification with `trading_system/scripts/verify_gha_artifacts.py --strict`.
+   - Test execution across `tests/`.
+2. Run test execution commands using `.venv\Scripts\python.exe -m pytest tests/test_adversarial_verify_artifacts.py tests/test_dashboard_3cards.py tests/test_canonical_31_strategies.py -v`.
+3. Run `.venv\Scripts\python.exe trading_system/scripts/verify_gha_artifacts.py --strict`.
+4. Write your review report to `d:/Finance/code/stock/.agents/reviewer_2/handoff.md` with explicit Verdict: APPROVE or REQUEST_CHANGES.
+5. Send a message to parent with your verdict and handoff file path.

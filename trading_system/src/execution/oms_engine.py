@@ -372,6 +372,11 @@ class ExecutionOMSEngine:
         except Exception:
             shared_allocator = None
 
+        is_batch_percent_scale = any(
+            abs(float(p.get("expected_return", p.get("ensemble_expected_return", 0.0)) or 0.0)) > 1.0
+            for p in (top_predictions or []) if isinstance(p, dict)
+        )
+
         conn = self._get_conn()
         try:
             cursor = conn.cursor()
@@ -547,8 +552,11 @@ class ExecutionOMSEngine:
                         _is_net = "ensemble_expected_return" in pred
                         _exp_ret_raw = pred.get("ensemble_expected_return") if _is_net else pred.get("expected_return", 0.0)
                         raw_exp_ret = float(_exp_ret_raw or 0.0)
-                        # Pipeline expected returns are percentage scale (e.g. 15.0 for 15%) or decimal (e.g. 0.05 for 5%)
-                        exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.50 else raw_exp_ret
+                        # Pipeline expected returns are percentage scale (e.g. 15.0 for 15%, 0.15 for 0.15%) or decimal (0.05 for 5%)
+                        if is_batch_percent_scale or abs(raw_exp_ret) >= 0.50:
+                            exp_ret_frac = raw_exp_ret / 100.0
+                        else:
+                            exp_ret_frac = raw_exp_ret
                         hurdle = safety_margin if _is_net else (friction_cost + safety_margin)
 
                         if exp_ret_frac <= hurdle:

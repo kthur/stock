@@ -1,90 +1,94 @@
-# Handoff Report: Reviewer M2-2 — Multi-Market Merge Synchronization
+# Handoff Report: Milestone 2 Review (R2: 31-Strategy Artifact Verifier & Canonical Sequence)
+
+**Agent**: `teamwork_preview_reviewer_m2_2`  
+**Recipient**: Parent Agent (`b672d6c7-56c6-40df-9cff-af49d8b4ec1c`)  
+**Timestamp**: 2026-09-01T00:22:15+09:00 (KST)  
+**Type**: Hard Handoff (Review Complete)
+
+---
 
 ## 1. Observation
 
-### 1.1 Scope of Review
-- **Repository**: `d:\Finance\code\stock`
-- **Target Milestone**: Milestone 2 — Multi-Market Merge Synchronization
-- **Primary Source Files Inspected**:
-  - `trading_system/merge_predictions.py` (910 lines): Multi-market discovery, section extraction, surge/VCP/lead-lag/portfolio/coverage mergers, generic 31-strategy merging with header deduplication.
-  - `trading_system/generate_report.py`: HTML dashboard generation consuming merged predictions.
-  - `trading_system/run_pipeline.py`: Pipeline saving routine `_save_strategy_predictions_report` and market targeting.
-  - `tests/test_merge_generic_strategies.py` (641 lines, 74 test cases across 4 test suites).
-  - `tests/test_report_generator_hrp.py` (375 lines): Portfolio parsing and HRP dashboard tests.
-  - `tests/test_challenger_rim_2_stress.py` (541 lines): Storage migration, RIM robustness, and 5-market mock merging tests.
-
-### 1.2 Direct Observations on Code Implementation
-1. **Multi-Market Discovery & Support (`discover_target_markets`)**:
-   - `KNOWN_MARKETS` contains `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`, `KONEX`, plus international expansions.
-   - Dedicated split directory probing covers `result_{m}`, `result-{m}`, `result_split_{m}`, `result_split-{m}`, `market_{m}`, `market-{m}` under `base_dir`, `base_dir/artifacts_in`, and `base_dir.parent/artifacts_in`.
-   - Multi-probe file checks in `result_dir` inspect `[surge, pipeline_result, ensemble, rim, sentiment, backtest_summary, portfolio_allocation, strategy_data_coverage_report, *_{m}.txt, *_{m}.json]`.
-   - Dynamic discovery handles unlisted valid market suffixes while safely excluding utility files (`ALLOCATION`, `PATTERNS`, `BLACK_LITTERMAN`, `COMPARISON`, `REPORT`, etc.).
-
-2. **Header Deduplication in `merge_generic_strategy_files`**:
-   - Matches header indicators: `Filters:`, `Rank ` / `Rank\t` / `Rank`, `Pair ` / `Pair\t` / `Pair`, `No. ` / `No.\t` / `No.` / `No\t`, `Symbol ` / `Symbol\t` / `Symbol`, and horizontal dividers (`---`, `───`, `===`, `═══`).
-   - Uses prefix deduplication caching (`prefix = line_str[:5]`) so that only the first encountered header line for each category is written to the unified header block, preventing repeated column headers across multi-market rows.
-   - Pre-reads source files before opening output handles to avoid self-referencing file truncation bugs.
-   - Preserves Korean UTF-8 text and correctly sets fallback `"데이터 없음\n"` only when all source market rows are absent.
-
-3. **Section Extraction in `_extract_ensemble_market_section`**:
-   - Dual-tier extraction with primary regex handling variable borders (`===`, `---`, width $\ge 3$) and secondary state machine parser.
-   - Explicitly strips trailing footers (`--- Data Quality Notes`, `--- Applied Strategy Weights`, `--- Executive Summary`, `=== Dynamic Multi-Strategy`) to prevent footer leakage into table rows.
-
-4. **Integrity & Adversarial Checks**:
-   - Checked for hardcoded test results, facade logic, or test bypasses: None found.
-   - All logic implements genuine generic file I/O, parsing, sorting, and deduplication.
+1. **`trading_system/scripts/verify_gha_artifacts.py`**:
+   - `STRATEGIES` list (lines 29–37) defines all 31 strategies in exact canonical sequence:
+     ```python
+     STRATEGIES = [
+         "regression", "surge", "lead_lag", "vcp_rule", "vcp_ml", "lstm",
+         "stat_arb", "sector_rotation", "rim_valuation", "event_driven", "mq_factor",
+         "iv_skew", "order_flow", "short_term_reversal", "arm_factor",
+         "card_factor", "latr_factor", "inst_foreign_sector",
+         "supply_chain", "sentiment", "factor_neutralized", "vol_target",
+         "microstructure", "accruals_quality", "short_squeeze", "valueup_catalyst",
+         "trend_efficiency", "gamma_squeeze", "insider_buying", "darkpool", "earnings_tone_drift"
+     ]
+     ```
+   - `files_map` (lines 286–318) and `check_funcs` (lines 320–352) cover all 31 strategies.
+   - `STRATEGY_PANEL_ALIASES` (lines 406–439) covers `ensemble` and all 31 strategies (32 dictionary keys total).
+   - `verify_gh_pages` (lines 442–489) parses `gh-pages/index.html` DOM for each alias, extracting table rows and validating `count >= 5`.
+2. **`.agents/skills/gha-artifact-verifier/SKILL.md`**:
+   - YAML frontmatter description (lines 1–4) lists all 31 strategies.
+   - Table (lines 14–47) details validation rules for strategies 1 through 31.
+3. **`trading_system/run_pipeline.py` & `AGENTS.md`**:
+   - `STRATEGY_REGISTRY` (lines 3201–3230) defines all strategies starting from Strategy 6 (`lstm`) through Strategy 30 (`darkpool`) and Strategy 31 (`earnings_tone_drift`).
+   - `verification_files` (lines 4338–4373) includes 34 files, covering all 31 strategy `.txt` files, `ensemble_predictions.txt`, `strategy_data_coverage_report.txt`, and `portfolio_allocation.txt`.
+   - `AGENTS.md` reflects Strategy 30 = `darkpool` and Strategy 31 = `earnings_tone_drift` across table (lines 38–39), Mermaid diagram (lines 119–120), and Key Files (lines 193–194).
+4. **Test Execution & Tool Output**:
+   - Running `pytest tests/test_verify_gha_artifacts.py`:
+     ```
+     tests/test_verify_gha_artifacts.py::test_canonical_strategies_count_and_order PASSED
+     tests/test_verify_gha_artifacts.py::test_strategy_panel_aliases_coverage PASSED
+     tests/test_verify_gha_artifacts.py::test_check_regression_valid_and_empty PASSED
+     tests/test_verify_gha_artifacts.py::test_check_surge_valid PASSED
+     tests/test_verify_gha_artifacts.py::test_check_vcp_rule_and_ml PASSED
+     tests/test_verify_gha_artifacts.py::test_check_generic_strategy PASSED
+     tests/test_verify_gha_artifacts.py::test_verify_market_strategies_with_mock_dir PASSED
+     tests/test_verify_gha_artifacts.py::test_verify_gh_pages_mock PASSED
+     8 passed in 31.09s
+     ```
+   - Running comprehensive test suite (6 modules): `119 passed, 0 failed in 23.12s`.
+   - Running standalone `verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages`:
+     `gh-pages/index.html` verified cleanly with all 31 strategy panels + ensemble panel populated with non-zero rows (ensemble: 376 rows, regression: 40 rows, surge: 40 rows, lstm: 303 rows, darkpool: 102 rows, etc.).
 
 ---
 
 ## 2. Logic Chain
 
-1. **Requirement Premise**: The pipeline produces per-market split prediction files across 5 core markets (`SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`) and `KONEX`. The merge layer must unify all 31+ strategies into standardized `.txt` files with clean, deduplicated headers (`Pair`, `No.`, `Symbol`, `Rank`, `Filters:`) without dropping any markets or corrupting downstream HTML generation.
-2. **Implementation Verification**:
-   - `discover_target_markets()` eliminates the single-probe failure mode where missing surge predictions caused dropped markets.
-   - `merge_generic_strategy_files()` systematically extracts and deduplicates `Pair`, `No.`, `Symbol`, `Rank`, and `Filters:` headers into a clean single header block above all combined data rows.
-   - `_extract_ensemble_market_section()` reliably isolates per-market ensemble blocks and sanitizes trailing metadata footers.
-3. **Empirical Execution**:
-   - Pytest test suites executed independently: `74 passed in 17.52s` with 0 failures or errors.
-   - Direct invocation of `python trading_system/merge_predictions.py` successfully discovered all target markets and merged all 31+ strategies.
-   - Direct invocation of `python trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html` completed cleanly, generating a 5,621 KB dashboard.
-4. **Conclusion Derivation**: The implementation satisfies all criteria for Milestone 2 with zero regressions, high code quality, and proven resilience against adversarial edge cases.
+1. From Observation 1, `verify_gha_artifacts.py` has been completely upgraded from 23 strategies to all 31 strategies in canonical 1..31 order, with comprehensive multi-file fallback mapping and HTML panel alias resolution.
+2. From Observation 2, `SKILL.md` documents all 31 strategies explicitly, ensuring standard operating procedures are up to date.
+3. From Observation 3, pipeline configuration (`run_pipeline.py`) and architectural documentation (`AGENTS.md`) are synchronized with no index inversion or misplaced strategies.
+4. From Observation 4, unit and integration tests verify the ordering, alias coverage, single-strategy parsers, multi-market mock directories, and mock HTML reports. The test suite passes 100% without regression.
+5. No integrity violations (hardcoded test answers, dummy/facade implementations, bypassed logic) exist.
 
 ---
 
 ## 3. Caveats
 
-- **Missing External API Data in Offline Mode**: In offline environments without live DART API keys or external feeds, fallback scoring heuristics ensure non-empty valid files, and the merge synchronization layer cleanly aggregates these fallbacks without throwing parser exceptions.
-- No other caveats or unexplored dependencies.
+- In `verify_gha_artifacts.py`, running on the local `trading_system/result` directory tests against historical artifact files where only a subset of market-specific files were populated during prior runs. However, full mock directory testing in `test_verify_market_strategies_with_mock_dir` and live HTML DOM parsing of `gh-pages/index.html` (all 32 panels) confirmed 100% accuracy of all verification routines.
+- No caveats regarding code correctness or test validity.
 
 ---
 
 ## 4. Conclusion
 
-### Review Verdict: **APPROVE**
+**Verdict: APPROVE**
 
-- **Integrity Assessment**: PASSED (zero integrity violations, no hardcoded cheats, no dummy facades).
-- **Multi-Market Merge Coverage**: Complete across `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`, and `KONEX`.
-- **Header Deduplication**: Verified for `Pair`, `No.`, `Symbol`, `Rank`, `Filters:`, and divider lines.
-- **Test Suite**: 74 of 74 tests passing (100% pass rate).
+Milestone 2 (R2: 31-Strategy Canonical Sequence Unification & Verifier Expansion) meets all acceptance criteria. All 31 strategies are correctly registered, mapped, verified, documented, and tested.
 
 ---
 
 ## 5. Verification Method
 
-### 5.1 Run Test Suite
-```powershell
-.venv\Scripts\pytest.exe tests/test_merge_generic_strategies.py tests/test_report_generator_hrp.py tests/test_challenger_rim_2_stress.py -v
-```
-**Output**: `74 passed in 17.52s`
+To independently verify these findings:
 
-### 5.2 Standalone Merger Execution
 ```powershell
-.venv\Scripts\python.exe trading_system/merge_predictions.py
-```
-**Output**: Discovers target markets `['SP500', 'NASDAQ', 'RUSSELL2000', 'KOSPI', 'KOSDAQ', 'KONEX']` and merges all 31+ prediction files.
+# 1. Run unit test suite for GHA verifier
+.venv\Scripts\pytest.exe tests/test_verify_gha_artifacts.py -v
 
-### 5.3 Downstream HTML Report Generation
-```powershell
-.venv\Scripts\python.exe trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html
+# 2. Run comprehensive test suite
+.venv\Scripts\pytest.exe tests/test_verify_gha_artifacts.py tests/test_merge_generic_strategies.py tests/test_strategy_correlation_monitor.py tests/test_merge_predictions_stress.py tests/test_score_normalizer.py tests/test_critical_bugs.py -v
+
+# 3. Run standalone GHA artifact verifier against repository
+.venv\Scripts\python.exe trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages
 ```
-**Output**: `[generate_report] Dashboard written to: D:\Finance\code\stock\gh-pages\index.html (5621 KB)`
+
+**Invalidation conditions**: Any test failure in `tests/test_verify_gha_artifacts.py`, length of `STRATEGIES` != 31, or missing aliases in `STRATEGY_PANEL_ALIASES`.

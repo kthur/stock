@@ -190,7 +190,7 @@ jobs:
           echo "### 📁 31대 전략 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
           echo "| 전략 / 파일명 | 크기 | 줄 수 |" >> $GITHUB_STEP_SUMMARY
           echo "|----------------|------|-------|" >> $GITHUB_STEP_SUMMARY
-          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt stat_arb_predictions.txt sector_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt inst_foreign_sector_predictions.txt supply_chain_predictions.txt sentiment_predictions.txt factor_neutralized_predictions.txt vol_target_predictions.txt microstructure_predictions.txt accruals_quality_predictions.txt short_squeeze_predictions.txt valueup_catalyst_predictions.txt trend_efficiency_predictions.txt gamma_squeeze_predictions.txt insider_buying_predictions.txt earnings_tone_drift_predictions.txt hft_order_flow_predictions.txt darkpool_predictions.txt dual_correction_predictions.txt index_rebalance_predictions.txt overnight_gap_predictions.txt pipeline_result.csv; do
+          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt stat_arb_predictions.txt sector_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt inst_foreign_sector_predictions.txt supply_chain_predictions.txt sentiment_predictions.txt factor_neutralized_predictions.txt vol_target_predictions.txt microstructure_predictions.txt accruals_quality_predictions.txt short_squeeze_predictions.txt valueup_catalyst_predictions.txt trend_efficiency_predictions.txt gamma_squeeze_predictions.txt insider_buying_predictions.txt earnings_tone_drift_predictions.txt hft_order_flow_predictions.txt darkpool_predictions.txt dual_correction_predictions.txt index_rebalance_predictions.txt overnight_gap_predictions.txt pipeline_result.csv; do
             FPATH="trading_system/result/$f"
             if [ -f "$FPATH" ]; then
               SIZE=$(du -sh "$FPATH" 2>/dev/null | cut -f1)
@@ -331,7 +331,7 @@ jobs:
             
             # Upload all strategy files and report outputs
             for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt \
-                      vcp_patterns.txt vcp_ml_predictions.txt \
+                      vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt \
                       stat_arb_predictions.txt sector_predictions.txt \
                       rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt \
                       iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt \

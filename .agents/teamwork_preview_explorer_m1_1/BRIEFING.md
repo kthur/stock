@@ -1,45 +1,51 @@
-# BRIEFING — 2026-08-29T13:39:30Z
+# BRIEFING — 2026-08-31T14:57:00Z
 
 ## Mission
-Investigate fundamental-based strategies fallback logic (`rim_valuation.py`/`rim_engine.py`, `accruals_quality.py`, `valueup_catalyst.py`) and formulate concrete implementation recommendations for robust proxy calculations and fallback scoring.
+Investigate Milestone 1 (R1: GHA Pipeline & Model Integrity), verify line edits for pipeline.yml and training.yml, identify any matrix/caching/path inconsistencies across all GHA workflows and seeding scripts, and prepare an implementation plan for the Worker.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: investigator, analyzer, synthesizer
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1
-- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Milestone: Milestone 1: Strategy Fallback Scoring & Report Saving
+- Roles: Teamwork explorer (read-only investigation, synthesis)
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\
+- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Milestone: Milestone 1 (R1: GHA Pipeline & Model Integrity)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement changes in source code
-- Produce structured 5-component handoff report in handoff.md
-- Investigate fundamental strategy fallbacks (RIM, Accruals Quality, Value-Up)
+- Read-only investigation — do NOT implement code modifications in the main repository.
+- Write only to .agents/teamwork_preview_explorer_m1_1/ directory.
+- Deliver reports in files, coordinate via send_message.
 
 ## Current Parent
-- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Updated: 2026-08-29T13:39:30Z
+- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Updated: 2026-08-31T14:57:00Z
 
 ## Investigation State
 - **Explored paths**:
-  - `trading_system/src/core/rim_valuation.py`
-  - `trading_system/src/core/accruals_quality.py`
-  - `trading_system/src/core/valueup_catalyst.py`
-  - `trading_system/src/core/mq_factor.py`, `short_interest_squeeze.py`, `earnings_tone_drift.py`, `insider_buying.py`
-  - `trading_system/run_pipeline.py` (`_save_strategy_predictions_report`, `_write_rim_file`)
-  - `trading_system/generate_report.py` (`parse_rim`, `parse_accruals_quality`, `parse_valueup_catalyst`)
-  - `tests/test_rim_strategy.py`, `tests/test_strategies_24_to_27.py`
+  - `.github/workflows/pipeline.yml`
+  - `.github/workflows/training.yml`
+  - `.github/workflows/preseed.yml`
+  - `.github/workflows/weekly_hpo.yml`
+  - `.github/workflows/realtime_monitor.yml`
+  - `.github/workflows/pytest.yml`
+  - `trading_system/download_db.py`
+  - `trading_system/run_pipeline.py`
+  - `trading_system/merge_predictions.py`
+  - `trading_system/generate_run_snapshot.py`
+  - `trading_system/scripts/verify_gha_artifacts.py`
+  - `tests/test_model_cache_pipeline.py`
 - **Key findings**:
-  - All 3 engines prematurely return `np.nan` when financial statement items (BPS, ROE, Net Income, OCF, PBR) are missing or in offline environments.
-  - In `run_pipeline.py`, `_save_strategy_predictions_report()` drops all NaN rows (`dropna(subset=[score_col])`), writing 0-row strategy prediction files.
-  - In `generate_report.py`, 0-row strategy files trigger "데이터 없음" or empty table rendering on the dashboard.
-  - Formulated a 3-tier hierarchical fallback architecture: Tier 1 True Fundamentals -> Tier 2 Price/Volume Proxy -> Tier 3 Neutral Prior 0.50.
-- **Unexplored areas**: Milestone 2 merge synchronization & Milestone 3 dashboard UI hardening.
+  - Confirmed missing `lstm_predictions.txt` in `pipeline.yml` at Step Summary (line 193) and Release upload (line 334).
+  - Confirmed missing `restore-keys` in `training.yml` at AI models cache (lines 118-124) and uv cache (lines 82-87).
+  - Validated that all 5-market matrices, artifact names, and model paths are 100% consistent across workflows.
+  - Formulated full Worker implementation plan in `report.md` and `handoff.md`.
+- **Unexplored areas**: None for Milestone 1. Milestone 2 will address 31-strategy sequence expansion in `verify_gha_artifacts.py`.
 
 ## Key Decisions Made
-- Documented full observation, logic chain, caveats, conclusion, and verification method in `handoff.md`.
-- Formulated concrete, zero-regression proxy calculations using 200d SMA, Chaikin Volume Flow, Kaufman KER, and 52-week price range position.
+- Confirmed exact before/after line diffs for `pipeline.yml` and `training.yml`.
 
 ## Artifact Index
-- `handoff.md` — 5-component investigation and recommendation report
-- `progress.md` — Progress tracking
-- `DISPATCH.md` — Inbound message log
+- `DISPATCH.md` — Dispatch log
+- `BRIEFING.md` — Persistent memory index
+- `progress.md` — Liveness heartbeat
+- `report.md` — Detailed Milestone 1 Investigation & Implementation Report
+- `handoff.md` — Standard 5-Component Handoff Report

@@ -1,14 +1,14 @@
-# Progress — Challenger 2 (Dashboard Health Monitor & Parser Challenger)
+# Progress — Challenger 2 (Empirical Review)
 
-- **Status**: Completed all adversarial challenges and empirical stress testing
-- **Last visited**: 2026-08-29T08:10:00+09:00
+Last visited: 2026-09-01T06:06:00+09:00
 
-## Checklist
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Read `ORIGINAL_REQUEST.md` and Worker handoff report (`d:\Finance\code\stock\.agents\worker_data_integrity\handoff.md`)
-- [x] Read and analyze `trading_system/generate_report.py`
-- [x] Test 1: Malformed/empty `rim_predictions.txt`, lines with `N/A`, `-`, negative discounts, extreme values, missing columns; Missing coverage report dynamic fallback; Empty files for all 31 strategies (PASSED)
-- [x] Test 2: `format_metric_cell` with all edge cases (`None`, `"nan"`, `"NaN"`, `"undefined"`, `"-nan%"`, `0.0`, `float('inf')`, `float('-inf')`, etc.) (PASSED & Documented signed NaN edge behavior)
-- [x] Test 3: Generate HTML report using `.venv\Scripts\python.exe trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html` (PASSED: Exit Code 0, 1866 KB)
-- [x] Test 4: Assert no raw `<td[^>]*>(nan|none|undefined)</td>` in `gh-pages/index.html` and verify `switchTabById` JS functions properly (PASSED: 0 matches, 31 tabs & panels linked)
-- [x] Write handoff report and notify parent
+## Completed Tasks
+- [x] Read `ORIGINAL_REQUEST.md`, `PROJECT.md`, and `gha-artifact-verifier` skill.
+- [x] Appended user dispatch to `DISPATCH.md`.
+- [x] Created `tests/test_dashboard_3cards.py` validating Card 1, Card 2, and Card 3 sub-components.
+- [x] Created `tests/test_canonical_31_strategies.py` validating canonical 1..31 strategy ordering.
+- [x] Executed `.venv\Scripts\python.exe -m pytest tests/test_dashboard_3cards.py tests/test_canonical_31_strategies.py tests/test_verify_gha_artifacts.py -v` (29/29 PASSED).
+- [x] Executed `.venv\Scripts\python.exe -m pytest tests/test_challenger_m3_stress.py tests/test_forensic_auditor_m3.py -v` (20/20 PASSED).
+- [x] Executed `.venv\Scripts\python.exe trading_system/scripts/verify_gha_artifacts.py --strict`.
+- [x] Updated `BRIEFING.md`.
+- [x] Generated `handoff.md` with explicit Verdict: APPROVE.

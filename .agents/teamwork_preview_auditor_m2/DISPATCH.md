@@ -1,16 +1,12 @@
-## 2026-08-29T14:09:14Z
-You are auditor_m2 for Milestone 2: Multi-Market Merge Synchronization.
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_auditor_m2
+## 2026-08-31T15:19:39Z
+You are a Forensic Auditor (teamwork_preview_auditor).
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_auditor_m2\
+Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Project Scope path: d:\Finance\code\stock\PROJECT.md
+Worker Handoff path: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md
 
-Please read:
-- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-- d:\Finance\code\stock\PROJECT.md
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md
-
-Your task:
-Perform rigorous forensic integrity audit on the changes made by worker_m2 in `trading_system/merge_predictions.py` and `tests/test_merge_generic_strategies.py`:
-1. Check for test result hardcoding (e.g. checking specific mock test names or hardcoding expected market lists in bypass branches).
-2. Check for dummy or facade implementations that return fixed strings without genuine multi-market parsing and merging.
-3. Check for bypasses or shortcuts.
-4. Verify that `discover_target_markets()` and `_extract_ensemble_market_section()` perform genuine discovery and parsing.
-5. Record your explicit verdict (CLEAN or INTEGRITY VIOLATION) and detailed forensic evidence in `d:\Finance\code\stock\.agents\teamwork_preview_auditor_m2\handoff.md` and send a message back.
+Mission: Perform forensic integrity audit on Milestone 2 changes.
+1. Read ORIGINAL_REQUEST.md, PROJECT.md, and all files modified in Milestone 2 (`run_pipeline.py`, `AGENTS.md`, `verify_gha_artifacts.py`, `SKILL.md`, `tests/test_verify_gha_artifacts.py`).
+2. Verify there are NO integrity violations: no hardcoded fake verifications, no dummy return bypasses, authentic 31-strategy parsing and checking.
+3. Provide a binary audit verdict: CLEAN or INTEGRITY VIOLATION with detailed evidence in handoff.md.
+4. Send a message to your caller parent with your verdict and evidence.

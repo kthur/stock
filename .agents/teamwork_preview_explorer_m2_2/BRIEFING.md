@@ -1,48 +1,49 @@
-# BRIEFING — 2026-08-29T14:02:00Z
+# BRIEFING — 2026-08-31T15:13:30Z
 
 ## Mission
-Investigate 31+ Strategy file mapping, schema consistency, and merge tests in `merge_predictions.py` and `tests/test_merge_generic_strategies.py` for Milestone 2 Multi-Market Merge Synchronization.
+Investigate Milestone 2 (R2: GHA Artifact Verifier & SKILL.md 31-Strategy Expansion), planning exact code updates for verify_gha_artifacts.py and documentation updates for SKILL.md.
 
 ## 🔒 My Identity
 - Archetype: explorer
 - Roles: investigation, synthesis
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2
-- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Milestone: Milestone 2: Multi-Market Merge Synchronization
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\
+- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Milestone: Milestone 2 (R2)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Base working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2
-- Check alignment for 31 strategy files in `merge_predictions.py`
-- Review test coverage in `tests/test_merge_generic_strategies.py`
-- Produce structured 5-component handoff report
+- Read-only investigation — do NOT modify source/production files directly, propose changes via report and handoff.
+- Keep BRIEFING.md under ~100 lines.
+- Follow 5-component handoff report structure.
 
 ## Current Parent
-- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Updated: 2026-08-29T14:02:00Z
+- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Updated: 2026-08-31T15:13:30Z
 
 ## Investigation State
 - **Explored paths**:
-  - `trading_system/merge_predictions.py` (all merge functions and main market discovery loop)
-  - `trading_system/run_pipeline.py` (all strategy output saving logic lines 2070–3450, 4210–4320)
-  - `trading_system/generate_report.py` (all parse_* functions lines 620–945, 4790–4830)
-  - `.github/workflows/pipeline.yml` (split artifact copy and merge-and-release jobs)
-  - `tests/test_merge_generic_strategies.py` (current unit test suite)
-  - `tests/test_challenger_rim_2_stress.py` (adversarial RIM stress suite)
+  - `ORIGINAL_REQUEST.md` (R2: canonical 31-strategy sequence & GHA artifact verification)
+  - `PROJECT.md` (F03, F04, F05 canonical sequence specification 1~31)
+  - `trading_system/scripts/verify_gha_artifacts.py` (current 23 strategies verifier)
+  - `.agents/skills/gha-artifact-verifier/SKILL.md` (current 23-strategy skill doc)
+  - `trading_system/merge_predictions.py` (31 strategy merge functions and file names)
+  - `trading_system/generate_report.py` (HTML tabs & panel IDs)
+  - `trading_system/result/` (existing strategy .txt artifacts for strategies 1..31)
+  - `gh-pages/index.html` (verified 32 panels: ensemble + 31 strategies)
 - **Key findings**:
-  1. Full mapping matrix created for all 31+ strategies covering internal ID, engine class, pipeline output, split file, merged file, merge function, and report parser.
-  2. Single-probe market discovery bug identified in `merge_predictions.py:684-702` (if `surge_predictions_{m}.txt` is missing for market `m`, market is dropped from `target_dirs`).
-  3. Header matching bug in `merge_generic_strategy_files()` line 433: `stat_arb_predictions.txt` header starts with `"Pair"` rather than `"Rank"`, causing column header lines to leak into data rows.
-  4. Release upload omission in `.github/workflows/pipeline.yml:333-344`: `lstm_predictions.txt` is missing from upload loop.
-  5. Test suite gap in `tests/test_merge_generic_strategies.py`: only 3 strategy files tested; need full parameterized test suite covering all 31+ strategies and edge cases.
-- **Unexplored areas**: None within Milestone 2 scope.
+  - `verify_gha_artifacts.py` currently tests only 23 strategies with non-canonical order (`surge`, `vcp_ml`, `regression`, ...).
+  - All 31 strategies are already produced by the pipeline and merged into `trading_system/result/`.
+  - In `gh-pages/index.html`, all 31 strategy panels (`panel-accruals`, `panel-shortsqueeze`, `panel-valueup`, `panel-trendeff`, `panel-gammasqueeze`, `panel-insider`, `panel-darkpool`, `panel-tonedrift`, etc.) are present and rendered with data.
+  - Formulated exact `STRATEGIES` list in canonical 1~31 order, expanded `files_map` and `check_funcs` for strategies 24..31, alias mapping for `verify_gh_pages()`, and canonical 31-column console reporter table.
+  - Formulated full enumeration of strategies 1..31 in `SKILL.md` table.
+- **Unexplored areas**: None for M2 (R2 scope fully covered).
 
 ## Key Decisions Made
-- Formulate concrete code recommendations for fixing `merge_predictions.py` market discovery and `stat_arb` header parsing.
-- Design comprehensive 31-strategy parameterized test suite for `tests/test_merge_generic_strategies.py`.
+- Use canonical 1~31 specification as defined in `PROJECT.md`: 1: regression, 2: surge, 3: lead_lag, 4: vcp_rule, 5: vcp_ml, 6: lstm, 7: stat_arb, 8: sector_rotation, 9: rim_valuation, 10: event_driven, 11: mq_factor, 12: iv_skew, 13: order_flow, 14: short_term_reversal, 15: arm_factor, 16: card_factor, 17: latr_factor, 18: inst_foreign_sector, 19: supply_chain, 20: sentiment, 21: factor_neutralized, 22: vol_target, 23: microstructure, 24: accruals_quality, 25: short_squeeze, 26: valueup_catalyst, 27: trend_efficiency, 28: gamma_squeeze, 29: insider_buying, 30: darkpool, 31: earnings_tone_drift.
+- Use `STRATEGY_PANEL_ALIASES` in `verify_gh_pages()` to robustly map canonical strategy keys to exact HTML panel IDs (e.g. `accruals_quality` -> `panel-accruals`, `short_squeeze` -> `panel-shortsqueeze`, etc.).
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\DISPATCH.md — Dispatch log
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\BRIEFING.md — Situational awareness
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\progress.md — Liveness heartbeat
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\handoff.md — Final handoff report
+- DISPATCH.md — incoming dispatch message log
+- BRIEFING.md — persistent working memory
+- progress.md — liveness heartbeat
+- report.md — comprehensive Milestone 2 investigation report
+- handoff.md — self-contained 5-component handoff report

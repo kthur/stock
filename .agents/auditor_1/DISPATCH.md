@@ -1,15 +1,22 @@
-## 2026-08-28T23:02:55Z
-Audit assignment received:
-Perform forensic integrity audit on all changes made across:
-1. `trading_system/src/core/rim_valuation.py`
-2. `trading_system/run_pipeline.py`
-3. `trading_system/src/ai/ml_strategy_adapters.py`
-4. `trading_system/src/analysis/coverage_analyzer.py`
-5. `trading_system/generate_report.py`
-6. Any modified or added test files in `tests/`
+## 2026-08-31T20:56:25Z
 
-Check for:
-- Hardcoded test return values, mock shortcuts, or bypassed test assertions.
-- Fake or dummy implementations of RIM valuation, coverage calculation, or health monitor cards.
-- Circumvention of requirements (e.g. masking nan with misleading fake numbers instead of genuine NaN handling / badge rendering).
-- Any integrity violations, cheating, or fabricated evidence.
+Perform a comprehensive Forensic Integrity Audit across all repository modifications made in Milestones 1, 2, 3, and 4:
+1. Audit modified files:
+   - `.github/workflows/pipeline.yml`, `preseed.yml`, `training.yml`
+   - `AGENTS.md`
+   - `trading_system/run_pipeline.py`
+   - `src/pipeline/reporter.py`
+   - `trading_system/generate_report.py`
+   - `trading_system/scripts/verify_gha_artifacts.py`
+   - `.agents/skills/gha-artifact-verifier/SKILL.md`
+   - `trading_system/src/persistence/database.py`
+   - `trading_system/src/data_layer/indicator_storage.py`
+   - `trading_system/src/execution/oms_engine.py`
+   - `tests/`
+2. Perform rigorous forensic checks:
+   - Check for hardcoded test results, mock short-circuits, fake test passes, or dummy facade implementations.
+   - Verify that all 31 strategy factor engines and pipelines run genuine logic.
+   - Verify that the 3 dashboard cards and 31 tabs dynamically render genuine data.
+   - Verify that the artifact verifier strictly validates non-zero content without bypasses.
+3. Write your complete forensic audit report to `d:/Finance/code/stock/.agents/auditor_1/handoff.md` with explicit Verdict: CLEAN or INTEGRITY VIOLATION.
+4. Send a message to parent with your verdict and handoff file path.

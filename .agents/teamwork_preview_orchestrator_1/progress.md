@@ -1,18 +1,15 @@
-# Progress Tracking
-
 ## Current Status
-Last visited: 2026-08-29T14:10:05Z
-- [x] Phase 0: Survey & Scope Mapping (Completed)
-- [x] Phase 1: PROJECT.md & TEST_INFRA.md Formulation (Completed)
-- [x] Phase 2: Milestone 1 - Strategy Fallback Scoring & Report Saving (Passed Gate)
-- [ ] Phase 3: Milestone 2 - Multi-Market Merge Synchronization (Gate evaluation in progress)
-- [ ] Phase 4: Milestone 3 - Dashboard Generator & Interactive UI Hardening
-- [ ] Phase 5: Milestone 4 - 100% E2E Verification & Test Suite Pass
-- [ ] Phase 6: Milestone 5 - Adversarial Coverage Hardening (Tier 5)
-- [ ] Phase 7: Final Report to Sentinel
+Last visited: 2026-09-01T00:30:00+09:00
 
 ## Iteration Status
-Current iteration: 3 / 32
+Current iteration: 1 / 32
 
-## Hang Log
-(None)
+## Checklist
+- [x] Initialized BRIEFING.md, DISPATCH.md, and progress.md
+- [x] Completed Survey Phase (Survey 1, 2, 3) & Generated PROJECT.md
+- [x] Milestone 1 (R1): GHA Data Seeding & Model Training Pipeline Integrity — **PASSED & DONE**
+- [x] Milestone 2 (R2): 31-Strategy Canonical Sequence Unification Across Entire Codebase & Reports — **PASSED & DONE**
+- [x] Milestone 3 (R3): Dashboard Metric Consolidation & UX Enhancement — Worker implementing 3 consolidated cards
+- [ ] Milestone 3 Verification Gate
+- [ ] Milestone 4: E2E Verification & Test Suite Validation
+- [ ] Final Verification: 100% Test Suite Pass & End-to-End Artifact Verification

@@ -1,41 +1,51 @@
-# BRIEFING — 2026-08-05T16:02:00Z
+# BRIEFING — 2026-09-01T00:13:00+09:00
 
 ## Mission
-Audit memory optimization, concurrency, and SQLite WAL performance across all 3,379 symbols in the trading system pipeline.
+Investigate Milestone 2 (R2: Dashboard & Merge Sequence Synchronization), verifying 1..31 canonical sequence across generate_report.py, merge_predictions.py, and correlation_monitor.py.
 
 ## 🔒 My Identity
-- Archetype: teamwork_preview_explorer
-- Roles: Read-only investigator and performance auditor for Milestone 2
+- Archetype: explorer
+- Roles: Teamwork explorer
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_3
-- Original parent: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
-- Milestone: M2 (Software Architecture & Pipeline Robustness Audit)
+- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Milestone: Milestone 2 (R2: Dashboard & Merge Sequence Synchronization)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT modify application source code (only produce reports in agent folder)
-- Must audit float32 downcasting in feature generation & prediction models
-- Must audit ThreadPoolExecutor worker counts, batching, thread safety
-- Must audit SQLite WAL lifecycle, pooling, mutex locks, lock retries
-- Must measure memory footprint and CPU utilization for 3,379 symbols
+- Read-only investigation — do NOT implement
+- Verify STRATEGY_METADATA, table column headers, tab IDs, stock drawer decomposition in generate_report.py
+- Verify merge_predictions.py and correlation_monitor.py canonical strategy alignment
+- All 31 strategies canonical order checking
 
 ## Current Parent
-- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
-- Updated: 2026-08-05T16:03:00Z
+- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Updated: 2026-09-01T00:13:00+09:00
 
 ## Investigation State
-- **Explored paths**: `ORIGINAL_REQUEST.md`, `PROJECT.md`, `trading_system/run_pipeline.py`, `src/ai/prediction_model.py`, `src/ai/vcp_ml_predictor.py`, `src/persistence/database.py`, `src/data_layer/indicator_storage.py`, `src/data_layer/hybrid_storage.py`, `src/data_layer/earnings_data.py`
+- **Explored paths**:
+  - `ORIGINAL_REQUEST.md`, `PROJECT.md`
+  - `trading_system/generate_report.py`
+  - `trading_system/merge_predictions.py`
+  - `trading_system/src/ai/correlation_monitor.py`
+  - `trading_system/src/analysis/strategy_correlation_monitor.py`
+  - `trading_system/src/pipeline/reporter.py`
+  - `trading_system/src/core/strategy_registry.py`
+  - `trading_system/run_pipeline.py`
+  - `trading_system/scripts/verify_gha_artifacts.py`
+  - `tests/test_merge_generic_strategies.py`, `tests/test_strategy_correlation_monitor.py`, `tests/test_merge_predictions_stress.py`
 - **Key findings**:
-  1. Float32 downcasting (`prediction_model.py:1328-1331`) truncates precision on mega-cap monetary figures (>16.7M KRW); inference features remain float64.
-  2. CPU-bound Pandas feature extraction in `ThreadPoolExecutor` suffers Python GIL lock contention.
-  3. `StockPriceDB` thread-local connections leak across short-lived worker threads, holding WAL reader locks.
-  4. Measured peak system RAM for 3,379 symbols: ~2.2 GB - 4.1 GB.
-- **Unexplored areas**: None (Audit completed).
+  1. `generate_report.py` STRATEGY_METADATA, table column headers (`<th>` & `<td>`), tab IDs, and stock drawer decomposition dictionaries strictly follow the 1..31 canonical sequence.
+  2. `merge_predictions.py` defines `ALL_31_STRATEGIES` in exact 1..31 sequence, and all 31 strategy files are properly merged. `main()` function invocation order has minor non-canonical order (e.g. surge -> vcp_ml -> vcp_rule -> lead_lag, stat_arb merged after short_term_reversal).
+  3. `src/ai/correlation_monitor.py` and `src/analysis/strategy_correlation_monitor.py` properly monitor all 31 strategies with full score column mappings.
+  4. CI verification tools (`verify_gha_artifacts.py` and `run_pipeline.py:verification_files`) currently have incomplete strategy lists (23 strategies and 13 files respectively) awaiting Milestone 2 expansion.
+- **Unexplored areas**: None for this milestone scope.
 
 ## Key Decisions Made
-- Completed M2 memory optimization, concurrency, and SQLite WAL audit.
-- Produced comprehensive `analysis.md` and 5-component `handoff.md`.
+- Confirmed that dashboard UI and core data structures in `generate_report.py` are already 100% aligned with 1..31 canonical sequence.
+- Documented actionable implementation steps for Milestones 2 & 3.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_3\DISPATCH.md` — Dispatch log
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_3\BRIEFING.md` — Working memory index
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_3\analysis.md` — Detailed M2 Audit Report
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_3\handoff.md` — 5-Component Handoff Report
+- DISPATCH.md — Incoming mission dispatch
+- BRIEFING.md — Situational awareness
+- progress.md — Liveness heartbeat
+- report.md — Comprehensive investigation report
+- handoff.md — Standard 5-component handoff report

@@ -1,6 +1,6 @@
 ---
 name: gha-artifact-verifier
-description: Verifies GitHub Action pipeline outputs for SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ across all 31 multi-factor strategies (surge, vcp_ml, regression, vcp, lead_lag, lstm, stat_arb, sector, rim, event_driven, mq_factor, iv_skew, order_flow, short_term_reversal, arm_factor, card_factor, latr_factor, inst_foreign_sector, supply_chain, sentiment, factor_neutralized, vol_target, microstructure, accruals, short_squeeze, value_up, trend_efficiency, gamma_squeeze, insider_buying, tone_drift, darkpool_hft, ensemble), ensuring non-zero data and gh-pages deployment.
+description: Verifies GitHub Action pipeline outputs for SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ across all 31 multi-factor strategies (regression, surge, lead_lag, vcp_rule, vcp_ml, lstm, stat_arb, sector_rotation, rim_valuation, event_driven, mq_factor, iv_skew, order_flow, short_term_reversal, arm_factor, card_factor, latr_factor, inst_foreign_sector, supply_chain, sentiment, factor_neutralized, vol_target, microstructure, accruals_quality, short_squeeze, valueup_catalyst, trend_efficiency, gamma_squeeze, insider_buying, darkpool, earnings_tone_drift, ensemble), ensuring non-zero data and gh-pages deployment.
 ---
 
 # GitHub Action Artifact Verifier Skill
@@ -11,32 +11,39 @@ This skill provides comprehensive instructions and automated tooling to verify t
 
 For each target market (**SP500**, **NASDAQ**, **RUSSELL2000**, **KOSPI**, **KOSDAQ**), all 31 strategies must output valid prediction data with **at least 10 items (count >= 10)** per market:
 
-| # | Strategy | Output Artifact | Non-Zero & Minimum Count Validation Rule |
-|---|----------|-----------------|------------------------------------------|
-| 1 | **Surge Classifier** | `surge_predictions.txt` / `surge_predictions_{MARKET}.txt` | Probability values > 0.0% & count >= 10 |
-| 2 | **VCP ML Predictor** | `vcp_ml_predictions.txt` / `vcp_ml_predictions_{MARKET}.txt` | Valid predictions & count >= 10 |
-| 3 | **Regression Model** | `pipeline_result.txt` / `pipeline_result_{MARKET}.txt` | Expected return predictions & count >= 10 |
-| 4 | **VCP Rule Detector** | `vcp_patterns.txt` / `vcp_patterns_{MARKET}.txt` | Technical pattern listings & count >= 10 |
-| 5 | **Lead-Lag Matrix** | `lead_lag_predictions.txt` / `lead_lag_predictions_{MARKET}.txt` | Leader/follower correlation entries & count >= 10 |
-| 6 | **Strict Causal LSTM** | `lstm_predictions.txt` / `lstm_predictions_{MARKET}.txt` | Deep learning time-series predictions & count >= 10 |
-| 7 | **Stat-Arb Cointegration** | `stat_arb_predictions.txt` / `stat_arb_predictions_{MARKET}.txt` | Cointegrated pairs or mean-reversion entries & count >= 10 |
-| 8 | **Sector Rotation** | `sector_predictions.txt` / `sector_predictions_{MARKET}.txt` | Relative sector momentum scores & count >= 10 |
-| 9 | **RIM Valuation** | `rim_predictions.txt` / `rim_predictions_{MARKET}.txt` | Residual income intrinsic valuation entries & count >= 10 |
-| 10 | **Event-Driven Catalyst** | `event_driven_predictions.txt` / `event_driven_predictions_{MARKET}.txt` | Disclosure/volume catalyst score entries & count >= 10 |
-| 11 | **MQ Factor** | `mq_factor_predictions.txt` / `mq_factor_predictions_{MARKET}.txt` | Momentum quality factor score entries & count >= 10 |
-| 12 | **Options IV Skew** | `iv_skew_predictions.txt` / `iv_skew_predictions_{MARKET}.txt` | Option IV skew or volatility skew entries & count >= 10 |
-| 13 | **Order Flow (MFI)** | `order_flow_predictions.txt` / `order_flow_predictions_{MARKET}.txt` | Foreign/institutional order flow entries & count >= 10 |
-| 14 | **Short-Term Reversal** | `short_term_reversal_predictions.txt` / `short_term_reversal_predictions_{MARKET}.txt` | Overbought/oversold mean reversion entries & count >= 10 |
-| 15 | **ARM Factor** | `arm_factor_predictions.txt` / `arm_factor_predictions_{MARKET}.txt` | Consensus EPS/Target revision entries & count >= 10 |
-| 16 | **CARD Factor** | `card_factor_predictions.txt` / `card_factor_predictions_{MARKET}.txt` | Cross-Asset divergence entries & count >= 10 |
-| 17 | **LATR Factor** | `latr_factor_predictions.txt` / `latr_factor_predictions_{MARKET}.txt` | Liquidity tail risk entries & count >= 10 |
-| 18 | **Inst & Foreign Sector** | `inst_foreign_sector_predictions.txt` / `inst_foreign_sector_predictions_{MARKET}.txt` | Institutional/foreign cumulative flow & count >= 10 |
-| 19 | **Supply Chain** | `supply_chain_predictions.txt` / `supply_chain_predictions_{MARKET}.txt` | Value chain momentum transfer & count >= 10 |
-| 20 | **NLP Sentiment** | `sentiment_predictions.txt` / `sentiment_predictions_{MARKET}.txt` | FinBERT text sentiment catalyst & count >= 10 |
-| 21 | **Factor Neutralized** | `factor_neutralized_predictions.txt` / `factor_neutralized_predictions_{MARKET}.txt` | Fama-French 5-factor pure alpha & count >= 10 |
-| 22 | **Vol Targeting** | `vol_target_predictions.txt` / `vol_target_predictions_{MARKET}.txt` | Volatility target risk parity & count >= 10 |
-| 23 | **Microstructure** | `microstructure_predictions.txt` / `microstructure_predictions_{MARKET}.txt` | Order book imbalance & overnight gap & count >= 10 |
-| 24-31 | **Extended Alpha Factors** | Ensemble combined features | Accruals, Short Squeeze, Value-Up, Trend Eff, Gamma Squeeze, Insider, Tone, Darkpool |
+| # | Strategy | Canonical Key | Output Artifact | Non-Zero & Minimum Count Validation Rule |
+|---|----------|---------------|-----------------|------------------------------------------|
+| 1 | **XGBoost Regression** | `regression` | `pipeline_result.txt` / `pipeline_result_{MARKET}.txt` | Expected return predictions with non-zero returns & count >= 10 |
+| 2 | **Surge Classifier** | `surge` | `surge_predictions.txt` / `surge_predictions_{MARKET}.txt` | Probability values > 0.0% & count >= 10 |
+| 3 | **Lead-Lag Matrix** | `lead_lag` | `lead_lag_predictions.txt` / `lead_lag_predictions_{MARKET}.txt` | Leader/follower correlation entries & count >= 10 |
+| 4 | **VCP Rule Detector** | `vcp_rule` | `vcp_patterns.txt` / `vcp_patterns_{MARKET}.txt` | Technical pattern listings & count >= 10 |
+| 5 | **VCP ML Predictor** | `vcp_ml` | `vcp_ml_predictions.txt` / `vcp_ml_predictions_{MARKET}.txt` | Valid XGBClassifier probability predictions & count >= 10 |
+| 6 | **Strict Causal LSTM** | `lstm` | `lstm_predictions.txt` / `lstm_predictions_{MARKET}.txt` | Deep learning time-series predictions & count >= 10 |
+| 7 | **Stat-Arb Cointegration** | `stat_arb` | `stat_arb_predictions.txt` / `stat_arb_predictions_{MARKET}.txt` | Cointegrated pairs or mean-reversion entries & count >= 10 |
+| 8 | **Sector Rotation** | `sector_rotation` | `sector_predictions.txt` / `sector_predictions_{MARKET}.txt` | Relative sector momentum scores & count >= 10 |
+| 9 | **RIM Intrinsic Valuation** | `rim_valuation` | `rim_predictions.txt` / `rim_predictions_{MARKET}.txt` | Residual income intrinsic valuation entries & count >= 10 |
+| 10 | **Event-Driven Catalyst** | `event_driven` | `event_driven_predictions.txt` / `event_driven_predictions_{MARKET}.txt` | Disclosure/volume catalyst score entries & count >= 10 |
+| 11 | **Momentum Quality (MQ)** | `mq_factor` | `mq_factor_predictions.txt` / `mq_factor_predictions_{MARKET}.txt` | Momentum quality factor score entries & count >= 10 |
+| 12 | **Options IV Skew** | `iv_skew` | `iv_skew_predictions.txt` / `iv_skew_predictions_{MARKET}.txt` | Option IV skew or volatility skew entries & count >= 10 |
+| 13 | **Order Flow (MFI)** | `order_flow` | `order_flow_predictions.txt` / `order_flow_predictions_{MARKET}.txt` | Foreign/institutional order flow entries & count >= 10 |
+| 14 | **Short-Term Reversal** | `short_term_reversal` | `short_term_reversal_predictions.txt` / `short_term_reversal_predictions_{MARKET}.txt` | Overbought/oversold mean reversion entries & count >= 10 |
+| 15 | **ARM Factor** | `arm_factor` | `arm_factor_predictions.txt` / `arm_factor_predictions_{MARKET}.txt` | Consensus EPS/Target revision entries & count >= 10 |
+| 16 | **CARD Factor** | `card_factor` | `card_factor_predictions.txt` / `card_factor_predictions_{MARKET}.txt` | Cross-Asset divergence entries & count >= 10 |
+| 17 | **LATR Factor** | `latr_factor` | `latr_factor_predictions.txt` / `latr_factor_predictions_{MARKET}.txt` | Liquidity tail risk entries & count >= 10 |
+| 18 | **Inst & Foreign Sector** | `inst_foreign_sector` | `inst_foreign_sector_predictions.txt` / `inst_foreign_sector_predictions_{MARKET}.txt` | Institutional/foreign cumulative flow & count >= 10 |
+| 19 | **Supply Chain Momentum** | `supply_chain` | `supply_chain_predictions.txt` / `supply_chain_predictions_{MARKET}.txt` | Value chain momentum transfer & count >= 10 |
+| 20 | **NLP Sentiment Catalyst** | `sentiment` | `sentiment_predictions.txt` / `sentiment_predictions_{MARKET}.txt` | FinBERT text sentiment catalyst & count >= 10 |
+| 21 | **Factor Neutralized Alpha** | `factor_neutralized` | `factor_neutralized_predictions.txt` / `factor_neutralized_predictions_{MARKET}.txt` | Fama-French 5-factor pure alpha & count >= 10 |
+| 22 | **Dynamic Vol Targeting** | `vol_target` | `vol_target_predictions.txt` / `vol_target_predictions_{MARKET}.txt` | Volatility target risk parity & count >= 10 |
+| 23 | **Microstructure Imbalance** | `microstructure` | `microstructure_predictions.txt` / `microstructure_predictions_{MARKET}.txt` | Order book imbalance & overnight gap & count >= 10 |
+| 24 | **Accruals Quality Anomaly** | `accruals_quality` | `accruals_quality_predictions.txt` / `accruals_quality_predictions_{MARKET}.txt` | Net income vs OCF accounting quality & count >= 10 |
+| 25 | **Short Interest & Squeeze** | `short_squeeze` | `short_squeeze_predictions.txt` / `short_squeeze_predictions_{MARKET}.txt` | Short interest ratio & days-to-cover catalyst & count >= 10 |
+| 26 | **Value-Up & Shareholder Yield** | `valueup_catalyst` | `valueup_catalyst_predictions.txt` / `valueup_catalyst_predictions_{MARKET}.txt` | Low PBR + net cash + shareholder return yield & count >= 10 |
+| 27 | **Kaufman Trend Efficiency** | `trend_efficiency` | `trend_efficiency_predictions.txt` / `trend_efficiency_predictions_{MARKET}.txt` | KER efficiency ratio & Hurst exponent filter & count >= 10 |
+| 28 | **Options Gamma Squeeze** | `gamma_squeeze` | `gamma_squeeze_predictions.txt` / `gamma_squeeze_predictions_{MARKET}.txt` | Call delta acceleration & open interest & count >= 10 |
+| 29 | **Insider Buying Catalyst** | `insider_buying` | `insider_buying_predictions.txt` / `insider_buying_predictions_{MARKET}.txt` | Executive/insider accumulation disclosures & count >= 10 |
+| 30 | **HFT & Dark Pool Flow** | `darkpool` | `darkpool_predictions.txt` / `hft_order_flow_predictions.txt` | Off-exchange dark pool & microstructure volume & count >= 10 |
+| 31 | **Earnings Tone Drift** | `earnings_tone_drift` | `earnings_tone_drift_predictions.txt` / `earnings_tone_drift_predictions_{MARKET}.txt` | Earnings call transcript tone drift sentiment & count >= 10 |
 
 In addition:
 - **Ensemble Integration**: `ensemble_predictions.txt` must be updated with 31 strategy dynamic weights and TOP 100 picks across markets.
@@ -83,13 +90,17 @@ When inspecting a GitHub Action run (e.g. `Daily Pipeline` workflow):
 ### Step 2: Validate Data Completeness Per Market & Strategy
 Inspect each market's strategy prediction files:
 
-#### A. Core Predictive Models (`surge_predictions`, `vcp_ml_predictions`, `pipeline_result`, `vcp_patterns`, `lead_lag_predictions`, `lstm_predictions`)
+#### A. Core Predictive Models (1..6: `pipeline_result`, `surge_predictions`, `lead_lag_predictions`, `vcp_patterns`, `vcp_ml_predictions`, `lstm_predictions`)
 - Check that top candidates exist for target horizons.
 - **Failure Condition**: File contains "데이터 없음" or missing section headers.
 
-#### B. Multi-Factor & Valuations (`stat_arb`, `sector`, `rim`, `event_driven`, `mq_factor`, `iv_skew`, `order_flow`, `short_term_reversal`, `arm_factor`, `card_factor`, `latr_factor`, `inst_foreign_sector`, `supply_chain`, `sentiment`, `factor_neutralized`, `vol_target`, `microstructure`)
+#### B. Multi-Factor & Valuations (7..23: `stat_arb`, `sector_rotation`, `rim_valuation`, `event_driven`, `mq_factor`, `iv_skew`, `order_flow`, `short_term_reversal`, `arm_factor`, `card_factor`, `latr_factor`, `inst_foreign_sector`, `supply_chain`, `sentiment`, `factor_neutralized`, `vol_target`, `microstructure`)
 - Check that each strategy generates continuous non-zero scores and top 100 listings.
 - **Failure Condition**: Missing strategy files or `NameError`/`KeyError` exceptions in job log.
+
+#### C. Extended Alpha & Execution Models (24..31: `accruals_quality`, `short_squeeze`, `valueup_catalyst`, `trend_efficiency`, `gamma_squeeze`, `insider_buying`, `darkpool`, `earnings_tone_drift`)
+- Check that each extended strategy generates non-zero factor scores and valid prediction outputs.
+- **Failure Condition**: Missing strategy files or unpopulated output tables.
 
 ---
 
@@ -105,4 +116,4 @@ Check `merge_predictions.py` output:
 Check `generate_report.py` execution:
 1. Verify `gh-pages/index.html` file size > 50KB.
 2. Search for market cards (`KOSPI`, `SP500`, `KOSDAQ`, `KONEX`, `NASDAQ`, `RUSSELL2000`).
-3. Verify interactive data tables load populated predictions without rendering `NaN`, `None`, or "데이터 없음".
+3. Verify interactive data tables load populated predictions without rendering `NaN`, `None`, or "데이터 없음" across all 31 strategy panels.

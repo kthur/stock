@@ -1,42 +1,56 @@
-﻿# BRIEFING — 2026-08-29
+# BRIEFING — 2026-09-01T00:02:00+09:00
 
 ## Mission
-Implement genuine multi-tier fallback scoring in 6 strategies and harden strategy predictions report saving in run_pipeline.py.
+Implement Milestone 1 (R1: GitHub Actions Data Seeding & Model Training End-to-End Pipeline Integrity) fixes and verify all model cache, database, and pipeline tests.
 
 ## 🔒 My Identity
-- Archetype: implementer
+- Archetype: teamwork_preview_worker
 - Roles: implementer, qa, specialist
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m1
-- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Milestone: Milestone 1 (Strategy Fallback Scoring & Report Saving)
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\
+- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Milestone: Milestone 1 (R1: GHA Pipeline & Model Integrity)
 
 ## 🔒 Key Constraints
-- Multi-tier fallback hierarchy: authentic fundamentals/filings (Tier 1) -> quantitative price/volume proxy when prices_dict is provided (Tier 2) -> np.nan when all data is absent (Tier 3).
-- Zero cheating / zero dummy static 0.50 default injections for missing symbols in engines when called without data.
-- Ensure per-market split files are written for all markets.
-- All pytest tests must pass with 0 errors.
+- Follow minimal change principle.
+- No dummy/facade implementations, genuine fixes only.
+- Run builds, test validations, and linting.
+- Save report.md and handoff.md in working directory.
+- Send results back to parent agent via send_message.
 
 ## Current Parent
-- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Updated: 2026-08-29T22:49:00+09:00
+- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Updated: 2026-09-01T00:02:00+09:00
 
 ## Task Summary
-- **What was built**: Genuine multi-tier fallback scoring in 6 strategies (im_valuation.py, ccruals_quality.py, alueup_catalyst.py, llm_sentiment_engine.py, insider_buying.py, earnings_tone_drift.py) and hardened pipeline report saving in un_pipeline.py.
-- **Success criteria**: 64/64 pytest tests passed; generate_report.py executes successfully.
+- **What to build**:
+  1. Edit `.github/workflows/pipeline.yml`: Add `lstm_predictions.txt` to Step Summary loop (line 193) and Release upload list (line 334).
+  2. Edit `.github/workflows/training.yml`: Add `restore-keys` to `ai-models` cache step (line 118-124) and `uv` cache step (line 82-87).
+  3. Verify YAML syntax of all workflow files.
+  4. Run pytest suite for model cache, database, prediction model: `tests/test_model_cache_pipeline.py`, `tests/test_database.py`, `tests/test_prediction_model.py`.
+  5. Write `report.md` and `handoff.md`, send message to parent.
+- **Success criteria**: All YAML edits accurate, YAML syntactically valid, test suite passes 100%, handoff complete.
+- **Interface contracts**: PROJECT.md / ORIGINAL_REQUEST.md
+- **Code layout**: Root repo layout
 
-## Change Tracker
-- 	rading_system/src/core/rim_valuation.py: Added 200d SMA proxy valuation anchor, discount ratio ranking, and PRICE_TREND_PROXY tagging.
-- 	rading_system/src/core/accruals_quality.py: Added 20d CMF/KER volume flow proxy when prices_dict is provided; eliminated downcasting warnings.
-- 	rading_system/src/core/valueup_catalyst.py: Added 200d SMA valuation and 52-week price range position proxy when prices_dict is provided.
-- 	rading_system/src/core/llm_sentiment_engine.py: Enhanced price fallback into multi-horizon price/volume momentum proxy.
-- 	rading_system/src/core/insider_buying.py: Added smart-money accumulation CMF/UDVR proxy when prices_dict is provided.
-- 	rading_system/src/core/earnings_tone_drift.py: Added PEAD price momentum proxy when prices_dict is provided.
-- 	rading_system/run_pipeline.py: Hardened _save_strategy_predictions_report with defensive imputation and per-market split files.
-
-## Quality Status
-- **Build/test result**: 64 passed in 19.10s (0 failures, 0 warnings).
-- **Report Generation**: Passed (4,706 KB gh-pages/index.html generated).
+## Key Decisions Made
+- Follow canonical strategy order: `lstm_predictions.txt` placed right after `vcp_ml_predictions.txt` (Strategy #6 after Strategy #5).
+- Use standard GitHub Actions `restore-keys` fallback syntax for cache actions.
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md — Complete handoff report.
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\progress.md — Progress tracker.
+- `.agents/teamwork_preview_worker_m1/DISPATCH.md` — Worker assignment prompt
+- `.agents/teamwork_preview_worker_m1/BRIEFING.md` — Working state & memory
+- `.agents/teamwork_preview_worker_m1/progress.md` — Liveness & task progress tracker
+- `.agents/teamwork_preview_worker_m1/report.md` — Milestone 1 Implementation Report
+- `.agents/teamwork_preview_worker_m1/handoff.md` — 5-component handoff report
+
+## Change Tracker
+- **Files modified**:
+  - `.github/workflows/pipeline.yml`: Added `lstm_predictions.txt` to Step Summary and Release upload loops
+  - `.github/workflows/training.yml`: Added fallback `restore-keys` to `uv` and `ai-models` cache steps
+- **Build status**: PASS (YAML valid, 31/31 pytest tests passed in 100.05s)
+- **Pending issues**: None
+
+## Quality Status
+- **Build/test result**: 31 passed in 100.05s
+- **Lint status**: Clean (YAML validated via PyYAML)
+- **Tests added/modified**: Verified `tests/test_model_cache_pipeline.py`, `tests/test_database.py`, `tests/test_prediction_model.py`

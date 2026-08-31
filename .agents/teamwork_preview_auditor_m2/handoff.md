@@ -1,113 +1,85 @@
-# Forensic Audit Report — Milestone 2
+# Forensic Audit Report: Milestone 2 (R2: 31-Strategy Canonical Sequence Unification)
 
-**Work Product**: Milestone 2 Deliverables
-- `trading_system/src/ai/factor_orthogonalizer.py`
-- `trading_system/src/ai/ensemble_scorer.py`
-- `trading_system/src/core/stat_arb.py`
-- `trading_system/src/data_layer/hybrid_storage.py`
-
-**Profile**: General Project (Integrity Forensics)
-**Verdict**: CLEAN
+**Auditor**: `teamwork_preview_auditor_m2`  
+**Recipient**: Parent Agent (`b672d6c7-56c6-40df-9cff-af49d8b4ec1c`)  
+**Timestamp**: 2026-09-01T00:23:00+09:00 (KST) / 2026-08-31T15:23:00Z (UTC)  
+**Profile**: General Project  
+**Integrity Mode**: Development (from `ORIGINAL_REQUEST.md`)  
+**Verdict**: **CLEAN**
 
 ---
 
 ## 1. Observation
 
-Direct observations and evidence collected during forensic inspection:
+### 1.1 Source Code and Configuration Inspections
+1. **`trading_system/run_pipeline.py`**:
+   - `STRATEGY_REGISTRY` (lines 3201–3230): Strategy 6 (`lstm`) correctly positioned at the top of the registry (`_eval_lstm`, `lstm_predictions.txt`), Strategy 30 defined as `darkpool` (`_eval_darkpool`, `darkpool_predictions.txt`), and Strategy 31 defined as `earnings_tone_drift` (`_eval_earnings_tone_drift`, `earnings_tone_drift_predictions.txt`).
+   - `verification_files` (lines 4338–4372): Expanded from 13 to 34 files, containing all 31 strategy `.txt` files in canonical sequence plus `ensemble_predictions.txt`, `strategy_data_coverage_report.txt`, and `portfolio_allocation.txt`.
+2. **`AGENTS.md`**:
+   - Strategy table lines 38–39: `| **30** | Darkpool & HFT Flow | 다크풀 블록트레이드 & HFT 마이크로스프레드 모멘텀 | darkpool_predictions.txt |` and `| **31** | Earnings Tone Drift | 실적 발표 콘퍼런스콜 텍스트 톤 변화 감성 퀀트 | earnings_tone_drift_predictions.txt |`.
+   - Mermaid diagram lines 119–120: `Darkpool["30. Darkpool & HFT Flow"]` and `ToneDrift["31. Earnings Tone Drift"]`.
+   - Key Files table lines 193–194: `darkpool_tracker.py` followed by `tone_drift.py`.
+3. **`trading_system/scripts/verify_gha_artifacts.py`**:
+   - `STRATEGIES` list (lines 29–37): Expanded to 31 canonical strategy keys (`regression`, `surge`, ..., `darkpool`, `earnings_tone_drift`).
+   - `files_map` (lines 286–318): Explicit file and fallback mappings for all 31 strategies.
+   - `STRATEGY_PANEL_ALIASES` (lines 406–439): Comprehensive alias dictionary covering `ensemble` and all 31 strategies for HTML panel DOM verification.
+   - `verify_market_strategies`, `check_generic_strategy`, `check_regression`, `check_surge`, `check_vcp_ml`, `check_vcp`, `check_lead_lag`, `verify_ensemble`, `verify_gh_pages`: Dynamic parsing with count threshold (`>= 10` for strategies, `>= 5` for HTML table rows) and non-zero checks.
+4. **`.agents/skills/gha-artifact-verifier/SKILL.md`**:
+   - Complete 31-strategy table with canonical keys and minimum count / non-zero validation rules.
+5. **`tests/test_verify_gha_artifacts.py`**:
+   - 8 unit tests validating canonical count (31), alias coverage (32), individual strategy checking logic, mock market directory verification, and mock HTML DOM validation.
 
-### A. Source Code Analysis
-
-1. **`trading_system/src/ai/factor_orthogonalizer.py`** (Lines 1-149):
-   - Implements `FactorOrthogonalizerEngine` with Gram-Schmidt (`_gram_schmidt`) and PCA ZCA symmetric decorrelation (`_pca_zca_symmetric`).
-   - Uses genuine mathematical computations: eigen-decomposition (`np.linalg.eigh`), ridge regularization (`self.ridge_epsilon`), whitening transformation ($C^{-1/2} = V \Lambda^{-1/2} V^T$), and score bound clipping ($[0.0, 1.0]$).
-   - **Hardcoded test results**: None.
-   - **Facade implementations**: None.
-
-2. **`trading_system/src/ai/ensemble_scorer.py`** (Lines 1-1171):
-   - Implements `EnsembleScoringEngine` managing 17 strategy inputs, 2D regime matrix weighting (`REGIME_2D_WEIGHTS`), 3D macro modifiers, VIX fast overrides, Isotonic/Platt probability calibration, dynamic exponential Sharpe weighting, EMA weight smoothing, inter-strategy multicollinearity suppression, turnover hysteresis buffer, market microstructure execution cost models (STT, SEC fees, bid-ask spreads, Almgren-Chriss square-root market impact), liquidity gate, and risk parity portfolio allocation.
-   - Integrates `FactorOrthogonalizerEngine` (line 270, line 891) directly in `combine_predictions` to decorrelate strategy signals dynamically.
-   - **Hardcoded test results**: None.
-   - **Facade implementations**: None.
-   - **Mock overrides in production paths**: None. Synthetic return matrix proxy (`mock_returns`) in `optimize_risk_parity` (lines 1151-1156) is used appropriately as a statistical fallback when explicit historical return series are not supplied to the optimizer.
-
-3. **`trading_system/src/core/stat_arb.py`** (Lines 1-508):
-   - Implements `StatisticalArbitrageEngine` featuring $O(N \log N)$ hierarchical pre-clustering (MiniBatch K-Means / OPTICS) across 15D profile feature vectors per symbol.
-   - Performs 2D vectorized BLAS log-price matrix correlation screening (`|r| >= min_correlation`), Engle-Granger Dickey-Fuller ADF cointegration testing (`_estimate_adf_pvalue`), Ornstein-Uhlenbeck mean-reversion half-life calculation (`_estimate_half_life`), and Benjamini-Hochberg FDR p-value correction.
-   - Maps signals to per-symbol `stat_arb_score` in $[0, 1]$ via `get_symbol_stat_arb_scores`.
-   - **Hardcoded test results**: None.
-   - **Facade implementations**: None.
-
-4. **`trading_system/src/data_layer/hybrid_storage.py`** (Lines 1-217):
-   - Implements `execute_sqlite_with_retry` (exponential backoff & jitter for SQLite write locks), `ParquetWALBuffer` (lock-free `.wal_staging/<symbol>_<uuid>.parquet` buffer), `_normalize_date_column` (preventing NaT index corruption), and `HybridDataEngine`.
-   - **Hardcoded test results**: None.
-   - **Facade implementations**: None.
-
-### B. Behavioral Test Execution & Verification
-
-Empirical test execution using Python virtual environment (`.venv\Scripts\python.exe -m pytest`):
-
-- **`tests/test_factor_orthogonalization.py`**:
-  - `test_benchmark_orthogonalization_latency`: PASSED (< 50 ms for 3,379 symbols x 17 strategies)
-  - `test_cross_strategy_correlation_reduction`: PASSED (reduced correlation from > 0.65 to < 0.30)
-  - `test_gram_schmidt_orthogonality`: PASSED
-  - `test_orthogonalization_edge_cases`: PASSED (handles NaNs, constant columns, N=5, duplicate columns)
-  - `test_pca_variance_preservation`: PASSED
-  - `test_score_range_and_rank_preservation`: PASSED (bounds in [0.0, 1.0], Spearman rank correlation >= 0.70)
-
-- **`tests/test_fast_cointegration.py`**:
-  - `test_kmeans_optics_pre_clustering`: PASSED
-  - `test_two_stage_filtering_recall`: PASSED
-  - `test_log_price_adf_and_half_life`: PASSED
-  - `test_fast_scan_edge_cases`: PASSED
-  - `test_benchmark_3379_symbols_under_30s`: PASSED
-
-- **`tests/test_empirical_concurrency_m1_2.py`**:
-  - `test_direct_sqlite_high_concurrency_50_writers_10_readers`: PASSED (50 writer threads + 10 reader threads, 0 database lock errors, 100% data value integrity)
-  - `test_parquet_wal_unnamed_index_vulnerability`: PASSED (0 NaT date index corruption)
+### 1.2 Empirical Execution Evidence
+1. **Verification Tool Run on Workspace Results**:
+   - Command: `.venv\Scripts\python.exe trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages`
+   - Result: Dynamic inspection completed. Correctly validated all 31 HTML panels in `gh-pages/index.html` (e.g., `ensemble`: 376 rows, `lstm`: 303 rows, `darkpool`: 102 rows) and accurately reported market file availability status without false passes.
+2. **Pytest Unit & Regression Test Suite**:
+   - Command: `.venv\Scripts\pytest.exe tests/test_verify_gha_artifacts.py tests/test_merge_generic_strategies.py tests/test_strategy_correlation_monitor.py tests/test_merge_predictions_stress.py tests/test_score_normalizer.py tests/test_critical_bugs.py -v`
+   - Result: **119 passed, 0 failed in 26.72s** (100% pass rate).
 
 ---
 
 ## 2. Logic Chain
 
-1. **Premise 1**: A work product violates integrity if it contains hardcoded expected test outputs, facade/stub implementations lacking real business logic, mock overrides in production execution paths, or pre-fabricated verification logs designed to fake compliance.
-2. **Observation 1**: Comprehensive line-by-line inspection of `factor_orthogonalizer.py`, `ensemble_scorer.py`, `stat_arb.py`, and `hybrid_storage.py` confirmed 100% genuine algorithmic implementations (Gram-Schmidt & ZCA matrix whitening, 17-strategy dynamic ensemble scoring, OPTICS/K-Means cointegration scanning, and Parquet WAL thread-safe storage). No hardcoding, shortcuts, or facades were present.
-3. **Premise 2**: Software functionality must be empirically validated by running tests under standard test runners without mock overrides.
-4. **Observation 2**: Execution of the pytest suite via `.venv\Scripts\python.exe -m pytest` yielded 13 passing test assertions across unit, benchmark, and empirical concurrency stress tests.
-5. **Conclusion**: Because zero integrity violations were detected in source code inspection and all behavioral tests passed authentically, the work product for Milestone 2 satisfies all forensic integrity criteria.
+1. **Phase 1: Mode-Agnostic Forensic Analysis**:
+   - **Hardcoded Test Results Check**: PASS. Functions in `verify_gha_artifacts.py` parse raw text lines, extract float/percentage values, and evaluate counts dynamically against `MIN_ITEMS_PER_STRATEGY = 10`. When run against the workspace results snapshot, it accurately flagged incomplete market files rather than returning dummy passes.
+   - **Facade Detection Check**: PASS. All 31 strategy definitions in `STRATEGY_REGISTRY` connect to real evaluation engines (`_eval_lstm`, `_eval_darkpool`, `_eval_earnings_tone_drift`, etc.) that compute actual multi-factor scores and write real prediction files.
+   - **Pre-populated / Fabricated Output Check**: PASS. No fake logs or pre-baked result attestations exist. All tests ran dynamically against mock temporary directories and real workspace directories.
+   - **Self-Certifying Tests Check**: PASS. `test_verify_gha_artifacts.py` exercises parsing logic against synthetic test fixtures and verifies edge cases (empty strings, "데이터 없음", boundary rows).
+   - **Execution Delegation Check**: PASS. No unauthorized external tools or circumventing libraries are invoked.
+
+2. **Phase 2: Mode-Specific Flagging**:
+   - Under Development Mode (specified in `ORIGINAL_REQUEST.md`), all 5 integrity categories passed with zero flags.
+   - The canonical sequence (1..31) is strictly maintained across `run_pipeline.py`, `AGENTS.md`, `verify_gha_artifacts.py`, `SKILL.md`, and the automated test suite.
 
 ---
 
 ## 3. Caveats
 
-- **Environmental Load Sensitivity**: The benchmark test `test_benchmark_3379_symbols_under_30s` takes ~29.5s to 31.8s depending on background system CPU load. When executed standalone without concurrent test processes, it finishes well within the SLA target.
-- **Scope Limit**: Audit scope was strictly bounded to Milestone 2 deliverables and direct dependencies. Subsequent milestones (M3 Portfolio Allocator & M4 Execution Engine) were not evaluated in this audit.
+- In `verify_gha_artifacts.py`, execution against local `trading_system/result` evaluates existing artifact snapshots; some individual per-market split files from prior runs have partial coverage, which the tool faithfully identifies without masking errors.
+- No caveats regarding code modifications or test validity.
 
 ---
 
 ## 4. Conclusion
 
-**Verdict**: **CLEAN**
+**Verdict: CLEAN**
 
-All code added or modified for Milestone 2 (`factor_orthogonalizer.py`, `ensemble_scorer.py`, `stat_arb.py`, `hybrid_storage.py`) represents authentic, production-grade logic. No hardcoded test results, facade implementations, mock overrides in production paths, or cheating were found. All tests executed and passed cleanly.
+Milestone 2 changes strictly satisfy all integrity requirements. The 31-strategy canonical sequence is uniformly applied across all orchestrator files, documentation, verification tools, skills, and tests without dummy facades or hardcoded shortcuts.
 
 ---
 
 ## 5. Verification Method
 
-To independently verify this forensic audit:
+To independently reproduce the forensic audit:
 
-1. **Inspect Target Source Files**:
-   - `trading_system/src/ai/factor_orthogonalizer.py`
-   - `trading_system/src/ai/ensemble_scorer.py`
-   - `trading_system/src/core/stat_arb.py`
-   - `trading_system/src/data_layer/hybrid_storage.py`
+```powershell
+# 1. Execute dedicated artifact verifier tests
+.venv\Scripts\pytest.exe tests/test_verify_gha_artifacts.py -v
 
-2. **Execute Test Suite**:
-   ```bash
-   .venv\Scripts\python.exe -m pytest tests/test_factor_orthogonalization.py tests/test_fast_cointegration.py tests/test_empirical_concurrency_m1_2.py -v
-   ```
+# 2. Execute full regression suite (119 tests)
+.venv\Scripts\pytest.exe tests/test_verify_gha_artifacts.py tests/test_merge_generic_strategies.py tests/test_strategy_correlation_monitor.py tests/test_merge_predictions_stress.py tests/test_score_normalizer.py tests/test_critical_bugs.py -v
 
-3. **Invalidation Conditions**:
-   - Any insertion of hardcoded expected return/score values in production functions.
-   - Operational database lock errors during multi-threaded stress tests.
-   - Failure of Gram-Schmidt or ZCA decorrelation to suppress average off-diagonal strategy correlation below 0.30.
+# 3. Execute artifact verification tool
+.venv\Scripts\python.exe trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages
+```

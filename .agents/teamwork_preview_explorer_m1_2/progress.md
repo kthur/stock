@@ -1,17 +1,12 @@
-# Progress — Explorer M1-2
+# Progress — Milestone 1 Investigation
 
-- Last visited: 2026-08-29T13:41:00Z
-- Status: Investigation Complete — Handoff Report and Analysis Delivered
-- Tasks completed:
-  - [x] Read DISPATCH.md, PROJECT.md, and ORIGINAL_REQUEST.md
-  - [x] Audit `src/core/llm_sentiment_engine.py`
-  - [x] Audit `src/core/tone_drift.py` / `src/core/earnings_tone_drift.py`
-  - [x] Audit `src/core/insider_buying.py`
-  - [x] Check `trading_system/run_pipeline.py` integration and invocation of these 3 strategies
-  - [x] Check `src/ai/ensemble_scorer.py` and `generate_report.py` handling of these 3 strategies
-  - [x] Formulate robust proxy ranking calculations for offline/missing API environments
-  - [x] Write `analysis.md`
-  - [x] Write `handoff.md`
-  - [x] Send message to parent orchestrator
+Last visited: 2026-08-31T14:57:45Z
 
-
+- [x] Initialized DISPATCH.md, BRIEFING.md, and progress.md
+- [x] Read ORIGINAL_REQUEST.md and PROJECT.md
+- [x] Inspected download_db.py, preseed_data.py, src/persistence/database.py, src/data_layer/indicator_storage.py, src/data_layer/earnings_data.py
+- [x] Analyzed 5 markets seeding/caching in GHA and local runs
+- [x] Checked edge cases (dynamic filing lag, Azure blob token stripping, SQLite WAL locks/concurrency)
+- [x] Ran unit and concurrency tests (`tests/test_database.py`, `tests/test_database_concurrency.py`, `tests/test_multi_market_expansion.py`) — 100% passed (23/23)
+- [x] Drafted comprehensive report.md and handoff.md
+- [x] Send completion message to parent

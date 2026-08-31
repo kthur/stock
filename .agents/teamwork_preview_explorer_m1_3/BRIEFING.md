@@ -1,46 +1,45 @@
-# BRIEFING — 2026-08-29T13:38:55Z
+# BRIEFING — 2026-08-31T14:58:35Z
 
 ## Mission
-Investigate strategy report saving and multi-market file output in `run_pipeline.py`, focusing on NaN score handling, 0-row file generation reasons, per-market split file generation across all 5 markets, and recommendations to ensure valid rankings are saved.
+Investigate Milestone 1 (R1: Model Training & Inference Pipelines Integrity) - XGBoost Regression, Surge, VCP ML, and LSTM models training/loading/inference pathways, error handling, fallbacks, and model artifact paths.
 
 ## 🔒 My Identity
-- Archetype: explorer
-- Roles: Teamwork explorer (investigation, synthesis)
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3
-- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Milestone: Milestone 1: Strategy Fallback Scoring & Report Saving
+- Archetype: Explorer
+- Roles: Read-only investigator, synthesizer
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\
+- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Milestone: Milestone 1 (R1: Model Training & Inference Pipelines Integrity)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement changes in source code outside working directory
-- Provide concrete evidence-based observations with exact file paths and line numbers
-- Output comprehensive handoff report to `handoff.md`
+- Read-only investigation — do NOT implement
+- Verify model training per market with SKIP_TRAINING=False and loading/inference with SKIP_TRAINING=True
+- Check fallback heuristics, error handling, and model artifact paths in trading_system/models/
 
 ## Current Parent
-- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Updated: 2026-08-29T13:38:55Z
+- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Updated: 2026-08-31T14:58:35Z
 
 ## Investigation State
 - **Explored paths**:
-  - `trading_system/run_pipeline.py` (`_save_strategy_predictions_report`, `_get_target_markets_to_save`, strategy execution blocks 1-34)
-  - `trading_system/result/` (analyzed 0-row files: `sentiment_predictions.txt`, `accruals_quality_predictions.txt`, `earnings_tone_drift_predictions.txt`, `valueup_catalyst_predictions.txt`, etc.)
-  - Strategy engines: `accruals_quality.py`, `valueup_catalyst.py`, `earnings_tone_drift.py`, `insider_buying.py`, `llm_sentiment_engine.py`, `rim_valuation.py`
-  - `.github/workflows/pipeline.yml` (GHA matrix artifact creation and splitting)
-  - `trading_system/merge_predictions.py` and `trading_system/generate_report.py`
+  - `trading_system/run_pipeline.py`
+  - `trading_system/src/ai/prediction_model.py`
+  - `trading_system/src/ai/vcp_ml_predictor.py`
+  - `trading_system/src/ai/lstm_predictor.py`
+  - `trading_system/src/ai/model_cache.py`
+  - `trading_system/src/ai/model_io.py`
+  - `trading_system/scripts/verify_gha_artifacts.py`
+  - `.github/workflows/training.yml`
+  - `.github/workflows/pipeline.yml`
+  - `tests/test_prediction_model.py`, `tests/test_lstm_predictor.py`, `tests/test_vcp_ml_fallback.py`
 - **Key findings**:
-  - Strategy engines returned all-NaN scores when external APIs / balance sheets were absent.
-  - `_save_strategy_predictions_report()` ran `dropna(subset=[score_col])`, stripping all rows from `merged` (`len(merged) == 0`).
-  - `_write_content` wrote headers with `Total symbols evaluated: 0` and 0 data rows.
-  - The per-market loop skipped writing all `<strategy>_<MARKET>.txt` files due to `if _m_df.empty: continue`.
-  - Downstream `merge_predictions.py` and `generate_report.py` consequently rendered `데이터 없음` across all markets.
-- **Unexplored areas**: None within Milestone 1 scope.
+  - Full analysis of Regression, Surge, VCP ML, and LSTM model training, artifact serialization, cache verification, and fallback heuristics completed.
+  - Confirmed 100% test pass on prediction model test suite.
+  - Formulated worker recommendations for workflow and artifact validation.
+- **Unexplored areas**: None for M1-3 scope.
 
 ## Key Decisions Made
-- Formulated two-pronged recommendation:
-  1) Fallback heuristic scoring in strategy engines (fixing the root source of NaNs).
-  2) Defensive imputation and market code normalization in `_save_strategy_predictions_report()` to prevent dropping rows and ensure per-market split files are always generated.
+- Completed deep dive on 4 ML model families and delivered `report.md` and `handoff.md`.
 
 ## Artifact Index
-- DISPATCH.md — Recorded dispatch request
-- BRIEFING.md — Persistent working memory
-- progress.md — Heartbeat and progress tracker
-- handoff.md — Comprehensive handoff report
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\report.md` — Comprehensive findings on M1 (R1)
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\handoff.md` — Standard 5-component handoff report

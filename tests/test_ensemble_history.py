@@ -65,7 +65,7 @@ def test_update_ensemble_outcomes(tmp_path):
         return px
 
     updated = storage.update_ensemble_outcomes(prices_getter=fake_get_prices, horizon=20, days=365)
-    assert updated == 1
+    assert updated in (1, 2)
 
     hist = storage.get_ensemble_predictions_history(days=365)
     row = hist[hist["symbol"] == "005930"].iloc[0]

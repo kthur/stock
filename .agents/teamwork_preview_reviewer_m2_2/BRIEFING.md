@@ -1,63 +1,58 @@
-# BRIEFING — 2026-08-29T23:11:15+09:00
+# BRIEFING — 2026-09-01T00:22:20+09:00
 
 ## Mission
-Independently review and adversarial-stress-test Milestone 2: Multi-Market Merge Synchronization across SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ, and KONEX, verify header deduplication for Pair/No./Symbol/Rank/Filters, and verify test suites.
+Review Milestone 2 (R2: Artifact Verification & SKILL Coverage) - 31-strategy artifact verifier and skill coverage.
 
 ## 🔒 My Identity
-- Archetype: reviewer_m2_2
+- Archetype: reviewer / critic
 - Roles: reviewer, critic
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2
-- Original parent: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Milestone: Milestone 2: Multi-Market Merge Synchronization
-- Instance: 2 of 2
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2\
+- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Milestone: Milestone 2 (R2)
+- Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code directly
-- Adversarial integrity checking: check for hardcoding, facade logic, bypassed tasks, fabricated verification
-- Explicit verdict: APPROVE or REQUEST_CHANGES
+- Review-only — do NOT modify implementation code
+- Verify all 31 strategies and 31 HTML panels are properly checked
+- Check for integrity violations (hardcoded values, bypasses, dummy logic)
+- Provide objective review, adversarial challenge, and handoff report
 
 ## Current Parent
-- Conversation ID: 4a57e5b5-0c64-4358-b369-c7c1f1986502
-- Updated: 2026-08-29T23:11:15+09:00
+- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Updated: not yet
 
 ## Review Scope
 - **Files to review**:
-  - `trading_system/merge_predictions.py`
-  - `trading_system/generate_report.py`
-  - `trading_system/run_pipeline.py`
-  - `tests/test_merge_generic_strategies.py`
-  - `tests/test_report_generator_hrp.py`
-  - `tests/test_challenger_rim_2_stress.py`
-  - Upstream worker handoff: `.agents/teamwork_preview_worker_m2/handoff.md`
-- **Interface contracts**: `PROJECT.md`, `.agents/ORIGINAL_REQUEST.md`
-- **Review criteria**: Multi-market merge sync, 5 markets + KONEX, header deduplication (Pair, No., Symbol, Rank, Filters:), test suite pass, integrity & edge case robustness.
+  - `trading_system/scripts/verify_gha_artifacts.py`
+  - `.agents/skills/gha-artifact-verifier/SKILL.md`
+  - `tests/test_verify_gha_artifacts.py`
+  - Worker handoff: `.agents/teamwork_preview_worker_m2/handoff.md`
+- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `AGENTS.md`
+- **Review criteria**: Correctness, completeness (all 31 strategies & panels), robustness, error handling, test coverage, integrity.
 
 ## Review Checklist
 - **Items reviewed**:
-  - Multi-market discovery (`discover_target_markets`) supporting dedicated directories (`result_{m}`, `result-{m}`, etc.), multi-probe file patterns, and dynamic suffix discovery.
-  - Multi-market coverage across all 5 core markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ) and KONEX.
-  - Header deduplication in `merge_generic_strategy_files` for `Filters:`, `Rank`, `Pair`, `No.`, `Symbol`, and unicode/ASCII divider lines (`---`, `───`, `===`, `═══`).
-  - Section extraction in `_extract_ensemble_market_section` with dual-tier regex & state machine parsing and trailing footer stripping.
-  - Full test suite execution: `tests/test_merge_generic_strategies.py`, `tests/test_report_generator_hrp.py`, `tests/test_challenger_rim_2_stress.py` (74 passed in 17.52s).
-  - Standalone script runs for `trading_system/merge_predictions.py` and `trading_system/generate_report.py` (5621 KB HTML output generated cleanly).
+  - `trading_system/scripts/verify_gha_artifacts.py` (canonical list 1..31, STRATEGY_PANEL_ALIASES, check_funcs, verify_gh_pages)
+  - `.agents/skills/gha-artifact-verifier/SKILL.md` (all 31 strategies documented in YAML and markdown table)
+  - `tests/test_verify_gha_artifacts.py` (8 test functions)
+  - `trading_system/run_pipeline.py` (STRATEGY_REGISTRY & verification_files)
+  - `AGENTS.md` (canonical strategy table, Mermaid diagram, key files)
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims independently verified.
+- **Unverified claims**: None (all claims verified via independent tests and tool execution)
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Missing surge predictions causing dropped markets: Solved by multi-probe discovery across multiple strategy files.
-  - Header leaking into data rows: Solved by explicit match on `Pair`, `No.`, `Symbol`, `Rank`, `Filters:`, dividers and deduplication prefix caching.
-  - Self-referencing bug when split files are missing: Pre-read content and `all_fallbacks_self_ref` check guards against file truncation.
-  - Trailing footer leakage: Stripped `--- Data Quality Notes`, `--- Applied Strategy Weights`, `--- Executive Summary`, `=== Dynamic Multi-Strategy`.
-  - Integrity violation checks: No hardcoded test responses, no facade logic, authentic generic data parsing and merging.
-- **Vulnerabilities found**: None.
-- **Untested angles**: None.
+  - Strategy count != 31 or inverted ordering (Passed, exactly 31 items verified)
+  - Missing HTML panel alias resolution (Passed, 32 panel aliases verified)
+  - Empty or corrupt files / encoding mismatch (Passed, tested & verified)
+  - Hardcoded test passes / integrity violations (None detected)
+- **Vulnerabilities found**: None
+- **Untested angles**: None
 
 ## Key Decisions Made
-- Confirmed full compliance with Milestone 2 requirements and issued explicit verdict: APPROVE.
+- Confirmed full compliance with Milestone 2 acceptance criteria.
+- Issued APPROVE verdict.
 
 ## Artifact Index
-- `handoff.md` — Final review and handoff report
-- `DISPATCH.md` — Incoming dispatch logs
-- `BRIEFING.md` — Working memory and status
-- `progress.md` — Progress tracker
+- `.agents/teamwork_preview_reviewer_m2_2/review_report.md` — Detailed review & challenge report
+- `.agents/teamwork_preview_reviewer_m2_2/handoff.md` — 5-component handoff report
