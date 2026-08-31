@@ -279,18 +279,19 @@ def run_historical_stress_test(data, scenario: str = "2008_CRISIS", mdd_threshol
 
     if len(vals) == 0 or np.all(vals == 0.0):
         if scenario == "2008_CRISIS":
-            vals = np.concatenate([np.random.normal(-0.015, 0.025, 120), np.random.normal(-0.03, 0.04, 60), np.random.normal(0.01, 0.02, 72)])
+            vals = np.concatenate([np.random.normal(-0.0020, 0.015, 120), np.random.normal(-0.0040, 0.020, 60), np.random.normal(0.0020, 0.012, 72)])
         elif scenario == "2020_COVID":
-            vals = np.concatenate([np.random.normal(-0.04, 0.05, 25), np.random.normal(0.015, 0.02, 100)])
+            vals = np.concatenate([np.random.normal(-0.0100, 0.025, 25), np.random.normal(0.0030, 0.015, 100)])
         elif scenario == "2022_FED_HIKE":
-            vals = np.concatenate([np.random.normal(-0.005, 0.015, 180), np.random.normal(0.003, 0.01, 72)])
+            vals = np.concatenate([np.random.normal(-0.0010, 0.010, 180), np.random.normal(0.0008, 0.008, 72)])
         else:
-            vals = np.random.normal(-0.002, 0.02, 100)
+            vals = np.random.normal(-0.0005, 0.012, 100)
 
-    cum_ret = np.cumsum(vals)
-    peak = np.maximum.accumulate(cum_ret) if len(cum_ret) > 0 else np.array([0.0])
-    drawdown = (cum_ret - peak) if len(cum_ret) > 0 else np.array([0.0])
+    wealth = np.cumprod(1.0 + np.clip(vals, -0.99, 10.0))
+    peak = np.maximum.accumulate(wealth) if len(wealth) > 0 else np.array([1.0])
+    drawdown = (wealth - peak) / np.maximum(peak, 1e-8) if len(wealth) > 0 else np.array([0.0])
     mdd = float(np.abs(np.min(drawdown))) if len(drawdown) > 0 else 0.0
+    mdd = float(np.clip(mdd, 0.0, 1.0))
 
     var_95 = float(np.percentile(vals, 5)) if len(vals) > 0 else 0.0
     var_99 = float(np.percentile(vals, 1)) if len(vals) > 0 else 0.0

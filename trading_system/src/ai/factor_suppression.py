@@ -225,12 +225,12 @@ class RegimeFactorSuppressionEngine:
             denom = np.sqrt(1.0 + lambda_val * weighted_excess_sq_sum)
             corr_penalty = float(1.0 / denom)
 
-            # Direct VIF multi-way collinearity damping
+            # Direct VIF multi-way collinearity damping (V7-05: relaxed threshold to 10.0 for 31-strategy ensemble)
             vif_damping = 1.0
             if vif_dict and strat_i in vif_dict:
                 vif_val = float(vif_dict[strat_i])
-                if vif_val > 5.0:
-                    vif_damping = min(1.0, np.sqrt(5.0 / max(vif_val, 1e-6)))
+                if vif_val > 10.0:
+                    vif_damping = min(1.0, np.sqrt(10.0 / max(vif_val, 1e-6)))
 
             # Prevent double-penalizing: apply the stricter of correlation excess or VIF damping
             penalty_i = min(corr_penalty, vif_damping)

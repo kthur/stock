@@ -1137,10 +1137,12 @@ class EnsembleScoringEngine:
             # Instant reset on regime transition to avoid carrying over obsolete regime dynamics
             self._prev_weights[market] = dict(dynamic_weights)
             return dynamic_weights
+        elif vix_val is not None and float(vix_val) >= 30.0:
+            eff_alpha = 0.60
         elif has_explicit_tilting:
+            eff_alpha = 0.45
+        elif vix_val is not None and float(vix_val) > 22.0:
             eff_alpha = 0.35
-        elif vix_val is not None and float(vix_val) > 25.0:
-            eff_alpha = 0.30
         else:
             eff_alpha = self.alpha_smoothing
 
@@ -2674,7 +2676,16 @@ class EnsembleScoringEngine:
             score_centered = np.clip(ens_scores - 0.50, -0.50, 0.50)
         # Power-law convex transformation: Softened to 1.10 to prevent over-suppressing high-conviction signals (e.g. 0.75 score)
         convex_alpha = np.sign(score_centered) * (np.abs(score_centered * 2.0) ** 1.10)
-        raw_exp_ret = convex_alpha * float(self._return_multiplier) * horizon_scale * regime_elasticity
+        # Regime-dynamic return multiplier (V7-09: 25.0 in Bull, 20.0 in Normal, 15.0 in High Vol, 10.0 in Crisis)
+        if 'BULL' in regime_str or str(regime) == '2':
+            regime_multiplier = 25.0
+        elif 'CRISIS' in regime_str:
+            regime_multiplier = 10.0
+        elif 'BEAR' in regime_str or 'HIGH_VOL' in regime_str or str(regime) == '0':
+            regime_multiplier = 15.0
+        else:
+            regime_multiplier = float(self._return_multiplier)
+        raw_exp_ret = convex_alpha * regime_multiplier * horizon_scale * regime_elasticity
 
         # Microstructure execution model: Sell-side STT tax, SEC fees, dynamic Bid-Ask spread,
         # and Kyle/Almgren-Chriss Square-Root Market Impact Cost modeling.
@@ -2877,12 +2888,18 @@ class EnsembleScoringEngine:
         adv_ref[m_canada] = 800_000.0
         impact_coeff[m_canada] = 0.50
 
+        # Extract real 20-day Average Daily Volume (turnover)
+        vol_col = merged['volume'] if 'volume' in merged.columns else pd.Series(0.0, index=merged.index)
+        close_col = merged['close'] if 'close' in merged.columns else (merged['close_price'] if 'close_price' in merged.columns else pd.Series(0.0, index=merged.index))
+        turnover = vol_col.values * close_col.values
+
         min_adv = np.where(is_us_stock, 10_000.0, 10_000_000.0)
         adv = np.where(turnover > 0, np.maximum(turnover, min_adv), adv_ref)
 
         adv_ratio = adv_ref / adv
         vol_ratio = vols / 0.020
-        dynamic_spread = base_spread * (adv_ratio ** 0.25) * (vol_ratio ** 0.50)
+        # Dynamic Ticker-tier spread adjustment (V7-18: tighter spreads for high-ADV liquid leaders)
+        dynamic_spread = base_spread * (adv_ratio ** 0.20) * (vol_ratio ** 0.40)
         clamped_spread = np.clip(dynamic_spread, spread_min, spread_max)
 
         n_slices = max(1, int(getattr(self.config, 'twap_execution_slices', 4) if self.config else 4))
@@ -2902,13 +2919,11 @@ class EnsembleScoringEngine:
         cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
         max_cost_cap = np.where(ov_mask, 0.20, 0.05)
         cost_series = np.minimum(raw_total_cost * cost_scaling, max_cost_cap)
-        # Holding-period amortized cost drag: short-horizon trades (1-3d) should not
-        # bear the same round-trip cost as 20d trades. Scale cost by sqrt(20/h) so
-        # high-conviction short-term surge signals are not over-penalized.
-        horizon_cost_amort = float(np.clip(np.sqrt(20.0 / max(1, h_int)), 0.5, 4.5))
-        amortized_cost_pct = cost_series * 100.0 * horizon_cost_amort
+        # Fixed roundtrip friction cost (V7-01: Remove artificial 4.47x multiplier on short-horizon trades)
+        # Leland buffer bands and turnover manager protect against excessive churn
+        friction_cost_pct = cost_series * 100.0
         # Preserve non-negative expected return proxy for downstream allocation
-        merged['ensemble_expected_return'] = np.clip(raw_exp_ret - amortized_cost_pct, 0.0, 50.0)
+        merged['ensemble_expected_return'] = np.clip(raw_exp_ret - friction_cost_pct, 0.0, 50.0)
 
         # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)
         if sentiment_blacklist:
@@ -2957,7 +2972,13 @@ class EnsembleScoringEngine:
 
         merged['lot_size'] = merged.apply(_calc_lot_size, axis=1)
         merged['min_order_qty'] = merged['lot_size']
-        close_series = pd.to_numeric(merged.get('close', merged.get('close_price', 0.0)), errors='coerce').fillna(0.0)
+
+        if 'close' in merged.columns:
+            close_series = pd.to_numeric(merged['close'], errors='coerce').fillna(0.0)
+        elif 'close_price' in merged.columns:
+            close_series = pd.to_numeric(merged['close_price'], errors='coerce').fillna(0.0)
+        else:
+            close_series = pd.Series(0.0, index=merged.index)
         merged['min_order_amount'] = close_series * merged['lot_size'].astype(float)
 
         port_cap = getattr(self.config, 'portfolio_capital_krw', 100_000_000.0) if self.config else 100_000_000.0
@@ -2977,10 +2998,11 @@ class EnsembleScoringEngine:
 
         # ─── Portfolio Optimization & Risk Parity Weight Allocation ─────────────
         merged['portfolio_weight'] = 0.0
-        # Dynamic Alpha Hurdle Rate & High-Conviction Selection (concentrates capital into top 5~12 alpha leaders)
+        # Dynamic 90th-percentile Alpha Hurdle Rate (V7-08: Concentrates capital into top 5~12 alpha leaders without low-conviction drag)
         if len(merged) >= 5:
-            top5_mean_ret = float(merged['ensemble_expected_return'].head(5).mean())
-            alpha_hurdle = max(0.50, min(10.0, top5_mean_ret * 0.40))
+            ret_vals = merged['ensemble_expected_return'].dropna().values
+            p90_hurdle = float(np.percentile(ret_vals, 90.0)) if len(ret_vals) > 0 else 0.50
+            alpha_hurdle = max(0.20, min(10.0, p90_hurdle))
             hurdle_mask = (merged['ensemble_expected_return'] >= alpha_hurdle)
             n_selected = int(np.clip(hurdle_mask.sum(), 5, 12))
             top_candidates = merged.head(n_selected)

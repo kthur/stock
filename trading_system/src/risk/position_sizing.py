@@ -53,7 +53,7 @@ class PortfolioAllocator:
     def __init__(self,
                  max_single_position: float = 0.15,
                  min_single_position: float = 0.02,
-                 max_total_allocation: float = 0.85,
+                 max_total_allocation: float = 0.95,
                  max_sector_exposure: float = 0.30,
                  target_horizon: int = 20,
                  use_kelly: bool = True,
@@ -66,7 +66,7 @@ class PortfolioAllocator:
         s_min_single = s_min_single / 100.0 if s_min_single > 1.0 else s_min_single
         self.min_single_position = max(0.0, min(1.0, s_min_single))
 
-        s_tot = float(max_total_allocation) if (max_total_allocation is not None and np.isfinite(max_total_allocation)) else 0.85
+        s_tot = float(max_total_allocation) if (max_total_allocation is not None and np.isfinite(max_total_allocation)) else 0.95
         s_tot = s_tot / 100.0 if s_tot > 1.0 else s_tot
         self.max_total_allocation = max(0.0, min(1.0, s_tot))
 
@@ -205,6 +205,8 @@ class PortfolioAllocator:
                  use_kelly: Optional[bool] = None,
                  kelly_fraction: Optional[float] = None,
                  use_hrp: bool = False,
+                 use_herc: bool = False,
+                 use_conviction: bool = False,
                  sector_map: Optional[Dict[str, str]] = None,
                  regime: Optional[Any] = None,
                  market_col: Optional[str] = 'market',
@@ -410,7 +412,7 @@ class PortfolioAllocator:
             if len(symbols) > 1 and 'cov_mat' in locals() and cov_mat.shape == (len(symbols), len(symbols)):
                 if np.any(np.isnan(cov_mat)):
                     np.fill_diagonal(cov_mat, np.nan_to_num(np.diag(cov_mat), nan=1e-4))
-                if locals().get('use_herc', False):
+                if use_herc:
                     hrp_w = calculate_herc_weights(cov_mat, symbols=symbols)
                 else:
                     hrp_w = calculate_hrp_weights(cov_mat, symbols=symbols)
@@ -443,7 +445,6 @@ class PortfolioAllocator:
             effective_min_pos = 0.02  # 최소 투자비중 2.0%
             effective_max_alloc = min(self.max_total_allocation, 0.50)
         else:
-            # 횡보장 / 기본 미지정 레짐: 안정적 분산 및 사용자가 지정한 max_total_allocation 준수
             max_top_n = 20
             effective_min_pos = 0.01
             effective_max_alloc = self.max_total_allocation
@@ -451,7 +452,7 @@ class PortfolioAllocator:
         # Select top candidates based on regime dynamics
         df_candidates = df_candidates.sort_values('raw_score', ascending=False).head(max_top_n).copy()
 
-        if locals().get('use_conviction', False):
+        if use_conviction:
             # Conviction Alpha Precision Sizing (Information Ratio Maximizer)
             conv_w = self.calculate_conviction_alpha_weights(
                 expected_returns=df_candidates['net_return'].values,
@@ -460,13 +461,13 @@ class PortfolioAllocator:
                 max_single_cap=self.max_single_position
             )
             df_candidates['weight'] = conv_w * effective_max_alloc
-        elif use_hrp:
+        elif use_hrp or use_herc:
             # C2 FIX: After Top-N slicing, HRP weights only sum to a fraction of 1.0
             # (e.g. 0.40 if 15 of 60 stocks selected). Renormalize UP to effective_max_alloc.
             current_hrp_sum = df_candidates['weight'].sum()
             if current_hrp_sum > 1e-8 and current_hrp_sum < effective_max_alloc:
                 df_candidates['weight'] = (df_candidates['weight'] / current_hrp_sum) * effective_max_alloc
-                logger.info(f"[HRP] Renormalized weights after Top-N slicing: {current_hrp_sum:.3f} -> {effective_max_alloc:.3f}")
+                logger.info(f"[HRP/HERC] Renormalized weights after Top-N slicing: {current_hrp_sum:.3f} -> {effective_max_alloc:.3f}")
         elif use_kelly:
             # ── Layer 3: Kelly raw_score × Market Budget ──
             df_candidates['weight'] = df_candidates['raw_score'] * df_candidates['market_budget']
@@ -486,11 +487,13 @@ class PortfolioAllocator:
                 market_weights.append(grp)
             df_candidates = pd.concat(market_weights).sort_values('raw_score', ascending=False)
 
+        df_candidates = df_candidates.reset_index(drop=True)
+
         # Enforce maximum single position constraints
         df_candidates['weight'] = df_candidates['weight'].clip(upper=self.max_single_position)
 
         # Filter out positions that are too small based on regime-adaptive minimum
-        df_candidates = df_candidates[df_candidates['weight'] >= effective_min_pos].copy()
+        df_candidates = df_candidates[df_candidates['weight'] >= effective_min_pos].copy().reset_index(drop=True)
 
         # Enforce maximum total allocation
         current_sum = df_candidates['weight'].sum()
@@ -499,16 +502,18 @@ class PortfolioAllocator:
 
         # Enforce sector risk cap
         effective_sector_map = sector_map or {}
-        if 'sector' in df_candidates.columns or effective_sector_map:
-            if 'sector' not in df_candidates.columns:
-                df_candidates['sector'] = df_candidates['symbol'].map(lambda s: effective_sector_map.get(s, "Unknown"))
+        if effective_sector_map:
+            df_candidates['sector'] = df_candidates['symbol'].map(effective_sector_map).fillna(df_candidates.get('sector', 'Unknown'))
+        elif 'sector' not in df_candidates.columns:
+            df_candidates['sector'] = 'Unknown'
 
+        if 'sector' in df_candidates.columns:
             sector_totals = df_candidates.groupby('sector')['weight'].sum()
             for sec, sec_weight in sector_totals.items():
-                if sec_weight > self.max_sector_exposure and sec_weight > 0:
-                    scale = self.max_sector_exposure / sec_weight
-                    sec_mask = df_candidates['sector'] == sec
-                    df_candidates.loc[sec_mask, 'weight'] *= scale
+                if sec != 'Unknown' and sec_weight > self.max_sector_exposure and sec_weight > 0:
+                    scale = float(self.max_sector_exposure / sec_weight)
+                    sec_mask = (df_candidates['sector'] == sec)
+                    df_candidates.loc[sec_mask, 'weight'] = df_candidates.loc[sec_mask, 'weight'] * scale
 
         # Compute capital allocation amounts and discrete lot sizing
         latest_prices = []
@@ -638,7 +643,7 @@ class PortfolioAllocator:
             prices=latest_prices,
             total_capital=total_portfolio_value,
             lot_sizes=lot_sizes,
-            max_single_cap=self.max_single_position,
+            max_single_cap=1.0,
             allow_greedy_remainder=True
         )
 

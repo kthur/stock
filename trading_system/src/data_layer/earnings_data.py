@@ -575,6 +575,29 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
             return await _do_request(new_session)
 
 
+def invalidate_cache_for_symbols(storage, symbols: List[str]) -> int:
+    """
+    V7-20: Immediately invalidates fundamental cache metadata for specific symbols
+    upon earnings announcement triggers (PEAD acceleration).
+    """
+    if not storage or not symbols:
+        return 0
+    try:
+        if hasattr(storage, 'delete_fundamental_meta'):
+            return storage.delete_fundamental_meta(symbols)
+        elif hasattr(storage, '_get_conn'):
+            with storage._SHARED_WRITE_LOCK:
+                with storage._get_conn() as conn:
+                    cursor = conn.cursor()
+                    placeholders = ','.join('?' for _ in symbols)
+                    cursor.execute(f"DELETE FROM fundamental_cache_meta WHERE symbol IN ({placeholders})", symbols)
+                    conn.commit()
+                    return cursor.rowcount
+    except Exception as e:
+        logger.warning(f"Failed to invalidate fundamental cache for symbols: {e}")
+    return 0
+
+
 def fetch_and_store_fundamentals_batch(
     symbols: List[str],
     symbol_market_map: Dict[str, str],
@@ -582,12 +605,16 @@ def fetch_and_store_fundamentals_batch(
     max_workers: int = 8,
     force_refetch: bool = False,
     shares_map: Optional[Dict[str, float]] = None,
+    invalidate_symbols: Optional[List[str]] = None,
 ) -> int:
     """
     Fetch fundamentals for a list of symbols and store in DB using ThreadPoolExecutor.
     Skips symbols that already have fresh fundamentals in DB (based on cache metadata).
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    if invalidate_symbols:
+        invalidate_cache_for_symbols(storage, invalidate_symbols)
 
     meta_cache = {}
     if hasattr(storage, 'get_fundamental_meta'):

@@ -6,7 +6,7 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 import pandas as pd
 import FinanceDataReader as fdr
 
@@ -183,8 +183,16 @@ class MarketIndicatorStorage:
 
     _SHARED_WRITE_LOCK = threading.Lock()
 
-    def __init__(self, db_path: str = str(_DEFAULT_INDICATORS_DB)):
-        self.db_path = db_path
+    def __init__(self, db_path: Union[str, Path] = str(_DEFAULT_INDICATORS_DB)):
+        p = Path(db_path)
+        if str(db_path) in ("market_indicators.db", str(_DEFAULT_INDICATORS_DB)) or p.name == "market_indicators.db":
+            if _DEFAULT_INDICATORS_DB.exists():
+                p = _DEFAULT_INDICATORS_DB
+            elif not p.is_absolute():
+                p = _TRADING_SYSTEM_ROOT / p
+        elif not p.is_absolute():
+            p = p.resolve()
+        self.db_path = str(p)
         # S6 fix: thread-safe write lock to prevent "database is locked" under ThreadPoolExecutor
         self._write_lock = MarketIndicatorStorage._SHARED_WRITE_LOCK
         self._local = threading.local()
@@ -1251,7 +1259,7 @@ class MarketIndicatorStorage:
         except Exception as e:
             logger.debug(f"Failed to auto-persist into ensemble_prediction_history: {e}")
 
-    def get_ensemble_predictions_history(self, days: int = 60,
+    def get_ensemble_predictions_history(self, days: int = 90,
                                          min_date: Optional[str] = None) -> Optional[pd.DataFrame]:
         """Retrieve ensemble predictions history from the last `days` days (inclusive of today).
 
@@ -1278,23 +1286,25 @@ class MarketIndicatorStorage:
         return df
 
     def update_ensemble_outcomes(self, prices_getter, horizon: int = 20,
-                                 days: int = 60, min_date: Optional[str] = None,
+                                 days: int = 90, min_date: Optional[str] = None,
                                  label_threshold: float = 0.0) -> int:
         """Backfill realized forward returns (1D, 5D, 20D) for stored ensemble predictions."""
         cutoff_date = (datetime.now(KST) - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
         with self._connect() as conn:
-            query = """
+            query_hist = """
                 SELECT DISTINCT run_id, date, symbol FROM ensemble_prediction_history
                 WHERE (actual_return_20d IS NULL OR outcome_return IS NULL)
                   AND date >= ?
             """  # nosec B608
-            rows = conn.execute(query, (cutoff_date,)).fetchall()
-            if not rows:
-                query_legacy = """
-                    SELECT DISTINCT 'legacy' as run_id, date, symbol FROM ensemble_predictions
-                    WHERE outcome_return IS NULL AND date >= ?
-                """
-                rows = conn.execute(query_legacy, (cutoff_date,)).fetchall()
+            rows_hist = conn.execute(query_hist, (cutoff_date,)).fetchall()
+
+            query_legacy = """
+                SELECT DISTINCT 'legacy' as run_id, date, symbol FROM ensemble_predictions
+                WHERE outcome_return IS NULL AND date >= ?
+            """
+            rows_legacy = conn.execute(query_legacy, (cutoff_date,)).fetchall()
+            rows = list(rows_hist) + list(rows_legacy)
+
         if not rows:
             return 0
 
@@ -1360,13 +1370,14 @@ class MarketIndicatorStorage:
             if main_ret is not None:
                 updates_legacy.append((float(main_ret), int(main_hit or 0), d, sym))
                 for r_id in r_ids:
-                    updates_hist.append((
-                        float(main_ret),
-                        ret_1d, hit_1d,
-                        ret_5d, hit_5d,
-                        ret_20d, hit_20d,
-                        r_id, sym
-                    ))
+                    if r_id != 'legacy':
+                        updates_hist.append((
+                            float(main_ret),
+                            ret_1d, hit_1d,
+                            ret_5d, hit_5d,
+                            ret_20d, hit_20d,
+                            r_id, sym
+                        ))
 
         if not updates_hist and not updates_legacy:
             return 0
@@ -1388,7 +1399,7 @@ class MarketIndicatorStorage:
                         updates_hist
                     )
                 conn.commit()
-        return len(updates_hist)
+        return len(updates_hist) + len(updates_legacy)
 
     def get_outcome_performance_summary(self, days: int = 60) -> Dict[str, Any]:
         """Compute realized outcome statistics (Hit Rate %, avg return, win rate) for predictions in last N days."""

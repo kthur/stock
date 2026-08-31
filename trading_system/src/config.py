@@ -101,11 +101,11 @@ class TradingConfig:
     mock_trading: bool = True  # 모의투자 API 연동 활성화 여부
     broker_type: str = "KIS"
     db_path: str = "market_indicators.db"
-    train_sample_sp500: Union[int, str] = 50
-    train_sample_krx: Union[int, str] = 50
-    train_start_date: str = "2023-01-01"
+    train_sample_sp500: Union[int, str] = "all"
+    train_sample_krx: Union[int, str] = "all"
+    train_start_date: str = "2018-01-01"
     train_seed: int = 42
-    stock_price_freshness_days: int = 7
+    stock_price_freshness_days: int = 1
     update_interval: int = 0
     skip_training: bool = False
     skip_inference: bool = False

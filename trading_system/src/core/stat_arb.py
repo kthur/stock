@@ -289,11 +289,15 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
                 'innovation_z': 0.0
             }
 
-        # Initialize State and Covariance
+        # Initialize State and Covariance (V7-14: Adaptive noise estimation)
+        res_var = float(np.var(np.array(y1) - np.array(y2))) if N >= 10 else 1e-3
+        eff_v_e = float(np.clip(res_var * 0.10, 1e-4, 5e-2)) if v_e == 1e-3 else float(v_e)
+        eff_delta_w = float(np.clip(eff_v_e * 0.05, 1e-5, 1e-3)) if delta_w == 1e-4 else float(delta_w)
+
         theta = np.zeros(2, dtype=np.float64)
         P = np.eye(2, dtype=np.float64) * 1.0
-        Q = np.eye(2, dtype=np.float64) * (delta_w / max(1e-6, 1.0 - delta_w))
-        R = float(v_e)
+        Q = np.eye(2, dtype=np.float64) * (eff_delta_w / max(1e-6, 1.0 - eff_delta_w))
+        R = float(eff_v_e)
 
         betas = np.zeros(N, dtype=np.float64)
         alphas = np.zeros(N, dtype=np.float64)

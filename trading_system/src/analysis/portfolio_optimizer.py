@@ -734,9 +734,11 @@ def apply_portfolio_constraints(
                             break
                         for f_idx in np.where(breaches)[0]:
                             target_scale = max_factor_exposure / max(1e-6, abs(exposures[f_idx]))
+                            # V7-12: Use damped reduction (1 + target_scale)/2 to avoid over-suppressing multi-factor loading stocks
+                            damped_scale = (1.0 + target_scale) * 0.50
                             f_col = f_mat[:, f_idx]
                             high_loading = np.abs(f_col) > np.median(np.abs(f_col))
-                            w[high_loading] *= target_scale
+                            w[high_loading] *= damped_scale
                         sum_w = np.sum(w)
                         if sum_w > 1e-12:
                             w /= sum_w
@@ -900,14 +902,16 @@ def discretize_weights_to_lot_sizes(
                 shares[idx] = 0
                 total_allocated -= cost_i
 
-    # 4. Greedy remainder lot allocation: distribute residual cash to top assets with highest remainder
-    remaining_cash = float(total_capital - np.sum(shares.astype(float) * p_arr))
+    # 4. Composite remainder lot allocation: distribute residual cash to top assets with highest composite conviction (V7-13)
+    target_budget_sum = float(np.sum(w_arr) * total_capital)
+    max_budget = min(total_capital, target_budget_sum) if target_budget_sum < (total_capital * 0.95) else total_capital
+    remaining_cash = float(max_budget - np.sum(shares.astype(float) * p_arr))
     if allow_greedy_remainder and remaining_cash > 0:
-        # Priority based on fractional lot remainder and original weight
         lot_costs = l_arr.astype(float) * p_arr
         valid_mask = (p_arr > 0) & (lot_costs > 0) & (shares >= m_arr)
         if np.any(valid_mask):
-            remainders = np.where(valid_mask, (raw_shares - shares.astype(float)) / l_arr.astype(float) + (w_arr * 0.1), -1.0)
+            # Composite priority: 50% fractional lot remainder + 50% target weight conviction
+            remainders = np.where(valid_mask, ((raw_shares - shares.astype(float)) / l_arr.astype(float) * 0.50) + (w_arr * 0.50), -1.0)
             priority_order = np.argsort(-remainders)  # Highest remainder first
 
             for p_idx in priority_order:
@@ -916,10 +920,10 @@ def discretize_weights_to_lot_sizes(
                 if not valid_mask[p_idx]:
                     continue
                 lot_cost = float(lot_costs[p_idx])
-                max_pos_cap = float(total_capital * max_single_cap)
+                pos_cap_i = min(float(total_capital * max_single_cap), float(target_capital[p_idx] + lot_cost))
                 curr_pos_val = float(shares[p_idx] * p_arr[p_idx])
 
-                while remaining_cash >= lot_cost and (curr_pos_val + lot_cost) <= max_pos_cap:
+                while remaining_cash >= lot_cost and (curr_pos_val + lot_cost) <= pos_cap_i:
                     shares[p_idx] += int(l_arr[p_idx])
                     remaining_cash -= lot_cost
                     curr_pos_val += lot_cost

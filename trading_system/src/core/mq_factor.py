@@ -56,14 +56,24 @@ class MQFactorEngine(BaseStrategyEngine):
         self,
         prices_dict: Dict[str, pd.DataFrame],
         features_df: Optional[pd.DataFrame] = None,
-        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        regime_label: Optional[str] = None
     ) -> pd.DataFrame:
         """
-        Computes composite MQ Factor scores for a set of symbols.
+        Computes composite MQ Factor scores for a set of symbols (V7-17: Regime-adaptive).
         Returns DataFrame with ['symbol', 'mq_score'].
         """
         if not prices_dict:
             return pd.DataFrame(columns=['symbol', 'mq_score'])
+
+        # V7-17: Dynamic momentum blend based on market regime
+        regime_str = str(regime_label).upper() if regime_label else ""
+        if "BULL" in regime_str:
+            w_raw, w_risk = 0.70, 0.30
+        elif "BEAR" in regime_str or "HIGH_VOL" in regime_str:
+            w_raw, w_risk = 0.35, 0.65
+        else:
+            w_raw, w_risk = 0.50, 0.50
 
         records = []
         for sym, df in prices_dict.items():
@@ -102,9 +112,9 @@ class MQFactorEngine(BaseStrategyEngine):
                 ret_series = sub_series.pct_change().dropna()
                 vol_mom = float(ret_series.std() * np.sqrt(252)) if len(ret_series) > 10 else 0.25
                 vol_mom = vol_mom if (np.isfinite(vol_mom) and vol_mom > 0.01) else 0.25
-                # Blend 65% raw momentum + 35% risk-scaled idiosyncratic momentum
+                # Blend raw momentum + risk-scaled idiosyncratic momentum
                 risk_adj_mom = base_mom / max(vol_mom, 0.10) * 0.20
-                price_mom = float(np.clip(0.65 * base_mom + 0.35 * risk_adj_mom, -0.95, 2.0))
+                price_mom = float(np.clip(w_raw * base_mom + w_risk * risk_adj_mom, -0.95, 2.0))
 
                 records.append({
                     'symbol': sym,

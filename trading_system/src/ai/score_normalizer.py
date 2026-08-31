@@ -30,13 +30,13 @@ class CrossSectionalScoreNormalizer:
         'US': 'US',
     }
 
-    def __init__(self, method: str = 'percentile_rank', min_symbols_per_market: int = 10):
+    def __init__(self, method: str = 'winsorized_zscore', min_symbols_per_market: int = 10):
         """
         Parameters
         ----------
         method : str
+            'winsorized_zscore' / 'zscore' : Gaussian CDF mapping Phi(Z) in [0.005, 0.995] (Preserves fat-tail dispersion, default)
             'percentile_rank' / 'rank_percentile' : Uniform ranking in [0.005, 0.995]
-            'winsorized_zscore' / 'zscore' : Gaussian CDF mapping Phi(Z) in [0.005, 0.995] (Preserves fat-tail dispersion)
         min_symbols_per_market : int
             Minimum symbol count to perform per-market partitioning before falling back to regional/global.
         """
@@ -158,9 +158,9 @@ class CrossSectionalScoreNormalizer:
 
                         norm_df.loc[valid_mask, col] = norm_vals.values if isinstance(norm_vals, pd.Series) else norm_vals
                     elif method_clean in ('winsorized_zscore', 'zscore'):
-                        q01 = np.percentile(vals, 1.0)
-                        q99 = np.percentile(vals, 99.0)
-                        w_vals = np.clip(vals, q01, q99)
+                        q005 = np.percentile(vals, 0.5)
+                        q995 = np.percentile(vals, 99.5)
+                        w_vals = np.clip(vals, q005, q995)
                         med = float(np.median(w_vals))
                         mad = float(np.median(np.abs(w_vals - med)))
                         robust_std = 1.4826 * mad

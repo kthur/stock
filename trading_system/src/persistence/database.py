@@ -100,7 +100,16 @@ class AsyncDBBase:
     """Base class for aiosqlite asynchronous database repositories."""
 
     def __init__(self, db_path: Union[str, Path]):
-        self.db_path = Path(db_path)
+        p = Path(db_path)
+        if str(db_path) in ("trade_logs.db",) or p.name == "trade_logs.db":
+            cand = _TRADING_SYSTEM_ROOT / "trade_logs.db"
+            if cand.exists():
+                p = cand
+            elif not p.is_absolute():
+                p = _TRADING_SYSTEM_ROOT / p
+        elif not p.is_absolute():
+            p = p.resolve()
+        self.db_path = p
         self.logger = logger
         self._db_initialized = False
         self._init_lock = asyncio.Lock()
@@ -119,7 +128,7 @@ class AsyncDBBase:
 class TradeLogger(AsyncDBBase):
     """주문 및 체결 로그 저장 (aiosqlite 기반 비동기 구현)"""
 
-    def __init__(self, db_path: str = "trade_logs.db"):
+    def __init__(self, db_path: Union[str, Path] = "trade_logs.db"):
         super().__init__(db_path)
 
     async def _init_database(self):
@@ -527,8 +536,16 @@ class StockPriceDB:
     """
     _SHARED_WRITE_LOCK = threading.Lock()
 
-    def __init__(self, db_path: str = str(_DEFAULT_STOCK_PRICES_DB)):
-        self.db_path = Path(db_path)
+    def __init__(self, db_path: Union[str, Path] = str(_DEFAULT_STOCK_PRICES_DB)):
+        p = Path(db_path)
+        if str(db_path) in ("stock_prices.db", str(_DEFAULT_STOCK_PRICES_DB)) or p.name == "stock_prices.db":
+            if _DEFAULT_STOCK_PRICES_DB.exists():
+                p = _DEFAULT_STOCK_PRICES_DB
+            elif not p.is_absolute():
+                p = _TRADING_SYSTEM_ROOT / p
+        elif not p.is_absolute():
+            p = p.resolve()
+        self.db_path = p
         self.logger = logger
         self._local = threading.local()
         self._all_conns: set[sqlite3.Connection] = set()

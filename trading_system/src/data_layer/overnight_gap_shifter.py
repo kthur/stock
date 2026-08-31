@@ -41,12 +41,12 @@ class OvernightGapShifter:
 
         if indicator_df is not None and not indicator_df.empty:
             last_row = indicator_df.iloc[-1]
-            for k in ['sp500_change', 'sp500_ret', 'sp500_pct_change', '^gspc_change']:
+            for k in ['es_futures_change', 'es_change', 'sp500_change', 'sp500_ret', 'sp500_pct_change', '^gspc_change']:
                 if k in indicator_df.columns:
                     val = float(last_row[k])
                     factors['spy_return'] = val if np.isfinite(val) else 0.0
                     break
-            for k in ['nasdaq_change', 'nasdaq_ret', '^ixic_change']:
+            for k in ['nq_futures_change', 'nq_change', 'nasdaq_change', 'nasdaq_ret', '^ixic_change']:
                 if k in indicator_df.columns:
                     val = float(last_row[k])
                     factors['qqq_return'] = val if np.isfinite(val) else 0.0

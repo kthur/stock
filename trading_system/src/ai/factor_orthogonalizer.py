@@ -224,11 +224,13 @@ class FactorOrthogonalizerEngine:
         eigenvalues, eigenvectors = np.linalg.eigh(C_sym.astype(np.float64))
 
         # Smooth Spectral Tikhonov / ESRW Whitening Operator:
-        # For large lambda: w_i ≈ 1 / sqrt(lambda) (standard whitening)
-        # For small lambda (null-space noise): w_i = sqrt(lambda) / (lambda + epsilon_ridge) -> 0 (smoothly damped)
+        # Multi-model consensus preservation (V7-03):
+        # Do not compress the leading principal component (PC1 = shared multi-strategy consensus).
+        # For lambda_max (last eigen-pair in ascending eigh), keep whitening filter = 1.0.
+        # For residual eigenvalues, apply smooth spectral Tikhonov damping.
         lambdas_clean = np.maximum(eigenvalues, 0.0)
-        ridge_eps = float(np.clip(self.ridge_epsilon, 1e-4, 1e-3))
-        whitening_filter = np.sqrt(lambdas_clean) / (lambdas_clean + ridge_eps)
+        ridge_eps = float(np.clip(self.ridge_epsilon, 1e-6, 1e-3))
+        whitening_filter = 1.0 / np.sqrt(lambdas_clean + ridge_eps)
 
         # Compute ZCA whitening operator: C^(-1/2) = V * diag(whitening_filter) * V^T
         inv_sqrt_lambda = np.diag(whitening_filter)

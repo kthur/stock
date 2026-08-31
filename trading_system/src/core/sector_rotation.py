@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Union
 import numpy as np
 import pandas as pd
 
@@ -233,11 +233,13 @@ class SectorRotationEngine(BaseStrategyEngine):
         prices_dict: Dict[str, pd.DataFrame],
         sector_map: Optional[Dict[str, str]] = None,
         macro_indicators: Optional[pd.DataFrame] = None,
-        regime_label: Optional[str] = None
+        regime_label: Optional[str] = None,
+        arm_scores: Optional[Union[pd.DataFrame, Dict[str, float]]] = None,
+        order_flow_scores: Optional[Union[pd.DataFrame, Dict[str, float]]] = None
     ) -> pd.DataFrame:
         """
-        Calculates 1-month (20d) and 3-month (60d) relative momentum with GICS 11 Sector Mapping,
-        Intra-Sector Dispersion weighting, and Macro/Cycle Sensitivity adjustments.
+        Calculates composite sector momentum with GICS 11 Sector Mapping,
+        Intra-Sector Dispersion weighting, Macro Adjustments, and Leading Fundamental Revisions (V7-15).
         """
         if not prices_dict:
             return pd.DataFrame(columns=['symbol', 'sector_score'])
@@ -324,6 +326,21 @@ class SectorRotationEngine(BaseStrategyEngine):
                 res_df['sector_score'] = res_df['stock_rank']
         else:
             res_df['sector_score'] = 0.5
+
+        # V7-15: Leading Indicator Blend (ARM consensus revision & Order Flow MFI acceleration)
+        if arm_scores is not None or order_flow_scores is not None:
+            arm_map = dict(zip(arm_scores['symbol'], arm_scores.get('arm_score', arm_scores.iloc[:, -1]))) if isinstance(arm_scores, pd.DataFrame) else (arm_scores if isinstance(arm_scores, dict) else {})
+            flow_map = dict(zip(order_flow_scores['symbol'], order_flow_scores.get('order_flow_score', order_flow_scores.iloc[:, -1]))) if isinstance(order_flow_scores, pd.DataFrame) else (order_flow_scores if isinstance(order_flow_scores, dict) else {})
+
+            lead_signals = []
+            if arm_map:
+                lead_signals.append(res_df['symbol'].map(arm_map).fillna(0.50))
+            if flow_map:
+                lead_signals.append(res_df['symbol'].map(flow_map).fillna(0.50))
+
+            if lead_signals:
+                avg_lead = pd.concat(lead_signals, axis=1).mean(axis=1)
+                res_df['sector_score'] = (0.70 * res_df['sector_score'] + 0.30 * avg_lead).clip(0.0, 1.0)
 
         # Macro Sensitivity & Cycle Adjustments
         if 'sector' in res_df.columns:

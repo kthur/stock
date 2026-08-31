@@ -65,10 +65,10 @@ class ExecutionOMSEngine:
     Order Management & Execution Engine for Stock Trading System.
     Generates actionable trade execution plans and monitors slippage and tracking error.
     """
-    def __init__(self, db_path: str = "trade_logs.db", lot_size_krx: int = 1, config: Optional[Any] = None):
+    def __init__(self, db_path: str = "trade_logs.db", lot_size_krx: int = 10, config: Optional[Any] = None):
         self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
         self.config = config
-        self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 1
+        self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 10
         self._mem_conn = sqlite3.connect(":memory:") if self.db_path == ":memory:" else None
         self._init_db()
 
@@ -305,9 +305,9 @@ class ExecutionOMSEngine:
             logger.critical("[OMS ENGINE] KILL SWITCH ACTIVE - skipping ALL order plan generation.")
             return order_plans
 
-        is_severe = str(crisis_level).upper() == "SEVERE"
+        is_severe = "SEVERE" in str(crisis_level).upper()
         if is_severe:
-            logger.warning("[OMS ENGINE] SEVERE crisis level - skipping BUY orders, allowing SELL/liquidate orders.")
+            logger.warning("[OMS ENGINE] SEVERE crisis level - skipping BUY orders (except capitulation oversold plays), allowing SELL/liquidate orders.")
 
         # Continuous crisis regime scaling (0.15 to 1.0)
         crisis_mult = 1.0
@@ -392,10 +392,19 @@ class ExecutionOMSEngine:
 
                 raw_action = str(pred.get("action", "BUY") or "BUY").upper()
                 if is_severe:
-                    if raw_action == "BUY" and weight > 0:
+                    # V7-07: Capitulation Buy Override (15% Cap, 25% Fractional Kelly for high-conviction oversold turnaround)
+                    is_capitulation_play = (
+                        any(k in pred for k in ["short_term_reversal", "oversold_bounce", "stat_arb"])
+                        and (float(pred.get("expected_return", pred.get("ensemble_expected_return", 0.0)) or 0.0) > 0.0)
+                    )
+                    if raw_action == "BUY" and is_capitulation_play and weight > 0:
+                        weight = float(np.clip(weight * 0.25, 0.01, 0.15))
+                        logger.info(f"[OMS CAPITULATION BUY] {sym}: Permitting oversold reversal entry in SEVERE crisis (Weight: {weight:.2%}, Max Cap: 15%)")
+                    elif raw_action == "BUY" and weight > 0:
                         continue
-                    weight = 0.0
-                    raw_action = "SELL"
+                    else:
+                        weight = 0.0
+                        raw_action = "SELL"
 
                 if not is_severe and not (0.0 < weight <= 1.0) and raw_action != "SELL":
                     continue
@@ -528,12 +537,18 @@ class ExecutionOMSEngine:
                             slippage_multiplier=slip_mult
                         )
                         friction_cost = buy_cost + sell_cost
-                        safety_margin = 0.0010  # 0.10% KRX safety margin
+                        # V7-11: Adaptive safety margin by ADV liquidity tier
+                        if adv_val >= 10_000_000_000.0:
+                            safety_margin = 0.0005  # 5 bps for large caps
+                        elif adv_val >= 1_000_000_000.0:
+                            safety_margin = 0.0010  # 10 bps for mid caps
+                        else:
+                            safety_margin = 0.0020  # 20 bps for small caps
                         _is_net = "ensemble_expected_return" in pred
                         _exp_ret_raw = pred.get("ensemble_expected_return") if _is_net else pred.get("expected_return", 0.0)
                         raw_exp_ret = float(_exp_ret_raw or 0.0)
-                        # Pipeline expected returns are percentage scale (e.g. 15.0 for 15%, 0.15 for 0.15%)
-                        exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.001 else raw_exp_ret
+                        # Pipeline expected returns are percentage scale (e.g. 15.0 for 15%) or decimal (e.g. 0.05 for 5%)
+                        exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.50 else raw_exp_ret
                         hurdle = safety_margin if _is_net else (friction_cost + safety_margin)
 
                         if exp_ret_frac <= hurdle:
@@ -549,7 +564,7 @@ class ExecutionOMSEngine:
                     # S-4/S-5 Fix: Unified normalization
                     gap_ret = raw_gap / 100.0 if (is_explicit_percent or abs(raw_gap) >= 0.50) else raw_gap
                     # Short-term reversal strategy is specifically designed for oversold bounce; exempt it
-                    is_oversold_play = any(k in pred for k in ["short_term_reversal", "oversold_bounce"])
+                    is_oversold_play = any(k in pred for k in ["short_term_reversal", "oversold_bounce", "stat_arb"])
                     if not is_oversold_play and gap_ret < -max(3.0 * vol_20d, 0.05):
                         logger.info(f"[OMS GATE 7] {sym} adverse gap {gap_ret:.2%} < -3*vol ({vol_20d:.2%}), skipping open.")
                         continue
@@ -585,9 +600,10 @@ class ExecutionOMSEngine:
                 adv_in_pred = pred.get("adv") if pred.get("adv") is not None else pred.get("trading_value")
                 if adv_in_pred is not None and float(adv_in_pred) > 0:
                     adv_val = float(adv_in_pred)
-                    max_adv_amount = max_adv_ratio * adv_val
+                    effective_max_adv_ratio = min(max_adv_ratio, 0.05)  # V7-10: Strict 5% ADV market impact bound
+                    max_adv_amount = effective_max_adv_ratio * adv_val
                     if effective_target_amount > max_adv_amount:
-                        logger.info(f"[OMS ADV CAPACITY] {sym} target amount {effective_target_amount:,.0f} capped to {max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
+                        logger.info(f"[OMS ADV CAPACITY] {sym} target amount {effective_target_amount:,.0f} capped to {effective_max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
                         effective_target_amount = max_adv_amount
                         if curr_iso == "KRW":
                             target_amount = effective_target_amount
@@ -602,7 +618,7 @@ class ExecutionOMSEngine:
                     adv_val = 1_000_000_000.0 if curr_iso == "KRW" else 1_000_000.0
                 # Market-specific standard lot size constraints (KRX: lot_size_krx or 1 share, TSE/HOSE/HKEX: 100 shares, US: 1 share)
                 if is_krx or str(market).upper() in ("KOSPI", "KOSDAQ", "KRX") or curr_iso == "KRW":
-                    lot_size = getattr(self, 'lot_size_krx', 1)
+                    lot_size = getattr(self, 'lot_size_krx', 10)
                 elif str(market).upper() in ("JAPAN_TSE", "VIETNAM_HOSE", "HKEX") or curr_iso in ("JPY", "VND", "HKD") or sym.endswith((".T", ".VN", ".HK")):
                     lot_size = 100
                 else:
@@ -625,31 +641,34 @@ class ExecutionOMSEngine:
                 if (quantity <= 0 or not math.isfinite(quantity)) and status != "HEDGE_FLAG":
                     continue
 
-                # Strategy Alpha Half-Life (tau_alpha) Adaptive Execution Strategy Routing
+                # Strategy Alpha Half-Life (tau_alpha) Adaptive Execution Strategy Routing (V7-10)
                 # Fast alpha (<= 2d) requires fast execution (FAST_VWAP) to avoid alpha decay.
-                # Slow alpha (>= 25d) uses patient execution (PATIENT_TWAP) with smaller slice sizes to minimize market impact.
+                # Use min(hl_list) so that the fastest active alpha component dictates urgency.
                 hl_list = []
                 for strat_key, strat_hl in STRATEGY_ALPHA_HALF_LIVES.items():
                     if strat_key in pred or f"{strat_key}_score" in pred or f"{strat_key}_prob" in pred or f"{strat_key}_20d" in pred:
                         hl_list.append(strat_hl)
-                avg_half_life = float(np.mean(hl_list)) if hl_list else 10.0
-                avg_half_life = avg_half_life if np.isfinite(avg_half_life) else 10.0
+                effective_half_life = float(np.min(hl_list)) if hl_list else 10.0
+                effective_half_life = effective_half_life if np.isfinite(effective_half_life) else 10.0
 
                 adv_eff = (adv_val / max(fx_rate_item, 1.0)) if (curr_iso != "KRW" and adv_val > 10_000_000.0) else adv_val
                 part_ratio = float(effective_target_amount / max(adv_eff, 1.0)) if (np.isfinite(effective_target_amount) and np.isfinite(adv_eff)) else 0.0
                 is_preassigned_strategy = (
-                    'exec_strategy' in locals() and exec_strategy in ["PASSIVE_LIMIT", "CASH_OVERLAY"]
+                    'exec_strategy' in locals() and exec_strategy in ["PASSIVE_LIMIT", "CASH_OVERLAY", "DIP_LIMIT"]
                 )
                 if not is_preassigned_strategy:
-                    if avg_half_life <= 2.0 and part_ratio > 0.01:
+                    if effective_half_life <= 2.0:
                         exec_strategy = "FAST_VWAP"
                         slice_count = 3
-                    elif avg_half_life <= 5.0 and part_ratio > 0.005:
+                    elif effective_half_life >= 25.0:
+                        exec_strategy = "MIDPOINT_PEG"
+                        slice_count = 8
+                    elif part_ratio > 0.005:
+                        exec_strategy = "DYNAMIC_VWAP"
+                        slice_count = 5
+                    elif effective_half_life <= 5.0 and part_ratio > 0.001:
                         exec_strategy = "TWAP"
                         slice_count = 4
-                    elif avg_half_life >= 25.0:
-                        exec_strategy = "PATIENT_TWAP"
-                        slice_count = 8
                     else:
                         exec_strategy = "DIRECT"
                         slice_count = 1
@@ -686,7 +705,7 @@ class ExecutionOMSEngine:
                     exec_strategy = "DIP_LIMIT"
                     target_price = target_price * 0.985  # Enter at 1.5% pullback discount
 
-                sleeve_type = "FAST_MOMENTUM" if avg_half_life <= 3.0 else "CORE_FUNDAMENTAL"
+                sleeve_type = "FAST_MOMENTUM" if effective_half_life <= 3.0 else "CORE_FUNDAMENTAL"
                 target_take_profit = round(target_price * 1.12, 2) if sleeve_type == "FAST_MOMENTUM" else round(target_price * 1.25, 2)
                 target_stop_loss = round(target_price * 0.96, 2) if sleeve_type == "FAST_MOMENTUM" else round(target_price * 0.92, 2)
 
@@ -826,7 +845,7 @@ class ExecutionOMSEngine:
             row = cursor.execute("SELECT quantity FROM order_plans WHERE order_id = ?", (order_id,)).fetchone()
             target_qty = row[0] if row and row[0] is not None else 0
 
-            if target_qty > 0 and total_executed < target_qty:
+            if target_qty > 0 and total_executed < (target_qty * 0.98) and (target_qty - total_executed) > 5:
                 new_status = 'PARTIALLY_FILLED'
             else:
                 new_status = 'EXECUTED'

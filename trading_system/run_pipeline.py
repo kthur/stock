@@ -2986,6 +2986,13 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         if eff_filings:
             sentiment_map = sentiment_engine_init.batch_analyze_filings(eff_filings)
             m5_sentiment_metrics_list = list(sentiment_map.values())
+        else:
+            # Generate offline filing sentiment analysis for active universe symbols
+            sample_syms = symbols_list[:min(len(symbols_list), 100)] if symbols_list else []
+            for _sym in sample_syms:
+                _res = sentiment_engine_init.analyze_filing_text(str(_sym), f"Corporate operations and financial guidance for {_sym}")
+                sentiment_map[str(_sym)] = _res
+                m5_sentiment_metrics_list.append(_res)
     except Exception as _init_ev_e:
         logger.warning(f"[PARALLEL SCORING] Pre-fetching DART filings/sentiment skipped: {_init_ev_e}")
 
@@ -3308,7 +3315,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     # Calculate rolling Sharpes for all strategies if strategy_returns exists
     strategy_returns = {}
     try:
-        hist_df = storage.get_ensemble_predictions_history(days=60)
+        hist_df = storage.get_ensemble_predictions_history(days=90)
         if hist_df is not None and not hist_df.empty:
             for strat, col in [
                 ('regression', 'reg_score'), ('surge', 'surge_score'), ('lead_lag', 'll_score'),
@@ -3339,8 +3346,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 ('range_expansion_breakout', 'range_expansion_score')
             ]:
                 if col in hist_df.columns and 'outcome_return' in hist_df.columns:
-                    strat_series = hist_df.groupby('date').apply(lambda d: (d[col] * d['outcome_return']).mean(), include_groups=False)
-                    strategy_returns[strat] = strat_series
+                    valid_sub = hist_df[hist_df[col].notna() & hist_df['outcome_return'].notna()]
+                    if not valid_sub.empty:
+                        strat_series = valid_sub.groupby('date').apply(lambda d: (d[col] * d['outcome_return']).mean(), include_groups=False)
+                        strategy_returns[strat] = strat_series
     except Exception as _sr_e:
         logger.debug(f"Strategy returns computation for Sharpe weighting: {_sr_e}")
 

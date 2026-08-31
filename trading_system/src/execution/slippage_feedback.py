@@ -8,7 +8,7 @@ import logging
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Union, List, Any
 
 import numpy as np
 
@@ -42,11 +42,22 @@ class SlippageFeedbackEngine:
     returning cost adjustments to tune microstructure cost modeling.
     """
 
-    def __init__(self, db_path: Optional[str] = None, default_slippage_bps: float = 5.0):
+    def __init__(self, db_path: Optional[Union[str, Path]] = None, default_slippage_bps: float = 5.0):
         import math
+        _root = Path(__file__).resolve().parent.parent.parent
         if db_path is None:
-            db_path = str(Path(__file__).parent.parent.parent / "trade_logs.db")
-        self.db_path = db_path
+            p = _root / "trade_logs.db"
+        else:
+            p = Path(db_path)
+            if not p.is_absolute():
+                candidate = _root / p
+                if candidate.exists():
+                    p = candidate
+                elif p.exists():
+                    p = p.resolve()
+                else:
+                    p = _root / p
+        self.db_path = str(p)
         try:
             safe_slip = float(default_slippage_bps) if (default_slippage_bps is not None and math.isfinite(float(default_slippage_bps))) else 5.0
         except (ValueError, TypeError):
@@ -111,6 +122,35 @@ class SlippageFeedbackEngine:
                                 if mkt in mkt_slippage:
                                     mkt_slippage[mkt].append(slip_bps)
 
+                elif "executions" in tables and "orders" in tables:
+                    cursor.execute("PRAGMA table_info(orders)")
+                    ord_cols = {r[1] for r in cursor.fetchall()}
+                    type_col = "order_type" if "order_type" in ord_cols else ("side" if "side" in ord_cols else "order_type")
+                    cursor.execute(f"""
+                        SELECT o.symbol, o.{type_col}, o.price, e.price
+                        FROM executions e
+                        JOIN orders o ON e.order_id = o.order_id
+                        WHERE e.price IS NOT NULL AND o.price > 0
+                    """)
+                    rows = cursor.fetchall()
+                    import math
+                    for sym, side, p_exp, p_fill in rows:
+                        try:
+                            pe = float(p_exp) if (p_exp is not None and math.isfinite(float(p_exp))) else 0.0
+                            pf = float(p_fill) if (p_fill is not None and math.isfinite(float(p_fill))) else 0.0
+                        except (ValueError, TypeError):
+                            continue
+                        if pe > 0 and pf > 0:
+                            side_str = str(side).strip().upper()
+                            sign = 1.0 if (side_str.startswith("BUY") or side_str in ["LONG", "BUY_HEDGE"]) else -1.0
+                            slip_bps = sign * ((pf - pe) / pe) * 10000.0
+                            if math.isfinite(slip_bps):
+                                slippages.append(slip_bps)
+                                sym_str = str(sym).upper().strip()
+                                mkt = "KOSPI" if sym_str.isdigit() and len(sym_str) == 6 else ("KOSDAQ" if sym_str.endswith(".KQ") else "SP500")
+                                if mkt in mkt_slippage:
+                                    mkt_slippage[mkt].append(slip_bps)
+
                 elif "trade_logs" in tables:
                     import math
                     cursor.execute(
@@ -168,8 +208,9 @@ class SlippageFeedbackEngine:
             avg_slip = float(np.clip(avg_slip, -50.0, 100.0)) if (avg_slip is not None and math.isfinite(avg_slip)) else self.default_slippage_bps
             max_slip = float(np.clip(max_slip, -100.0, 500.0)) if (max_slip is not None and math.isfinite(max_slip)) else 15.0
 
-            # A-2 Fix: Relaxed scaling cap from 3.0 to 5.0 so alpha can reach 2.50 (0.50 * 5.0)
-            scaling = float(np.clip(avg_slip / self.default_slippage_bps, 0.5, 5.0)) if self.default_slippage_bps > 0 else 1.0
+            # V7-22: Dynamic slippage scaling cap up to 8.0x for illiquid micro-cap protection
+            max_scale_cap = 8.0
+            scaling = float(np.clip(avg_slip / self.default_slippage_bps, 0.5, max_scale_cap)) if self.default_slippage_bps > 0 else 1.0
             if not math.isfinite(scaling):
                 scaling = 1.0
             # Square-root market impact power exponent alpha = 0.50 (Almgren-Chriss / Kyle standard)
