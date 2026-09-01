@@ -140,13 +140,21 @@ class VolTargetingEngine(BaseStrategyEngine):
                             realized_vol[sym] = float(np.clip(blended_v, 0.02, 5.0)) if np.isfinite(blended_v) else 0.25
 
 
-        # Fully vectorized computation across all universe symbols (O(1) Pandas vectorized)
+        # Fully vectorized computation across all universe symbols with Sharpe-enhanced risk parity
         sym_series = universe["symbol"].astype(str).str.strip()
         vols = sym_series.map(realized_vol).fillna(0.25).clip(lower=0.02)
         inv_vols = 1.0 / vols
+
+        # Incorporate historical return-to-risk efficiency
+        ann_returns = (daily_returns.mean(axis=0) * 252.0).reindex(realized_vol.index).fillna(0.0)
+        sharpe_raw = ann_returns / np.maximum(realized_vol, 0.05)
+        sharpe_series = sym_series.map(sharpe_raw).fillna(0.0).clip(-3.0, 5.0)
+
         if len(inv_vols) > 1 and inv_vols.std() > 1e-6:
-            pct_rank = inv_vols.rank(pct=True).clip(0.02, 0.98)
-            scores = (0.05 + pct_rank * 0.90).clip(0.0, 1.0).round(4)
+            inv_vol_rank = inv_vols.rank(pct=True).clip(0.02, 0.98)
+            sharpe_rank = sharpe_series.rank(pct=True).clip(0.02, 0.98) if sharpe_series.std() > 1e-6 else pd.Series(0.50, index=sym_series.index)
+            composite_rank = 0.60 * inv_vol_rank + 0.40 * sharpe_rank
+            scores = (0.05 + composite_rank * 0.90).clip(0.0, 1.0).round(4)
             scores = np.where(np.isfinite(scores), scores, 0.50)
         else:
             target_weights = self.target_vol_annual / np.maximum(vols, 0.02)
