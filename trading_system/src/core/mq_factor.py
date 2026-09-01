@@ -107,14 +107,31 @@ class MQFactorEngine(BaseStrategyEngine):
                     base_mom = float(np.clip(raw_mom, -0.95, 2.0))
                 base_mom = base_mom if np.isfinite(base_mom) else 0.0
 
-                # Idiosyncratic / Volatility-Adjusted Momentum (Blitz, Huij & Martens 2011)
+                # Idiosyncratic / Volatility-Adjusted Momentum & Trend Smoothness (Blitz, Huij & Martens 2011)
                 sub_series = close.iloc[-min(len(close), effective_days + 21):-21] if len(close) > 25 else close
                 ret_series = sub_series.pct_change().dropna()
                 vol_mom = float(ret_series.std() * np.sqrt(252)) if len(ret_series) > 10 else 0.25
                 vol_mom = vol_mom if (np.isfinite(vol_mom) and vol_mom > 0.01) else 0.25
-                # Blend raw momentum + risk-scaled idiosyncratic momentum
+
+                # Momentum Quality Smoothness: R^2 of log-price linear trend over the momentum window
+                if len(sub_series) >= 20:
+                    y_log = np.log(np.maximum(sub_series.values, 1e-6))
+                    x_time = np.arange(len(y_log), dtype=float)
+                    vx = float(np.var(x_time))
+                    vy = float(np.var(y_log))
+                    if vx > 1e-6 and vy > 1e-8:
+                        cov_xy = float(np.cov(x_time, y_log)[0, 1])
+                        r_sq = (cov_xy ** 2) / max(1e-8, vx * vy)
+                        r_sq_clean = float(np.clip(r_sq, 0.0, 1.0)) if np.isfinite(r_sq) else 0.50
+                    else:
+                        r_sq_clean = 0.50
+                else:
+                    r_sq_clean = 0.50
+
+                # High R^2 indicates monotonic smooth momentum without erratic jump noise
+                smoothness_factor = 0.70 + 0.30 * r_sq_clean
                 risk_adj_mom = base_mom / max(vol_mom, 0.10) * 0.20
-                price_mom = float(np.clip(w_raw * base_mom + w_risk * risk_adj_mom, -0.95, 2.0))
+                price_mom = float(np.clip((w_raw * base_mom + w_risk * risk_adj_mom) * smoothness_factor, -0.95, 2.0))
 
                 records.append({
                     'symbol': sym,
