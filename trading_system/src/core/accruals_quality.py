@@ -186,22 +186,25 @@ class AccrualsQualityEngine(BaseStrategyEngine):
         raw_accrual = np.where(valid_mask & pd.notna(raw_denom), (net_inc - ocf) / np.maximum(raw_denom, 1e-5), np.nan)
         accrual_ratio = np.where(np.isfinite(raw_accrual), np.clip(raw_accrual, -5.0, 5.0), np.nan)
 
-        # Cash conversion booster: OCF > Net Income significantly
+        # Multi-Tier Cash Conversion & Accounting Quality Multiplier:
+        # OCF > Net Income indicates high cash backing; Net Income > 0 but OCF < 0 indicates dangerous cash bleed
         raw_conversion = np.where(valid_mask & (net_inc > 0), ocf / np.maximum(net_inc, 1e-5), 1.0)
         cash_conversion = np.where(np.isfinite(raw_conversion), np.clip(raw_conversion, 0.0, 10.0), 1.0)
-        conversion_bonus = np.where(cash_conversion > 1.25, 0.05, 0.0)
+        conversion_bonus = np.where(cash_conversion >= 1.50, 0.10, np.where(cash_conversion >= 1.25, 0.05, 0.0))
+        # Cash bleed penalty for paper profits with negative operating cash flow
+        cash_bleed_penalty = np.where(valid_mask & (net_inc > 0) & (ocf < 0), 0.15, 0.0)
 
-        df_acc = pd.DataFrame({'symbol': sym_strs, 'accrual_ratio': accrual_ratio, 'conversion_bonus': conversion_bonus})
+        df_acc = pd.DataFrame({'symbol': sym_strs, 'accrual_ratio': accrual_ratio, 'conversion_bonus': conversion_bonus, 'cash_bleed_penalty': cash_bleed_penalty})
         valid_mask = df_acc['accrual_ratio'].notna() & np.isfinite(df_acc['accrual_ratio'])
 
         if valid_mask.sum() > 1:
             # Rank score: inverted because lower accrual_ratio -> higher earnings quality
             # Percentile rank: 1 - percentile_rank(accrual_ratio)
             ranks = df_acc.loc[valid_mask, 'accrual_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-            base_score = (1.0 - ranks + df_acc.loc[valid_mask, 'conversion_bonus']).clip(0.05, 0.95)
-            # Accruals Quality Alpha Boost for top 15% high-cashflow sustainable earnings stocks
-            high_quality_mask = base_score >= 0.85
-            enhanced_score = np.where(high_quality_mask, (base_score * 1.08).clip(0.05, 0.98), base_score)
+            base_score = (1.0 - ranks + df_acc.loc[valid_mask, 'conversion_bonus'] - df_acc.loc[valid_mask, 'cash_bleed_penalty']).clip(0.05, 0.95)
+            # Multi-Tier Accruals Quality Alpha Boost for top cashflow sustainable earnings stocks
+            enhanced_score = np.where(base_score >= 0.95, (base_score * 1.15).clip(0.05, 0.98),
+                             np.where(base_score >= 0.85, (base_score * 1.10).clip(0.05, 0.98), base_score))
             # Distress check: Cash-burning loss-making firms cannot receive high accruals quality alpha
             net_arr = net_inc.to_numpy()
             ocf_arr = ocf.to_numpy()
