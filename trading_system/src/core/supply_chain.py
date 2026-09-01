@@ -331,16 +331,16 @@ class SupplyChainEngine(BaseStrategyEngine):
                         r5 = r1 * 2.0
                     # Bidirectional Bullwhip Spillover (Forrester 1961, Lee et al. 1997, Cohen & Frazzini 2008):
                     # Downside customer shocks transmit with panic amplification (1.35x),
-                    # while upside demand expansion transmits with operational leverage (1.25x for strong customer surges).
+                    # while upside demand expansion transmits with operational leverage (1.40x for strong customer surges).
                     if r1 < 0:
                         r1_eff = r1 * 1.35
                     else:
-                        r1_eff = r1 * 1.25 if r1 >= 0.03 else r1 * 1.05
+                        r1_eff = r1 * 1.40 if r1 >= 0.04 else (r1 * 1.25 if r1 >= 0.02 else r1 * 1.08)
 
                     if r3 < 0:
                         r3_eff = r3 * 1.25
                     else:
-                        r3_eff = r3 * 1.20 if r3 >= 0.05 else r3 * 1.00
+                        r3_eff = r3 * 1.30 if r3 >= 0.07 else (r3 * 1.20 if r3 >= 0.03 else r3 * 1.05)
 
                     spillover_ret = 0.45 * r1_eff + 0.35 * r3_eff + 0.20 * r5
                     cust_rets.append(spillover_ret * c_weight)
@@ -350,7 +350,7 @@ class SupplyChainEngine(BaseStrategyEngine):
                     combined_ret = weighted_cust_ret * 0.70 + diff_val * 0.30
                 else:
                     combined_ret = weighted_cust_ret
-                score = float(np.clip(0.50 + combined_ret * 5.0, 0.0, 1.0)) if np.isfinite(combined_ret) else 0.50
+                score = float(np.clip(0.50 + combined_ret * 6.0, 0.05, 0.98)) if np.isfinite(combined_ret) else 0.50
 
             results.append({
                 "symbol": sym,
@@ -361,7 +361,7 @@ class SupplyChainEngine(BaseStrategyEngine):
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:
-            raw_s = pd.to_numeric(res_df['supply_chain_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
+            raw_s = pd.to_numeric(res_df['supply_chain_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
             if len(res_df) > 1:
                 ranks = raw_s.rank(pct=True, ascending=True)
                 # Multi-Tier Supply Chain Super Beneficiary Booster
