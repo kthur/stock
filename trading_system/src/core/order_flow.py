@@ -154,17 +154,26 @@ class OrderFlowEngine(BaseStrategyEngine):
                             i_ratio = (i_buy / vol_5d) if np.isfinite(i_buy) else 0.0
 
                             # Foreign & Institutional Dual Inflow Synergy Bonus (쌍끌이 순매수 시너지)
-                            dual_synergy = 0.05 if (f_ratio > 0.02 and i_ratio > 0.02) else (-0.05 if (f_ratio < -0.02 and i_ratio < -0.02) else 0.0)
+                            if f_ratio > 0.03 and i_ratio > 0.03:
+                                dual_synergy = 0.10  # Super Smart Money Dual Inflow
+                            elif f_ratio > 0.015 and i_ratio > 0.015:
+                                dual_synergy = 0.05
+                            elif f_ratio < -0.03 and i_ratio < -0.03:
+                                dual_synergy = -0.10
+                            elif f_ratio < -0.015 and i_ratio < -0.015:
+                                dual_synergy = -0.05
+                            else:
+                                dual_synergy = 0.0
 
                             raw_inst = (f_ratio * 0.5) + (i_ratio * 0.5) + dual_synergy
-                            inst_boost += float(np.clip(raw_inst, -0.20, 0.20))
+                            inst_boost += float(np.clip(raw_inst, -0.25, 0.25))
                         except Exception:
                             pass
 
                 mfi_val = composite_flow + inst_boost
                 records.append({
                     'symbol': sym,
-                    'mfi_ratio': float(np.clip(mfi_val, 0.0, 1.20)) if np.isfinite(mfi_val) else 0.50
+                    'mfi_ratio': float(np.clip(mfi_val, 0.0, 1.25)) if np.isfinite(mfi_val) else 0.50
                 })
             except Exception as e:
                 logger.debug(f"Order flow score failed for {sym}: {e}")
@@ -180,8 +189,8 @@ class OrderFlowEngine(BaseStrategyEngine):
 
         raw_ranks = res_df['mfi_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
         # Multi-Tier Smart Money Dual Inflow Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
-        enhanced_score = np.where(raw_ranks >= 0.95, (raw_ranks * 1.15).clip(0.0, 0.98),
-                         np.where(raw_ranks >= 0.85, (raw_ranks * 1.10).clip(0.0, 0.98), raw_ranks))
+        enhanced_score = np.where(raw_ranks >= 0.95, (raw_ranks * 1.15).clip(0.05, 0.98),
+                         np.where(raw_ranks >= 0.85, (raw_ranks * 1.10).clip(0.05, 0.98), raw_ranks))
         enhanced_score = np.where(np.isfinite(enhanced_score), enhanced_score, 0.50)
-        res_df['order_flow_score'] = pd.to_numeric(pd.Series(enhanced_score, index=res_df.index), errors='coerce').fillna(0.50).clip(0.0, 1.0)
+        res_df['order_flow_score'] = pd.to_numeric(pd.Series(enhanced_score, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
         return res_df[['symbol', 'order_flow_score']]
