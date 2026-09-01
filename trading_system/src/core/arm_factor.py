@@ -116,8 +116,18 @@ class ARMFactorEngine(BaseStrategyEngine):
                 else:
                     growth_score = float(np.clip(eps_rev * 0.10, -0.2, 0.2))
 
+            # Revision Conviction & Breadth Multiplier
+            # Concurrent EPS and Target Price upgrades indicate institutional consensus conviction
+            concurrence = 1.0
+            if eps_rev > 0.05 and target_p_rev > 0.05:
+                concurrence = 1.25
+                if surprise > 0.05:
+                    concurrence = 1.40  # Triple consensus upgrade catalyst
+            elif eps_rev < -0.05 and target_p_rev < -0.05:
+                concurrence = 1.25  # Downward consensus acceleration
+
             # 복합 Revision 점수
-            revision_composite = (eps_rev * 0.40) + (target_p_rev * 0.30) + (surprise * 0.20) + (growth_score * 0.10)
+            revision_composite = ((eps_rev * 0.40) + (target_p_rev * 0.30) + (surprise * 0.20) + (growth_score * 0.10)) * concurrence
 
             # 4. Price Confirmation (최근 20일 주가 모멘텀)
             price_mom = 0.0
