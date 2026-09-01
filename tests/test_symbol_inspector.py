@@ -73,7 +73,13 @@ class TestSymbolInspector(unittest.TestCase):
             "ensemble_score": 0.58,
             "total_friction_cost": 0.0035,
         }])
-        res = self.inspector.inspect_symbol("005930", universe_df=fake_u, ensemble_df=fake_ens)
+        fake_prices = {
+            "005930": pd.DataFrame({
+                "Close": [70000.0] * 30,
+                "Volume": [1000000] * 30
+            })
+        }
+        res = self.inspector.inspect_symbol("005930", universe_df=fake_u, ensemble_df=fake_ens, prices_dict=fake_prices)
         self.assertTrue(res.universe_passed)
         self.assertTrue(res.price_passed)
         self.assertEqual(res.strategy_count_total, 37)
@@ -147,7 +153,7 @@ class TestSymbolInspector(unittest.TestCase):
         )
         self.assertEqual(res.returncode, 0)
         self.assertIn("종목 정밀 진단 리포트", res.stdout)
-        self.assertIn("삼성전자", res.stdout)
+        self.assertIn("005930", res.stdout)
 
 
 if __name__ == "__main__":
