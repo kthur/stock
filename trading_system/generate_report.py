@@ -1014,7 +1014,8 @@ def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> Por
                 corr_matrix[j, i] = c_val
         cov = np.outer(volatilities, volatilities) * corr_matrix
 
-        w_arr = calculate_hrp_weights(cov)
+        w_raw = calculate_hrp_weights(cov)
+        w_arr = np.asarray(w_raw['realized_weights'] if isinstance(w_raw, dict) else w_raw, dtype=np.float64)
         if len(w_arr) != n or not np.any(w_arr):
             w_arr = calculate_risk_parity_weights(cov)
         weights_list = [float(x) for x in w_arr]

@@ -8,7 +8,7 @@ import logging
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Union, List, Any
+from typing import Dict, Optional, Union
 
 import numpy as np
 
@@ -125,13 +125,20 @@ class SlippageFeedbackEngine:
                 elif "executions" in tables and "orders" in tables:
                     cursor.execute("PRAGMA table_info(orders)")
                     ord_cols = {r[1] for r in cursor.fetchall()}
-                    type_col = "order_type" if "order_type" in ord_cols else ("side" if "side" in ord_cols else "order_type")
-                    cursor.execute(f"""
-                        SELECT o.symbol, o.{type_col}, o.price, e.price
-                        FROM executions e
-                        JOIN orders o ON e.order_id = o.order_id
-                        WHERE e.price IS NOT NULL AND o.price > 0
-                    """)
+                    if "order_type" in ord_cols:
+                        cursor.execute("""
+                            SELECT o.symbol, o.order_type, o.price, e.price
+                            FROM executions e
+                            JOIN orders o ON e.order_id = o.order_id
+                            WHERE e.price IS NOT NULL AND o.price > 0
+                        """)
+                    else:
+                        cursor.execute("""
+                            SELECT o.symbol, o.side, o.price, e.price
+                            FROM executions e
+                            JOIN orders o ON e.order_id = o.order_id
+                            WHERE e.price IS NOT NULL AND o.price > 0
+                        """)
                     rows = cursor.fetchall()
                     import math
                     for sym, side, p_exp, p_fill in rows:

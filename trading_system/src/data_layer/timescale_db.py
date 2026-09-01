@@ -11,10 +11,9 @@ import time
 import logging
 import sqlite3
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple, Union
+from typing import Dict, List, Any, Optional
 
 import numpy as np
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 

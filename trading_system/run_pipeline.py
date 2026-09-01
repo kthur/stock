@@ -3835,16 +3835,17 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
 
         # Generate detailed Symbol Exclusion Diagnostics (JSON & Text Summary)
         try:
+            import json
             from src.analysis.symbol_inspector import SymbolInspector
             sym_inspector = SymbolInspector(
-                price_db=price_db if 'price_db' in locals() else None,
-                indicator_storage=storage if 'storage' in locals() else None,
-                oms_engine=oms_engine if 'oms_engine' in locals() else None
+                price_db=locals().get('price_db'),
+                indicator_storage=locals().get('storage'),
+                oms_engine=locals().get('oms_engine')
             )
             diag_batch = sym_inspector.generate_batch_diagnostics(
-                universe_df=universe if 'universe' in locals() else None,
-                ensemble_df=ensemble_df if 'ensemble_df' in locals() else None,
-                order_plans_df=order_plans if 'order_plans' in locals() else None,
+                universe_df=locals().get('universe'),
+                ensemble_df=locals().get('ensemble_df'),
+                order_plans_df=locals().get('order_plans'),
             )
 
             diag_json_path = os.path.join(result_dir, "symbol_exclusion_diagnostics.json")

@@ -14,10 +14,8 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -40,12 +38,12 @@ class SymbolDiagnosticResult:
     market: str = ""
     sector: str = ""
     industry: str = ""
-    
+
     # Stage 1: Universe
     universe_passed: bool = False
     universe_reason: str = ""
     is_administrative: bool = False
-    
+
     # Stage 2: Price Data
     price_passed: bool = False
     price_reason: str = ""
@@ -54,7 +52,7 @@ class SymbolDiagnosticResult:
     last_date: str = ""
     last_close: float = 0.0
     zero_volume_ratio: float = 0.0
-    
+
     # Stage 3: Fundamentals & 37 Strategies
     fundamentals_available: bool = False
     fundamentals_reason: str = ""
@@ -63,7 +61,7 @@ class SymbolDiagnosticResult:
     strategy_coverage_pct: float = 0.0
     strategy_factors: Dict[str, StrategyFactorStatus] = field(default_factory=dict)
     missing_factor_summary: Dict[str, List[str]] = field(default_factory=dict)
-    
+
     # Stage 4: Ensemble & Execution OMS
     ensemble_scored: bool = False
     ensemble_score: Optional[float] = None
@@ -73,7 +71,7 @@ class SymbolDiagnosticResult:
     expected_return_20d: Optional[float] = None
     estimated_friction_cost: Optional[float] = None
     net_expected_return: Optional[float] = None
-    
+
     # Final Decision
     is_in_portfolio: bool = False
     portfolio_weight: float = 0.0
@@ -185,6 +183,10 @@ class SymbolInspector:
         indicator_storage: Optional[Any] = None,
         oms_engine: Optional[Any] = None,
     ):
+        self.price_db: Optional[Any] = None
+        self.indicator_storage: Optional[Any] = None
+        self.oms_engine: Optional[Any] = None
+
         if price_db is None:
             try:
                 from src.persistence.database import StockPriceDB
@@ -283,7 +285,7 @@ class SymbolInspector:
             diag.universe_reason = f"정상 상장 종목 (시장: {diag.market}, 업종: {diag.sector or '일반'})"
         else:
             diag.universe_passed = False
-            diag.universe_reason = f"유니버스 미등록 (KRX/미국 정규 상장 목록에 부재하거나 관리종목으로 제외됨)"
+            diag.universe_reason = "유니버스 미등록 (KRX/미국 정규 상장 목록에 부재하거나 관리종목으로 제외됨)"
             diag.primary_exclusion_stage = "UNIVERSE"
             diag.primary_exclusion_reason = "UNIVERSE_NOT_LISTED"
             diag.detailed_explanation = f"종목 코드 '{symbol}'이(가) 시스템의 5대 시장 정규 유니버스에 등록되어 있지 않습니다."
@@ -331,15 +333,15 @@ class SymbolInspector:
             diag.total_bars = len(p_df)
             c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else p_df.columns[0])
             v_col = 'Volume' if 'Volume' in p_df.columns else ('volume' if 'volume' in p_df.columns else None)
-            
+
             diag.first_date = str(p_df.index[0])[:10] if isinstance(p_df.index, pd.DatetimeIndex) else str(p_df.index[0])
             diag.last_date = str(p_df.index[-1])[:10] if isinstance(p_df.index, pd.DatetimeIndex) else str(p_df.index[-1])
             diag.last_close = float(p_df[c_col].dropna().iloc[-1]) if not p_df[c_col].dropna().empty else 0.0
-            
+
             if v_col:
                 zero_v = (p_df[v_col].dropna() == 0).sum()
                 diag.zero_volume_ratio = float(zero_v / len(p_df))
-            
+
             if diag.last_close <= 0:
                 diag.price_passed = False
                 diag.price_reason = "최근 종가가 0원 이하이거나 비정상 데이터"
@@ -360,7 +362,7 @@ class SymbolInspector:
         # Stage 3: Fundamental & 37-Strategy Factor Availability
         # -------------------------------------------------------------
         is_krx = diag.market in ('KOSPI', 'KOSDAQ') or norm_sym.isdigit()
-        
+
         # Check fundamental cache
         if funds_set is not None:
             diag.fundamentals_available = (norm_sym in funds_set or symbol in funds_set)
@@ -395,7 +397,7 @@ class SymbolInspector:
                     cols = [r[1] for r in conn.execute("PRAGMA table_info(ensemble_predictions)").fetchall()]
                     if cols:
                         row = conn.execute(
-                            f"SELECT {', '.join(cols)} FROM ensemble_predictions WHERE symbol = ? OR symbol = ? ORDER BY date DESC LIMIT 1",
+                            f"SELECT {', '.join(cols)} FROM ensemble_predictions WHERE symbol = ? OR symbol = ? ORDER BY date DESC LIMIT 1",  # nosec B608
                             (norm_sym, symbol)
                         ).fetchone()
                         if row:
@@ -553,7 +555,10 @@ class SymbolInspector:
             if diag.net_expected_return is not None and diag.net_expected_return <= 0.0:
                 diag.primary_exclusion_stage = "OMS_GATE"
                 diag.primary_exclusion_reason = "NEGATIVE_NET_RETURN"
-                diag.detailed_explanation = f"예상 수익률({diag.expected_return_20d*100:+.2f}%)이 추정 거래 마찰비용({diag.estimated_friction_cost*100:.2f}%)보다 낮아 순기대수익률이 음수({diag.net_expected_return*100:+.2f}%)입니다."
+                ret_str = f"{(diag.expected_return_20d or 0.0)*100:+.2f}%"
+                cost_str = f"{(diag.estimated_friction_cost or 0.0)*100:.2f}%"
+                net_str = f"{(diag.net_expected_return or 0.0)*100:+.2f}%"
+                diag.detailed_explanation = f"예상 수익률({ret_str})이 추정 거래 마찰비용({cost_str})보다 낮아 순기대수익률이 음수({net_str})입니다."
             else:
                 diag.primary_exclusion_stage = "ENSEMBLE_RANK"
                 diag.primary_exclusion_reason = "LOW_ENSEMBLE_RANK"
@@ -565,26 +570,26 @@ class SymbolInspector:
         """Formats the diagnostic result into a clean, human-readable Korean text report."""
         lines = []
         status_icon = "🟢 편입됨 (포트폴리오 액티브)" if diag.is_in_portfolio else "🔴 제외됨 (미편입)"
-        
+
         lines.append("=" * 80)
         lines.append(f"🔍 [종목 정밀 진단 리포트] {diag.name} ({diag.normalized_symbol}) | {status_icon}")
         lines.append("=" * 80)
         lines.append(f"• 기본 정보: 시장={diag.market or '미지정'} | 업종={diag.sector or '일반'} | 세부산업={diag.industry or '일반'}")
         lines.append("")
-        
+
         # 1. Universe
         u_icon = "✅ PASS" if diag.universe_passed else "❌ FAIL"
         lines.append(f"1. 유니버스 편입 상태 : {u_icon} ({diag.universe_reason})")
-        
+
         # 2. Price History
         p_icon = "✅ PASS" if diag.price_passed else "❌ FAIL"
         lines.append(f"2. 주가 시계열 상태  : {p_icon} ({diag.price_reason})")
-        
+
         # 3. Fundamentals & Factors
         f_icon = "✅ PASS" if diag.fundamentals_available else "⚠️ WARN"
         lines.append(f"3. 펀더멘털 데이터    : {f_icon} ({diag.fundamentals_reason})")
         lines.append(f"4. 37대 전략 팩터 커버리지: {diag.strategy_count_valid} / {diag.strategy_count_total}개 유효 ({diag.strategy_coverage_pct:.1f}%)")
-        
+
         if diag.missing_factor_summary:
             lines.append("   [결측 팩터 세부 원인 분류]:")
             for reason, strats in diag.missing_factor_summary.items():
@@ -593,19 +598,22 @@ class SymbolInspector:
                     s_list += f" 외 {len(strats)-5}개"
                 lines.append(f"     * [{reason}]: {s_list}")
         lines.append("")
-        
+
         # 4. Ensemble & OMS
         lines.append("5. 앙상블 스코어 및 기대수익률:")
         if diag.ensemble_scored and diag.ensemble_score is not None:
             lines.append(f"   • 앙상블 종합 점수 : {diag.ensemble_score:.4f}")
             if diag.expected_return_20d is not None and diag.estimated_friction_cost is not None:
-                lines.append(f"   • 20D 예상 수익률  : {diag.expected_return_20d*100:+.2f}%")
-                lines.append(f"   • 추정 거래 마찰비용: {diag.estimated_friction_cost*100:.2f}% (세금/스프레드/충격비용)")
-                lines.append(f"   • 순기대수익률 (Net): {diag.net_expected_return*100:+.2f}%")
+                r_20d = (diag.expected_return_20d or 0.0) * 100
+                f_cost = (diag.estimated_friction_cost or 0.0) * 100
+                n_ret = (diag.net_expected_return or 0.0) * 100
+                lines.append(f"   • 20D 예상 수익률  : {r_20d:+.2f}%")
+                lines.append(f"   • 추정 거래 마찰비용: {f_cost:.2f}% (세금/스프레드/충격비용)")
+                lines.append(f"   • 순기대수익률 (Net): {n_ret:+.2f}%")
         else:
             lines.append("   • 앙상블 스코어링 미실행 (시계열 데이터 부족)")
         lines.append("")
-        
+
         # Verdict
         lines.append("=" * 80)
         lines.append(f"📋 [최종 판정]: {'포트폴리오 편입 (BUY)' if diag.is_in_portfolio else '제외됨 (EXCLUDED)'}")
@@ -613,7 +621,7 @@ class SymbolInspector:
         lines.append(f"   • 주요 원인: [{diag.primary_exclusion_reason}]")
         lines.append(f"   • 세부 설명: {diag.detailed_explanation}")
         lines.append("=" * 80)
-        
+
         return "\n".join(lines)
 
     def generate_batch_diagnostics(
@@ -672,7 +680,7 @@ class SymbolInspector:
                 with self.indicator_storage._connect() as conn:
                     for tbl in ('stock_fundamentals', 'fundamentals'):
                         try:
-                            f_rows = conn.execute(f"SELECT DISTINCT symbol FROM {tbl}").fetchall()
+                            f_rows = conn.execute(f"SELECT DISTINCT symbol FROM {tbl}").fetchall()  # nosec B608
                             for r in f_rows:
                                 s_n, _ = self.normalize_symbol(str(r[0]))
                                 funds_set.add(s_n)
@@ -710,7 +718,7 @@ class SymbolInspector:
                 with self.indicator_storage._connect() as conn:
                     cols = [r[1] for r in conn.execute("PRAGMA table_info(ensemble_predictions)").fetchall()]
                     if cols:
-                        rows = conn.execute(f"SELECT {', '.join(cols)} FROM ensemble_predictions").fetchall()
+                        rows = conn.execute(f"SELECT {', '.join(cols)} FROM ensemble_predictions").fetchall()  # nosec B608
                         for r in rows:
                             r_d = dict(zip(cols, r))
                             s_n, _ = self.normalize_symbol(str(r_d.get('symbol', '')))

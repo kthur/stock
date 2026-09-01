@@ -160,10 +160,32 @@ class VCPMLStrategyAdapter(BaseStrategyEngine):
                 elif "vcp_ml_score" not in preds.columns and "vcp_5d" in preds.columns:
                     preds = preds.rename(columns={"vcp_5d": "vcp_ml_score"})
                 if "vcp_ml_score" in preds.columns:
-                    preds["vcp_ml_score"] = pd.to_numeric(preds["vcp_ml_score"], errors="coerce").fillna(0.0)
+                    raw_s = pd.to_numeric(preds["vcp_ml_score"], errors="coerce").fillna(0.20).clip(0.0, 1.0)
+                    # Super Multi-Horizon VCP ML Surge Compounder
+                    if "vcp_20d" in preds.columns and "vcp_5d" in preds.columns:
+                        v5 = pd.to_numeric(preds["vcp_5d"], errors="coerce").fillna(0.20)
+                        v20 = pd.to_numeric(preds["vcp_20d"], errors="coerce").fillna(0.20)
+                        super_surge = (v5 >= 0.40) & (v20 >= 0.35)
+                        std_surge = (v5 >= 0.30) & (~super_surge)
+                        raw_s = np.where(super_surge, (raw_s * 1.20).clip(0.05, 0.98),
+                                np.where(std_surge, (raw_s * 1.10).clip(0.05, 0.98), raw_s))
+
+                    if len(preds) > 1:
+                        ranks = pd.Series(raw_s, index=preds.index).rank(pct=True, ascending=True)
+                        enhanced = np.where(ranks >= 0.95, (raw_s * 1.15).clip(0.05, 0.98),
+                                   np.where(ranks >= 0.85, (raw_s * 1.10).clip(0.05, 0.98), raw_s))
+                        preds["vcp_ml_score"] = pd.to_numeric(pd.Series(enhanced, index=preds.index), errors="coerce").fillna(0.50).clip(0.05, 0.98)
+                    else:
+                        preds["vcp_ml_score"] = pd.to_numeric(pd.Series(raw_s, index=preds.index), errors="coerce").fillna(0.50).clip(0.05, 0.98)
                 return preds
-            records = [{"symbol": str(k), "vcp_ml_score": float(v) if (v is not None and np.isfinite(float(v))) else 0.0} for k, v in preds.items()]
-            return pd.DataFrame(records)
+            records = [{"symbol": str(k), "vcp_ml_score": float(v) if (v is not None and np.isfinite(float(v))) else 0.50} for k, v in preds.items()]
+            res_df = pd.DataFrame(records)
+            if len(res_df) > 1:
+                ranks = res_df["vcp_ml_score"].rank(pct=True, ascending=True)
+                enhanced = np.where(ranks >= 0.95, (res_df["vcp_ml_score"] * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (res_df["vcp_ml_score"] * 1.10).clip(0.05, 0.98), res_df["vcp_ml_score"]))
+                res_df["vcp_ml_score"] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors="coerce").fillna(0.50).clip(0.05, 0.98)
+            return res_df
         except Exception as e:
             logger.warning(f"[VCPMLAdapter] Prediction failed: {e}")
             return pd.DataFrame(columns=["symbol", "vcp_ml_score"])

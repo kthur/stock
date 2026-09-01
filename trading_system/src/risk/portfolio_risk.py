@@ -18,7 +18,8 @@ class PortfolioRiskEvaluator:
 
     def optimize_hrp(self, cov_matrix: np.ndarray) -> np.ndarray:
         """Compute Hierarchical Risk Parity weights for portfolio assets."""
-        return calculate_hrp_weights(cov_matrix)
+        res = calculate_hrp_weights(cov_matrix)
+        return np.asarray(res['realized_weights'] if isinstance(res, dict) else res, dtype=np.float64)
 
     def evaluate_risk_off(self, vix: Optional[float] = None) -> bool:
         """Check VIX-linked risk-off signal (VIX >= 25.0)."""

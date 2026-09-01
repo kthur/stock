@@ -540,7 +540,7 @@ def calculate_hrp_weights(
                     lot_sizes=lot_sizes,
                     max_single_cap=0.20
                 )
-                return disc['realized_weights']
+                return np.asarray(disc['realized_weights'], dtype=np.float64)
             return constrained_weights
 
     except Exception as e:
@@ -642,7 +642,8 @@ def calculate_herc_weights(
         return np.full(n, 1.0 / n)
     except Exception as e:
         logger.debug(f"[HERC] Fallback to HRP: {e}")
-        return calculate_hrp_weights(cov_matrix, symbols=symbols, sectors=sectors)
+        hrp_res = calculate_hrp_weights(cov_matrix, symbols=symbols, sectors=sectors)
+        return np.asarray(hrp_res['realized_weights'] if isinstance(hrp_res, dict) else hrp_res, dtype=np.float64)
 
 
 def apply_portfolio_constraints(

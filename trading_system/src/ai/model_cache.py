@@ -223,7 +223,7 @@ class ModelCacheManager:
                     f"Expected fp: {expected_fp}, Stored fp: {stored_fp}."
                 )
 
-        loaded_model = None
+        loaded_model: Any = None
         m_format = metadata.get("model_format", "")
         m_class = metadata.get("model_class", "")
         suffix = fpath.suffix.lower()
@@ -355,13 +355,14 @@ class ModelCacheManager:
         """
         mdir = Path(model_dir).resolve()
         markets = [m.lower() for m in (required_markets or ['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq'])]
-        horizons = required_horizons or [1, 2, 3, 5, 10, 20, 60, 200]
+        expected_horizons = required_horizons or [1, 2, 3, 5, 10, 20, 60, 200]
         max_staleness = timedelta(days=max_age_days)
         now = datetime.now()
 
         report: Dict[str, Any] = {
             "model_dir": str(mdir),
             "directory_exists": mdir.exists(),
+            "expected_horizons": expected_horizons,
             "total_files": 0,
             "valid_models_count": 0,
             "corrupted_models_count": 0,

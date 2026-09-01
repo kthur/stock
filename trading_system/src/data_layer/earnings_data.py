@@ -584,15 +584,15 @@ def invalidate_cache_for_symbols(storage, symbols: List[str]) -> int:
         return 0
     try:
         if hasattr(storage, 'delete_fundamental_meta'):
-            return storage.delete_fundamental_meta(symbols)
+            return int(storage.delete_fundamental_meta(symbols))
         elif hasattr(storage, '_get_conn'):
             with storage._SHARED_WRITE_LOCK:
                 with storage._get_conn() as conn:
                     cursor = conn.cursor()
                     placeholders = ','.join('?' for _ in symbols)
-                    cursor.execute(f"DELETE FROM fundamental_cache_meta WHERE symbol IN ({placeholders})", symbols)
+                    cursor.execute(f"DELETE FROM fundamental_cache_meta WHERE symbol IN ({placeholders})", symbols)  # nosec B608
                     conn.commit()
-                    return cursor.rowcount
+                    return int(cursor.rowcount)
     except Exception as e:
         logger.warning(f"Failed to invalidate fundamental cache for symbols: {e}")
     return 0

@@ -20,7 +20,7 @@ ALL_34_STRATEGIES = [
     'darkpool', 'earnings_tone_drift', 'cross_asset_spillover',
     'supply_chain_gnn', 'range_expansion_breakout'
 ]
-ALL_31_STRATEGIES = ALL_34_STRATEGIES
+ALL_31_STRATEGIES = ALL_34_STRATEGIES[:31]
 _STRATEGY_COUNT = len(ALL_34_STRATEGIES)
 
 KNOWN_MARKETS = [

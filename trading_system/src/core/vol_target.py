@@ -82,7 +82,7 @@ class VolTargetingEngine(BaseStrategyEngine):
                 return pd.DataFrame(columns=["symbol", "name", "market", "vol_target_score"])
             close_dict = {}
             for sym, df_p in df_prices.items():
-                if df_p is not None and hasattr(df_p, 'empty') and not df_p.empty:
+                if isinstance(df_p, pd.DataFrame) and not df_p.empty:
                     c_col = "Close" if "Close" in df_p.columns else ("close" if "close" in df_p.columns else None)
                     if c_col:
                         c = df_p[c_col]
@@ -121,13 +121,13 @@ class VolTargetingEngine(BaseStrategyEngine):
         # R8-7: Incorporate Parkinson range volatility if High/Low prices are available in df_prices dict
         if isinstance(df_prices, dict):
             for sym in realized_vol.index:
-                df_p = df_prices.get(sym)
-                if isinstance(df_p, pd.DataFrame) and not df_p.empty:
-                    h_col = "High" if "High" in df_p.columns else ("high" if "high" in df_p.columns else None)
-                    l_col = "Low" if "Low" in df_p.columns else ("low" if "low" in df_p.columns else None)
+                df_item: Any = df_prices.get(sym)
+                if isinstance(df_item, pd.DataFrame) and not df_item.empty:
+                    h_col = "High" if "High" in df_item.columns else ("high" if "high" in df_item.columns else None)
+                    l_col = "Low" if "Low" in df_item.columns else ("low" if "low" in df_item.columns else None)
                     if h_col and l_col:
-                        high_series = pd.to_numeric(df_p[h_col].tail(30), errors='coerce').dropna()
-                        low_series = pd.to_numeric(df_p[l_col].tail(30), errors='coerce').dropna()
+                        high_series = pd.to_numeric(df_item[h_col].tail(30), errors='coerce').dropna()
+                        low_series = pd.to_numeric(df_item[l_col].tail(30), errors='coerce').dropna()
                         common_idx = high_series.index.intersection(low_series.index)
                         if len(common_idx) >= 15:
                             h_sub, l_sub = np.maximum(high_series.loc[common_idx].values, 1e-8), np.maximum(low_series.loc[common_idx].values, 1e-8)

@@ -415,7 +415,8 @@ class PortfolioAllocator:
                 if use_herc:
                     hrp_w = calculate_herc_weights(cov_mat, symbols=symbols)
                 else:
-                    hrp_w = calculate_hrp_weights(cov_mat, symbols=symbols)
+                    _hrp_raw = calculate_hrp_weights(cov_mat, symbols=symbols)
+                    hrp_w = np.asarray(_hrp_raw['realized_weights'] if isinstance(_hrp_raw, dict) else _hrp_raw, dtype=np.float64)
                 df_candidates['hrp_weight'] = hrp_w
                 # ── Layer 3: Market Budget × HRP weight ──
                 df_candidates['weight'] = hrp_w * df_candidates['market_budget'] * self.max_total_allocation
