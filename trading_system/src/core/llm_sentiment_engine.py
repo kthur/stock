@@ -418,7 +418,9 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
                                     raw_sent = 0.50 + float(np.clip(signal, -0.40, 0.40))
                                     # High-conviction Positive Catalyst Booster
                                     if raw_sent >= 0.75:
-                                        raw_sent = float(0.50 + (raw_sent - 0.50) * 1.15)
+                                        raw_sent = float(0.50 + (raw_sent - 0.50) * 1.25)  # Super NLP Catalyst Ignition
+                                    elif raw_sent >= 0.65:
+                                        raw_sent = float(0.50 + (raw_sent - 0.50) * 1.12)
                                     score = float(np.clip(raw_sent, 0.05, 0.98))
                         except Exception:
                             pass
