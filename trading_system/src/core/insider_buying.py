@@ -112,7 +112,7 @@ class InsiderBuyingEngine(BaseStrategyEngine):
 
                     # Explicit transaction classification: do not default generic informational filings to BUY
                     if raw_type in buy_keywords or any(k in report_nm for k in ['장내매수', '장내취득', '신규매수', '주식매입', '자사주매입', '지분매수', '지분취득']):
-                        boost = 0.35 if any(role in combined_role_text for role in high_level_roles) else 0.20
+                        boost = 0.40 if any(role in combined_role_text for role in high_level_roles) else 0.25
                         # Accumulate multiple insider buys up to 0.98 cap
                         cur_score = float(np.clip(cur_score + boost, 0.0, 0.98))
                         logger.info(f"[INSIDER BUYING ENGINE] Insider buy detected for {sym}: {report_nm} (Score -> {cur_score:.2f})")
@@ -123,9 +123,9 @@ class InsiderBuyingEngine(BaseStrategyEngine):
                 # Cluster Buying Acceleration: Multiple insider purchases indicate strong executive consensus
                 buy_count = sum(1 for item in matching_items if any(k in str(item.get('report_nm', '')) for k in ['장내매수', '장내취득', '신규매수', '주식매입', '지분매수', '지분취득']))
                 if buy_count >= 2:
-                    cur_score = float(np.clip(cur_score + 0.10, 0.0, 0.98))
+                    cur_score = float(np.clip(cur_score + 0.15, 0.0, 0.98))
 
-                scores_map[sym] = float(np.clip(cur_score, 0.0, 1.0)) if np.isfinite(cur_score) else np.nan
+                scores_map[sym] = float(np.clip(cur_score, 0.0, 0.98)) if np.isfinite(cur_score) else np.nan
 
         # Smart-Money Accumulation Fallback Proxy when insider_filings absent and prices_dict is provided
         if prices_dict and isinstance(prices_dict, dict) and bool(prices_dict):
@@ -174,12 +174,22 @@ class InsiderBuyingEngine(BaseStrategyEngine):
                                 mas_norm = float(np.clip(mas * 2.0, -0.2, 0.2))
 
                                 # High-Conviction Stealth Accumulation Booster
-                                stealth_boost = 0.08 if (cmf > 0.20 and udvr_norm > 0.15) else 0.0
+                                stealth_boost = 0.10 if (cmf > 0.20 and udvr_norm > 0.15) else 0.0
                                 raw_acc = 0.50 + 0.25 * cmf + 0.20 * udvr_norm + 0.15 * mas_norm + stealth_boost
-                                scores_map[sym] = float(np.clip(raw_acc, 0.05, 0.95))
+                                scores_map[sym] = float(np.clip(raw_acc, 0.05, 0.98))
 
-        results = [{'symbol': str(k), 'insider_buying_score': float(np.clip(v, 0.0, 1.0)) if (pd.notna(v) and np.isfinite(v)) else np.nan} for k, v in scores_map.items()]
+        results = [{'symbol': str(k), 'insider_buying_score': float(np.clip(v, 0.0, 0.98)) if (pd.notna(v) and np.isfinite(v)) else np.nan} for k, v in scores_map.items()]
         res_df = pd.DataFrame(results)
         if not res_df.empty:
-            res_df['insider_buying_score'] = pd.to_numeric(res_df['insider_buying_score'], errors='coerce')
+            s_series = pd.to_numeric(res_df['insider_buying_score'], errors='coerce')
+            valid_mask = s_series.notna()
+            if valid_mask.sum() > 1:
+                valid_scores = s_series[valid_mask]
+                ranks = valid_scores.rank(pct=True, ascending=True)
+                # Multi-Tier Insider Conviction Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+                enhanced = np.where(ranks >= 0.95, (valid_scores * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (valid_scores * 1.10).clip(0.05, 0.98), valid_scores))
+                res_df.loc[valid_mask, 'insider_buying_score'] = pd.to_numeric(pd.Series(enhanced, index=valid_scores.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            else:
+                res_df['insider_buying_score'] = s_series
         return res_df
