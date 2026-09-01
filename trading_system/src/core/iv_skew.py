@@ -161,15 +161,15 @@ class IVSkewEngine(BaseStrategyEngine):
                                 last_ret = float(ret.iloc[-1])
                                 ret_3d = float(c.iloc[-1] / c.iloc[-min(len(c), 4)]) - 1.0 if len(c) >= 4 else last_ret
                                 if skew_ratio >= 1.6 and last_ret > 0.01 and ret_3d > 0.0:
-                                    turnaround_bonus = 0.20  # High-conviction fear capitulation turnaround
+                                    turnaround_bonus = 0.28  # Super Fear Capitulation Rebound
                                 elif skew_ratio >= 1.3 and last_ret > 0.0:
-                                    turnaround_bonus = 0.10
+                                    turnaround_bonus = 0.15
                                 else:
                                     turnaround_bonus = 0.0
 
-                                raw_score = 0.5 + (skew_ratio - 1.0) * 0.30 - ret_skew * 0.15 + turnaround_bonus
-                                score = 0.5 + (raw_score - 0.5) * 0.50
-                                score = float(np.clip(score, 0.05, 0.95))
+                                raw_score = 0.5 + (skew_ratio - 1.0) * 0.35 - ret_skew * 0.15 + turnaround_bonus
+                                score = 0.5 + (raw_score - 0.5) * 0.55
+                                score = float(np.clip(score, 0.05, 0.98))
                                 score = score if np.isfinite(score) else np.nan
                             else:
                                 score = np.nan
@@ -190,6 +190,16 @@ class IVSkewEngine(BaseStrategyEngine):
         res_list = [{'symbol': sym, 'iv_skew_score': float(results[sym]) if (sym in results and pd.notna(results[sym]) and np.isfinite(results[sym])) else np.nan} for sym in symbols]
         df_out = pd.DataFrame(res_list)
         df_out['iv_skew_score'] = pd.to_numeric(df_out['iv_skew_score'], errors='coerce')
+
+        # Multi-Tier Cross-Sectional IV Skew Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+        valid_mask = df_out['iv_skew_score'].notna()
+        if valid_mask.sum() > 1:
+            valid_s = df_out.loc[valid_mask, 'iv_skew_score']
+            ranks = valid_s.rank(pct=True, ascending=True)
+            enhanced = np.where(ranks >= 0.95, (valid_s * 1.15).clip(0.05, 0.98),
+                       np.where(ranks >= 0.85, (valid_s * 1.10).clip(0.05, 0.98), valid_s))
+            df_out.loc[valid_mask, 'iv_skew_score'] = pd.to_numeric(pd.Series(enhanced, index=valid_s.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+
         return df_out
 
     def compute_scores(
