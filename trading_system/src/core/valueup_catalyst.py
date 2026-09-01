@@ -163,13 +163,18 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 # Profitability Booster (ROE > 8% accelerates Value-Up re-rating potential)
                 roe_boost = 1.0
                 if pd.notna(roe_val) and np.isfinite(float(roe_val)) and float(roe_val) > 0.08:
-                    roe_boost = np.clip(1.0 + float(roe_val) * 0.5, 1.0, 1.25)
+                    roe_boost = np.clip(1.0 + float(roe_val) * 0.6, 1.0, 1.35)
 
-                # Triple Value-Up Catalyst: Low PBR (< 0.80) + High ROE (>= 10%) + High Net Cash/Dividend (>= 15% or >= 3.5%)
-                triple_catalyst = 1.20 if (pbr_val < 0.80 and pd.notna(roe_val) and float(roe_val) >= 0.10 and (cash_ratio >= 0.15 or div_val >= 0.035)) else 1.0
+                # Quadruple & Triple Value-Up Catalyst: Low PBR + High ROE + High Net Cash + High Shareholder Yield
+                if pbr_val < 0.70 and pd.notna(roe_val) and float(roe_val) >= 0.12 and cash_ratio >= 0.20 and div_val >= 0.04:
+                    valueup_catalyst = 1.40  # Quadruple Value-Up Super Re-rating Catalyst
+                elif pbr_val < 0.80 and pd.notna(roe_val) and float(roe_val) >= 0.10 and (cash_ratio >= 0.15 or div_val >= 0.035):
+                    valueup_catalyst = 1.25  # Standard Triple Catalyst
+                else:
+                    valueup_catalyst = 1.0
 
                 # Composite score
-                raw_score = pbr_factor * roe_boost * triple_catalyst * (1.0 + np.clip(cash_ratio, 0.0, 1.0) * 1.5 + np.clip(div_val, 0.0, 0.10) * 5.0)
+                raw_score = pbr_factor * roe_boost * valueup_catalyst * (1.0 + np.clip(cash_ratio, 0.0, 1.0) * 1.8 + np.clip(div_val, 0.0, 0.10) * 6.0)
                 scores[sym_str] = float(np.clip(raw_score, 0.0, 50.0)) if np.isfinite(raw_score) else np.nan
             else:
                 # Level 2 Fallback Proxy: 200d SMA Valuation & 52-Week Discount Proxy
@@ -218,7 +223,7 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
 
         if valid_mask.sum() > 1:
             ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-            base_score = ranks.clip(0.05, 0.95)
+            base_score = ranks.clip(0.05, 0.98)
             # Multi-Tier Value-Up Super Premium Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
             enhanced_score = np.where(base_score >= 0.95, (base_score * 1.15).clip(0.05, 0.98),
                              np.where(base_score >= 0.85, (base_score * 1.10).clip(0.05, 0.98), base_score))
