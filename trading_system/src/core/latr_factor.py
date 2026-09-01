@@ -125,13 +125,20 @@ class LATRFactorEngine(BaseStrategyEngine):
                 # Monotonic drawdown score for panic bounce opportunity (scaled by target drawdown)
                 dd_score = float(np.clip(dd_pct / max(0.01, self.target_drawdown), 0.0, 1.25))
 
-                # Panic volume surge bounce bonus (Volume surge >= 2.5 on panic drawdown)
-                vol_surge_val = float(np.clip(vol_surge, 0.0, 5.0)) if np.isfinite(vol_surge) else 1.0
-                amihud_val = float(np.clip(amihud_illiq, 0.0, 5.0)) if np.isfinite(amihud_illiq) else 0.0
-                panic_bounce_bonus = 0.12 if (vol_surge_val >= 2.5 and dd_score >= 0.80) else 0.0
+                # Multi-Tier Capitulation Climax Bounce & Falling Knife Defense:
+                # 1. Super Capitulation: Panic drawdown meets massive institutional liquidity absorption
+                if vol_surge_val >= 3.0 and dd_score >= 0.90:
+                    panic_bounce_bonus = 0.22  # Super Capitulation Climax Rebound
+                elif vol_surge_val >= 2.2 and dd_score >= 0.75:
+                    panic_bounce_bonus = 0.12  # Standard Panic Bounce
+                else:
+                    panic_bounce_bonus = 0.0
 
-                # LATR raw score: Optimal panic drawdown score + volume surge - tail risk penalty - illiquidity penalty
-                raw_latr = (dd_score * 0.40) + (min(vol_surge_val, 3.0) * 0.35) - (tail_penalty * 0.15) - (min(amihud_val, 2.0) * 0.10) + panic_bounce_bonus
+                # 2. Falling Knife Penalty: Deep drawdown with drying volume and extreme tail risk
+                falling_knife_penalty = 0.15 if (dd_score >= 0.80 and vol_surge_val < 0.80 and tail_penalty >= 1.2) else 0.0
+
+                # LATR raw score: Optimal panic drawdown score + volume surge - tail risk penalty - illiquidity penalty + capitulation bonus - falling knife penalty
+                raw_latr = (dd_score * 0.40) + (min(vol_surge_val, 3.0) * 0.35) - (tail_penalty * 0.15) - (min(amihud_val, 2.0) * 0.10) + panic_bounce_bonus - falling_knife_penalty
                 scores[sym] = float(np.clip(raw_latr, -5.0, 5.0)) if np.isfinite(raw_latr) else 0.5
             except Exception as e:
                 logger.warning(f"[LATR FACTOR] Error computing score for {sym}: {e}")
@@ -148,5 +155,13 @@ class LATRFactorEngine(BaseStrategyEngine):
             return make_score_dataframe({k: 0.5 for k in scores.keys()}, 'latr_score')
         range_v = p99 - p1
 
-        norm_scores = {k: float(np.clip((v - p1) / range_v, 0.0, 1.0)) if np.isfinite(v) else 0.5 for k, v in scores.items()}
+        norm_scores = {}
+        for k, v in scores.items():
+            if np.isfinite(v):
+                base_s = float(np.clip((v - p1) / range_v, 0.0, 1.0))
+                # Boost top 10% high-conviction capitulation turnaround opportunities
+                boosted_s = (base_s * 1.10) if base_s >= 0.90 else base_s
+                norm_scores[k] = float(np.clip(boosted_s, 0.05, 0.98))
+            else:
+                norm_scores[k] = 0.50
         return make_score_dataframe(norm_scores, 'latr_score')
