@@ -272,14 +272,14 @@ class EventDrivenEngine(BaseStrategyEngine):
                         # Multi-Tier Event Volume Breakout Booster:
                         # Mega Event Surge: Volume >= 4.0x with strong upward impulse (>= 4%)
                         if v_ratio >= 4.0 and ret_5d >= 0.04:
-                            breakout_bonus = 0.16  # Mega Event Reaction Explosion
+                            breakout_bonus = 0.24  # Super Mega Event Reaction Explosion
                         elif v_ratio >= 2.5 and ret_5d > 0.0:
-                            breakout_bonus = 0.08  # Standard Event Breakout
+                            breakout_bonus = 0.12  # Standard Event Breakout
                         else:
                             breakout_bonus = 0.0
 
                         # Continuous boost with event volume synergy
-                        continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 0.30 * np.clip(ret_5d, -0.15, 0.15) + breakout_bonus, -0.15, 0.30)
+                        continuous_boost = np.clip(0.06 * (v_ratio - 1.0) + 0.35 * np.clip(ret_5d, -0.15, 0.15) + breakout_bonus, -0.15, 0.35)
                         scores_map[sym] = float(np.clip(scores_map[sym] + continuous_boost, 0.05, 0.98))
                 except Exception:
                     pass
@@ -292,7 +292,18 @@ class EventDrivenEngine(BaseStrategyEngine):
                     if sent_metric:
                         scores_map[sym] = self.incorporate_filing_sentiment(sym, scores_map[sym], sent_metric)
 
-        res_df = pd.DataFrame([{'symbol': k, 'event_score': float(np.clip(v, 0.0, 1.0)) if np.isfinite(v) else 0.5} for k, v in scores_map.items()])
+        res_df = pd.DataFrame([{'symbol': k, 'event_score': float(np.clip(v, 0.05, 0.98)) if np.isfinite(v) else 0.50} for k, v in scores_map.items()])
+
+        # Multi-Tier Event-Driven Rank Acceleration Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+        if len(res_df) > 1:
+            raw_s = pd.to_numeric(res_df['event_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            ranks = raw_s.rank(pct=True, ascending=True)
+            enhanced = np.where(ranks >= 0.95, (raw_s * 1.15).clip(0.05, 0.98),
+                       np.where(ranks >= 0.85, (raw_s * 1.10).clip(0.05, 0.98), raw_s))
+            res_df['event_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+        else:
+            res_df['event_score'] = pd.to_numeric(res_df['event_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+
         return res_df
 
     def evaluate_cb_bw_overhang_and_margin_risk(
