@@ -710,12 +710,12 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             s1, s2 = pair
             # Non-linear mean-reversion acceleration for extreme cointegration divergences (|Z| >= 2.0, |Z| >= 2.5)
             if z >= 2.5:
-                z_mult = 1.40  # Super Cointegration Divergence Mean-Reversion Ignition
+                z_mult = 1.60  # Super Cointegration Divergence Mean-Reversion Ignition
             elif z >= 2.0:
-                z_mult = 1.25
+                z_mult = 1.35
             else:
                 z_mult = 1.0
-            score_delta = min(0.48, z * 0.11 * z_mult)
+            score_delta = min(0.48, z * 0.13 * z_mult)
 
             if f"LONG_{s1}" in sig or (sig == "LONG_SPREAD" and s2 == "BENCHMARK"):
                 symbol_deltas[s1] = symbol_deltas.get(s1, 0.0) + score_delta
