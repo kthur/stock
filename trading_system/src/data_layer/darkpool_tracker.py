@@ -118,16 +118,19 @@ class DarkPoolTrackerEngine:
 
                             # Multi-Tier Stealth Accumulation & Distribution Divergence Modeling
                             if traded_value >= min_val_thresh:
-                                if abs(ret_10d) < 0.025 and vol_spike >= 3.0:
+                                if abs(ret_10d) < 0.020 and vol_spike >= 4.0:
                                     # Mega Stealth Inflow Divergence: Price suppressed while massive block volume crosses
-                                    score = float(np.clip(0.50 + 0.12 * vol_spike, 0.50, 0.98))
-                                    logger.info(f"[DARK POOL ENGINE] Mega accumulation divergence for {sym} (Vol Spike={vol_spike:.1f}x, Ret={ret_10d*100:.1f}%, Score={score:.2f})")
+                                    score = float(np.clip(0.50 + 0.15 * vol_spike, 0.50, 0.98))
+                                    logger.info(f"[DARK POOL ENGINE] Super mega accumulation divergence for {sym} (Vol Spike={vol_spike:.1f}x, Ret={ret_10d*100:.1f}%, Score={score:.2f})")
+                                elif abs(ret_10d) < 0.025 and vol_spike >= 3.0:
+                                    # Standard Mega Stealth Accumulation
+                                    score = float(np.clip(0.50 + 0.12 * vol_spike, 0.50, 0.95))
                                 elif abs(ret_10d) < 0.025 and vol_spike >= 2.0:
                                     # Standard Stealth Accumulation
                                     score = float(np.clip(0.50 + 0.10 * vol_spike, 0.50, 0.85))
                                 elif 0.02 <= ret_10d <= 0.06 and vol_spike >= 1.8:
                                     # Institutional Breakout Expansion Footprint
-                                    score = float(np.clip(0.60 + 0.08 * vol_spike, 0.60, 0.90))
+                                    score = float(np.clip(0.60 + 0.08 * vol_spike, 0.60, 0.92))
                                 elif ret_10d < -0.04 and vol_spike >= 2.0:
                                     # Institutional Stealth Distribution Divergence
                                     score = float(np.clip(0.50 - 0.10 * vol_spike, 0.10, 0.40))
@@ -142,16 +145,24 @@ class DarkPoolTrackerEngine:
                     dp_buy_bias = float(raw_bias) if (raw_bias is not None and np.isfinite(float(raw_bias))) else 0.50
 
                     if dp_share > 0.40 and dp_buy_bias > 0.65:  # High dark pool volume with institutional buy bias
-                        score = float(np.clip(score + 0.30, 0.0, 1.0))
+                        score = float(np.clip(score + 0.30, 0.0, 0.98))
                         logger.info(f"[DARK POOL ENGINE] High Dark Pool institutional buying for {sym} (Share={dp_share*100:.1f}%, Buy Bias={dp_buy_bias:.2f})")
 
             score_clean = float(score) if (score is not None and np.isfinite(score)) else 0.50
-            score_clipped = float(np.clip(score_clean, 0.0, 1.0))
+            score_clipped = float(np.clip(score_clean, 0.0, 0.98))
             results.append({'symbol': sym, 'darkpool_score': round(score_clipped, 4)})
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:
-            res_df['darkpool_score'] = pd.to_numeric(res_df['darkpool_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
+            s_series = pd.to_numeric(res_df['darkpool_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            if len(res_df) > 1:
+                ranks = s_series.rank(pct=True, ascending=True)
+                # Multi-Tier Darkpool Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.98), s_series))
+                res_df['darkpool_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            else:
+                res_df['darkpool_score'] = s_series
         return res_df
 
 
