@@ -116,12 +116,21 @@ class DarkPoolTrackerEngine:
                             traded_value = float(v.iloc[-1]) * float(c.iloc[-1])
                             min_val_thresh = 100_000_000 if str(sym).isdigit() else 100_000
 
-                            # Accumulation Divergence: Flat price (-2% ~ +2%) + Massive Volume Spike (> 2.5x) with liquidity check
-                            if abs(ret_10d) < 0.02 and vol_spike > 2.5 and traded_value >= min_val_thresh:
-                                base_score = float(np.clip(0.50 + 0.15 * vol_spike, 0.50, 0.95))
-                                # Dark Pool Stealth Inflow Booster for high conviction accumulation
-                                score = float(np.clip(base_score * 1.10, 0.50, 0.98))
-                                logger.info(f"[DARK POOL ENGINE] Accumulation divergence for {sym} (Vol Spike={vol_spike:.1f}x, Ret={ret_10d*100:.1f}%, Score={score:.2f})")
+                            # Multi-Tier Stealth Accumulation & Distribution Divergence Modeling
+                            if traded_value >= min_val_thresh:
+                                if abs(ret_10d) < 0.025 and vol_spike >= 3.0:
+                                    # Mega Stealth Inflow Divergence: Price suppressed while massive block volume crosses
+                                    score = float(np.clip(0.50 + 0.12 * vol_spike, 0.50, 0.98))
+                                    logger.info(f"[DARK POOL ENGINE] Mega accumulation divergence for {sym} (Vol Spike={vol_spike:.1f}x, Ret={ret_10d*100:.1f}%, Score={score:.2f})")
+                                elif abs(ret_10d) < 0.025 and vol_spike >= 2.0:
+                                    # Standard Stealth Accumulation
+                                    score = float(np.clip(0.50 + 0.10 * vol_spike, 0.50, 0.85))
+                                elif 0.02 <= ret_10d <= 0.06 and vol_spike >= 1.8:
+                                    # Institutional Breakout Expansion Footprint
+                                    score = float(np.clip(0.60 + 0.08 * vol_spike, 0.60, 0.90))
+                                elif ret_10d < -0.04 and vol_spike >= 2.0:
+                                    # Institutional Stealth Distribution Divergence
+                                    score = float(np.clip(0.50 - 0.10 * vol_spike, 0.10, 0.40))
 
             # 2. Live Dark Pool / ATS Volume Data override
             if darkpool_data_dict and sym in darkpool_data_dict:
