@@ -416,7 +416,10 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
 
                                     signal = (1.5 * gap + 1.0 * trend + 1.2 * r_5d + 0.8 * r_20d) * vol_mult
                                     raw_sent = 0.50 + float(np.clip(signal, -0.40, 0.40))
-                                    score = float(np.clip(raw_sent, 0.05, 0.95))
+                                    # High-conviction Positive Catalyst Booster
+                                    if raw_sent >= 0.75:
+                                        raw_sent = float(0.50 + (raw_sent - 0.50) * 1.15)
+                                    score = float(np.clip(raw_sent, 0.05, 0.98))
                         except Exception:
                             pass
 
@@ -429,7 +432,15 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:
-            res_df['sentiment_score'] = pd.to_numeric(res_df['sentiment_score'], errors='coerce')
+            s_series = pd.to_numeric(res_df['sentiment_score'], errors='coerce')
+            valid_mask = s_series.notna()
+            if valid_mask.sum() > 1:
+                valid_scores = s_series[valid_mask]
+                ranks = valid_scores.rank(pct=True, ascending=True)
+                # Multi-Tier Sentiment Catalyst Booster
+                enhanced = np.where(ranks >= 0.95, (valid_scores * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (valid_scores * 1.10).clip(0.05, 0.98), valid_scores))
+                res_df.loc[valid_mask, 'sentiment_score'] = pd.to_numeric(pd.Series(enhanced, index=valid_scores.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
             res_df = res_df.sort_values(by="sentiment_score", ascending=False, na_position='last').reset_index(drop=True)
         return res_df
 
