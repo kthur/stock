@@ -283,7 +283,7 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                 # 1. Amplification when macro impulse & stock momentum are constructively aligned
                 # 2. Dampening when stock is heavily breaking down despite macro tailwinds (idiosyncratic risk)
                 if macro_impulse > 0 and stock_eff_ret >= 0:
-                    coherence_mult = 1.0 + 0.35 * min(1.0, stock_eff_ret / 0.05)
+                    coherence_mult = 1.0 + 0.50 * min(1.0, stock_eff_ret / 0.04)
                     delta_spillover *= coherence_mult
                 elif macro_impulse > 0 and stock_eff_ret < -0.03:
                     # Decoupling penalty: idiosyncratic breakdown
@@ -293,13 +293,13 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                     delta_spillover = 0.0
 
                 # Continuous logistic mapping centered at 0.50
-                # Scale factor 15.0 provides responsive sensitivity across [-0.10, +0.10] range
-                clipped_exp = np.clip(-15.0 * delta_spillover, -50.0, 50.0)
+                # Scale factor 16.0 provides responsive sensitivity across [-0.10, +0.10] range
+                clipped_exp = np.clip(-16.0 * delta_spillover, -50.0, 50.0)
                 raw_score = 1.0 / (1.0 + np.exp(clipped_exp))
                 if not np.isfinite(raw_score):
                     clipped_score = 0.50
                 else:
-                    clipped_score = float(np.clip(raw_score, 0.05, 0.95))
+                    clipped_score = float(np.clip(raw_score, 0.05, 0.98))
 
                 if not np.isfinite(clipped_score):
                     clipped_score = 0.50
@@ -311,6 +311,16 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                 scores[sym_str] = 0.50
 
         res_df = make_score_dataframe(scores, score_column="cross_asset_spillover_score")
+        if not res_df.empty:
+            s_series = pd.to_numeric(res_df['cross_asset_spillover_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            if len(res_df) > 1:
+                ranks = s_series.rank(pct=True, ascending=True)
+                # Multi-Tier Cross-Asset Spillover Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.98), s_series))
+                res_df['cross_asset_spillover_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            else:
+                res_df['cross_asset_spillover_score'] = s_series
         return res_df
 
 
