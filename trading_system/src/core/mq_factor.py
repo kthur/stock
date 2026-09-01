@@ -203,14 +203,26 @@ class MQFactorEngine(BaseStrategyEngine):
             if 'roe' in res_df.columns:
                 distress_mask = distress_mask | (res_df['roe'] < 0)
             if distress_mask.any():
-                res_df.loc[distress_mask, 'mq_score'] = (res_df.loc[distress_mask, 'mq_score'] * 0.60).clip(0.0, 1.0)
+                res_df.loc[distress_mask, 'mq_score'] = (res_df.loc[distress_mask, 'mq_score'] * 0.55).clip(0.0, 1.0)
+
+            # Super Momentum Quality Champion Synergy: Smooth monotonic momentum backed by top-decile fundamentals
+            mq_champion_mask = (res_df['price_mom_rank'] >= 0.85) & (res_df['quality_score'] >= 0.85) & (~distress_mask)
+            res_df.loc[mq_champion_mask, 'mq_score'] = (res_df.loc[mq_champion_mask, 'mq_score'] * 1.25).clip(0.05, 0.98)
 
             # High-Conviction Momentum Quality Super Alpha Booster (smooth continuous sigmoid)
-            smooth_boost = 1.0 + 0.10 / (1.0 + np.exp(-10.0 * (res_df['mq_score'] - 0.75)))
+            smooth_boost = 1.0 + 0.18 / (1.0 + np.exp(-10.0 * (res_df['mq_score'] - 0.75)))
             boost_multiplier = np.where(distress_mask, 1.0, smooth_boost)
-            res_df['mq_score'] = (res_df['mq_score'] * boost_multiplier).clip(0.0, 1.0)
+            res_df['mq_score'] = (res_df['mq_score'] * boost_multiplier).clip(0.05, 0.98)
         else:
             res_df['mq_score'] = res_df['price_mom_rank']
 
-        res_df['mq_score'] = pd.to_numeric(res_df['mq_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
+        # Multi-Tier Momentum Quality Rank Acceleration Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+        if len(res_df) > 1:
+            raw_s = pd.to_numeric(res_df['mq_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            ranks = raw_s.rank(pct=True, ascending=True)
+            enhanced = np.where(ranks >= 0.95, (raw_s * 1.15).clip(0.05, 0.98),
+                       np.where(ranks >= 0.85, (raw_s * 1.10).clip(0.05, 0.98), raw_s))
+            res_df['mq_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+        else:
+            res_df['mq_score'] = pd.to_numeric(res_df['mq_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
         return res_df[['symbol', 'mq_score']]
