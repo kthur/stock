@@ -323,13 +323,13 @@ class SectorRotationEngine(BaseStrategyEngine):
                 std_leadership_mask = (res_df['sector_rank'] >= 0.75) & (res_df['stock_rank'] >= 0.70) & (~super_leadership_mask)
 
                 if super_leadership_mask.any():
-                    res_df.loc[super_leadership_mask, 'sector_score'] = (res_df.loc[super_leadership_mask, 'sector_score'] * 1.18).clip(0.05, 0.98)
+                    res_df.loc[super_leadership_mask, 'sector_score'] = (res_df.loc[super_leadership_mask, 'sector_score'] * 1.25).clip(0.05, 0.98)
                 if std_leadership_mask.any():
-                    res_df.loc[std_leadership_mask, 'sector_score'] = (res_df.loc[std_leadership_mask, 'sector_score'] * 1.10).clip(0.05, 0.95)
+                    res_df.loc[std_leadership_mask, 'sector_score'] = (res_df.loc[std_leadership_mask, 'sector_score'] * 1.12).clip(0.05, 0.98)
             else:
                 res_df['sector_score'] = res_df['stock_rank']
         else:
-            res_df['sector_score'] = 0.5
+            res_df['sector_score'] = 0.50
 
         # V7-15: Leading Indicator Blend (ARM consensus revision & Order Flow MFI acceleration)
         if arm_scores is not None or order_flow_scores is not None:
