@@ -205,18 +205,26 @@ class CARDFactorEngine(BaseStrategyEngine):
 
                     # Extreme Macro Mispricing Rebound Multiplier (Fundamental tailwind vs temporary stock lag)
                     if raw_div <= -6.0 and macro_impact >= 2.5:
-                        mispricing_mult = 1.25  # Super Macro Mispricing: Strong macro tailwind with severe stock lag
+                        mispricing_mult = 1.35  # Super Macro Mispricing: Strong macro tailwind with severe stock lag
                     elif raw_div <= -3.5 and macro_impact >= 1.5:
-                        mispricing_mult = 1.12  # Standard Macro Mispricing
+                        mispricing_mult = 1.18  # Standard Macro Mispricing
                     else:
                         mispricing_mult = 1.0
 
                     # Asymmetric Upside Booster for extreme macro divergence undervaluation (smooth continuous)
-                    smooth_boost = 1.0 + 0.15 / (1.0 + np.exp(-12.0 * (card_score - 0.65)))
+                    smooth_boost = 1.0 + 0.20 / (1.0 + np.exp(-12.0 * (card_score - 0.65)))
                     card_score = float(np.clip(card_score * smooth_boost * mispricing_mult, 0.05, 0.98))
                 scores[sym] = float(card_score)
             except Exception as e:
                 logger.warning(f"[CARD FACTOR] Error computing score for {sym}: {e}")
                 scores[sym] = 0.5
+
+        # Multi-Tier Cross-Sectional CARD Rank Acceleration Booster
+        if len(scores) > 1:
+            raw_s = pd.Series(scores, dtype=float).fillna(0.50).clip(0.05, 0.98)
+            ranks = raw_s.rank(pct=True, ascending=True)
+            enhanced_s = np.where(ranks >= 0.95, (raw_s * 1.15).clip(0.05, 0.98),
+                         np.where(ranks >= 0.85, (raw_s * 1.10).clip(0.05, 0.98), raw_s))
+            scores = dict(zip(raw_s.index, pd.to_numeric(pd.Series(enhanced_s, index=raw_s.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)))
 
         return make_score_dataframe(scores, 'card_score')
