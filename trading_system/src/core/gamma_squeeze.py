@@ -104,13 +104,18 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
                                 raw_vol_surge = (cur_v / avg_v) if avg_v > 0 and not np.isnan(avg_v) else 1.0
                                 vol_surge = float(np.clip(raw_vol_surge, 0.0, 10.0)) if np.isfinite(raw_vol_surge) else 1.0
 
-                            # Gamma Breakout Ignition Bonus (Strong momentum + volume surge + near 20d high)
-                            gamma_ignition_bonus = 0.12 if (proximity >= 0.97 and (ret_5d >= 0.08 or ret_3d >= 0.05) and vol_surge >= 1.8) else 0.0
+                            # Multi-Tier Gamma Breakout Ignition Bonus (Dealer delta-hedging acceleration trigger)
+                            if proximity >= 0.99 and (ret_5d >= 0.10 or ret_3d >= 0.06) and vol_surge >= 2.5:
+                                gamma_ignition_bonus = 0.22  # Super Gamma Ignition: High delta-hedging feedback loop
+                            elif proximity >= 0.97 and (ret_5d >= 0.07 or ret_3d >= 0.04) and vol_surge >= 1.8:
+                                gamma_ignition_bonus = 0.14  # Standard Gamma Ignition
+                            else:
+                                gamma_ignition_bonus = 0.0
 
-                            # Squeeze score formula with fallback dampening to prevent pure momentum duplication
-                            squeeze_raw = 0.35 * proximity + 0.30 * max(0.0, ret_5d * 5.0) + 0.25 * min(2.0, vol_surge) / 2.0 + 0.10 * max(0.0, ret_3d * 6.0) + gamma_ignition_bonus
-                            # Attenuate fallback towards neutral (0.5) when actual options GEX is absent
-                            score = float(np.clip(0.50 + (squeeze_raw - 0.50) * 0.50, 0.0, 1.0))
+                            # Squeeze score formula with enhanced responsiveness
+                            squeeze_raw = 0.35 * proximity + 0.30 * max(0.0, ret_5d * 5.0) + 0.25 * min(2.5, vol_surge) / 2.5 + 0.10 * max(0.0, ret_3d * 6.0) + gamma_ignition_bonus
+                            # Scale towards score range with 0.65 responsiveness
+                            score = float(np.clip(0.50 + (squeeze_raw - 0.50) * 0.65, 0.05, 0.95))
 
             # 2. Live Options Chain GEX override if available (Full strength for US options)
             if options_chain_dict and sym in options_chain_dict:
