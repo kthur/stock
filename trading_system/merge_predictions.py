@@ -99,7 +99,7 @@ def _extract_ensemble_market_section(content: str, market: str) -> str:
         rf"^[ \t]*\[{re.escape(market)}\][^\n]*\n"
         rf"(?:^[ \t]*[=\-]{{3,}}[^\n]*\n)?"
         rf"(.*?)"
-        rf"(?=\n[ \t]*[=\-]{{3,}}\s*\n\[|\n[ \t]*\[[A-Za-z0-9_]+\]\s+Top|\n--- Data Quality|\n--- Applied|\n--- Executive|\n=== Dynamic|\Z)"
+        rf"(?=\n[ \t]*[=\-]{{3,}}\s*\n\[|\n[ \t]*\[[A-Za-z0-9_]+\]\s+(?:Top|All)|\n--- Data Quality|\n--- Applied|\n--- Executive|\n=== Dynamic|\Z)"
     )
     m = re.search(pattern_primary, normalized, re.DOTALL | re.MULTILINE)
     if m:
@@ -109,21 +109,25 @@ def _extract_ensemble_market_section(content: str, market: str) -> str:
             if f_idx != -1:
                 body = body[:f_idx].strip()
         if body:
-            header = f"=========================================\n[{market}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n========================================="
+            hdr_match = re.search(rf"^[ \t]*(\[{re.escape(market)}\][^\n]*)", m.group(0), re.MULTILINE)
+            hdr_text = hdr_match.group(1).strip() if hdr_match else f"[{market}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)"
+            header = f"=========================================\n{hdr_text}\n========================================="
             return f"{header}\n{body}"
 
     # Secondary Pattern: Line-by-line state machine parser
     lines = normalized.splitlines()
     in_section = False
     captured_lines: list[str] = []
+    matched_hdr_text = f"[{market}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)"
     for line in lines:
         l_str = line.strip()
-        if re.match(rf"^\[{re.escape(market)}\]\s+Top", l_str, re.IGNORECASE) or l_str == f"[{market}]":
+        if re.match(rf"^\[{re.escape(market)}\](?:\s+(?:Top|All))?", l_str, re.IGNORECASE) or l_str == f"[{market}]":
             in_section = True
+            matched_hdr_text = l_str
             continue
         elif in_section:
             if (
-                (re.match(r"^\[[A-Za-z0-9_]+\]\s+Top", l_str) and not re.match(rf"^\[{re.escape(market)}\]\s+Top", l_str, re.IGNORECASE))
+                (re.match(r"^\[[A-Za-z0-9_]+\]\s+(?:Top|All)", l_str) and not re.match(rf"^\[{re.escape(market)}\]\s+(?:Top|All)", l_str, re.IGNORECASE))
                 or l_str.startswith("--- Data Quality")
                 or l_str.startswith("--- Applied")
                 or l_str.startswith("--- Executive")
@@ -141,7 +145,7 @@ def _extract_ensemble_market_section(content: str, market: str) -> str:
             if f_idx != -1:
                 body = body[:f_idx].strip()
         if body:
-            header = f"=========================================\n[{market}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n========================================="
+            header = f"=========================================\n{matched_hdr_text}\n========================================="
             return f"{header}\n{body}"
 
     return ""
@@ -270,7 +274,7 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
 
                 pattern = (
                     rf"(?:^[ \t]*[=\-]{{3,}}[^\n]*\n)?"
-                    rf"^[ \t]*\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+Top[^\n]*\n"
+                    rf"^[ \t]*\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+(?:Top|All)[^\n]*\n"
                     rf"(?:^[ \t]*[=\-]{{3,}}[^\n]*\n)?"
                     rf"(.*?)"
                     rf"(?=\n[ \t]*[=\-]{{3,}}\s*\n\[|\n[ \t]*\[\d+일\]|\Z)"
@@ -284,7 +288,7 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
                 else:
                     pattern_legacy = (
                         rf"(==={{10,}}\s*\n"
-                        rf"\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+Top[^\n]*\n"
+                        rf"\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+(?:Top|All)[^\n]*\n"
                         rf"==={{10,}}\s*\n"
                         rf".*?)"
                         rf"(?=\n==={{10,}}|\Z)"
@@ -461,14 +465,14 @@ def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict) -> None:
             if "데이터 없음" in content or "No data" in content:
                 continue
 
-            # Actual format: "--- KOSPI Top 20 ---\n  1. ...\n"
-            pattern = rf"(--- {re.escape(mkt)}\s+Top\s+\d+\s*---\n.*?)(?=\n--- |\Z)"
+            # Actual format: "--- KOSPI Top 20 ---\n  1. ...\n" or "--- KOSPI All (500) ---\n"
+            pattern = rf"(--- {re.escape(mkt)}\s+(?:Top\s+\d+|All[^\n]*)\s*---\n.*?)(?=\n--- |\Z)"
             match = re.search(pattern, content, re.DOTALL)
             if match:
                 out.write(match.group(1).strip() + "\n\n")
                 sections_written += 1
             else:
-                print(f"  Warning: {mkt} Top section not found in {file_path.name}")
+                print(f"  Warning: {mkt} section not found in {file_path.name}")
 
         if sections_written == 0:
             out.write("데이터 없음\n\n")

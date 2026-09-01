@@ -387,7 +387,7 @@ def parse_ensemble(text: str) -> EnsembleData:
 
     for line in text.splitlines():
         l_str = line.strip()
-        m = re.match(r"\[(\w+)\] Top \d+ Ensemble Picks.*", l_str)
+        m = re.match(r"\[(\w+)\] (?:Top \d+|All) Ensemble Picks.*", l_str, re.IGNORECASE)
         if m:
             current_market = EnsembleMarket(market=m.group(1))
             data.markets.append(current_market)
@@ -605,7 +605,7 @@ def parse_regression(text: str) -> tuple[str, list[RegSection]]:
         if m:
             current_horizon = m.group(1)
             continue
-        m = re.match(r"---\s*(.+?)\s+TOP\s+\d+(?:\s*\(Horizon:\s*([^)]+)\))?\s*---?", line)
+        m = re.match(r"---\s*(.+?)\s+(?:TOP\s+\d+|ALL[^\n]*|\d+)(?:\s*\(Horizon:\s*([^)]+)\))?\s*---?", line, re.IGNORECASE)
         if m:
             mkt = m.group(1).replace("S&P ", "SP").replace("S&P", "SP").strip()
             hz = m.group(2).strip() if m.group(2) else current_horizon
@@ -2036,7 +2036,7 @@ def build_html(
         rows_html = ""
         cards_html = ""
         if mkt_data and mkt_data.rows:
-            for erow in mkt_data.rows[:100]:
+            for erow in mkt_data.rows:
                 rc = ret_class(erow.expected_return)
                 ret_disp = f"▲ {erow.expected_return}" if erow.expected_return.startswith('+') else (f"▼ {erow.expected_return}" if erow.expected_return.startswith('-') else erow.expected_return)
                 symbol_link = make_stock_link(erow.symbol, mkt)

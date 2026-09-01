@@ -109,6 +109,7 @@ class TradingConfig:
     update_interval: int = 0
     skip_training: bool = False
     skip_inference: bool = False
+    prediction_output_limit: Union[int, str] = 100  # 전략별 출력 종목 수 (기본 100개, 'all' 지정 시 전 종목)
     fundamental_cache_expiry_days: int = 90
     model_cache_enabled: bool = True
     model_cache_max_age_days: int = 7
@@ -271,6 +272,15 @@ class TradingConfig:
         self.update_interval = _get_env_int("UPDATE_INTERVAL", self.update_interval)
         self.skip_training = _get_env_bool("SKIP_TRAINING", self.skip_training)
         self.skip_inference = _get_env_bool("SKIP_INFERENCE", self.skip_inference)
+        if "PREDICTION_OUTPUT_LIMIT" in os.environ or "STRATEGY_OUTPUT_LIMIT" in os.environ:
+            _raw_limit = os.environ.get("PREDICTION_OUTPUT_LIMIT", os.environ.get("STRATEGY_OUTPUT_LIMIT", "")).strip()
+            if _raw_limit.lower() in ("all", "0", "-1", "none"):
+                self.prediction_output_limit = "all"
+            else:
+                try:
+                    self.prediction_output_limit = int(_raw_limit)
+                except ValueError:
+                    self.prediction_output_limit = 100
         self.fundamental_cache_expiry_days = _get_env_int("FUNDAMENTAL_CACHE_EXPIRY_DAYS", self.fundamental_cache_expiry_days)
         self.model_cache_enabled = _get_env_bool("MODEL_CACHE_ENABLED", self.model_cache_enabled)
         self.model_cache_max_age_days = _get_env_int("MODEL_CACHE_MAX_AGE_DAYS", self.model_cache_max_age_days)

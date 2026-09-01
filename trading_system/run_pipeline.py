@@ -108,6 +108,53 @@ def largest_remainder_round(values: list[float], target_sum: float = 100.0, deci
     return [f / factor for f in floored]
 
 
+def _is_all_limit(limit: Union[int, str, None]) -> bool:
+    """Check if prediction output limit is configured to all symbols."""
+    if limit is None:
+        return False
+    return isinstance(limit, str) and limit.strip().lower() in ("all", "0", "-1", "none")
+
+
+def _slice_top_df(df: Optional[pd.DataFrame], limit: Union[int, str, None]) -> pd.DataFrame:
+    """Slice DataFrame to top limit rows, or return all rows if limit is 'all' / None / <=0."""
+    if df is None or df.empty:
+        return pd.DataFrame() if df is None else df
+    if limit is None or _is_all_limit(limit):
+        return df
+    try:
+        n = int(limit)
+        return df.head(n) if n > 0 else df
+    except (ValueError, TypeError):
+        return df.head(100)
+
+
+def _slice_top_list(items: Optional[list], limit: Union[int, str, None]) -> list:
+    """Slice list to top limit items, or return all items if limit is 'all' / None / <=0."""
+    if items is None:
+        return []
+    if limit is None or _is_all_limit(limit):
+        return items
+    try:
+        n = int(limit)
+        return items[:n] if n > 0 else items
+    except (ValueError, TypeError):
+        return items[:100]
+
+
+def _get_effective_limit(cfg: Any = None) -> Union[int, str]:
+    """Retrieve effective prediction output limit from TradingConfig or os.environ."""
+    raw = getattr(cfg, 'prediction_output_limit', None) if cfg is not None else None
+    if raw is None:
+        raw = os.environ.get("PREDICTION_OUTPUT_LIMIT", os.environ.get("STRATEGY_OUTPUT_LIMIT", "100"))
+    if isinstance(raw, str) and raw.strip().lower() in ("all", "0", "-1", "none"):
+        return "all"
+    try:
+        n = int(raw)
+        return n if n > 0 else "all"
+    except (ValueError, TypeError):
+        return 100
+
+
 # P3: Rotating file logger — persists logs across terminal sessions and GHA log expiry
 def _setup_rotating_logger() -> None:
     """Attach a RotatingFileHandler to the root logger (10MB × 5 backups)."""
@@ -2103,9 +2150,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         result_dir = os.environ.get("OUTPUT_RESULT_DIR", os.path.join(os.path.dirname(__file__), "result"))
         os.makedirs(result_dir, exist_ok=True)
 
+        pred_limit = _get_effective_limit(cfg)
         valid_stat_arb_pairs = list(stat_arb_pairs) if stat_arb_pairs else []
         valid_stat_arb_pairs.sort(key=lambda x: abs(x.get('z_score', 0.0)), reverse=True)
-        top_stat_arb_pairs = valid_stat_arb_pairs[:200]
+        top_stat_arb_pairs = _slice_top_list(valid_stat_arb_pairs, pred_limit if _is_all_limit(pred_limit) else 200)
 
         def _write_stat_arb_file(f_out, pairs_list):
             f_out.write("=== Statistical Arbitrage Pairs & Signals ===\n")
@@ -2116,7 +2164,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 return
             f_out.write(f"{'Pair':<25}{'Z-Score':<10}{'Correlation':<15}{'Beta/Hedge':<12}{'Signal':<20}\n")
             f_out.write("-" * 80 + "\n")
-            for p in pairs_list[:100]:
+            for p in _slice_top_list(pairs_list, pred_limit):
                 pair_str = f"{p['pair'][0]}-{p['pair'][1]}"
                 beta_val = p.get('beta', p.get('hedge_ratio', 1.0))
                 z_val = p.get('z_score', 0.0)
@@ -2134,7 +2182,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             _mkt_path = os.path.join(result_dir, f"stat_arb_predictions_{_m}.txt")
             with open(_mkt_path, "w", encoding="utf-8") as _mf:
                 _write_stat_arb_file(_mf, _m_pairs)
-        logger.info(f"Saved Statistical Arbitrage pairs (Total: {len(stat_arb_pairs)}, Top 200 written) to {stat_arb_output_path}")
+        _written_cnt_str = f"All {len(top_stat_arb_pairs)}" if _is_all_limit(pred_limit) else f"Top {len(top_stat_arb_pairs)}"
+        logger.info(f"Saved Statistical Arbitrage pairs (Total: {len(stat_arb_pairs)}, {_written_cnt_str} written) to {stat_arb_output_path}")
     except Exception as _stat_arb_e:
         logger.warning(f"Statistical Arbitrage calculation error: {_stat_arb_e}")
 
@@ -2196,7 +2245,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     market_syms = _market_symbols(universe)
     symbol_to_name = dict(zip(universe['symbol'], universe['name']))
     _SUMMARY_HORIZONS = [h for h in [1, 5, 20, 60] if h in res_df.columns]  # Key horizons only
-    _TOP_N = 100
+    pred_limit = _get_effective_limit(cfg)
+    is_all_pred = _is_all_limit(pred_limit)
+    _TOP_N = 100 if is_all_pred else int(pred_limit)
+    _HEADER_LABEL = "ALL" if is_all_pred else f"TOP{_TOP_N}"
 
     def _fmt_pct(row, h) -> str:
         try:
@@ -2208,10 +2260,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             return "n/a"
 
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write("=== Pipeline Inference Summary (TOP100 per Market) ===\n")
+        f.write(f"=== Pipeline Inference Summary ({_HEADER_LABEL} per Market) ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
         f.write(f"Total symbols analyzed: {len(res_df)}\n")
-        f.write(f"Showing: Top {_TOP_N} per market | Horizons: {', '.join(str(h)+'d' for h in _SUMMARY_HORIZONS)}\n")
+        f.write(f"Showing: {'All' if is_all_pred else f'Top {_TOP_N}'} per market | Horizons: {', '.join(str(h)+'d' for h in _SUMMARY_HORIZONS)}\n")
         f.write("Full data: pipeline_result.csv / pipeline_result.jsonl\n\n")
         if res_df.empty:
             f.write("데이터 없음\n")
@@ -2222,10 +2274,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             f.write(f"Horizon: {h}d\n\n")
             for m in krx_markets:
                 m_set = market_syms.get(m, set())
-                m_df = sorted_df[sorted_df['symbol'].isin(m_set)].head(_TOP_N)
+                m_df = _slice_top_df(sorted_df[sorted_df['symbol'].isin(m_set)], pred_limit)
                 if m_df.empty:
                     continue
-                f.write(f"--- {m} TOP {_TOP_N} ---\n")
+                f.write(f"--- {m} {'ALL' if is_all_pred else f'TOP {_TOP_N}'} ---\n")
                 for rank, (_, row) in enumerate(m_df.iterrows(), 1):
                     name = symbol_to_name.get(row['symbol'], "Unknown")
                     f.write(f"  {rank}. {row['symbol']} ({name}): {_fmt_pct(row, h)}\n")
@@ -2233,14 +2285,14 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             us_markets = ['SP500', 'NASDAQ', 'RUSSELL2000']
             for m in us_markets:
                 m_set = market_syms.get(m, set())
-                m_df = sorted_df[sorted_df['symbol'].isin(m_set)].head(_TOP_N)
+                m_df = _slice_top_df(sorted_df[sorted_df['symbol'].isin(m_set)], pred_limit)
                 if not m_df.empty:
-                    f.write(f"--- {m} TOP {_TOP_N} ---\n")
+                    f.write(f"--- {m} {'ALL' if is_all_pred else f'TOP {_TOP_N}'} ---\n")
                     for rank, (_, row) in enumerate(m_df.iterrows(), 1):
                         name = symbol_to_name.get(row['symbol'], "Unknown")
                         f.write(f"  {rank}. {row['symbol']} ({name}): {_fmt_pct(row, h)}\n")
                     f.write("\n")
-    logger.info(f"Saved summarized pipeline result (TOP{_TOP_N}, {len(_SUMMARY_HORIZONS)} horizons) to {output_path}")
+    logger.info(f"Saved summarized pipeline result ({_HEADER_LABEL}, {len(_SUMMARY_HORIZONS)} horizons) to {output_path}")
 
     # Per-market suffix files for pipeline_result (Strategy 1 / Regression)
     for _m in _get_target_markets_to_save(universe=universe):
@@ -2260,8 +2312,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             _mf.write(f"Total symbols analyzed: {len(_m_sorted)}\n\n")
             for h in _SUMMARY_HORIZONS:
                 _m_h_sorted = _m_sorted.sort_values(by=h, ascending=False)
-                _mf.write(f"--- {_m} TOP {min(_TOP_N, len(_m_h_sorted))} (Horizon: {h}d) ---\n")
-                for _rank, (_, _row) in enumerate(_m_h_sorted.head(_TOP_N).iterrows(), 1):
+                _m_h_sliced = _slice_top_df(_m_h_sorted, pred_limit)
+                _mf_sec_title = f"--- {_m} ALL ({len(_m_h_sliced)}) (Horizon: {h}d) ---\n" if is_all_pred else f"--- {_m} TOP {len(_m_h_sliced)} (Horizon: {h}d) ---\n"
+                _mf.write(_mf_sec_title)
+                for _rank, (_, _row) in enumerate(_m_h_sliced.iterrows(), 1):
                     _name = symbol_to_name.get(_row['symbol'], "Unknown")
                     _mf.write(f"  {_rank}. {_row['symbol']} ({_name}): {_fmt_pct(_row, h)}\n")
                 _mf.write("\n")
@@ -2299,10 +2353,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     m_df = surge_df[surge_df['market'] == m].sort_values(by=col, ascending=False)
                     if m_df.empty:
                         continue
+                    m_df_sliced = _slice_top_df(m_df, pred_limit)
+                    _surge_title = f"[{h}일] {m} All Surge Candidates ({len(m_df_sliced)})\n" if is_all_pred else f"[{h}일] {m} Top {_TOP_N} Surge Candidates\n"
                     f.write(f"{'='*60}\n")
-                    f.write(f"[{h}일] {m} Top 100 Surge Candidates\n")
+                    f.write(_surge_title)
                     f.write(f"{'='*60}\n")
-                    for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
+                    for rank, (_, row) in enumerate(m_df_sliced.iterrows(), 1):
                         name = row.get('name', 'Unknown')
                         prob = row[col] * 100
                         f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {prob:.1f}%\n")
@@ -2328,10 +2384,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     m_sorted = _m_df_surge.sort_values(by=col, ascending=False)
                     if m_sorted.empty:
                         continue
+                    m_sorted_sliced = _slice_top_df(m_sorted, pred_limit)
+                    _mkt_surge_title = f"[{h}일] {_m} All Surge Candidates ({len(m_sorted_sliced)})\n" if is_all_pred else f"[{h}일] {_m} Top {_TOP_N} Surge Candidates\n"
                     _mf.write(f"{'='*60}\n")
-                    _mf.write(f"[{h}일] {_m} Top 100 Surge Candidates\n")
+                    _mf.write(_mkt_surge_title)
                     _mf.write(f"{'='*60}\n")
-                    for rank, (_, row) in enumerate(m_sorted.head(100).iterrows(), 1):
+                    for rank, (_, row) in enumerate(m_sorted_sliced.iterrows(), 1):
                         name = row.get('name', 'Unknown')
                         prob = row[col] * 100
                         _mf.write(f"  {rank}. [{_m}] {row['symbol']} ({name}): {prob:.1f}%\n")
@@ -2371,8 +2429,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 m_df = lead_lag_df[lead_lag_df['market'] == m].sort_values(by='lead_lag_score', ascending=False)
                 if m_df.empty:
                     continue
-                f.write(f"--- {m} Top 100 ---\n")
-                for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
+                m_df_sliced = _slice_top_df(m_df, pred_limit)
+                _ll_title = f"--- {m} All ({len(m_df_sliced)}) ---\n" if is_all_pred else f"--- {m} Top {_TOP_N} ---\n"
+                f.write(_ll_title)
+                for rank, (_, row) in enumerate(m_df_sliced.iterrows(), 1):
                     name = row.get('name', 'Unknown')
                     score = row['lead_lag_score'] * 100  # now guaranteed <= 100%
                     f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {score:.2f}%\n")
@@ -2424,8 +2484,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 _mf.write(f"Based on today's top {len(model.lead_lag_leaders)} leader stock movements\n")
                 _mf.write("Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]\n")
                 _mf.write("        (Higher = stronger historical co-movement with market leaders)\n\n")
-                _mf.write(f"--- {_m} Top 100 ---\n")
-                for _rank, (_, _row) in enumerate(_m_df.head(100).iterrows(), 1):
+                _m_df_sliced = _slice_top_df(_m_df, pred_limit)
+                _m_ll_title = f"--- {_m} All ({len(_m_df_sliced)}) ---\n" if is_all_pred else f"--- {_m} Top {_TOP_N} ---\n"
+                _mf.write(_m_ll_title)
+                for _rank, (_, _row) in enumerate(_m_df_sliced.iterrows(), 1):
                     _name = _row.get('name', 'Unknown')
                     _score = float(_row['lead_lag_score']) * 100
                     _mf.write(f"  {_rank}. [{_m}] {_row['symbol']} ({_name}): {_score:.2f}%\n")
@@ -2452,11 +2514,13 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 continue
             confirmed = [r for r in m_results if r.get('is_vcp')]
             if confirmed:
-                f_out.write(f"--- {m} Top {min(100, len(confirmed))} (Confirmed VCP Patterns) ---\n")
-                display_list = confirmed[:100]
+                display_list = _slice_top_list(confirmed, pred_limit)
+                vcp_title = f"--- {m} All ({len(confirmed)}) (Confirmed VCP Patterns) ---\n" if is_all_pred else f"--- {m} Top {len(display_list)} (Confirmed VCP Patterns) ---\n"
+                f_out.write(vcp_title)
             else:
-                f_out.write(f"--- {m} Top {min(10, len(m_results))} VCP Candidates (Strict Pattern Unmet, Score Order) ---\n")
-                display_list = m_results[:10]
+                display_list = _slice_top_list(m_results, pred_limit if is_all_pred else 10)
+                vcp_title = f"--- {m} All ({len(m_results)}) VCP Candidates (Strict Pattern Unmet, Score Order) ---\n" if is_all_pred else f"--- {m} Top {len(display_list)} VCP Candidates (Strict Pattern Unmet, Score Order) ---\n"
+                f_out.write(vcp_title)
 
             for rank, r in enumerate(display_list, 1):
                 sym = r['symbol']
@@ -2504,9 +2568,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 if m_df.empty:
                     f.write(f"[{h}일] {market} - (no symbols) 0.0%\n\n")
                     continue
-                top_n = min(100, len(m_df))
-                f.write(f"[{h}일] {market} TOP {top_n}\n")
-                for rank, (_, row) in enumerate(m_df.head(top_n).iterrows(), 1):
+                m_df_sliced = _slice_top_df(m_df, pred_limit)
+                vcp_ml_title = f"[{h}일] {market} All ({len(m_df_sliced)})\n" if is_all_pred else f"[{h}일] {market} TOP {len(m_df_sliced)}\n"
+                f.write(vcp_ml_title)
+                for rank, (_, row) in enumerate(m_df_sliced.iterrows(), 1):
                     name = row.get('name', 'Unknown')
                     prob = row[f'vcp_{h}d'] * 100
                     f.write(f"  {rank}. [{market}] {row['symbol']} ({name}): {prob:.1f}%\n")
@@ -2530,9 +2595,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 if m_df.empty:
                     _mf.write(f"[{h}일] {_m} - (no symbols) 0.0%\n\n")
                     continue
-                top_n = min(100, len(m_df))
-                _mf.write(f"[{h}일] {_m} TOP {top_n}\n")
-                for _rank, (_, _row) in enumerate(m_df.head(top_n).iterrows(), 1):
+                m_df_sliced = _slice_top_df(m_df, pred_limit)
+                _vcp_ml_title = f"[{h}일] {_m} All ({len(m_df_sliced)})\n" if is_all_pred else f"[{h}일] {_m} TOP {len(m_df_sliced)}\n"
+                _mf.write(_vcp_ml_title)
+                for _rank, (_, _row) in enumerate(m_df_sliced.iterrows(), 1):
                     _name = _row.get('name', 'Unknown')
                     _prob = _row[f'vcp_{h}d'] * 100
                     _mf.write(f"  {_rank}. [{_m}] {_row['symbol']} ({_name}): {_prob:.1f}%\n")
@@ -2710,7 +2776,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 f_out.write(f"Total symbols evaluated: {len(df_sect)}\n\n")
                 f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Sector':<25}{'Sector Score':<15}\n")
                 f_out.write("-" * 85 + "\n")
-                for rank, (_, row) in enumerate(df_sect.head(100).iterrows(), 1):
+                for rank, (_, row) in enumerate(_slice_top_df(df_sect, pred_limit).iterrows(), 1):
                     name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
                     sec_str = str(row.get('sector', 'General'))[:23]
                     mkt_str = str(row.get('market', 'KRX'))
@@ -2849,7 +2915,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     f"{'ROE_raw':<9}{'ROE_adj':<9}{'EQ':<6}{'Filter':<32}{'RIM Score':<12}\n"
                 )
                 f_out.write("-" * 142 + "\n")
-                for rank, (_, row) in enumerate(valid_rim.head(100).iterrows(), 1):
+                for rank, (_, row) in enumerate(_slice_top_df(valid_rim, pred_limit).iterrows(), 1):
                     name_str = str(row.get('name', 'Unknown'))[:18] if pd.notna(row.get('name')) else "Unknown"
                     price_val = row.get('Close', np.nan)
                     price_str = f"{price_val:<12.2f}" if pd.notna(price_val) and np.isfinite(price_val) else f"{'N/A':<12}"
@@ -2941,7 +3007,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             f_out.write(f"Total symbols evaluated: {len(df_sub)}\n\n")
             f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{score_header:<{header_width}}\n")
             f_out.write("-" * (43 + header_width) + "\n")
-            for rank, (_, row) in enumerate(df_sub.head(100).iterrows(), 1):
+            for rank, (_, row) in enumerate(_slice_top_df(df_sub, pred_limit).iterrows(), 1):
                 name_str = str(row.get('name', 'Unknown'))[:16] if pd.notna(row.get('name')) else "Unknown"
                 mkt_str = str(row.get('market', 'KRX'))
                 sc_raw = float(row[score_col])
@@ -4104,11 +4170,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             if m_df.empty:
                 continue
             f.write("\n=========================================\n")
-            f.write(f"[{market}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n")
+            _ens_header = f"[{market}] All Ensemble Picks ({len(m_df)} symbols) (Target Horizon: 20D Expected Return)\n" if is_all_pred else f"[{market}] Top {_TOP_N} Ensemble Picks (Target Horizon: 20D Expected Return)\n"
+            f.write(_ens_header)
             f.write("=========================================\n")
             f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}{'Supply':<7}{'NLP':<5}{'Neutral':<8}{'Vol-T':<6}{'Micro':<6}{'Accrual':<8}{'S-Sq':<5}{'ValueUp':<8}{'TrendEff':<9}{'GammaSq':<8}{'Insider':<8}{'Darkpool':<9}{'ToneDrift':<10}\n")
             f.write("-" * 280 + "\n")
-            for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
+            for rank, (_, row) in enumerate(_slice_top_df(m_df, pred_limit).iterrows(), 1):
                 name_val = row.get('name', 'Unknown')
                 name_str = str(name_val)[:16] if pd.notna(name_val) else "Unknown"
 
@@ -4169,11 +4236,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             _mf.write(f"=== Dynamic Multi-Strategy Ensemble Predictions ({len(ensemble_weights)} Strategies) ===\n")
             _mf.write(f"Date: {kst_now_str}\n\n")
             _mf.write("\n=========================================\n")
-            _mf.write(f"[{_m}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n")
+            _m_ens_header = f"[{_m}] All Ensemble Picks ({len(_m_df)} symbols) (Target Horizon: 20D Expected Return)\n" if is_all_pred else f"[{_m}] Top {_TOP_N} Ensemble Picks (Target Horizon: 20D Expected Return)\n"
+            _mf.write(_m_ens_header)
             _mf.write("=========================================\n")
             _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}{'Supply':<7}{'NLP':<5}{'Neutral':<8}{'Vol-T':<6}{'Micro':<6}{'Accrual':<8}{'S-Sq':<5}{'ValueUp':<8}{'TrendEff':<9}{'GammaSq':<8}{'Insider':<8}{'Darkpool':<9}{'ToneDrift':<10}\n")
             _mf.write("-" * 280 + "\n")
-            for _rank, (_, _row) in enumerate(_m_df.head(100).iterrows(), 1):
+            for _rank, (_, _row) in enumerate(_slice_top_df(_m_df, pred_limit).iterrows(), 1):
                 _name_str = str(_row['name'])[:16] if pd.notna(_row['name']) else "Unknown"
 
                 _reg_s = _format_strategy_pct(_row.get('reg_score', 0.0), 0.0, 4)
@@ -4227,7 +4295,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 f_out.write(f"Total symbols evaluated: {len(df_lstm)}\n\n")
                 f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'LSTM Score':<14}\n")
                 f_out.write("-" * 60 + "\n")
-                for rank, (_, row) in enumerate(df_lstm.head(100).iterrows(), 1):
+                for rank, (_, row) in enumerate(_slice_top_df(df_lstm, pred_limit).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['lstm_score']*100:>12.1f}%\n")
 
@@ -4472,12 +4540,22 @@ Examples:
         default=False,
         help="Enable debug mode: small sample (3 symbols/market), fast dry-run",
     )
+    parser.add_argument(
+        "--prediction-limit",
+        "--output-limit",
+        default=None,
+        metavar="LIMIT",
+        help="Number of predictions to output per strategy/market ('100', 'all', or integer. Default: 100)",
+    )
     args = parser.parse_args()
 
     # Apply CLI overrides to environment (pipeline reads from os.environ)
     if args.target:
         os.environ["INFERENCE_TARGET"] = args.target
         logger.info(f"[CLI] INFERENCE_TARGET overridden to: {args.target}")
+    if args.prediction_limit:
+        os.environ["PREDICTION_OUTPUT_LIMIT"] = str(args.prediction_limit).strip()
+        logger.info(f"[CLI] PREDICTION_OUTPUT_LIMIT overridden to: {args.prediction_limit}")
     if args.skip_training:
         os.environ["SKIP_TRAINING"] = "True"
         logger.info("[CLI] SKIP_TRAINING enabled")

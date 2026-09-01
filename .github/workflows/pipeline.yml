@@ -32,6 +32,14 @@ on:
           - 'ASIA_DEV'
           - 'ASIA_EMG'
           - 'COMMODITY'
+      prediction_limit:
+        description: '전략별 산출 종목 수 (Strategy Output Limit: 100 또는 all)'
+        required: true
+        default: '100'
+        type: choice
+        options:
+          - '100'
+          - 'all'
 
 concurrency:
   group: pipeline-${{ github.ref }}
@@ -160,6 +168,7 @@ jobs:
           SKIP_TRAINING: 'True'
           FORCE_CPU: '1'
           TZ: 'Asia/Seoul'
+          PREDICTION_OUTPUT_LIMIT: ${{ inputs.prediction_limit || '100' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           KOREABANK_ECOS_KEY: ${{ secrets.KOREABANK_ECOS_KEY }}
