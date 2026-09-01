@@ -372,13 +372,13 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
             drag_mask = norm_scores <= 0.10
 
             if np.any(mega_alpha_mask):
-                norm_scores[mega_alpha_mask] = np.clip(norm_scores[mega_alpha_mask] * 1.18, 0.0, 0.98)
+                norm_scores[mega_alpha_mask] = np.clip(norm_scores[mega_alpha_mask] * 1.25, 0.0, 0.98)  # Mega-Alpha Champion Booster
             if np.any(super_alpha_mask):
-                norm_scores[super_alpha_mask] = np.clip(norm_scores[super_alpha_mask] * 1.12, 0.0, 0.98)
+                norm_scores[super_alpha_mask] = np.clip(norm_scores[super_alpha_mask] * 1.15, 0.0, 0.98)
             if np.any(alpha_mask):
-                norm_scores[alpha_mask] = np.clip(norm_scores[alpha_mask] * 1.06, 0.0, 0.98)
+                norm_scores[alpha_mask] = np.clip(norm_scores[alpha_mask] * 1.08, 0.0, 0.98)
             if np.any(drag_mask):
-                norm_scores[drag_mask] = np.clip(norm_scores[drag_mask] - 0.05, 0.02, 1.0)
+                norm_scores[drag_mask] = np.clip(norm_scores[drag_mask] - 0.08, 0.02, 1.0)
 
             safe_norm_scores = np.clip(np.where(np.isfinite(norm_scores), norm_scores, 0.50), 0.02, 0.98)
             scores[idxs_arr] = safe_norm_scores
