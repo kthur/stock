@@ -263,17 +263,17 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                 auction_volume_accel = 1.0
 
             # High-conviction Overnight Gap Edge Bonus (smooth continuous sigmoidal transition)
-            sig_imb = 1.0 / (1.0 + np.exp(-10.0 * (bid_ask_imbalance - 0.80)))
-            sig_acc = 1.0 / (1.0 + np.exp(-5.0 * (auction_volume_accel - 1.80)))
-            gap_bonus = 0.10 * sig_imb * sig_acc
+            sig_imb = 1.0 / (1.0 + np.exp(-10.0 * (bid_ask_imbalance - 0.75)))
+            sig_acc = 1.0 / (1.0 + np.exp(-5.0 * (auction_volume_accel - 1.60)))
+            gap_bonus = 0.18 * sig_imb * sig_acc
 
             # Score normalized to [0.0, 1.0] scale centered at 0.50
             net_score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15 + gap_bonus, 0.0, 1.0))
 
             # HFT Order Flow Momentum Booster for high-conviction order imbalance (smooth transition)
-            smooth_boost = 1.0 + 0.10 / (1.0 + np.exp(-10.0 * (net_score - 0.75)))
-            net_score = float(np.clip(net_score * smooth_boost, 0.0, 1.0))
-            net_score = float(np.clip(net_score, 0.0, 1.0)) if np.isfinite(net_score) else 0.50
+            smooth_boost = 1.0 + 0.15 / (1.0 + np.exp(-10.0 * (net_score - 0.70)))
+            net_score = float(np.clip(net_score * smooth_boost, 0.0, 0.98))
+            net_score = float(np.clip(net_score, 0.05, 0.98)) if np.isfinite(net_score) else 0.50
 
             gap_edge_val = round(float(bid_ask_imbalance * 2.5), 4) if np.isfinite(bid_ask_imbalance) else 0.0
 
@@ -288,5 +288,13 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:
-            res_df['microstructure_score'] = pd.to_numeric(res_df['microstructure_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
+            raw_s = pd.to_numeric(res_df['microstructure_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            if len(res_df) > 1:
+                ranks = raw_s.rank(pct=True, ascending=True)
+                # Multi-Tier Microstructure Flow Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+                enhanced_s = np.where(ranks >= 0.95, (raw_s * 1.15).clip(0.05, 0.98),
+                             np.where(ranks >= 0.85, (raw_s * 1.10).clip(0.05, 0.98), raw_s))
+                res_df['microstructure_score'] = pd.to_numeric(pd.Series(enhanced_s, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            else:
+                res_df['microstructure_score'] = raw_s
         return res_df
