@@ -120,6 +120,11 @@ class InsiderBuyingEngine(BaseStrategyEngine):
                         penalty = 0.25
                         cur_score = float(np.clip(cur_score - penalty, 0.05, 1.0))
 
+                # Cluster Buying Acceleration: Multiple insider purchases indicate strong executive consensus
+                buy_count = sum(1 for item in matching_items if any(k in str(item.get('report_nm', '')) for k in ['장내매수', '장내취득', '신규매수', '주식매입', '지분매수', '지분취득']))
+                if buy_count >= 2:
+                    cur_score = float(np.clip(cur_score + 0.10, 0.0, 0.98))
+
                 scores_map[sym] = float(np.clip(cur_score, 0.0, 1.0)) if np.isfinite(cur_score) else np.nan
 
         # Smart-Money Accumulation Fallback Proxy when insider_filings absent and prices_dict is provided
@@ -168,7 +173,9 @@ class InsiderBuyingEngine(BaseStrategyEngine):
                                 mas = (last_c - sma20) / max(sma20, 1e-5)
                                 mas_norm = float(np.clip(mas * 2.0, -0.2, 0.2))
 
-                                raw_acc = 0.50 + 0.25 * cmf + 0.20 * udvr_norm + 0.15 * mas_norm
+                                # High-Conviction Stealth Accumulation Booster
+                                stealth_boost = 0.08 if (cmf > 0.20 and udvr_norm > 0.15) else 0.0
+                                raw_acc = 0.50 + 0.25 * cmf + 0.20 * udvr_norm + 0.15 * mas_norm + stealth_boost
                                 scores_map[sym] = float(np.clip(raw_acc, 0.05, 0.95))
 
         results = [{'symbol': str(k), 'insider_buying_score': float(np.clip(v, 0.0, 1.0)) if (pd.notna(v) and np.isfinite(v)) else np.nan} for k, v in scores_map.items()]
