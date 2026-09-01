@@ -105,17 +105,19 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
                                 vol_surge = float(np.clip(raw_vol_surge, 0.0, 10.0)) if np.isfinite(raw_vol_surge) else 1.0
 
                             # Multi-Tier Gamma Breakout Ignition Bonus (Dealer delta-hedging acceleration trigger)
-                            if proximity >= 0.99 and (ret_5d >= 0.10 or ret_3d >= 0.06) and vol_surge >= 2.5:
-                                gamma_ignition_bonus = 0.22  # Super Gamma Ignition: High delta-hedging feedback loop
-                            elif proximity >= 0.97 and (ret_5d >= 0.07 or ret_3d >= 0.04) and vol_surge >= 1.8:
-                                gamma_ignition_bonus = 0.14  # Standard Gamma Ignition
+                            if proximity >= 0.99 and (ret_5d >= 0.12 or ret_3d >= 0.08) and vol_surge >= 3.0:
+                                gamma_ignition_bonus = 0.28  # Super Mega Gamma Ignition: High dealer short delta squeeze feedback loop
+                            elif proximity >= 0.99 and (ret_5d >= 0.09 or ret_3d >= 0.05) and vol_surge >= 2.2:
+                                gamma_ignition_bonus = 0.20  # Standard Gamma Ignition
+                            elif proximity >= 0.97 and (ret_5d >= 0.06 or ret_3d >= 0.03) and vol_surge >= 1.6:
+                                gamma_ignition_bonus = 0.12
                             else:
                                 gamma_ignition_bonus = 0.0
 
                             # Squeeze score formula with enhanced responsiveness
-                            squeeze_raw = 0.35 * proximity + 0.30 * max(0.0, ret_5d * 5.0) + 0.25 * min(2.5, vol_surge) / 2.5 + 0.10 * max(0.0, ret_3d * 6.0) + gamma_ignition_bonus
-                            # Scale towards score range with 0.65 responsiveness
-                            score = float(np.clip(0.50 + (squeeze_raw - 0.50) * 0.65, 0.05, 0.95))
+                            squeeze_raw = 0.35 * proximity + 0.30 * max(0.0, ret_5d * 5.0) + 0.25 * min(3.0, vol_surge) / 3.0 + 0.10 * max(0.0, ret_3d * 6.0) + gamma_ignition_bonus
+                            # Scale towards score range with 0.70 responsiveness
+                            score = float(np.clip(0.50 + (squeeze_raw - 0.50) * 0.70, 0.05, 0.98))
 
             # 2. Live Options Chain GEX override if available (Full strength for US options)
             if options_chain_dict and sym in options_chain_dict:
@@ -127,12 +129,23 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
                 if call_wall > 0 and cur_p > 0 and np.isfinite(call_wall) and np.isfinite(cur_p):
                     dist_to_wall = abs(cur_p - call_wall) / cur_p
                     if (dist_to_wall < 0.03 and gex < 0) or (cur_p >= call_wall):  # Short Gamma Zone or Call Wall Breakout
-                        score = float(np.clip(score + 0.35, 0.0, 1.0))
+                        score = float(np.clip(score + 0.35, 0.0, 0.98))
                         logger.info(f"[GAMMA SQUEEZE ENGINE] High Gamma Squeeze trigger for {sym} (Call Wall={call_wall}, dist={dist_to_wall*100:.1f}%)")
                     elif gex > 0:  # Positive dealer GEX dampens volatility and gamma squeeze potential
-                        score = float(np.clip(score * 0.70, 0.0, 1.0))
+                        score = float(np.clip(score * 0.70, 0.0, 0.98))
 
-            safe_score = float(np.clip(score if np.isfinite(score) else 0.50, 0.0, 1.0))
+            safe_score = float(np.clip(score if np.isfinite(score) else 0.50, 0.05, 0.98))
             results.append({'symbol': sym, 'gamma_squeeze_score': safe_score})
 
-        return pd.DataFrame(results)
+        res_df = pd.DataFrame(results)
+        if not res_df.empty:
+            s_series = pd.to_numeric(res_df['gamma_squeeze_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            if len(res_df) > 1:
+                ranks = s_series.rank(pct=True, ascending=True)
+                # Multi-Tier Gamma Squeeze Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.98), s_series))
+                res_df['gamma_squeeze_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            else:
+                res_df['gamma_squeeze_score'] = s_series
+        return res_df
