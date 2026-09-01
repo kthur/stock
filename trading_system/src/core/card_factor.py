@@ -190,7 +190,7 @@ class CARDFactorEngine(BaseStrategyEngine):
                 raw_div = stock_ret - macro_impact
                 divergence = float(np.clip(raw_div, -200.0, 200.0)) if np.isfinite(raw_div) else 0.0
 
-                card_score = 1.0 / (1.0 + np.exp(np.clip(divergence * 0.1, -50.0, 50.0)))
+                card_score = 1.0 / (1.0 + np.exp(np.clip(divergence * 0.12, -50.0, 50.0)))
                 if np.isnan(card_score) or np.isinf(card_score):
                     card_score = 0.5
                 else:
@@ -203,9 +203,17 @@ class CARDFactorEngine(BaseStrategyEngine):
                         if (pd.notna(op_m) and float(op_m) < -0.15) or (pd.notna(roe_v) and float(roe_v) < -0.15):
                             card_score *= 0.70
 
+                    # Extreme Macro Mispricing Rebound Multiplier (Fundamental tailwind vs temporary stock lag)
+                    if raw_div <= -6.0 and macro_impact >= 2.5:
+                        mispricing_mult = 1.25  # Super Macro Mispricing: Strong macro tailwind with severe stock lag
+                    elif raw_div <= -3.5 and macro_impact >= 1.5:
+                        mispricing_mult = 1.12  # Standard Macro Mispricing
+                    else:
+                        mispricing_mult = 1.0
+
                     # Asymmetric Upside Booster for extreme macro divergence undervaluation (smooth continuous)
-                    smooth_boost = 1.0 + 0.10 / (1.0 + np.exp(-12.0 * (card_score - 0.70)))
-                    card_score = float(np.clip(card_score * smooth_boost, 0.0, 1.0))
+                    smooth_boost = 1.0 + 0.15 / (1.0 + np.exp(-12.0 * (card_score - 0.65)))
+                    card_score = float(np.clip(card_score * smooth_boost * mispricing_mult, 0.05, 0.98))
                 scores[sym] = float(card_score)
             except Exception as e:
                 logger.warning(f"[CARD FACTOR] Error computing score for {sym}: {e}")
