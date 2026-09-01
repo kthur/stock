@@ -133,17 +133,19 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
 
                     # Tone Drift Delta (Positive = Upgrade, Negative = Downgrade with asymmetric upgrade acceleration)
                     tone_delta = (cur_tone - prev_tone) * confidence
-                    # Guidance upgrade acceleration: strong positive drift with high conviction receives 1.40x boost
-                    if tone_delta > 0.10 and cur_tone >= 0.65:
+                    # Guidance upgrade acceleration: strong positive drift with high conviction receives 1.60x boost
+                    if tone_delta > 0.12 and cur_tone >= 0.70:
+                        accel_mult = 1.60  # Super Guidance Upgrade Ignition
+                    elif tone_delta > 0.08 and cur_tone >= 0.60:
                         accel_mult = 1.40
-                    elif abs(tone_delta) > 0.10:
+                    elif abs(tone_delta) > 0.08:
                         accel_mult = 1.25
                     else:
                         accel_mult = 1.0
 
                     abs_tone_boost = (cur_tone - 0.50) * 0.40 * confidence
                     drift_boost = 1.0 * tone_delta * accel_mult
-                    score = float(np.clip(0.50 + abs_tone_boost + drift_boost, 0.0, 1.0))
+                    score = float(np.clip(0.50 + abs_tone_boost + drift_boost, 0.05, 0.98))
                     score = score if np.isfinite(score) else 0.50
 
             # Quantitative earnings drift fallback from fundamental growth & momentum
@@ -158,7 +160,7 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                     is_profitable = (pd.notna(op_inc) and op_inc > 0) or (pd.notna(net_inc) and net_inc > 0)
                     if is_profitable or eps_g != 0.0 or rev_g != 0.0:
                         quant_tone = 0.50 + float(np.clip(drift * 0.40 + eps_g * 0.20, -0.40, 0.40))
-                        score = float(np.clip(quant_tone, 0.05, 0.95))
+                        score = float(np.clip(quant_tone, 0.05, 0.98))
 
             # Post-Earnings Announcement Drift (PEAD) price momentum fallback when prices_dict is provided
             if pd.isna(score) and prices_dict and isinstance(prices_dict, dict) and bool(prices_dict):
@@ -199,10 +201,10 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                                     if v_sma > 0:
                                         vr = v_now / v_sma
                                         if vr >= 1.5 and r_5d > 0:
-                                            vol_boost = 0.10 * min(1.0, (vr - 1.0) / 2.0)
+                                            vol_boost = 0.12 * min(1.0, (vr - 1.0) / 2.0)
 
                             pead_tone = 0.50 + 0.35 * delta_mom + 0.25 * acc_5d + 0.20 * vr_rel + vol_boost
-                            score = float(np.clip(pead_tone, 0.05, 0.95))
+                            score = float(np.clip(pead_tone, 0.05, 0.98))
 
             results.append({
                 'symbol': sym,
@@ -212,6 +214,14 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:
-            res_df['earnings_tone_drift_score'] = pd.to_numeric(res_df['earnings_tone_drift_score'], errors='coerce')
+            s_series = pd.to_numeric(res_df['earnings_tone_drift_score'], errors='coerce')
+            valid_mask = s_series.notna()
+            if valid_mask.sum() > 1:
+                valid_scores = s_series[valid_mask]
+                ranks = valid_scores.rank(pct=True, ascending=True)
+                # Multi-Tier Tone Drift Super Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+                enhanced = np.where(ranks >= 0.95, (valid_scores * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (valid_scores * 1.10).clip(0.05, 0.98), valid_scores))
+                res_df.loc[valid_mask, 'earnings_tone_drift_score'] = pd.to_numeric(pd.Series(enhanced, index=valid_scores.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
             res_df['tone_drift_score'] = res_df['earnings_tone_drift_score']
         return res_df
