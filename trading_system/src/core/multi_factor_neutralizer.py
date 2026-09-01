@@ -365,15 +365,22 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                     else:
                         norm_scores = np.full(N_m, 0.5)
 
-            # Pure Idiosyncratic Alpha Conviction Boost & Super Premium
-            super_alpha_mask = norm_scores >= 0.90
-            alpha_mask = (norm_scores >= 0.80) & (~super_alpha_mask)
-            if np.any(super_alpha_mask):
-                norm_scores[super_alpha_mask] = np.clip(norm_scores[super_alpha_mask] * 1.10, 0.0, 1.0)
-            if np.any(alpha_mask):
-                norm_scores[alpha_mask] = np.clip(norm_scores[alpha_mask] * 1.06, 0.0, 1.0)
+            # Pure Idiosyncratic Alpha Conviction Boost & Multi-Tier Super Premium
+            mega_alpha_mask = norm_scores >= 0.95
+            super_alpha_mask = (norm_scores >= 0.90) & (~mega_alpha_mask)
+            alpha_mask = (norm_scores >= 0.80) & (norm_scores < 0.90)
+            drag_mask = norm_scores <= 0.10
 
-            safe_norm_scores = np.clip(np.where(np.isfinite(norm_scores), norm_scores, 0.50), 0.0, 1.0)
+            if np.any(mega_alpha_mask):
+                norm_scores[mega_alpha_mask] = np.clip(norm_scores[mega_alpha_mask] * 1.18, 0.0, 0.98)
+            if np.any(super_alpha_mask):
+                norm_scores[super_alpha_mask] = np.clip(norm_scores[super_alpha_mask] * 1.12, 0.0, 0.98)
+            if np.any(alpha_mask):
+                norm_scores[alpha_mask] = np.clip(norm_scores[alpha_mask] * 1.06, 0.0, 0.98)
+            if np.any(drag_mask):
+                norm_scores[drag_mask] = np.clip(norm_scores[drag_mask] - 0.05, 0.02, 1.0)
+
+            safe_norm_scores = np.clip(np.where(np.isfinite(norm_scores), norm_scores, 0.50), 0.02, 0.98)
             scores[idxs_arr] = safe_norm_scores
             exposures[idxs_arr] = np.where(np.isfinite(Z_m), Z_m, 0.0)
 
