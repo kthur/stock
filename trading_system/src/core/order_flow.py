@@ -147,14 +147,17 @@ class OrderFlowEngine(BaseStrategyEngine):
                             vol_5d = float(df[v_col].iloc[-5:].sum()) if (v_col and len(df) >= 5) else 1e6
                             vol_5d = max(vol_5d, 1.0)
 
-                            if 'foreign_net_buy' in f_df_aligned.columns:
-                                f_buy = float(f_df_aligned['foreign_net_buy'].iloc[-5:].sum())
-                                if np.isfinite(f_buy):
-                                    inst_boost += float(np.clip((f_buy / vol_5d) * 0.5, -0.10, 0.10))
-                            if 'inst_net_buy' in f_df_aligned.columns:
-                                i_buy = float(f_df_aligned['inst_net_buy'].iloc[-5:].sum())
-                                if np.isfinite(i_buy):
-                                    inst_boost += float(np.clip((i_buy / vol_5d) * 0.5, -0.10, 0.10))
+                            f_buy = float(f_df_aligned['foreign_net_buy'].iloc[-5:].sum()) if 'foreign_net_buy' in f_df_aligned.columns else 0.0
+                            i_buy = float(f_df_aligned['inst_net_buy'].iloc[-5:].sum()) if 'inst_net_buy' in f_df_aligned.columns else 0.0
+
+                            f_ratio = (f_buy / vol_5d) if np.isfinite(f_buy) else 0.0
+                            i_ratio = (i_buy / vol_5d) if np.isfinite(i_buy) else 0.0
+
+                            # Foreign & Institutional Dual Inflow Synergy Bonus (쌍끌이 순매수 시너지)
+                            dual_synergy = 0.05 if (f_ratio > 0.02 and i_ratio > 0.02) else (-0.05 if (f_ratio < -0.02 and i_ratio < -0.02) else 0.0)
+
+                            raw_inst = (f_ratio * 0.5) + (i_ratio * 0.5) + dual_synergy
+                            inst_boost += float(np.clip(raw_inst, -0.20, 0.20))
                         except Exception:
                             pass
 
@@ -176,9 +179,9 @@ class OrderFlowEngine(BaseStrategyEngine):
             return res_df[['symbol', 'order_flow_score']]
 
         raw_ranks = res_df['mfi_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-        # Smart Money Dual Inflow Booster for top 15% high-demand order flow leaders
-        smart_money_mask = raw_ranks >= 0.85
-        enhanced_score = np.where(smart_money_mask, (raw_ranks * 1.10).clip(0.0, 0.98), raw_ranks)
+        # Multi-Tier Smart Money Dual Inflow Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+        enhanced_score = np.where(raw_ranks >= 0.95, (raw_ranks * 1.15).clip(0.0, 0.98),
+                         np.where(raw_ranks >= 0.85, (raw_ranks * 1.10).clip(0.0, 0.98), raw_ranks))
         enhanced_score = np.where(np.isfinite(enhanced_score), enhanced_score, 0.50)
         res_df['order_flow_score'] = pd.to_numeric(pd.Series(enhanced_score, index=res_df.index), errors='coerce').fillna(0.50).clip(0.0, 1.0)
         return res_df[['symbol', 'order_flow_score']]
