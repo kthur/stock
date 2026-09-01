@@ -152,24 +152,28 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
 
         # Signed trend score: High KER + High Hurst on uptrend yields high score; downtrend penalizes
         # Elite persistent trend accelerator & fractal mean-reverting noise filter
-        trend_mult = np.where((weighted_ker > 0.60) & (hurst > 0.60) & (ret_20d > 0.08), 1.30,
-                              np.where((weighted_ker > 0.55) & (hurst > 0.56) & (ret_20d > 0.04), 1.20,
-                              np.where((weighted_ker > 0.45) & (hurst > 0.52) & (ret_20d > 0.02), 1.10,
-                              np.where((hurst < 0.45) & (np.abs(ret_20d) < 0.03), 0.80, 1.0))))
+        trend_mult = np.where((weighted_ker > 0.65) & (hurst > 0.62) & (ret_20d > 0.10), 1.45,  # Super Kaufman Fractal Trend Ignition
+                              np.where((weighted_ker > 0.58) & (hurst > 0.58) & (ret_20d > 0.06), 1.30,
+                              np.where((weighted_ker > 0.50) & (hurst > 0.54) & (ret_20d > 0.03), 1.18,
+                              np.where((weighted_ker > 0.40) & (hurst > 0.50) & (ret_20d > 0.01), 1.08,
+                              np.where((hurst < 0.45) & (np.abs(ret_20d) < 0.03), 0.75, 1.0)))))
         raw_score = np.where(
             ret_20d >= 0,
             0.5 + 0.5 * weighted_ker * (hurst / 0.5) * trend_mult,
-            0.5 - 0.5 * weighted_ker * (hurst / 0.5) * 1.10
+            0.5 - 0.5 * weighted_ker * (hurst / 0.5) * 1.15
         )
-        score_arr = np.clip(np.where(np.isfinite(raw_score), raw_score, 0.50), 0.0, 1.0)
+        score_arr = np.clip(np.where(np.isfinite(raw_score), raw_score, 0.50), 0.05, 0.98)
 
         results = dict(zip(close_2d.columns, score_arr))
         df_out = pd.DataFrame([{'symbol': str(s), 'raw_score': results.get(str(s), np.nan)} for s in sym_list])
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
 
         if valid_mask.sum() > 1:
-            ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-            df_out.loc[valid_mask, 'trend_efficiency_score'] = ranks
+            raw_ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True)
+            # Multi-Tier Kaufman Trend Efficiency Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+            enhanced = np.where(raw_ranks >= 0.95, (raw_ranks * 1.15).clip(0.05, 0.98),
+                       np.where(raw_ranks >= 0.85, (raw_ranks * 1.10).clip(0.05, 0.98), raw_ranks.clip(0.02, 0.98)))
+            df_out.loc[valid_mask, 'trend_efficiency_score'] = pd.to_numeric(pd.Series(enhanced, index=df_out.loc[valid_mask].index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'trend_efficiency_score'] = 0.50
         else:
