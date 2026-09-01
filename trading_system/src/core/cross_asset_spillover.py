@@ -278,6 +278,17 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                 # Positive delta means macro tailwind is ahead of the stock's recent price reaction
                 gamma = 0.70
                 delta_spillover = macro_impulse - (gamma * stock_eff_ret)
+
+                # Macro-Trend Coherence Adjustment:
+                # 1. Amplification when macro impulse & stock momentum are constructively aligned
+                # 2. Dampening when stock is heavily breaking down despite macro tailwinds (idiosyncratic risk)
+                if macro_impulse > 0 and stock_eff_ret >= 0:
+                    coherence_mult = 1.0 + 0.35 * min(1.0, stock_eff_ret / 0.05)
+                    delta_spillover *= coherence_mult
+                elif macro_impulse > 0 and stock_eff_ret < -0.03:
+                    # Decoupling penalty: idiosyncratic breakdown
+                    delta_spillover *= 0.65
+
                 if not np.isfinite(delta_spillover):
                     delta_spillover = 0.0
 
