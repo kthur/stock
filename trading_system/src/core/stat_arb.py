@@ -708,9 +708,14 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             if len(pair) != 2:
                 continue
             s1, s2 = pair
-            # Non-linear mean-reversion acceleration for extreme cointegration divergences (|Z| >= 2.0)
-            z_mult = 1.20 if z >= 2.0 else 1.0
-            score_delta = min(0.40, z * 0.10 * z_mult)
+            # Non-linear mean-reversion acceleration for extreme cointegration divergences (|Z| >= 2.0, |Z| >= 2.5)
+            if z >= 2.5:
+                z_mult = 1.40  # Super Cointegration Divergence Mean-Reversion Ignition
+            elif z >= 2.0:
+                z_mult = 1.25
+            else:
+                z_mult = 1.0
+            score_delta = min(0.48, z * 0.11 * z_mult)
 
             if f"LONG_{s1}" in sig or (sig == "LONG_SPREAD" and s2 == "BENCHMARK"):
                 symbol_deltas[s1] = symbol_deltas.get(s1, 0.0) + score_delta
@@ -730,7 +735,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         for s, delta in symbol_deltas.items():
             is_krx = str(s).isdigit() or str(s).endswith(('.KS', '.KQ'))
             # Long-only KRX adaptation: delta < 0 is an Exit/De-allocation signal
-            clamped_score = float(np.clip(0.5 + delta, 0.05, 0.95))
+            clamped_score = float(np.clip(0.5 + delta, 0.05, 0.98))
             symbol_scores.append({
                 'symbol': s,
                 'stat_arb_score': clamped_score,
@@ -738,6 +743,16 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             })
 
         df = pd.DataFrame(symbol_scores)
+        if not df.empty:
+            s_series = pd.to_numeric(df['stat_arb_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            if len(df) > 1:
+                ranks = s_series.rank(pct=True, ascending=True)
+                # Multi-Tier Stat-Arb Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.98), s_series))
+                df['stat_arb_score'] = pd.to_numeric(pd.Series(enhanced, index=df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            else:
+                df['stat_arb_score'] = s_series
         return df[['symbol', 'stat_arb_score', 'long_only_mode']]
 
     def compute_scores(
