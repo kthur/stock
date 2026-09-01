@@ -132,17 +132,19 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                         results[sym_str] = np.nan
                     else:
                         # Multi-Tier Squeeze Ignition Accelerator:
-                        # Explosive Squeeze Trigger: High DTC (>=5.0) + High Short Float (>=20%) + Strong 5D Breakout (>=6%)
-                        if ret_5d >= 0.06 and f_dtc >= 5.0 and f_sr >= 0.20:
-                            ignite_mult = 1.60  # Explosive Short Squeeze Ignition
+                        # Explosive Squeeze Trigger: High DTC + High Short Float + Strong 5D Breakout
+                        if ret_5d >= 0.08 and f_dtc >= 6.0 and f_sr >= 0.25:
+                            ignite_mult = 1.80  # Super Squeeze Avalanche Ignition
+                        elif ret_5d >= 0.05 and f_dtc >= 4.5 and f_sr >= 0.18:
+                            ignite_mult = 1.55  # High-Conviction Squeeze Ignition
                         elif ret_5d > 0.02 and f_dtc >= 3.0:
-                            ignite_mult = 1.35  # Standard Squeeze Ignition
+                            ignite_mult = 1.30  # Standard Squeeze Ignition
                         else:
                             ignite_mult = 1.0
 
                         # Hard-to-Borrow (HTB) Squeeze Pressure
-                        htb_squeeze_mult = 1.25 if (f_sr > 0.30 or f_dtc > 8.0) else (1.10 if (f_sr > 0.15 or f_dtc > 4.0) else 1.0)
-                        mom_factor = (1.0 + float(ret_5d) * 3.5) if ret_5d >= 0 else max(0.10, 1.0 + float(ret_5d) * 2.0)
+                        htb_squeeze_mult = 1.30 if (f_sr > 0.30 or f_dtc > 8.0) else (1.15 if (f_sr > 0.15 or f_dtc > 4.0) else 1.0)
+                        mom_factor = (1.0 + float(ret_5d) * 4.5) if ret_5d >= 0 else max(0.10, 1.0 + float(ret_5d) * 2.0)
                         mom_factor = mom_factor if np.isfinite(mom_factor) else 1.0
                         raw_squeeze = float(f_sr * f_dtc * mom_factor * ignite_mult * htb_squeeze_mult)
                         results[sym_str] = raw_squeeze if np.isfinite(raw_squeeze) else np.nan
@@ -156,8 +158,9 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
 
         if valid_mask.sum() > 1:
             ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-            # Smart Squeeze Booster for top 10% high-conviction short squeeze ignition candidates
-            boosted_ranks = np.where(ranks >= 0.90, (ranks * 1.10).clip(0.05, 0.98), ranks)
+            # Multi-Tier Short Squeeze Rank Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+            boosted_ranks = np.where(ranks >= 0.95, (ranks * 1.15).clip(0.05, 0.98),
+                            np.where(ranks >= 0.85, (ranks * 1.10).clip(0.05, 0.98), ranks))
             df_out.loc[valid_mask, 'short_squeeze_score'] = pd.Series(boosted_ranks, index=df_out.loc[valid_mask].index).clip(0.05, 0.98)
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'short_squeeze_score'] = 0.50
