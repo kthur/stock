@@ -157,12 +157,19 @@ class IVSkewEngine(BaseStrategyEngine):
                                 ret_skew = float(ret_window.skew()) if len(ret_window) >= 3 else 0.0
                                 if np.isnan(ret_skew):
                                     ret_skew = 0.0
-                                # Extreme panic turnaround booster (skew_ratio >= 1.5 with positive 1D turnaround return)
-                                turnaround_bonus = 0.10 if (skew_ratio >= 1.5 and float(ret.iloc[-1]) > 0.0) else 0.0
-                                # Reduced fallback weight to 0.3
-                                raw_score = 0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15 + turnaround_bonus
-                                score = 0.5 + (raw_score - 0.5) * 0.3
-                                score = float(np.clip(score, 0.0, 1.0))
+                                # Multi-tier Fear Capitulation Turnaround Booster (Extreme panic hedging followed by decisive reversal)
+                                last_ret = float(ret.iloc[-1])
+                                ret_3d = float(c.iloc[-1] / c.iloc[-min(len(c), 4)]) - 1.0 if len(c) >= 4 else last_ret
+                                if skew_ratio >= 1.6 and last_ret > 0.01 and ret_3d > 0.0:
+                                    turnaround_bonus = 0.20  # High-conviction fear capitulation turnaround
+                                elif skew_ratio >= 1.3 and last_ret > 0.0:
+                                    turnaround_bonus = 0.10
+                                else:
+                                    turnaround_bonus = 0.0
+
+                                raw_score = 0.5 + (skew_ratio - 1.0) * 0.30 - ret_skew * 0.15 + turnaround_bonus
+                                score = 0.5 + (raw_score - 0.5) * 0.50
+                                score = float(np.clip(score, 0.05, 0.95))
                                 score = score if np.isfinite(score) else np.nan
                             else:
                                 score = np.nan
