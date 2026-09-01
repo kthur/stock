@@ -318,10 +318,14 @@ class SectorRotationEngine(BaseStrategyEngine):
 
                 res_df['sector_score'] = sector_weight * res_df['sector_rank'] + stock_weight * res_df['stock_rank']
 
-                # Sector Leadership Synergy Boost: Top sector (sector_rank >= 0.80) + Top stock momentum (stock_rank >= 0.70)
-                leadership_mask = (res_df['sector_rank'] >= 0.80) & (res_df['stock_rank'] >= 0.70)
-                if leadership_mask.any():
-                    res_df.loc[leadership_mask, 'sector_score'] = (res_df.loc[leadership_mask, 'sector_score'] * 1.08).clip(0.0, 1.0)
+                # Sector Leadership Synergy Boost: Top sector + Top stock momentum
+                super_leadership_mask = (res_df['sector_rank'] >= 0.85) & (res_df['stock_rank'] >= 0.85)
+                std_leadership_mask = (res_df['sector_rank'] >= 0.75) & (res_df['stock_rank'] >= 0.70) & (~super_leadership_mask)
+
+                if super_leadership_mask.any():
+                    res_df.loc[super_leadership_mask, 'sector_score'] = (res_df.loc[super_leadership_mask, 'sector_score'] * 1.18).clip(0.05, 0.98)
+                if std_leadership_mask.any():
+                    res_df.loc[std_leadership_mask, 'sector_score'] = (res_df.loc[std_leadership_mask, 'sector_score'] * 1.10).clip(0.05, 0.95)
             else:
                 res_df['sector_score'] = res_df['stock_rank']
         else:
@@ -340,7 +344,7 @@ class SectorRotationEngine(BaseStrategyEngine):
 
             if lead_signals:
                 avg_lead = pd.concat(lead_signals, axis=1).mean(axis=1)
-                res_df['sector_score'] = (0.70 * res_df['sector_score'] + 0.30 * avg_lead).clip(0.0, 1.0)
+                res_df['sector_score'] = (0.70 * res_df['sector_score'] + 0.30 * avg_lead).clip(0.05, 0.98)
 
         # Macro Sensitivity & Cycle Adjustments
         if 'sector' in res_df.columns:
@@ -369,13 +373,24 @@ class SectorRotationEngine(BaseStrategyEngine):
             elif regime_label and 'BULL' in regime_label:
                 macro_boost += res_df['sector'].isin(['Information Technology', 'Financials', 'Consumer Discretionary']).astype(float) * 0.05
 
-            res_df['sector_score'] = (res_df['sector_score'] + macro_boost).clip(0.0, 1.0)
+            res_df['sector_score'] = (res_df['sector_score'] + macro_boost).clip(0.05, 0.98)
             general_mask = res_df['sector'] == 'General'
             if general_mask.any():
                 if 'stock_rank' in res_df.columns:
                     res_df.loc[general_mask, 'sector_score'] = (0.35 + res_df.loc[general_mask, 'stock_rank'] * 0.30).clip(0.1, 0.9)
                 else:
                     res_df.loc[general_mask, 'sector_score'] = 0.50
+
+        if not res_df.empty:
+            s_series = pd.to_numeric(res_df['sector_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            if len(res_df) > 1:
+                ranks = s_series.rank(pct=True, ascending=True)
+                # Multi-Tier Sector Champion Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.98), s_series))
+                res_df['sector_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            else:
+                res_df['sector_score'] = s_series
 
         return res_df[['symbol', 'sector_score']]
 
