@@ -154,19 +154,23 @@ class VolTargetingEngine(BaseStrategyEngine):
             inv_vol_rank = inv_vols.rank(pct=True).clip(0.02, 0.98)
             sharpe_rank = sharpe_series.rank(pct=True).clip(0.02, 0.98) if sharpe_series.std() > 1e-6 else pd.Series(0.50, index=sym_series.index)
             composite_rank = 0.60 * inv_vol_rank + 0.40 * sharpe_rank
-            scores = (0.05 + composite_rank * 0.90).clip(0.0, 1.0).round(4)
-            scores = np.where(np.isfinite(scores), scores, 0.50)
+            raw_scores = (0.05 + composite_rank * 0.90).clip(0.02, 0.98)
+            # Multi-Tier Low-Vol High-Sharpe Risk Parity Champion Booster
+            enhanced_scores = np.where(composite_rank >= 0.95, (raw_scores * 1.15).clip(0.02, 0.98),
+                              np.where(composite_rank >= 0.85, (raw_scores * 1.10).clip(0.02, 0.98),
+                              np.where(composite_rank <= 0.10, (raw_scores - 0.05).clip(0.02, 0.98), raw_scores)))
+            scores = np.where(np.isfinite(enhanced_scores), enhanced_scores, 0.50).round(4)
         else:
             target_weights = self.target_vol_annual / np.maximum(vols, 0.02)
             vol_ratio = target_weights - 1.0
-            scores = (1.0 / (1.0 + np.exp(-3.0 * np.clip(vol_ratio, -2.0, 2.0)))).clip(0.0, 1.0).round(4)
+            scores = (1.0 / (1.0 + np.exp(-3.0 * np.clip(vol_ratio, -2.0, 2.0)))).clip(0.02, 0.98).round(4)
             scores = np.where(np.isfinite(scores), scores, 0.50)
 
         res_df = pd.DataFrame({
             "symbol": sym_series,
             "name": universe.get("name", sym_series),
             "market": universe.get("market", "KRX"),
-            "vol_target_score": pd.to_numeric(pd.Series(scores, index=sym_series.index), errors='coerce').fillna(0.50).clip(0.0, 1.0)
+            "vol_target_score": pd.to_numeric(pd.Series(scores, index=sym_series.index), errors='coerce').fillna(0.50).clip(0.02, 0.98)
         })
 
         if not res_df.empty:
