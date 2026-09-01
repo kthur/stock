@@ -131,9 +131,18 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                     if not (np.isfinite(f_sr) and np.isfinite(f_dtc) and f_sr >= 0 and f_dtc >= 0):
                         results[sym_str] = np.nan
                     else:
-                        ignite_mult = 1.35 if (ret_5d > 0.02 and f_dtc >= 3.0) else 1.0
-                        htb_squeeze_mult = 1.20 if (f_sr > 0.35 or f_dtc > 10.0) else 1.0
-                        mom_factor = (1.0 + float(ret_5d) * 3.0) if ret_5d >= 0 else max(0.10, 1.0 + float(ret_5d) * 2.0)
+                        # Multi-Tier Squeeze Ignition Accelerator:
+                        # Explosive Squeeze Trigger: High DTC (>=5.0) + High Short Float (>=20%) + Strong 5D Breakout (>=6%)
+                        if ret_5d >= 0.06 and f_dtc >= 5.0 and f_sr >= 0.20:
+                            ignite_mult = 1.60  # Explosive Short Squeeze Ignition
+                        elif ret_5d > 0.02 and f_dtc >= 3.0:
+                            ignite_mult = 1.35  # Standard Squeeze Ignition
+                        else:
+                            ignite_mult = 1.0
+
+                        # Hard-to-Borrow (HTB) Squeeze Pressure
+                        htb_squeeze_mult = 1.25 if (f_sr > 0.30 or f_dtc > 8.0) else (1.10 if (f_sr > 0.15 or f_dtc > 4.0) else 1.0)
+                        mom_factor = (1.0 + float(ret_5d) * 3.5) if ret_5d >= 0 else max(0.10, 1.0 + float(ret_5d) * 2.0)
                         mom_factor = mom_factor if np.isfinite(mom_factor) else 1.0
                         raw_squeeze = float(f_sr * f_dtc * mom_factor * ignite_mult * htb_squeeze_mult)
                         results[sym_str] = raw_squeeze if np.isfinite(raw_squeeze) else np.nan
@@ -147,7 +156,9 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
 
         if valid_mask.sum() > 1:
             ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-            df_out.loc[valid_mask, 'short_squeeze_score'] = ranks.clip(0.05, 0.95)
+            # Smart Squeeze Booster for top 10% high-conviction short squeeze ignition candidates
+            boosted_ranks = np.where(ranks >= 0.90, (ranks * 1.10).clip(0.05, 0.98), ranks)
+            df_out.loc[valid_mask, 'short_squeeze_score'] = pd.Series(boosted_ranks, index=df_out.loc[valid_mask].index).clip(0.05, 0.98)
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'short_squeeze_score'] = 0.50
         else:
