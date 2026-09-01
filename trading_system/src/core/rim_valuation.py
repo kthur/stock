@@ -777,12 +777,27 @@ class RIMValuationEngine(BaseStrategyEngine):
         # Rank valid stocks per market
         valid_mask = (~invalid_mask) & df['discount_ratio'].notna()
         if valid_mask.any():
-            df.loc[valid_mask, 'rim_score'] = df[valid_mask].groupby('market')['discount_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
+            raw_ranks = df[valid_mask].groupby('market')['discount_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
+            df.loc[valid_mask, 'rim_score'] = raw_ranks
 
-            # Margin of safety acceleration for high-quality value stocks (Discount >= 30% and ROE >= required_return)
-            mos_mask = valid_mask & (~is_proxy) & (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08)
-            if mos_mask.any():
-                df.loc[mos_mask, 'rim_score'] = (df.loc[mos_mask, 'rim_score'] * 1.05).clip(0.0, 1.0)
+            # Super Deep Margin of Safety Ignition for high-quality compounders
+            super_mos_mask = valid_mask & (~is_proxy) & (df['discount_ratio'] >= 0.50) & (df['roe'] >= 0.12)
+            std_mos_mask = valid_mask & (~is_proxy) & (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08) & (~super_mos_mask)
+
+            if super_mos_mask.any():
+                df.loc[super_mos_mask, 'rim_score'] = (df.loc[super_mos_mask, 'rim_score'] * 1.20).clip(0.05, 0.98)
+            if std_mos_mask.any():
+                df.loc[std_mos_mask, 'rim_score'] = (df.loc[std_mos_mask, 'rim_score'] * 1.10).clip(0.05, 0.98)
+
+            # Multi-Tier Cross-Sectional RIM Rank Acceleration Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+            for mkt, grp in df[valid_mask].groupby('market'):
+                if len(grp) > 1:
+                    mkt_indices = grp.index
+                    s_vals = pd.to_numeric(df.loc[mkt_indices, 'rim_score'], errors='coerce').fillna(0.50)
+                    mkt_ranks = s_vals.rank(pct=True, ascending=True)
+                    enhanced = np.where(mkt_ranks >= 0.95, (s_vals * 1.15).clip(0.05, 0.98),
+                               np.where(mkt_ranks >= 0.85, (s_vals * 1.10).clip(0.05, 0.98), s_vals))
+                    df.loc[mkt_indices, 'rim_score'] = pd.to_numeric(pd.Series(enhanced, index=mkt_indices), errors='coerce').fillna(0.50).clip(0.05, 0.98)
 
         # 영업손실, 순손실, 일회성 이익 의존, 우선주, 자본잠식 및 결측 종목은 RIM 점수 무효화 (NaN 유지)
         # → 앙상블에서 자동 제외되고 가중치가 재정규화된다.
