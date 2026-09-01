@@ -159,8 +159,13 @@ class InstForeignSectorEngine(BaseStrategyEngine):
             trust_acc = self.compute_trust_accumulation(close, volume, flow_df)
 
             # 2. Combine with Dual Major Inflow Synergy (Concurrent Foreign & Trust 2-month accumulation)
-            dual_inflow_bonus = 0.08 if (foreign_acc >= 0.65 and trust_acc >= 0.65) else 0.0
-            combined_acc = float(np.clip(0.50 * foreign_acc + 0.50 * trust_acc + dual_inflow_bonus, 0.0, 1.0))
+            if foreign_acc >= 0.70 and trust_acc >= 0.70:
+                dual_inflow_bonus = 0.15  # Super Dual Inflow: Strong simultaneous Foreign + Trust 2-month accumulation
+            elif foreign_acc >= 0.60 and trust_acc >= 0.60:
+                dual_inflow_bonus = 0.08
+            else:
+                dual_inflow_bonus = 0.0
+            combined_acc = float(np.clip(0.50 * foreign_acc + 0.50 * trust_acc + dual_inflow_bonus, 0.0, 0.98))
 
             acc_records.append({
                 'symbol': sym,
@@ -227,9 +232,9 @@ class InstForeignSectorEngine(BaseStrategyEngine):
 
         raw_ranks = acc_df['raw_composite'].rank(pct=True, ascending=True).clip(0.02, 0.98)
         # Multi-Tier Institutional Leader Acceleration Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
-        enhanced_score = np.where(raw_ranks >= 0.95, (raw_ranks * 1.15).clip(0.0, 0.98),
-                         np.where(raw_ranks >= 0.85, (raw_ranks * 1.10).clip(0.0, 0.98), raw_ranks))
-        acc_df['inst_foreign_sector_score'] = pd.to_numeric(pd.Series(enhanced_score, index=acc_df.index), errors='coerce').fillna(0.50).clip(0.0, 1.0)
+        enhanced_score = np.where(raw_ranks >= 0.95, (raw_ranks * 1.15).clip(0.05, 0.98),
+                         np.where(raw_ranks >= 0.85, (raw_ranks * 1.10).clip(0.05, 0.98), raw_ranks))
+        acc_df['inst_foreign_sector_score'] = pd.to_numeric(pd.Series(enhanced_score, index=acc_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
 
         res_df = acc_df.reset_index()[['symbol', 'inst_foreign_sector_score', 'foreign_acc_score', 'trust_acc_score', 'accumulation_score', 'sector_corr_score']]
         return res_df
