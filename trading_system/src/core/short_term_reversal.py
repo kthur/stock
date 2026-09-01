@@ -131,10 +131,15 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         else:
             vol_surge = pd.Series(False, index=close_2d.columns)
 
+        # Multi-Tier Reversal Ignition & Turnaround Confirmation
         bounce_bonus = np.where(
-            (consec_prior >= 2.0) & (ret_1d > 0.0),
-            np.where(vol_surge, 0.25, 0.15),
-            0.0
+            (consec_prior >= 3.0) & (ret_1d >= 0.02) & vol_surge,
+            0.35,  # Super Reversal Turnaround: Severe oversold streak + strong green impulse + volume surge
+            np.where(
+                (consec_prior >= 2.0) & (ret_1d > 0.0),
+                np.where(vol_surge, 0.25, 0.15),
+                0.0
+            )
         )
 
         # Vectorized Dual-Horizon RSI (Fast RSI-5 + Standard RSI-14) with R7-8 Wilder's Exponential Smoothing
@@ -204,8 +209,10 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         if len(res_df) >= 5:
             pct_rank = raw_m.rank(pct=True, ascending=True)
             final_score = 0.70 * abs_score + 0.30 * pct_rank
+            # Top-Tier Reversal Booster for high-conviction oversold turnaround winners
+            final_score = np.where(final_score >= 0.90, (final_score * 1.10).clip(0.02, 0.98), final_score)
         else:
             final_score = abs_score
 
-        res_df['reversal_score'] = pd.to_numeric(final_score, errors='coerce').fillna(0.50).clip(0.02, 0.98)
+        res_df['reversal_score'] = pd.to_numeric(pd.Series(final_score, index=res_df.index), errors='coerce').fillna(0.50).clip(0.02, 0.98)
         return res_df[['symbol', 'reversal_score']]
