@@ -120,11 +120,11 @@ class ARMFactorEngine(BaseStrategyEngine):
             # Concurrent EPS and Target Price upgrades indicate institutional consensus conviction
             concurrence = 1.0
             if eps_rev > 0.05 and target_p_rev > 0.05:
-                concurrence = 1.30
+                concurrence = 1.40
                 if surprise > 0.05:
-                    concurrence = 1.60  # Triple consensus upgrade catalyst: Major EPS beat + TP upgrade + Surprise
+                    concurrence = 1.80  # Super Triple Consensus Upgrade Ignition: Major EPS beat + TP upgrade + Surprise
             elif eps_rev < -0.05 and target_p_rev < -0.05:
-                concurrence = 1.30  # Downward consensus acceleration
+                concurrence = 1.35  # Downward consensus acceleration
 
             # 복합 Revision 점수
             revision_composite = ((eps_rev * 0.40) + (target_p_rev * 0.30) + (surprise * 0.20) + (growth_score * 0.10)) * concurrence
@@ -142,7 +142,7 @@ class ARMFactorEngine(BaseStrategyEngine):
             # 가격 확인 필터 (추정치 상향 + 주가 상승 = 강력한 동반 모멘텀, 부드러운 연속형 시너지)
             syn_pos = np.maximum(0.0, np.tanh(10.0 * revision_composite)) * np.maximum(0.0, np.tanh(10.0 * price_mom))
             syn_neg = np.maximum(0.0, np.tanh(-10.0 * revision_composite)) * np.maximum(0.0, np.tanh(-10.0 * price_mom))
-            synergy_bonus = float(0.20 * (syn_pos - syn_neg))
+            synergy_bonus = float(0.25 * (syn_pos - syn_neg))
 
             raw_score = 0.5 + (revision_composite * 2.0) + (price_mom * 0.5) + synergy_bonus
             raw_scores[sym] = float(np.clip(raw_score, -5.0, 5.0)) if np.isfinite(raw_score) else 0.5
@@ -162,7 +162,7 @@ class ARMFactorEngine(BaseStrategyEngine):
         for k, v in raw_scores.items():
             sc = float(np.clip((v - lower) / (upper - lower), 0.0, 1.0))
             # ARM Consensus Revision Booster for high-conviction analyst upgrades (smooth continuous)
-            smooth_boost = 1.0 + 0.15 / (1.0 + np.exp(-10.0 * (sc - 0.70)))
+            smooth_boost = 1.0 + 0.20 / (1.0 + np.exp(-10.0 * (sc - 0.70)))
             res_scores[k] = float(np.clip(sc * smooth_boost, 0.05, 0.98))
 
         res_df = make_score_dataframe(res_scores, 'arm_score')
