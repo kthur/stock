@@ -269,12 +269,18 @@ class EventDrivenEngine(BaseStrategyEngine):
                         ret_5d = float(np.clip(raw_ret5, -0.99, 5.0)) if np.isfinite(raw_ret5) else 0.0
                         raw_vr = float(cur_vol / avg_vol) if avg_vol > 0 else 1.0
                         v_ratio = float(np.clip(raw_vr, 0.0, 20.0)) if np.isfinite(raw_vr) else 1.0
-                        # R10-1 Fix: Explicitly define breakout_bonus to eliminate NameError exception
-                        breakout_bonus = 0.08 if (v_ratio >= 3.0 and ret_5d > 0.0) else 0.0
-                        # High volume breakout booster: +0.08 if volume explodes >= 3x with positive 5D return
-                        # R6-3 Fix: Moderate momentum weighting (0.30 * clip(ret_5d)) to preserve DART catalyst signal purity
-                        continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 0.30 * np.clip(ret_5d, -0.15, 0.15) + breakout_bonus, -0.15, 0.25)
-                        scores_map[sym] = float(np.clip(scores_map[sym] + continuous_boost, 0.0, 1.0))
+                        # Multi-Tier Event Volume Breakout Booster:
+                        # Mega Event Surge: Volume >= 4.0x with strong upward impulse (>= 4%)
+                        if v_ratio >= 4.0 and ret_5d >= 0.04:
+                            breakout_bonus = 0.16  # Mega Event Reaction Explosion
+                        elif v_ratio >= 2.5 and ret_5d > 0.0:
+                            breakout_bonus = 0.08  # Standard Event Breakout
+                        else:
+                            breakout_bonus = 0.0
+
+                        # Continuous boost with event volume synergy
+                        continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 0.30 * np.clip(ret_5d, -0.15, 0.15) + breakout_bonus, -0.15, 0.30)
+                        scores_map[sym] = float(np.clip(scores_map[sym] + continuous_boost, 0.05, 0.98))
                 except Exception:
                     pass
 
