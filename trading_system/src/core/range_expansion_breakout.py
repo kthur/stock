@@ -198,9 +198,13 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
                 elif curr_high > high_20:
                     is_new_high = 0.50
 
+            # Gap catalyst bonus: Gap & Go breakout
+            gap_atr = float(curr_open - prev_c[-1]) / max(curr_atr, 1e-8)
+            gap_bonus = float(np.clip(gap_atr * 0.20, 0.0, 0.20)) if gap_atr > 0 else 0.0
+
             # Quality score
             if clv >= 0.65:
-                quality_score = float(np.clip((clv - 0.50) / 0.50, 0.0, 1.0)) * 0.70 + 0.30 * is_new_high
+                quality_score = float(np.clip((clv - 0.50) / 0.50, 0.0, 1.0)) * 0.60 + 0.25 * is_new_high + 0.15 * (gap_bonus / 0.20 if gap_bonus > 0 else 0.0)
             else:
                 quality_score = float(np.clip(clv * 0.5, 0.0, 0.5))
 
