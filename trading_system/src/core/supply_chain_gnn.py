@@ -219,7 +219,9 @@ class SupplyChainGNNEngine(BaseStrategyEngine):
         def bullwhip_transform(r: float) -> float:
             if not np.isfinite(r):
                 return 0.0
-            return float(r * 1.35) if r < 0 else float(r * 0.85)
+            # Bullwhip Operational Leverage: Upstream suppliers experience amplified demand surges (1.25x)
+            # and sharp downside inventory correction shocks (1.35x)
+            return float(r * 1.35) if r < 0 else float(r * 1.25)
 
         # Hop 1
         hop1: Dict[str, float] = {}
