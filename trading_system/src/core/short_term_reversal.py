@@ -134,10 +134,10 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         # Multi-Tier Reversal Ignition & Turnaround Confirmation
         bounce_bonus = np.where(
             (consec_prior >= 3.0) & (ret_1d >= 0.02) & vol_surge,
-            0.35,  # Super Reversal Turnaround: Severe oversold streak + strong green impulse + volume surge
+            0.42,  # Super Reversal Turnaround: Severe oversold streak + strong green impulse + volume surge
             np.where(
                 (consec_prior >= 2.0) & (ret_1d > 0.0),
-                np.where(vol_surge, 0.25, 0.15),
+                np.where(vol_surge, 0.30, 0.18),
                 0.0
             )
         )
@@ -209,8 +209,9 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         if len(res_df) >= 5:
             pct_rank = raw_m.rank(pct=True, ascending=True)
             final_score = 0.70 * abs_score + 0.30 * pct_rank
-            # Top-Tier Reversal Booster for high-conviction oversold turnaround winners
-            final_score = np.where(final_score >= 0.90, (final_score * 1.10).clip(0.02, 0.98), final_score)
+            # Multi-Tier Reversal Turnaround Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+            final_score = np.where(final_score >= 0.95, (final_score * 1.15).clip(0.02, 0.98),
+                          np.where(final_score >= 0.85, (final_score * 1.10).clip(0.02, 0.98), final_score))
         else:
             final_score = abs_score
 
