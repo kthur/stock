@@ -348,13 +348,13 @@ class SupplyChainGNNEngine(BaseStrategyEngine):
             if not np.isfinite(graph_signal):
                 graph_signal = 0.0
 
-            # Sigmoid activation mapping to [0.05, 0.98] centered at 0.50
+            # Sigmoid activation mapping to [0.05, 0.95] centered at 0.50
             clipped_exp = np.clip(-14.0 * graph_signal, -50.0, 50.0)
             raw_score = 1.0 / (1.0 + np.exp(clipped_exp))
             if not np.isfinite(raw_score):
                 clipped_score = 0.50
             else:
-                clipped_score = float(np.clip(raw_score, 0.05, 0.98))
+                clipped_score = float(np.clip(raw_score, 0.05, 0.95))
 
             if not np.isfinite(clipped_score):
                 clipped_score = 0.50
@@ -362,13 +362,13 @@ class SupplyChainGNNEngine(BaseStrategyEngine):
 
         res_df = make_score_dataframe(scores, score_column="supply_chain_gnn_score")
         if not res_df.empty:
-            s_series = pd.to_numeric(res_df['supply_chain_gnn_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            s_series = pd.to_numeric(res_df['supply_chain_gnn_score'], errors='coerce').fillna(0.50).clip(0.05, 0.95)
             if len(res_df) > 1:
                 ranks = s_series.rank(pct=True, ascending=True)
                 # Multi-Tier Supply Chain GNN Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
-                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
-                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.98), s_series))
-                res_df['supply_chain_gnn_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.95),
+                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.95), s_series))
+                res_df['supply_chain_gnn_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.95)
             else:
                 res_df['supply_chain_gnn_score'] = s_series
         return res_df

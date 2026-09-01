@@ -299,7 +299,7 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                 if not np.isfinite(raw_score):
                     clipped_score = 0.50
                 else:
-                    clipped_score = float(np.clip(raw_score, 0.05, 0.98))
+                    clipped_score = float(np.clip(raw_score, 0.05, 0.95))
 
                 if not np.isfinite(clipped_score):
                     clipped_score = 0.50
@@ -312,13 +312,13 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
 
         res_df = make_score_dataframe(scores, score_column="cross_asset_spillover_score")
         if not res_df.empty:
-            s_series = pd.to_numeric(res_df['cross_asset_spillover_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            s_series = pd.to_numeric(res_df['cross_asset_spillover_score'], errors='coerce').fillna(0.50).clip(0.05, 0.95)
             if len(res_df) > 1:
                 ranks = s_series.rank(pct=True, ascending=True)
                 # Multi-Tier Cross-Asset Spillover Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
-                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
-                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.98), s_series))
-                res_df['cross_asset_spillover_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.95),
+                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.95), s_series))
+                res_df['cross_asset_spillover_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.95)
             else:
                 res_df['cross_asset_spillover_score'] = s_series
         return res_df

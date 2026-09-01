@@ -236,7 +236,7 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
             if not np.isfinite(score):
                 return 0.50
 
-            return float(np.clip(score, 0.05, 0.98))
+            return float(np.clip(score, 0.05, 0.95))
 
         except Exception as e:
             logger.debug(f"[RangeExpansion] Calculation error: {e}")
@@ -283,13 +283,13 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
 
         res_df = make_score_dataframe(scores, score_column="range_expansion_score")
         if not res_df.empty:
-            s_series = pd.to_numeric(res_df['range_expansion_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            s_series = pd.to_numeric(res_df['range_expansion_score'], errors='coerce').fillna(0.50).clip(0.05, 0.95)
             if len(res_df) > 1:
                 ranks = s_series.rank(pct=True, ascending=True)
                 # Multi-Tier Range Expansion Super Breakout Booster
-                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
-                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.98), s_series))
-                res_df['range_expansion_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.95),
+                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.95), s_series))
+                res_df['range_expansion_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.95)
             else:
                 res_df['range_expansion_score'] = s_series
         return res_df
