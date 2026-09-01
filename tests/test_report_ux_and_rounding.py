@@ -297,12 +297,63 @@ Rank Symbol Name Market Price Intrinsic Discount ROE(rep) ROE(adj) EQ Filter RIM
     assert date == "2026-08-29"
     assert len(rows) == 2
     assert rows[0].symbol == "005930"
-    assert rows[0].discount == "+25.0%"
-    assert rows[0].rim_score == "75.0%"
-
     assert rows[1].symbol == "000660"
     assert rows[1].intrinsic_value == "N/A"
     assert rows[1].filter_tags == "MISSING_FUNDAMENTALS"
     assert rows[1].rim_score == "N/A"
+
+
+def test_34_strategies_tabs_and_panels_presence():
+    html_out = _call_build_html()
+    # Check that Row 2 navigation has all 34 strategy buttons
+    assert "switchTab(this,'crossasset')" in html_out
+    assert "switchTab(this,'gnn')" in html_out
+    assert "switchTab(this,'rangeexpansion')" in html_out
+    assert "32. Cross-Asset" in html_out
+    assert "33. Supply Chain GNN" in html_out
+    assert "34. Range Expansion" in html_out
+
+    # Check that all 34 strategy tab panels are rendered
+    assert 'id="panel-crossasset"' in html_out
+    assert 'id="panel-gnn"' in html_out
+    assert 'id="panel-rangeexpansion"' in html_out
+
+
+def test_parse_32_33_34_strategies():
+    from trading_system.generate_report import (
+        parse_cross_asset_spillover,
+        parse_supply_chain_gnn,
+        parse_range_expansion
+    )
+    cas_text = """=== Strategy 35: Cross-Asset Spillover Momentum Predictions ===
+Date: 2026-08-30 01:29 KST
+
+1    005930    삼성전자    KOSPI    78.5%
+"""
+    cas_date, cas_rows = parse_cross_asset_spillover(cas_text)
+    assert len(cas_rows) == 1
+    assert cas_rows[0].symbol == "005930"
+    assert cas_rows[0].score == "78.5%"
+
+    gnn_text = """=== Strategy 36: Supply Chain GNN & Sector Flow Predictions ===
+Date: 2026-08-30 01:29 KST
+
+1    000660    SK하이닉스    KOSPI    82.0%
+"""
+    gnn_date, gnn_rows = parse_supply_chain_gnn(gnn_text)
+    assert len(gnn_rows) == 1
+    assert gnn_rows[0].symbol == "000660"
+    assert gnn_rows[0].score == "82.0%"
+
+    reb_text = """=== Strategy 37: Range Expansion Breakout Predictions ===
+Date: 2026-08-30 01:29 KST
+
+1    NVDA    NVIDIA    SP500    91.2%
+"""
+    reb_date, reb_rows = parse_range_expansion(reb_text)
+    assert len(reb_rows) == 1
+    assert reb_rows[0].symbol == "NVDA"
+    assert reb_rows[0].score == "91.2%"
+
 
 

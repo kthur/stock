@@ -667,7 +667,7 @@
     <span class="badge market-hours-badge" id="krx-status-badge">🇰🇷 KRX <span class="pulse-dot" id="krx-pulse"></span> <span id="krx-status-text">계산 중...</span></span>
     <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot" id="us-pulse"></span> <span id="us-status-text">계산 중...</span></span>
     <span class="badge badge-date">📅 2026-08-31 01:23 KST</span>
-    <span class="badge badge-updated">🔄 갱신: 2026-09-01 22:32 KST</span>
+    <span class="badge badge-updated">🔄 갱신: 2026-09-01 22:45 KST</span>
   </div>
 </div>
 
@@ -686,7 +686,7 @@
       <span class="badge" style="color:#e3b341; border-color:#e3b341; background:#e3b34120;">⚡ Decoupled (DECOUPLED)</span>
       <span class="badge badge-crisis-none" style="color: #2ea043; border-color: rgba(46, 160, 67, 0.5); background: rgba(46, 160, 67, 0.15);">🛡️ Crisis: NONE</span>
       <span class="badge badge-date">📅 2026-08-31 01:23 KST</span>
-      <span class="badge badge-updated">🔄 2026-09-01 22:32 KST</span>
+      <span class="badge badge-updated">🔄 2026-09-01 22:45 KST</span>
     </div>
   </div>
 
@@ -9225,6 +9225,9 @@
   <button class="tab" onclick="switchTab(this,'insider')">29. Insider Buying</button>
   <button class="tab" onclick="switchTab(this,'darkpool')">30. Darkpool &amp; HFT</button>
   <button class="tab" onclick="switchTab(this,'tonedrift')">31. Tone Drift</button>
+  <button class="tab" onclick="switchTab(this,'crossasset')">32. Cross-Asset</button>
+  <button class="tab" onclick="switchTab(this,'gnn')">33. Supply Chain GNN</button>
+  <button class="tab" onclick="switchTab(this,'rangeexpansion')">34. Range Expansion</button>
 </nav>
 
 <div class="content row2-content" style="padding: 24px 32px;">
@@ -23789,16 +23792,16 @@
     </div>
   </div>
 
-  <!-- ══ 32. Dual Correction Tab ══ -->
-  <div class="tab-panel" id="panel-dualcorrection">
-    <div class="filter-bar" id="filter-dualcorrection">
-      <button class="filter-btn active" onclick="filterMarket(this,'dualcorrection')" data-mkt="all">전체</button>
-            <button class="filter-btn" onclick="filterMarket(this,'dualcorrection')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
-            <button class="filter-btn" onclick="filterMarket(this,'dualcorrection')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-            <button class="filter-btn" onclick="filterMarket(this,'dualcorrection')" data-mkt="SP500">🇺🇸 SP500</button>
-            <button class="filter-btn" onclick="filterMarket(this,'dualcorrection')" data-mkt="KONEX">🌐 KONEX</button>
+  <!-- ══ 32. Cross-Asset Spillover Tab ══ -->
+  <div class="tab-panel" id="panel-crossasset">
+    <div class="filter-bar" id="filter-crossasset">
+      <button class="filter-btn active" onclick="filterMarket(this,'crossasset')" data-mkt="all">전체</button>
+            <button class="filter-btn" onclick="filterMarket(this,'crossasset')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+            <button class="filter-btn" onclick="filterMarket(this,'crossasset')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'crossasset')" data-mkt="SP500">🇺🇸 SP500</button>
+            <button class="filter-btn" onclick="filterMarket(this,'crossasset')" data-mkt="KONEX">🌐 KONEX</button>
     </div>
-    <div id="dualcorrection-panels">
+    <div id="crossasset-panels">
     
     <div class="market-panel" data-market="KOSPI">
       <h3 class="market-title">🇰🇷 KOSPI</h3>
@@ -23806,9 +23809,9 @@
         <div class="strategy-status-banner banner-warning">
           <div class="banner-icon">⚠️</div>
           <div class="banner-content">
-            <div class="banner-title">Dual Correction Regime 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
+            <div class="banner-title">Cross-Asset Spillover Momentum 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
             <div class="banner-desc">
-              <strong>KOSPI</strong> 시장의 <strong>Dual Correction Regime</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
+              <strong>KOSPI</strong> 시장의 <strong>Cross-Asset Spillover Momentum</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
               앙상블 엔진에서는 해당 전략의 가중치를 <strong>0.0%로 배제</strong>하고 활성 전략 가중치로 자동 재정규화하여 안정성을 보장합니다.
             </div>
           </div>
@@ -23816,7 +23819,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Dual Correction 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Cross-Asset Spillover 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>
@@ -23828,9 +23831,9 @@
         <div class="strategy-status-banner banner-warning">
           <div class="banner-icon">⚠️</div>
           <div class="banner-content">
-            <div class="banner-title">Dual Correction Regime 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
+            <div class="banner-title">Cross-Asset Spillover Momentum 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
             <div class="banner-desc">
-              <strong>KOSDAQ</strong> 시장의 <strong>Dual Correction Regime</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
+              <strong>KOSDAQ</strong> 시장의 <strong>Cross-Asset Spillover Momentum</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
               앙상블 엔진에서는 해당 전략의 가중치를 <strong>0.0%로 배제</strong>하고 활성 전략 가중치로 자동 재정규화하여 안정성을 보장합니다.
             </div>
           </div>
@@ -23838,7 +23841,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Dual Correction 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Cross-Asset Spillover 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>
@@ -23850,7 +23853,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Dual Correction 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Cross-Asset Spillover 스코어 ↕</th>
           </tr></thead>
           <tbody>
             <tr>
@@ -23858,14 +23861,14 @@
               <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
               <td class="name">Electronic Arts</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">46.5%</span></td>
+              <td class="pos"><span class="pos">54.1%</span></td>
             </tr>
             <tr>
               <td class="rank">#2</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
               <td class="name">EchoStar</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">42.6%</span></td>
+              <td class="pos"><span class="pos">5.0%</span></td>
             </tr></tbody>
         </table>
       </div>
@@ -23876,9 +23879,9 @@
         <div class="strategy-status-banner banner-warning">
           <div class="banner-icon">⚠️</div>
           <div class="banner-content">
-            <div class="banner-title">Dual Correction Regime 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
+            <div class="banner-title">Cross-Asset Spillover Momentum 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
             <div class="banner-desc">
-              <strong>KONEX</strong> 시장의 <strong>Dual Correction Regime</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
+              <strong>KONEX</strong> 시장의 <strong>Cross-Asset Spillover Momentum</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
               앙상블 엔진에서는 해당 전략의 가중치를 <strong>0.0%로 배제</strong>하고 활성 전략 가중치로 자동 재정규화하여 안정성을 보장합니다.
             </div>
           </div>
@@ -23886,7 +23889,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Dual Correction 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Cross-Asset Spillover 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>
@@ -23895,16 +23898,16 @@
     </div>
   </div>
 
-  <!-- ══ 33. Index Rebalance Tab ══ -->
-  <div class="tab-panel" id="panel-indexrebalance">
-    <div class="filter-bar" id="filter-indexrebalance">
-      <button class="filter-btn active" onclick="filterMarket(this,'indexrebalance')" data-mkt="all">전체</button>
-            <button class="filter-btn" onclick="filterMarket(this,'indexrebalance')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
-            <button class="filter-btn" onclick="filterMarket(this,'indexrebalance')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-            <button class="filter-btn" onclick="filterMarket(this,'indexrebalance')" data-mkt="SP500">🇺🇸 SP500</button>
-            <button class="filter-btn" onclick="filterMarket(this,'indexrebalance')" data-mkt="KONEX">🌐 KONEX</button>
+  <!-- ══ 33. Supply Chain GNN Tab ══ -->
+  <div class="tab-panel" id="panel-gnn">
+    <div class="filter-bar" id="filter-gnn">
+      <button class="filter-btn active" onclick="filterMarket(this,'gnn')" data-mkt="all">전체</button>
+            <button class="filter-btn" onclick="filterMarket(this,'gnn')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+            <button class="filter-btn" onclick="filterMarket(this,'gnn')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'gnn')" data-mkt="SP500">🇺🇸 SP500</button>
+            <button class="filter-btn" onclick="filterMarket(this,'gnn')" data-mkt="KONEX">🌐 KONEX</button>
     </div>
-    <div id="indexrebalance-panels">
+    <div id="gnn-panels">
     
     <div class="market-panel" data-market="KOSPI">
       <h3 class="market-title">🇰🇷 KOSPI</h3>
@@ -23912,9 +23915,9 @@
         <div class="strategy-status-banner banner-warning">
           <div class="banner-icon">⚠️</div>
           <div class="banner-content">
-            <div class="banner-title">Index Rebalance Flow 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
+            <div class="banner-title">Supply Chain GNN 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
             <div class="banner-desc">
-              <strong>KOSPI</strong> 시장의 <strong>Index Rebalance Flow</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_UNIVERSE_DATA</code>)<br>
+              <strong>KOSPI</strong> 시장의 <strong>Supply Chain GNN</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>NO_SUPPLY_CHAIN_MAPPING</code>)<br>
               앙상블 엔진에서는 해당 전략의 가중치를 <strong>0.0%로 배제</strong>하고 활성 전략 가중치로 자동 재정규화하여 안정성을 보장합니다.
             </div>
           </div>
@@ -23922,7 +23925,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Index Rebalance 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Supply Chain GNN 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>
@@ -23934,9 +23937,9 @@
         <div class="strategy-status-banner banner-warning">
           <div class="banner-icon">⚠️</div>
           <div class="banner-content">
-            <div class="banner-title">Index Rebalance Flow 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
+            <div class="banner-title">Supply Chain GNN 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
             <div class="banner-desc">
-              <strong>KOSDAQ</strong> 시장의 <strong>Index Rebalance Flow</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_UNIVERSE_DATA</code>)<br>
+              <strong>KOSDAQ</strong> 시장의 <strong>Supply Chain GNN</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>NO_SUPPLY_CHAIN_MAPPING</code>)<br>
               앙상블 엔진에서는 해당 전략의 가중치를 <strong>0.0%로 배제</strong>하고 활성 전략 가중치로 자동 재정규화하여 안정성을 보장합니다.
             </div>
           </div>
@@ -23944,7 +23947,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Index Rebalance 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Supply Chain GNN 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>
@@ -23956,708 +23959,22 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Index Rebalance 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Supply Chain GNN 스코어 ↕</th>
           </tr></thead>
           <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
-              <td class="name">Conagra Brands</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
+              <td class="name">EchoStar</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
+              <td class="pos"><span class="pos">95.0%</span></td>
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ARE" target="_blank" class="stock-link">ARE</a></td>
-              <td class="name">Alexandria Real</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#3</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AOS" target="_blank" class="stock-link">AOS</a></td>
-              <td class="name">A. O. Smith</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#4</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ABT" target="_blank" class="stock-link">ABT</a></td>
-              <td class="name">Abbott Laborator</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#5</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ABBV" target="_blank" class="stock-link">ABBV</a></td>
-              <td class="name">AbbVie</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#6</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ACN" target="_blank" class="stock-link">ACN</a></td>
-              <td class="name">Accenture</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#7</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ADBE" target="_blank" class="stock-link">ADBE</a></td>
-              <td class="name">Adobe Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#8</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AMD" target="_blank" class="stock-link">AMD</a></td>
-              <td class="name">Advanced Micro D</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#9</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AES" target="_blank" class="stock-link">AES</a></td>
-              <td class="name">AES Corporation</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#10</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AFL" target="_blank" class="stock-link">AFL</a></td>
-              <td class="name">Aflac</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#11</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/A" target="_blank" class="stock-link">A</a></td>
-              <td class="name">Agilent Technolo</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#12</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/APD" target="_blank" class="stock-link">APD</a></td>
-              <td class="name">Air Products</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#13</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ABNB" target="_blank" class="stock-link">ABNB</a></td>
-              <td class="name">Airbnb</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#14</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BAC" target="_blank" class="stock-link">BAC</a></td>
-              <td class="name">Bank of America</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#15</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AKAM" target="_blank" class="stock-link">AKAM</a></td>
-              <td class="name">Akamai Technolog</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#16</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ALGN" target="_blank" class="stock-link">ALGN</a></td>
-              <td class="name">Align Technology</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#17</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
               <td class="name">Electronic Arts</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#18</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ALLE" target="_blank" class="stock-link">ALLE</a></td>
-              <td class="name">Allegion</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#19</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/LNT" target="_blank" class="stock-link">LNT</a></td>
-              <td class="name">Alliant Energy</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#20</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ALL" target="_blank" class="stock-link">ALL</a></td>
-              <td class="name">Allstate</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#21</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/GOOGL" target="_blank" class="stock-link">GOOGL</a></td>
-              <td class="name">Alphabet Inc. (C</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#22</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/GOOG" target="_blank" class="stock-link">GOOG</a></td>
-              <td class="name">Alphabet Inc. (C</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#23</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MO" target="_blank" class="stock-link">MO</a></td>
-              <td class="name">Altria</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#24</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AMZN" target="_blank" class="stock-link">AMZN</a></td>
-              <td class="name">Amazon</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#25</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AMCR" target="_blank" class="stock-link">AMCR</a></td>
-              <td class="name">Amcor</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#26</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AEE" target="_blank" class="stock-link">AEE</a></td>
-              <td class="name">Ameren</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#27</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AEP" target="_blank" class="stock-link">AEP</a></td>
-              <td class="name">American Electri</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#28</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AXP" target="_blank" class="stock-link">AXP</a></td>
-              <td class="name">American Express</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#29</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ALB" target="_blank" class="stock-link">ALB</a></td>
-              <td class="name">Albemarle Corpor</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#30</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BAX" target="_blank" class="stock-link">BAX</a></td>
-              <td class="name">Baxter Internati</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#31</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MMM" target="_blank" class="stock-link">MMM</a></td>
-              <td class="name">3M</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#32</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AIG" target="_blank" class="stock-link">AIG</a></td>
-              <td class="name">American Interna</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#33</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ED" target="_blank" class="stock-link">ED</a></td>
-              <td class="name">Consolidated Edi</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#34</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ANET" target="_blank" class="stock-link">ANET</a></td>
-              <td class="name">Arista Networks</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#35</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AMGN" target="_blank" class="stock-link">AMGN</a></td>
-              <td class="name">Amgen</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#36</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/APH" target="_blank" class="stock-link">APH</a></td>
-              <td class="name">Amphenol</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#37</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ADI" target="_blank" class="stock-link">ADI</a></td>
-              <td class="name">Analog Devices</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#38</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AON" target="_blank" class="stock-link">AON</a></td>
-              <td class="name">Aon plc</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#39</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/APA" target="_blank" class="stock-link">APA</a></td>
-              <td class="name">APA Corporation</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#40</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/APO" target="_blank" class="stock-link">APO</a></td>
-              <td class="name">Apollo Global Ma</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#41</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#42</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AMAT" target="_blank" class="stock-link">AMAT</a></td>
-              <td class="name">Applied Material</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#43</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/APP" target="_blank" class="stock-link">APP</a></td>
-              <td class="name">AppLovin</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#44</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/APTV" target="_blank" class="stock-link">APTV</a></td>
-              <td class="name">Aptiv</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#45</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ACGL" target="_blank" class="stock-link">ACGL</a></td>
-              <td class="name">Arch Capital Gro</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#46</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ADM" target="_blank" class="stock-link">ADM</a></td>
-              <td class="name">Archer Daniels M</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#47</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ARES" target="_blank" class="stock-link">ARES</a></td>
-              <td class="name">Ares Management</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#48</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AJG" target="_blank" class="stock-link">AJG</a></td>
-              <td class="name">Arthur J. Gallag</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#49</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AMT" target="_blank" class="stock-link">AMT</a></td>
-              <td class="name">American Tower</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#50</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AIZ" target="_blank" class="stock-link">AIZ</a></td>
-              <td class="name">Assurant</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#51</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/T" target="_blank" class="stock-link">T</a></td>
-              <td class="name">AT&amp;T</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#52</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ATO" target="_blank" class="stock-link">ATO</a></td>
-              <td class="name">Atmos Energy</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#53</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ADSK" target="_blank" class="stock-link">ADSK</a></td>
-              <td class="name">Autodesk</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#54</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ADP" target="_blank" class="stock-link">ADP</a></td>
-              <td class="name">Automatic Data P</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#55</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AZO" target="_blank" class="stock-link">AZO</a></td>
-              <td class="name">AutoZone</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#56</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AVB" target="_blank" class="stock-link">AVB</a></td>
-              <td class="name">AvalonBay Commun</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#57</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AVY" target="_blank" class="stock-link">AVY</a></td>
-              <td class="name">Avery Dennison</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#58</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AXON" target="_blank" class="stock-link">AXON</a></td>
-              <td class="name">Axon Enterprise</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#59</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BKR" target="_blank" class="stock-link">BKR</a></td>
-              <td class="name">Baker Hughes</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#60</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BALL" target="_blank" class="stock-link">BALL</a></td>
-              <td class="name">Ball Corporation</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#61</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AMP" target="_blank" class="stock-link">AMP</a></td>
-              <td class="name">Ameriprise Finan</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#62</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AWK" target="_blank" class="stock-link">AWK</a></td>
-              <td class="name">American Water W</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#63</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BDX" target="_blank" class="stock-link">BDX</a></td>
-              <td class="name">Becton Dickinson</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#64</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BRKB" target="_blank" class="stock-link">BRKB</a></td>
-              <td class="name">Berkshire Hathaw</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#65</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CNC" target="_blank" class="stock-link">CNC</a></td>
-              <td class="name">Centene Corporat</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#66</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BRO" target="_blank" class="stock-link">BRO</a></td>
-              <td class="name">Brown &amp; Brown</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#67</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/TECH" target="_blank" class="stock-link">TECH</a></td>
-              <td class="name">Bio-Techne</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#68</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BIIB" target="_blank" class="stock-link">BIIB</a></td>
-              <td class="name">Biogen</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#69</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BLK" target="_blank" class="stock-link">BLK</a></td>
-              <td class="name">BlackRock</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#70</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BX" target="_blank" class="stock-link">BX</a></td>
-              <td class="name">Blackstone Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#71</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/XYZ" target="_blank" class="stock-link">XYZ</a></td>
-              <td class="name">Block, Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#72</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BNY" target="_blank" class="stock-link">BNY</a></td>
-              <td class="name">BNY Mellon</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#73</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BA" target="_blank" class="stock-link">BA</a></td>
-              <td class="name">Boeing</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#74</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BKNG" target="_blank" class="stock-link">BKNG</a></td>
-              <td class="name">Booking Holdings</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#75</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BSX" target="_blank" class="stock-link">BSX</a></td>
-              <td class="name">Boston Scientifi</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#76</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BMY" target="_blank" class="stock-link">BMY</a></td>
-              <td class="name">Bristol Myers Sq</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#77</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AVGO" target="_blank" class="stock-link">AVGO</a></td>
-              <td class="name">Broadcom</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#78</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BR" target="_blank" class="stock-link">BR</a></td>
-              <td class="name">Broadridge Finan</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#79</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CBRE" target="_blank" class="stock-link">CBRE</a></td>
-              <td class="name">CBRE Group</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#80</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BLDR" target="_blank" class="stock-link">BLDR</a></td>
-              <td class="name">Builders FirstSo</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#81</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CNP" target="_blank" class="stock-link">CNP</a></td>
-              <td class="name">CenterPoint Ener</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#82</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BG" target="_blank" class="stock-link">BG</a></td>
-              <td class="name">Bunge Global</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#83</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BXP" target="_blank" class="stock-link">BXP</a></td>
-              <td class="name">BXP, Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#84</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CHRW" target="_blank" class="stock-link">CHRW</a></td>
-              <td class="name">C.H. Robinson</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#85</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CDNS" target="_blank" class="stock-link">CDNS</a></td>
-              <td class="name">Cadence Design S</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#86</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CPT" target="_blank" class="stock-link">CPT</a></td>
-              <td class="name">Camden Property</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#87</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/COF" target="_blank" class="stock-link">COF</a></td>
-              <td class="name">Capital One</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#88</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAH" target="_blank" class="stock-link">CAH</a></td>
-              <td class="name">Cardinal Health</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#89</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CCL" target="_blank" class="stock-link">CCL</a></td>
-              <td class="name">Carnival Corpora</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#90</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CARR" target="_blank" class="stock-link">CARR</a></td>
-              <td class="name">Carrier Global</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#91</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CVNA" target="_blank" class="stock-link">CVNA</a></td>
-              <td class="name">Carvana</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#92</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CASY" target="_blank" class="stock-link">CASY</a></td>
-              <td class="name">Casey&#x27;s</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#93</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAT" target="_blank" class="stock-link">CAT</a></td>
-              <td class="name">Caterpillar Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#94</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BFB" target="_blank" class="stock-link">BFB</a></td>
-              <td class="name">Brown–Forman</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#95</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/BBY" target="_blank" class="stock-link">BBY</a></td>
-              <td class="name">Best Buy</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#96</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CBOE" target="_blank" class="stock-link">CBOE</a></td>
-              <td class="name">Cboe Global Mark</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#97</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CDW" target="_blank" class="stock-link">CDW</a></td>
-              <td class="name">CDW Corporation</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#98</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ITW" target="_blank" class="stock-link">ITW</a></td>
-              <td class="name">Illinois Tool Wo</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#99</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CF" target="_blank" class="stock-link">CF</a></td>
-              <td class="name">CF Industries</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#100</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CRL" target="_blank" class="stock-link">CRL</a></td>
-              <td class="name">Charles River La</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
+              <td class="pos"><span class="pos">76.0%</span></td>
             </tr></tbody>
         </table>
       </div>
@@ -24668,9 +23985,9 @@
         <div class="strategy-status-banner banner-warning">
           <div class="banner-icon">⚠️</div>
           <div class="banner-content">
-            <div class="banner-title">Index Rebalance Flow 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
+            <div class="banner-title">Supply Chain GNN 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
             <div class="banner-desc">
-              <strong>KONEX</strong> 시장의 <strong>Index Rebalance Flow</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_UNIVERSE_DATA</code>)<br>
+              <strong>KONEX</strong> 시장의 <strong>Supply Chain GNN</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>NO_SUPPLY_CHAIN_MAPPING</code>)<br>
               앙상블 엔진에서는 해당 전략의 가중치를 <strong>0.0%로 배제</strong>하고 활성 전략 가중치로 자동 재정규화하여 안정성을 보장합니다.
             </div>
           </div>
@@ -24678,7 +23995,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Index Rebalance 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Supply Chain GNN 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>
@@ -24687,16 +24004,16 @@
     </div>
   </div>
 
-  <!-- ══ 34. Overnight Gap Reversal Tab ══ -->
-  <div class="tab-panel" id="panel-overnightgap">
-    <div class="filter-bar" id="filter-overnightgap">
-      <button class="filter-btn active" onclick="filterMarket(this,'overnightgap')" data-mkt="all">전체</button>
-            <button class="filter-btn" onclick="filterMarket(this,'overnightgap')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
-            <button class="filter-btn" onclick="filterMarket(this,'overnightgap')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-            <button class="filter-btn" onclick="filterMarket(this,'overnightgap')" data-mkt="SP500">🇺🇸 SP500</button>
-            <button class="filter-btn" onclick="filterMarket(this,'overnightgap')" data-mkt="KONEX">🌐 KONEX</button>
+  <!-- ══ 34. Range Expansion Breakout Tab ══ -->
+  <div class="tab-panel" id="panel-rangeexpansion">
+    <div class="filter-bar" id="filter-rangeexpansion">
+      <button class="filter-btn active" onclick="filterMarket(this,'rangeexpansion')" data-mkt="all">전체</button>
+            <button class="filter-btn" onclick="filterMarket(this,'rangeexpansion')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+            <button class="filter-btn" onclick="filterMarket(this,'rangeexpansion')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'rangeexpansion')" data-mkt="SP500">🇺🇸 SP500</button>
+            <button class="filter-btn" onclick="filterMarket(this,'rangeexpansion')" data-mkt="KONEX">🌐 KONEX</button>
     </div>
-    <div id="overnightgap-panels">
+    <div id="rangeexpansion-panels">
     
     <div class="market-panel" data-market="KOSPI">
       <h3 class="market-title">🇰🇷 KOSPI</h3>
@@ -24704,9 +24021,9 @@
         <div class="strategy-status-banner banner-warning">
           <div class="banner-icon">⚠️</div>
           <div class="banner-content">
-            <div class="banner-title">Overnight Gap Reversal 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
+            <div class="banner-title">Range Expansion Breakout 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
             <div class="banner-desc">
-              <strong>KOSPI</strong> 시장의 <strong>Overnight Gap Reversal</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
+              <strong>KOSPI</strong> 시장의 <strong>Range Expansion Breakout</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
               앙상블 엔진에서는 해당 전략의 가중치를 <strong>0.0%로 배제</strong>하고 활성 전략 가중치로 자동 재정규화하여 안정성을 보장합니다.
             </div>
           </div>
@@ -24714,7 +24031,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Overnight Gap Reversal 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Range Expansion 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>
@@ -24726,9 +24043,9 @@
         <div class="strategy-status-banner banner-warning">
           <div class="banner-icon">⚠️</div>
           <div class="banner-content">
-            <div class="banner-title">Overnight Gap Reversal 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
+            <div class="banner-title">Range Expansion Breakout 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
             <div class="banner-desc">
-              <strong>KOSDAQ</strong> 시장의 <strong>Overnight Gap Reversal</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
+              <strong>KOSDAQ</strong> 시장의 <strong>Range Expansion Breakout</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
               앙상블 엔진에서는 해당 전략의 가중치를 <strong>0.0%로 배제</strong>하고 활성 전략 가중치로 자동 재정규화하여 안정성을 보장합니다.
             </div>
           </div>
@@ -24736,7 +24053,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Overnight Gap Reversal 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Range Expansion 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>
@@ -24748,708 +24065,22 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Overnight Gap Reversal 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Range Expansion 스코어 ↕</th>
           </tr></thead>
           <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
-              <td class="name">Conagra Brands</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
+              <td class="name">EchoStar</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
+              <td class="pos"><span class="pos">45.0%</span></td>
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NFLX" target="_blank" class="stock-link">NFLX</a></td>
-              <td class="name">Netflix</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
+              <td class="name">Electronic Arts</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#3</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NUE" target="_blank" class="stock-link">NUE</a></td>
-              <td class="name">Nucor</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#4</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NRG" target="_blank" class="stock-link">NRG</a></td>
-              <td class="name">NRG Energy</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#5</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NCLH" target="_blank" class="stock-link">NCLH</a></td>
-              <td class="name">Norwegian Cruise</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#6</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NOC" target="_blank" class="stock-link">NOC</a></td>
-              <td class="name">Northrop Grumman</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#7</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NTRS" target="_blank" class="stock-link">NTRS</a></td>
-              <td class="name">Northern Trust</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#8</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NSC" target="_blank" class="stock-link">NSC</a></td>
-              <td class="name">Norfolk Southern</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#9</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NDSN" target="_blank" class="stock-link">NDSN</a></td>
-              <td class="name">Nordson Corporat</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#10</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NI" target="_blank" class="stock-link">NI</a></td>
-              <td class="name">NiSource</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#11</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NKE" target="_blank" class="stock-link">NKE</a></td>
-              <td class="name">Nike, Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#12</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NEE" target="_blank" class="stock-link">NEE</a></td>
-              <td class="name">NextEra Energy</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#13</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NWS" target="_blank" class="stock-link">NWS</a></td>
-              <td class="name">News Corp (Class</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#14</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NWSA" target="_blank" class="stock-link">NWSA</a></td>
-              <td class="name">News Corp (Class</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#15</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NEM" target="_blank" class="stock-link">NEM</a></td>
-              <td class="name">Newmont</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#16</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NTAP" target="_blank" class="stock-link">NTAP</a></td>
-              <td class="name">NetApp</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#17</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NVR" target="_blank" class="stock-link">NVR</a></td>
-              <td class="name">NVR, Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#18</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NDAQ" target="_blank" class="stock-link">NDAQ</a></td>
-              <td class="name">Nasdaq, Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#19</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSCI" target="_blank" class="stock-link">MSCI</a></td>
-              <td class="name">MSCI Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#20</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSI" target="_blank" class="stock-link">MSI</a></td>
-              <td class="name">Motorola Solutio</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#21</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MOS" target="_blank" class="stock-link">MOS</a></td>
-              <td class="name">Mosaic Company (</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#22</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MS" target="_blank" class="stock-link">MS</a></td>
-              <td class="name">Morgan Stanley</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#23</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MCO" target="_blank" class="stock-link">MCO</a></td>
-              <td class="name">Moody&#x27;s Corporat</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#24</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MNST" target="_blank" class="stock-link">MNST</a></td>
-              <td class="name">Monster Beverage</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#25</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MPWR" target="_blank" class="stock-link">MPWR</a></td>
-              <td class="name">Monolithic Power</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#26</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MDLZ" target="_blank" class="stock-link">MDLZ</a></td>
-              <td class="name">Mondelez Interna</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#27</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/TAP" target="_blank" class="stock-link">TAP</a></td>
-              <td class="name">Molson Coors Bev</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#28</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MRNA" target="_blank" class="stock-link">MRNA</a></td>
-              <td class="name">Moderna</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#29</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MAA" target="_blank" class="stock-link">MAA</a></td>
-              <td class="name">Mid-America Apar</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#30</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#31</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NVDA" target="_blank" class="stock-link">NVDA</a></td>
-              <td class="name">Nvidia</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#32</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/NXPI" target="_blank" class="stock-link">NXPI</a></td>
-              <td class="name">NXP Semiconducto</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#33</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PODD" target="_blank" class="stock-link">PODD</a></td>
-              <td class="name">Insulet Corporat</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#34</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PYPL" target="_blank" class="stock-link">PYPL</a></td>
-              <td class="name">PayPal</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#35</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PGR" target="_blank" class="stock-link">PGR</a></td>
-              <td class="name">Progressive Corp</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#36</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PG" target="_blank" class="stock-link">PG</a></td>
-              <td class="name">Procter &amp; Gamble</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#37</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PFG" target="_blank" class="stock-link">PFG</a></td>
-              <td class="name">Principal Financ</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#38</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PPL" target="_blank" class="stock-link">PPL</a></td>
-              <td class="name">PPL Corporation</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#39</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PPG" target="_blank" class="stock-link">PPG</a></td>
-              <td class="name">PPG Industries</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#40</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PNC" target="_blank" class="stock-link">PNC</a></td>
-              <td class="name">PNC Financial Se</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#41</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PNW" target="_blank" class="stock-link">PNW</a></td>
-              <td class="name">Pinnacle West Ca</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#42</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PSX" target="_blank" class="stock-link">PSX</a></td>
-              <td class="name">Phillips 66</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#43</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PM" target="_blank" class="stock-link">PM</a></td>
-              <td class="name">Philip Morris In</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#44</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PCG" target="_blank" class="stock-link">PCG</a></td>
-              <td class="name">PG&amp;E Corporation</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#45</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PFE" target="_blank" class="stock-link">PFE</a></td>
-              <td class="name">Pfizer</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#46</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PEP" target="_blank" class="stock-link">PEP</a></td>
-              <td class="name">PepsiCo</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#47</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PNR" target="_blank" class="stock-link">PNR</a></td>
-              <td class="name">Pentair</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#48</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PAYX" target="_blank" class="stock-link">PAYX</a></td>
-              <td class="name">Paychex</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#49</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ORLY" target="_blank" class="stock-link">ORLY</a></td>
-              <td class="name">O’Reilly Automot</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#50</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PH" target="_blank" class="stock-link">PH</a></td>
-              <td class="name">Parker Hannifin</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#51</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PSKY" target="_blank" class="stock-link">PSKY</a></td>
-              <td class="name">Paramount Skydan</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#52</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PANW" target="_blank" class="stock-link">PANW</a></td>
-              <td class="name">Palo Alto Networ</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#53</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PLTR" target="_blank" class="stock-link">PLTR</a></td>
-              <td class="name">Palantir Technol</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#54</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PKG" target="_blank" class="stock-link">PKG</a></td>
-              <td class="name">Packaging Corpor</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#55</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/PCAR" target="_blank" class="stock-link">PCAR</a></td>
-              <td class="name">Paccar</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#56</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/OTIS" target="_blank" class="stock-link">OTIS</a></td>
-              <td class="name">Otis Worldwide</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#57</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ORCL" target="_blank" class="stock-link">ORCL</a></td>
-              <td class="name">Oracle Corporati</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#58</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/OKE" target="_blank" class="stock-link">OKE</a></td>
-              <td class="name">Oneok</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#59</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ON" target="_blank" class="stock-link">ON</a></td>
-              <td class="name">ON Semiconductor</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#60</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/OMC" target="_blank" class="stock-link">OMC</a></td>
-              <td class="name">Omnicom Group</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#61</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ODFL" target="_blank" class="stock-link">ODFL</a></td>
-              <td class="name">Old Dominion</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#62</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/OXY" target="_blank" class="stock-link">OXY</a></td>
-              <td class="name">Occidental Petro</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#63</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MU" target="_blank" class="stock-link">MU</a></td>
-              <td class="name">Micron Technolog</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#64</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MCHP" target="_blank" class="stock-link">MCHP</a></td>
-              <td class="name">Microchip Techno</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#65</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MGM" target="_blank" class="stock-link">MGM</a></td>
-              <td class="name">MGM Resorts</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#66</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/JNJ" target="_blank" class="stock-link">JNJ</a></td>
-              <td class="name">Johnson &amp; Johnso</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#67</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KR" target="_blank" class="stock-link">KR</a></td>
-              <td class="name">Kroger</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#68</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KHC" target="_blank" class="stock-link">KHC</a></td>
-              <td class="name">Kraft Heinz</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#69</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KLAC" target="_blank" class="stock-link">KLAC</a></td>
-              <td class="name">KLA Corporation</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#70</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KKR" target="_blank" class="stock-link">KKR</a></td>
-              <td class="name">KKR &amp; Co.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#71</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KMI" target="_blank" class="stock-link">KMI</a></td>
-              <td class="name">Kinder Morgan</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#72</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KIM" target="_blank" class="stock-link">KIM</a></td>
-              <td class="name">Kimco Realty</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#73</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KMB" target="_blank" class="stock-link">KMB</a></td>
-              <td class="name">Kimberly-Clark</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#74</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KEYS" target="_blank" class="stock-link">KEYS</a></td>
-              <td class="name">Keysight Technol</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#75</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KEY" target="_blank" class="stock-link">KEY</a></td>
-              <td class="name">KeyCorp</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#76</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KDP" target="_blank" class="stock-link">KDP</a></td>
-              <td class="name">Keurig Dr Pepper</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#77</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/KVUE" target="_blank" class="stock-link">KVUE</a></td>
-              <td class="name">Kenvue</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#78</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/JPM" target="_blank" class="stock-link">JPM</a></td>
-              <td class="name">JPMorgan Chase</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#79</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/JCI" target="_blank" class="stock-link">JCI</a></td>
-              <td class="name">Johnson Controls</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#80</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/J" target="_blank" class="stock-link">J</a></td>
-              <td class="name">Jacobs Solutions</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#81</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MTD" target="_blank" class="stock-link">MTD</a></td>
-              <td class="name">Mettler Toledo</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#82</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/JKHY" target="_blank" class="stock-link">JKHY</a></td>
-              <td class="name">Jack Henry &amp; Ass</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#83</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/JBL" target="_blank" class="stock-link">JBL</a></td>
-              <td class="name">Jabil</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#84</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/JBHT" target="_blank" class="stock-link">JBHT</a></td>
-              <td class="name">J.B. Hunt</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#85</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/IRM" target="_blank" class="stock-link">IRM</a></td>
-              <td class="name">Iron Mountain</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#86</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/IQV" target="_blank" class="stock-link">IQV</a></td>
-              <td class="name">IQVIA</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#87</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/INVH" target="_blank" class="stock-link">INVH</a></td>
-              <td class="name">Invitation Homes</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#88</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/IVZ" target="_blank" class="stock-link">IVZ</a></td>
-              <td class="name">Invesco</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#89</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ISRG" target="_blank" class="stock-link">ISRG</a></td>
-              <td class="name">Intuitive Surgic</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#90</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/INTU" target="_blank" class="stock-link">INTU</a></td>
-              <td class="name">Intuit</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#91</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/IP" target="_blank" class="stock-link">IP</a></td>
-              <td class="name">International Pa</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#92</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/IFF" target="_blank" class="stock-link">IFF</a></td>
-              <td class="name">International Fl</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#93</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/ICE" target="_blank" class="stock-link">ICE</a></td>
-              <td class="name">Intercontinental</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#94</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/IBKR" target="_blank" class="stock-link">IBKR</a></td>
-              <td class="name">Interactive Brok</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#95</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/LHX" target="_blank" class="stock-link">LHX</a></td>
-              <td class="name">L3Harris</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#96</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/LH" target="_blank" class="stock-link">LH</a></td>
-              <td class="name">Labcorp</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#97</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/LRCX" target="_blank" class="stock-link">LRCX</a></td>
-              <td class="name">Lam Research</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#98</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/LVS" target="_blank" class="stock-link">LVS</a></td>
-              <td class="name">Las Vegas Sands</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#99</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MET" target="_blank" class="stock-link">MET</a></td>
-              <td class="name">MetLife</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
-            </tr>
-            <tr>
-              <td class="rank">#100</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/META" target="_blank" class="stock-link">META</a></td>
-              <td class="name">Meta Platforms</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos"><span class="pos">50.0%</span></td>
+              <td class="pos"><span class="pos">45.0%</span></td>
             </tr></tbody>
         </table>
       </div>
@@ -25460,9 +24091,9 @@
         <div class="strategy-status-banner banner-warning">
           <div class="banner-icon">⚠️</div>
           <div class="banner-content">
-            <div class="banner-title">Overnight Gap Reversal 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
+            <div class="banner-title">Range Expansion Breakout 데이터 수집 및 산출 준비 중 (Data Collection Mode)</div>
             <div class="banner-desc">
-              <strong>KONEX</strong> 시장의 <strong>Overnight Gap Reversal</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
+              <strong>KONEX</strong> 시장의 <strong>Range Expansion Breakout</strong> 데이터가 수집 대기 중이거나 신호 조건을 만족하는 종목이 없습니다. (사유: <code>INSUFFICIENT_PRICE_HISTORY</code>)<br>
               앙상블 엔진에서는 해당 전략의 가중치를 <strong>0.0%로 배제</strong>하고 활성 전략 가중치로 자동 재정규화하여 안정성을 보장합니다.
             </div>
           </div>
@@ -25470,7 +24101,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Overnight Gap Reversal 스코어 ↕</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Range Expansion 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>

@@ -1996,7 +1996,7 @@ def build_html(
     ]
     KNOWN_ALL_MKTS = set(_CORE_ORDER + _INTL_ORDER)
 
-    for row_coll in [vcp_rows, follower_rows, sector_rows, rim_rows, event_rows, mq_rows, iv_rows, flow_rows, reversal_rows, arm_rows, card_rows, latr_rows, ifs_rows, supply_chain_rows, sentiment_rows, factor_neutralized_rows, vol_target_rows, microstructure_rows, accruals_quality_rows, short_squeeze_rows, valueup_catalyst_rows, trend_efficiency_rows, gamma_squeeze_rows, insider_buying_rows, darkpool_rows, earnings_tone_drift_rows, lstm_rows]:
+    for row_coll in [vcp_rows, follower_rows, sector_rows, rim_rows, event_rows, mq_rows, iv_rows, flow_rows, reversal_rows, arm_rows, card_rows, latr_rows, ifs_rows, supply_chain_rows, sentiment_rows, factor_neutralized_rows, vol_target_rows, microstructure_rows, accruals_quality_rows, short_squeeze_rows, valueup_catalyst_rows, trend_efficiency_rows, gamma_squeeze_rows, insider_buying_rows, darkpool_rows, earnings_tone_drift_rows, lstm_rows, cross_asset_rows, supply_chain_gnn_rows, range_expansion_rows]:
         if row_coll and isinstance(row_coll, (list, tuple)):
             for crow in row_coll:
                 m_val = getattr(crow, 'market', None)
@@ -4165,6 +4165,9 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'insider')">29. Insider Buying</button>
   <button class="tab" onclick="switchTab(this,'darkpool')">30. Darkpool &amp; HFT</button>
   <button class="tab" onclick="switchTab(this,'tonedrift')">31. Tone Drift</button>
+  <button class="tab" onclick="switchTab(this,'crossasset')">32. Cross-Asset</button>
+  <button class="tab" onclick="switchTab(this,'gnn')">33. Supply Chain GNN</button>
+  <button class="tab" onclick="switchTab(this,'rangeexpansion')">34. Range Expansion</button>
 </nav>
 
 <div class="content row2-content" style="padding: 24px 32px;">
@@ -4481,33 +4484,33 @@ def build_html(
     </div>
   </div>
 
-  <!-- ══ 32. Dual Correction Tab ══ -->
-  <div class="tab-panel" id="panel-dualcorrection">
-    <div class="filter-bar" id="filter-dualcorrection">
-      {_b_btns('dualcorrection')}
+  <!-- ══ 32. Cross-Asset Spillover Tab ══ -->
+  <div class="tab-panel" id="panel-crossasset">
+    <div class="filter-bar" id="filter-crossasset">
+      {_b_btns('crossasset')}
     </div>
-    <div id="dualcorrection-panels">
-    {dualcorrection_panels}
-    </div>
-  </div>
-
-  <!-- ══ 33. Index Rebalance Tab ══ -->
-  <div class="tab-panel" id="panel-indexrebalance">
-    <div class="filter-bar" id="filter-indexrebalance">
-      {_b_btns('indexrebalance')}
-    </div>
-    <div id="indexrebalance-panels">
-    {indexrebalance_panels}
+    <div id="crossasset-panels">
+    {crossasset_panels}
     </div>
   </div>
 
-  <!-- ══ 34. Overnight Gap Reversal Tab ══ -->
-  <div class="tab-panel" id="panel-overnightgap">
-    <div class="filter-bar" id="filter-overnightgap">
-      {_b_btns('overnightgap')}
+  <!-- ══ 33. Supply Chain GNN Tab ══ -->
+  <div class="tab-panel" id="panel-gnn">
+    <div class="filter-bar" id="filter-gnn">
+      {_b_btns('gnn')}
     </div>
-    <div id="overnightgap-panels">
-    {overnightgap_panels}
+    <div id="gnn-panels">
+    {gnn_panels}
+    </div>
+  </div>
+
+  <!-- ══ 34. Range Expansion Breakout Tab ══ -->
+  <div class="tab-panel" id="panel-rangeexpansion">
+    <div class="filter-bar" id="filter-rangeexpansion">
+      {_b_btns('rangeexpansion')}
+    </div>
+    <div id="rangeexpansion-panels">
+    {rangeexpansion_panels}
     </div>
   </div>
 

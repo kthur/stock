@@ -9,7 +9,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-ALL_31_STRATEGIES = [
+ALL_34_STRATEGIES = [
     'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
     'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation',
     'event_driven', 'mq_factor', 'iv_skew', 'order_flow',
@@ -17,9 +17,11 @@ ALL_31_STRATEGIES = [
     'inst_foreign_sector', 'supply_chain', 'sentiment', 'factor_neutralized',
     'vol_target', 'microstructure', 'accruals_quality', 'short_squeeze',
     'valueup_catalyst', 'trend_efficiency', 'gamma_squeeze', 'insider_buying',
-    'darkpool', 'earnings_tone_drift'
+    'darkpool', 'earnings_tone_drift', 'cross_asset_spillover',
+    'supply_chain_gnn', 'range_expansion_breakout'
 ]
-_STRATEGY_COUNT = len(ALL_31_STRATEGIES)
+ALL_31_STRATEGIES = ALL_34_STRATEGIES
+_STRATEGY_COUNT = len(ALL_34_STRATEGIES)
 
 KNOWN_MARKETS = [
     "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "KONEX",
@@ -898,6 +900,9 @@ def main():
     merge_generic_strategy_files(result_dir, target_dirs, "hft_order_flow_predictions.txt", "HFT Order Flow & Dark Pool Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "darkpool_predictions.txt", "Dark Pool & Off-Exchange Volume Divergence Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "earnings_tone_drift_predictions.txt", "Earnings Tone Drift NLP Quant Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "cross_asset_spillover_predictions.txt", "Cross-Asset Spillover Momentum Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "supply_chain_gnn_predictions.txt", "Supply Chain GNN & Sector Flow Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "range_expansion_predictions.txt", "Range Expansion Breakout Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "dual_correction_predictions.txt", "Dual Correction Strategy Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "index_rebalance_predictions.txt", "Index Rebalance Structural Flow Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "overnight_gap_predictions.txt", "Overnight Gap Reversal Predictions")
