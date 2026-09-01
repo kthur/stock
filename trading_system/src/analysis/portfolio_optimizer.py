@@ -499,8 +499,12 @@ def calculate_hrp_weights(
                         er_arr = np.nan_to_num(np.asarray(expected_returns, dtype=float), nan=0.0)
                         mu_left = float(w_left @ er_arr[c_left])
                         mu_right = float(w_right @ er_arr[c_right])
-                        sharpe_left = (max(mu_left, -0.02) + 0.02) / np.sqrt(var_left)
-                        sharpe_right = (max(mu_right, -0.02) + 0.02) / np.sqrt(var_right)
+                        min_er = float(np.min(er_arr))
+                        er_shift = max(0.0, -min_er) + 1e-4
+                        adj_mu_left = max(1e-6, mu_left + er_shift)
+                        adj_mu_right = max(1e-6, mu_right + er_shift)
+                        sharpe_left = adj_mu_left / max(np.sqrt(var_left), 1e-6)
+                        sharpe_right = adj_mu_right / max(np.sqrt(var_right), 1e-6)
                         score_left = (max(sharpe_left, 1e-4)) ** alpha_tilt_exponent
                         score_right = (max(sharpe_right, 1e-4)) ** alpha_tilt_exponent
                         tilt_var_left = var_left / max(score_left, 1e-4)
