@@ -113,6 +113,9 @@ class EnsembleRow:
     insider_buying: str = ""
     darkpool: str = ""
     earnings_tone_drift: str = ""
+    cross_asset_spillover: str = ""
+    supply_chain_gnn: str = ""
+    range_expansion: str = ""
 
 @dataclass
 class EnsembleMarket:
@@ -440,6 +443,9 @@ def parse_ensemble(text: str) -> EnsembleData:
                         insider_buying=s_vals[28] if len(s_vals) > 28 else "-",
                         darkpool=s_vals[29] if len(s_vals) > 29 else "-",
                         earnings_tone_drift=s_vals[30] if len(s_vals) > 30 else "-",
+                        cross_asset_spillover=s_vals[31] if len(s_vals) > 31 else "-",
+                        supply_chain_gnn=s_vals[32] if len(s_vals) > 32 else "-",
+                        range_expansion=s_vals[33] if len(s_vals) > 33 else "-",
                     ))
     return data
 
@@ -947,6 +953,18 @@ def parse_overnight_gap(text: str) -> tuple[str, list[SimpleStrategyRow]]:
     return _parse_simple_strategy(text, "overnight_gap_score")
 
 
+def parse_cross_asset_spillover(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "cross_asset_spillover_score")
+
+
+def parse_supply_chain_gnn(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "supply_chain_gnn_score")
+
+
+def parse_range_expansion(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "range_expansion_score")
+
+
 def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> PortfolioAllocationData:
     data = PortfolioAllocationData(
         date=datetime.now(KST).strftime("%Y-%m-%d %H:%M KST"),
@@ -1402,6 +1420,9 @@ def parse_strategy_coverage_report(
         ("insider_buying", 29, "Insider Buying (내부자)", "내부자", "insider"),
         ("darkpool", 30, "Darkpool & HFT Flow", "고빈도/다크풀", "darkpool"),
         ("earnings_tone_drift", 31, "Tone Drift 어닝어조", "NLP 어조", "tonedrift"),
+        ("cross_asset_spillover", 32, "Cross-Asset Spillover", "글로벌 매크로", "crossasset"),
+        ("supply_chain_gnn", 33, "Supply Chain GNN", "공급망 GNN", "gnn"),
+        ("range_expansion", 34, "Range Expansion Breakout", "변동성 돌파", "rangeexpansion"),
     ]
 
     REASON_KO_MAP = {
@@ -1867,6 +1888,9 @@ def build_html(
     dual_correction_rows: Optional[list[SimpleStrategyRow]] = None,
     index_rebalance_rows: Optional[list[SimpleStrategyRow]] = None,
     overnight_gap_rows: Optional[list[SimpleStrategyRow]] = None,
+    cross_asset_rows: Optional[list[SimpleStrategyRow]] = None,
+    supply_chain_gnn_rows: Optional[list[SimpleStrategyRow]] = None,
+    range_expansion_rows: Optional[list[SimpleStrategyRow]] = None,
     scenario_universe_json: str = "[]",
     all_stocks_universe_json: str = "[]",
     preloaded_backtest_table_html: str = "",
@@ -1917,6 +1941,9 @@ def build_html(
         "dual_correction": (dual_correction_rows or []),
         "index_rebalance": (index_rebalance_rows or []),
         "overnight_gap_reversal": (overnight_gap_rows or []),
+        "cross_asset_spillover": (cross_asset_rows or []),
+        "supply_chain_gnn": (supply_chain_gnn_rows or []),
+        "range_expansion": (range_expansion_rows or []),
     }
     total_eval_symbols = sum(len(m.rows) for m in ensemble.markets) if (ensemble and ensemble.markets) else 948
     if total_eval_symbols == 0:
@@ -2044,6 +2071,9 @@ def build_html(
                     "29. Insider Buying": erow.insider_buying,
                     "30. Darkpool & HFT": erow.darkpool,
                     "31. Tone Drift": erow.earnings_tone_drift,
+                    "32. Cross-Asset Spillover": erow.cross_asset_spillover,
+                    "33. Supply Chain GNN": erow.supply_chain_gnn,
+                    "34. Range Expansion": erow.range_expansion,
                 }
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
@@ -2087,6 +2117,9 @@ def build_html(
               <td class="col-strat">{format_metric_cell(erow.insider_buying, kind="score")}</td>
               <td class="col-strat">{format_metric_cell(erow.darkpool, kind="score")}</td>
               <td class="col-strat">{format_metric_cell(erow.earnings_tone_drift, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.cross_asset_spillover, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.supply_chain_gnn, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.range_expansion, kind="score")}</td>
             </tr>"""
 
                 cards_html += f"""
@@ -2113,7 +2146,7 @@ def build_html(
           </div>
         </div>"""
         else:
-            rows_html = '<tr><td colspan="36" class="empty">데이터 없음</td></tr>'
+            rows_html = '<tr><td colspan="39" class="empty">데이터 없음</td></tr>'
             cards_html = '<div class="empty" style="padding:20px; grid-column:1/-1; text-align:center; color:var(--muted);">데이터 없음</div>'
 
         ensemble_panels += f"""
@@ -2158,6 +2191,9 @@ def build_html(
             <th class="col-strat" title="29. Insider Buying 임원/대주주 내부자 매수">29. Insider ↕</th>
             <th class="col-strat" title="30. High-Frequency Darkpool / Block Order Flow">30. Darkpool ↕</th>
             <th class="col-strat" title="31. Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">31. ToneDrift ↕</th>
+            <th class="col-strat" title="32. Cross-Asset Spillover 거시 탄력도 벡터 임펄스">32. CAS ↕</th>
+            <th class="col-strat" title="33. Supply Chain GNN 2-hop 그래프 메시지 패싱">33. GNN ↕</th>
+            <th class="col-strat" title="34. Range Expansion Breakout 변동성 압축 돌파">34. REB ↕</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -2191,6 +2227,7 @@ def build_html(
             ("card", 16), ("괴리", 16),
             ("latr", 17), ("tail", 17),
             ("inst", 18), ("ifs", 18), ("외인", 18),
+            ("supply_chain_gnn", 33),
             ("supply", 19), ("공급망", 19),
             ("sentiment", 20), ("nlp", 20), ("감성", 20),
             ("neutral", 21), ("중립", 21),
@@ -2203,7 +2240,10 @@ def build_html(
             ("gamma", 28), ("감마", 28),
             ("insider", 29), ("내부자", 29),
             ("darkpool", 30), ("hft", 30), ("다크풀", 30),
-            ("tone", 31), ("drift", 31), ("어조", 31)
+            ("tone", 31), ("drift", 31), ("어조", 31),
+            ("cross_asset", 32), ("spillover", 32), ("크로스", 32),
+            ("gnn", 33),
+            ("expansion", 34), ("breakout", 34), ("돌파", 34)
         ]
         def get_priority(name: str) -> int:
             n_lower = name.lower()
@@ -2848,6 +2888,9 @@ def build_html(
     dualcorrection_panels = _build_simple_panels(dual_correction_rows or [], "dualcorrection", "Dual Correction 스코어", strategy_name="Dual Correction Regime", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
     indexrebalance_panels = _build_simple_panels(index_rebalance_rows or [], "indexrebalance", "Index Rebalance 스코어", strategy_name="Index Rebalance Flow", missing_reason_code="INSUFFICIENT_UNIVERSE_DATA")
     overnightgap_panels   = _build_simple_panels(overnight_gap_rows or [], "overnightgap", "Overnight Gap Reversal 스코어", strategy_name="Overnight Gap Reversal", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    crossasset_panels     = _build_simple_panels(cross_asset_rows or [], "crossasset", "Cross-Asset Spillover 스코어", strategy_name="Cross-Asset Spillover Momentum", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
+    gnn_panels            = _build_simple_panels(supply_chain_gnn_rows or [], "gnn", "Supply Chain GNN 스코어", strategy_name="Supply Chain GNN", missing_reason_code="NO_SUPPLY_CHAIN_MAPPING")
+    rangeexpansion_panels = _build_simple_panels(range_expansion_rows or [], "rangeexpansion", "Range Expansion 스코어", strategy_name="Range Expansion Breakout", missing_reason_code="INSUFFICIENT_PRICE_HISTORY")
 
     # JSON strings for Chart.js safely serialized to prevent XSS
     hrp_labels_json = _safe_json(chart_labels)
@@ -2867,30 +2910,108 @@ def build_html(
 
 <style>
   :root {{
-    --bg: #0d1117;
-    --surface: #161b22;
-    --surface2: #21262d;
-    --border: #30363d;
-    --text: #e6edf3;
-    --muted: #8b949e;
-    --green: #2ea043;
-    --red: #f85149;
-    --yellow: #d29922;
-    --blue: #388bfd;
-    --accent: #58a6ff;
+    --bg: #0b0f17;
+    --surface: #131b26;
+    --surface2: #1c2636;
+    --surface3: #263346;
+    --border: #2d3b4e;
+    --border-subtle: #1e293b;
+    --text: #e2e8f0;
+    --text-bright: #ffffff;
+    --muted: #94a3b8;
+    --green: #10b981;
+    --green-glow: rgba(16, 185, 129, 0.2);
+    --red: #f43f5e;
+    --red-glow: rgba(244, 63, 94, 0.2);
+    --yellow: #f59e0b;
+    --blue: #3b82f6;
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.25);
+    --purple: #a855f7;
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow-md: 0 6px 20px rgba(0,0,0,0.45);
+    --shadow-lg: 0 12px 36px rgba(0,0,0,0.65);
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 9999px;
   }}
+
+  [data-theme="terminal"] {{
+    --bg: #04080d;
+    --surface: #0a111a;
+    --surface2: #101c2b;
+    --surface3: #18293d;
+    --border: #1e3a5f;
+    --border-subtle: #132438;
+    --text: #00ff66;
+    --text-bright: #55ff99;
+    --muted: #009944;
+    --green: #00ff66;
+    --green-glow: rgba(0, 255, 102, 0.25);
+    --red: #ff3355;
+    --red-glow: rgba(255, 51, 85, 0.25);
+    --yellow: #ffcc00;
+    --blue: #00d4ff;
+    --accent: #00e5ff;
+    --accent-glow: rgba(0, 229, 255, 0.3);
+    --purple: #cc66ff;
+  }}
+
+  [data-theme="light"] {{
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --surface2: #f1f5f9;
+    --surface3: #e2e8f0;
+    --border: #cbd5e1;
+    --border-subtle: #e2e8f0;
+    --text: #0f172a;
+    --text-bright: #020617;
+    --muted: #64748b;
+    --green: #059669;
+    --green-glow: rgba(5, 150, 105, 0.15);
+    --red: #e11d48;
+    --red-glow: rgba(225, 29, 72, 0.15);
+    --yellow: #d97706;
+    --blue: #2563eb;
+    --accent: #0284c7;
+    --accent-glow: rgba(2, 132, 199, 0.15);
+    --purple: #7c3aed;
+    --shadow-sm: 0 1px 4px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 14px rgba(0,0,0,0.08);
+    --shadow-lg: 0 10px 28px rgba(0,0,0,0.12);
+  }}
+
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.5; }}
-  .stock-link {{ color: var(--accent); text-decoration: none; font-weight: 600; }}
+  body {{ background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif; font-size: 13.5px; line-height: 1.5; transition: background-color .2s, color .2s; }}
+  .stock-link {{ color: var(--accent); text-decoration: none; font-weight: 600; font-family: var(--font-mono); }}
   .stock-link:hover {{ text-decoration: underline; color: #79c0ff; }}
 
   /* Header */
-  .header {{ background: linear-gradient(135deg, #0d1117 0%, #1a2332 50%, #0d1117 100%); border-bottom: 1px solid var(--border); padding: 24px 32px; }}
-  .header h1 {{ font-size: 24px; font-weight: 700; background: linear-gradient(90deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }}
-  .header-meta {{ display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; align-items: center; }}
-  .badge {{ display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid; }}
-  .badge-date {{ color: var(--muted); border-color: var(--border); }}
-  .badge-updated {{ color: var(--muted); border-color: var(--border); font-size: 11px; }}
+  .header {{ background: linear-gradient(135deg, var(--bg) 0%, var(--surface2) 60%, var(--bg) 100%); border-bottom: 1px solid var(--border); padding: 20px 32px; }}
+  .header-top-row {{ display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; }}
+  .header h1 {{ font-size: 22px; font-weight: 800; background: linear-gradient(90deg, #38bdf8, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: flex; align-items: center; gap: 8px; }}
+  .badge-quant-edition {{ font-size: 11px; font-weight: 700; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.12); padding: 2px 8px; border-radius: 12px; vertical-align: middle; -webkit-text-fill-color: initial; }}
+  .header-subtitle {{ font-size: 12px; color: var(--muted); margin-top: 4px; }}
+  
+  /* Theme Switcher */
+  .theme-toggle-group {{ display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 2px; }}
+  .theme-btn {{ background: transparent; border: none; color: var(--muted); font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all .15s; outline: none; }}
+  .theme-btn.active {{ background: var(--accent); color: #fff; box-shadow: 0 0 8px var(--accent-glow); }}
+
+  .header-meta {{ display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; align-items: center; }}
+  .badge {{ display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 600; border: 1px solid; }}
+  .badge-date {{ color: var(--muted); border-color: var(--border); background: var(--surface2); }}
+  .badge-updated {{ color: var(--muted); border-color: var(--border); background: var(--surface2); font-size: 11px; }}
+
+  /* Live Market Hours Badges */
+  .market-hours-badge {{ background: var(--surface2); border: 1px solid var(--border); color: var(--text); }}
+  .pulse-dot {{ width: 8px; height: 8px; border-radius: 50%; display: inline-block; }}
+  .pulse-dot.open {{ background: #10b981; box-shadow: 0 0 8px #10b981; animation: pulse-anim 1.8s infinite; }}
+  .pulse-dot.pre {{ background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }}
+  .pulse-dot.closed {{ background: #64748b; }}
+  @keyframes pulse-anim {{ 0%, 100% {{ transform: scale(1); opacity: 1; }} 50% {{ transform: scale(1.35); opacity: 0.6; }} }}
 
   /* Macro strip */
   .macro-strip {{ background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 32px; }}
@@ -2907,8 +3028,8 @@ def build_html(
   .badge-partial {{ display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #d29922; background: rgba(210, 153, 34, 0.15); border: 1px solid rgba(210, 153, 34, 0.4); }}
 
   /* Health Monitor Section */
-  .health-monitor-section {{ margin: 16px 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }}
-  .health-monitor-header {{ display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: linear-gradient(90deg, #161b22 0%, #1f2937 100%); cursor: pointer; border-bottom: 1px solid var(--border); }}
+  .health-monitor-section {{ margin: 16px 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-sm); }}
+  .health-monitor-header {{ display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: linear-gradient(90deg, var(--surface) 0%, var(--surface2) 100%); cursor: pointer; border-bottom: 1px solid var(--border); }}
   .health-header-left {{ display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }}
   .health-header-icon {{ font-size: 18px; }}
   .health-header-title {{ font-size: 15px; font-weight: 700; color: var(--text); }}
@@ -2920,7 +3041,7 @@ def build_html(
   .pill-nodata {{ color: #f85149; border-color: rgba(248, 81, 73, 0.5); background: rgba(248, 81, 73, 0.1); }}
   .pill-avg {{ color: #58a6ff; border-color: rgba(88, 166, 255, 0.5); background: rgba(88, 166, 255, 0.1); }}
   .health-toggle-btn {{ font-size: 12px; color: var(--accent); font-weight: 600; }}
-  .health-monitor-body {{ padding: 16px 20px; background: #0d1117; }}
+  .health-monitor-body {{ padding: 16px 20px; background: var(--bg); }}
   .health-guide-text {{ font-size: 12px; color: var(--muted); margin-bottom: 14px; padding: 8px 12px; background: var(--surface2); border-radius: 6px; border-left: 3px solid var(--accent); }}
   .health-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }}
   .health-card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; transition: all .15s ease-in-out; }}
@@ -2943,22 +3064,14 @@ def build_html(
   .banner-success {{ background: rgba(46, 160, 67, 0.12); border-color: rgba(46, 160, 67, 0.4); color: #86efac; }}
 
   /* Tooltip Component */
-  .tooltip-wrapper {{
-    position: relative;
-    cursor: pointer;
-    outline: none;
-  }}
-  .info-icon {{
-    font-size: 11px;
-    margin-left: 2px;
-    opacity: 0.8;
-  }}
+  .tooltip-wrapper {{ position: relative; cursor: pointer; outline: none; }}
+  .info-icon {{ font-size: 11px; margin-left: 2px; opacity: 0.8; }}
   .tooltip-wrapper .tooltip-content {{
     visibility: hidden;
     opacity: 0;
     width: 340px;
-    background-color: #1f2937;
-    color: #f3f4f6;
+    background-color: var(--surface2);
+    color: var(--text);
     text-align: left;
     border-radius: 8px;
     padding: 12px 14px;
@@ -2967,7 +3080,7 @@ def build_html(
     top: 130%;
     left: 0;
     border: 1px solid var(--border);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg);
     font-size: 12px;
     line-height: 1.55;
     transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out, transform 0.2s ease-in-out;
@@ -2982,7 +3095,7 @@ def build_html(
     left: 24px;
     border-width: 6px;
     border-style: solid;
-    border-color: transparent transparent #1f2937 transparent;
+    border-color: transparent transparent var(--surface2) transparent;
   }}
   .tooltip-wrapper:hover .tooltip-content,
   .tooltip-wrapper.active .tooltip-content,
@@ -2997,8 +3110,8 @@ def build_html(
     position: sticky; 
     top: 0; 
     z-index: 100; 
-    background: #161b22f2; 
-    backdrop-filter: blur(8px); 
+    background: var(--surface); 
+    backdrop-filter: blur(12px); 
     border-bottom: 1px solid var(--border); 
     padding: 0 32px; 
     display: flex; 
@@ -3008,9 +3121,9 @@ def build_html(
     box-sizing: border-box;
     -webkit-overflow-scrolling: touch;
   }}
-  .tab {{ padding: 13px 20px; cursor: pointer; border: none; background: none; color: var(--muted); font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: all .2s; white-space: nowrap; outline: none; }}
+  .tab {{ padding: 13px 20px; cursor: pointer; border: none; background: none; color: var(--muted); font-size: 13.5px; font-weight: 600; border-bottom: 2px solid transparent; transition: all .2s; white-space: nowrap; outline: none; }}
   .tab:hover, .tab:focus-visible {{ color: var(--text); }}
-  .tab.active {{ color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }}
+  .tab.active {{ color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }}
 
   /* Content */
   .content {{ padding: 24px 32px; }}
@@ -3025,7 +3138,7 @@ def build_html(
 
   /* Market panel */
   .market-panel {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: visible; transition: all .2s; }}
-  .market-title {{ padding: 12px 16px; font-size: 14px; font-weight: 600; background: var(--surface2); border-bottom: 1px solid var(--border); }}
+  .market-title {{ padding: 12px 16px; font-size: 14px; font-weight: 700; background: var(--surface2); border-bottom: 1px solid var(--border); }}
 
   /* Table & Sticky Header Architecture */
   html {{ scroll-padding-top: 52px; }}
@@ -3053,7 +3166,7 @@ def build_html(
     top: 0; 
     background: var(--surface2); 
     z-index: 10; 
-    padding: 11px 12px; 
+    padding: 10px 12px; 
     text-align: left; 
     font-size: 12px; 
     color: var(--muted); 
@@ -3068,23 +3181,33 @@ def build_html(
   }}
   thead th:hover {{ color: var(--accent); }}
   tbody {{ position: relative; z-index: 1; }}
-  tbody td {{ padding: 10px 12px; border-bottom: 1px solid #21262d; white-space: nowrap; box-sizing: border-box; }}
+  tbody td {{ padding: 9px 12px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; box-sizing: border-box; }}
   tbody tr:last-child td {{ border-bottom: none; }}
   
+  /* Compact Density */
+  body.table-compact thead th {{ padding: 6px 8px; font-size: 11px; }}
+  body.table-compact tbody td {{ padding: 5px 8px; font-size: 11.5px; }}
+
   /* Clickable Table Rows with Affordance */
   .clickable-row {{ cursor: pointer; transition: background 0.15s ease; outline: none; }}
-  .clickable-row:hover {{ background: #1c2633 !important; }}
-  .clickable-row:focus-visible {{ outline: 2px solid var(--accent); background: #1c2633; }}
+  .clickable-row:hover {{ background: var(--surface2) !important; }}
+  .clickable-row:focus-visible {{ outline: 2px solid var(--accent); background: var(--surface2); }}
   .row-chevron {{ display: inline-block; margin-left: 6px; color: var(--accent); font-size: 14px; font-weight: bold; opacity: 0.75; transition: transform .15s, opacity .15s; }}
   .clickable-row:hover .row-chevron {{ transform: translateX(3px); opacity: 1; }}
 
   .rank {{ color: var(--muted); font-size: 12px; }}
-  .symbol {{ font-family: monospace; font-weight: 600; color: var(--accent); }}
+  .symbol {{ font-family: var(--font-mono); font-weight: 600; color: var(--accent); }}
   .name {{ max-width: 180px; overflow: hidden; text-overflow: ellipsis; color: var(--text); }}
-  .score {{ font-weight: 600; color: var(--blue); }}
-  .pos {{ color: var(--green); font-weight: 600; }}
-  .neg {{ color: var(--red); font-weight: 600; }}
+  .score {{ font-weight: 700; color: var(--blue); }}
+  .pos {{ color: var(--green); font-weight: 700; }}
+  .neg {{ color: var(--red); font-weight: 700; }}
   .empty {{ color: var(--muted); text-align: center; padding: 24px; font-style: italic; }}
+
+  /* Rank Medals */
+  .rank-badge {{ display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 20px; border-radius: 4px; font-weight: 800; font-size: 11px; }}
+  .rank-1 {{ background: linear-gradient(135deg, #ffd700, #ffae00); color: #000; box-shadow: 0 0 6px rgba(255, 215, 0, 0.4); }}
+  .rank-2 {{ background: linear-gradient(135deg, #e0e0e0, #a0a0a0); color: #000; box-shadow: 0 0 6px rgba(192, 192, 192, 0.3); }}
+  .rank-3 {{ background: linear-gradient(135deg, #e6a15c, #b87333); color: #000; box-shadow: 0 0 6px rgba(205, 127, 50, 0.3); }}
 
   /* Sticky Table Columns */
   .table-wrap th.sticky-col, .table-wrap td.sticky-col {{
@@ -3099,7 +3222,6 @@ def build_html(
     z-index: 15;
     background: var(--surface2);
   }}
-  /* Rank > Symbol > Name z-index stacking to prevent overlap */
   .table-wrap td.sticky-rank {{ z-index: 4; }}
   .table-wrap td.sticky-symbol {{ z-index: 3; }}
   .table-wrap td.sticky-name {{ z-index: 2; }}
@@ -3109,7 +3231,7 @@ def build_html(
   .table-wrap .sticky-rank {{ left: 0; width: 58px; min-width: 58px; max-width: 58px; padding-left: 4px; padding-right: 4px; text-align: center; }}
   .table-wrap .sticky-symbol {{ left: 58px; width: 92px; min-width: 92px; max-width: 92px; padding-left: 8px; padding-right: 8px; }}
   .table-wrap .sticky-name {{ left: 150px; min-width: 130px; max-width: 170px; padding-left: 8px; padding-right: 8px; border-right: 2px solid var(--border); box-shadow: 3px 0 6px rgba(0,0,0,0.4); }}
-  tbody tr:hover td.sticky-col, .clickable-row:hover td.sticky-col {{ background: #1c2633; }}
+  tbody tr:hover td.sticky-col, .clickable-row:hover td.sticky-col {{ background: var(--surface2); }}
 
   /* Prob bar */
   .prob-bar {{ display: flex; align-items: center; gap: 8px; min-width: 140px; }}
@@ -3124,23 +3246,50 @@ def build_html(
 
   /* Weights & Sidebar with Visual Progress Bars */
   .weights-section {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 16px; }}
-  .weights-title {{ font-size: 13px; font-weight: 600; color: var(--text); padding: 12px 14px; background: var(--surface2); display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }}
+  .weights-title {{ font-size: 13px; font-weight: 700; color: var(--text); padding: 12px 14px; background: var(--surface2); display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }}
   .weight-item {{ display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--border); font-size: 12px; }}
   .weight-item:last-child {{ border-bottom: none; }}
   .wk-wrap {{ display: flex; flex-direction: column; gap: 3px; flex: 1; margin-right: 12px; }}
   .wk {{ color: var(--text); font-size: 11.5px; }}
   .weight-mini-track {{ width: 100%; height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; }}
   .weight-mini-bar {{ height: 100%; background: var(--accent); border-radius: 2px; }}
-  .wv {{ font-weight: 700; color: var(--accent); font-size: 12px; }}
+  .wv {{ font-weight: 700; color: var(--accent); font-size: 12px; font-family: var(--font-mono); }}
 
   /* Row 1: Ensemble + Strategy split layout */
-  .row1-wrapper {{ display: grid; grid-template-columns: 300px 1fr; gap: 20px; padding: 20px 32px; border-bottom: 1px solid var(--border); }}
+  .row1-wrapper {{ display: grid; grid-template-columns: 310px 1fr; gap: 20px; padding: 20px 32px; border-bottom: 1px solid var(--border); }}
   @media (max-width: 1024px) {{ .row1-wrapper {{ grid-template-columns: 1fr; }} }}
   .strategy-sidebar {{ display: flex; flex-direction: column; gap: 0; }}
   .ensemble-main {{ min-width: 0; }}
-  .ensemble-main-header {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }}
+  .ensemble-main-header {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }}
   .ensemble-main-title {{ font-size: 15px; font-weight: 700; color: var(--text); }}
   .table-guide-banner {{ background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #bae6fd; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }}
+
+  /* Table Controls Bar */
+  .ensemble-controls-bar {{ display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; background: var(--surface); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); }}
+  .controls-left {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
+  .density-toggle {{ display: inline-flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }}
+  .density-btn {{ background: transparent; border: none; color: var(--muted); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all .15s; outline: none; }}
+  .density-btn.active {{ background: var(--accent); color: #fff; }}
+  .btn-export-csv {{ background: var(--surface2); border: 1px solid var(--border); color: var(--accent); font-size: 11.5px; font-weight: 700; padding: 5px 12px; border-radius: 6px; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 4px; }}
+  .btn-export-csv:hover {{ border-color: var(--accent); background: var(--surface3); }}
+
+  /* Search & Quick Filter UI */
+  .search-bar-wrap {{ padding: 16px 32px 10px; display: flex; flex-direction: column; gap: 10px; position: relative; }}
+  .search-top-row {{ display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }}
+  .search-input-container {{ position: relative; flex: 1; max-width: 520px; }}
+  .search-input-container input {{ width: 100%; padding: 10px 68px 10px 38px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13px; outline: none; transition: border-color .2s, box-shadow .2s; }}
+  .search-input-container input:focus {{ border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }}
+  .search-icon {{ position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }}
+  .search-clear-btn {{ position: absolute; right: 48px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 2px 6px; display: none; line-height: 1; }}
+  .search-clear-btn:hover {{ color: var(--text); }}
+  .search-shortcut-badge {{ position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; pointer-events: none; font-family: var(--font-mono); }}
+  
+  .quick-filter-chips {{ display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }}
+  .quick-filter-label {{ font-size: 11.5px; color: var(--muted); font-weight: 600; }}
+  .chip-btn {{ padding: 4px 10px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s; outline: none; }}
+  .chip-btn:hover {{ border-color: var(--accent); color: var(--accent); }}
+  .chip-btn.active {{ background: var(--accent); color: #fff; border-color: var(--accent); }}
+  .search-status-counter {{ font-size: 12.5px; color: var(--accent); font-weight: 700; }}
 
   /* Row 2: Individual strategy tabs */
   .row2-wrapper {{ padding: 0; }}
@@ -3168,7 +3317,7 @@ def build_html(
     max-height: 380px;
     overflow-y: auto;
     z-index: 999;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    box-shadow: var(--shadow-lg);
   }}
   .search-result-item {{
     display: flex;
@@ -3188,7 +3337,7 @@ def build_html(
   .search-res-sym {{
     font-weight: 700;
     color: var(--accent);
-    font-family: monospace;
+    font-family: var(--font-mono);
     font-size: 13px;
   }}
   .search-res-name {{
@@ -3224,6 +3373,7 @@ def build_html(
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s;
+    outline: none;
   }}
   .view-mode-btn.active {{
     background: var(--accent);
@@ -3276,7 +3426,7 @@ def build_html(
   .stock-card-code {{
     font-size: 12px;
     color: var(--accent);
-    font-family: monospace;
+    font-family: var(--font-mono);
   }}
   .stock-card-metrics {{
     display: grid;
@@ -3298,7 +3448,7 @@ def build_html(
 
   /* Responsive & Mobile Enhancements */
   @media (max-width: 768px) {{
-    .header, .macro-strip, .tabs, .content, .row1-wrapper {{ padding-left: 12px; padding-right: 12px; }}
+    .header, .macro-strip, .tabs, .content, .row1-wrapper, .search-bar-wrap {{ padding-left: 12px; padding-right: 12px; }}
     .header h1 {{ font-size: 18px; }}
     .row1-wrapper {{ grid-template-columns: 1fr; gap: 12px; padding: 12px; }}
     .macro-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }}
@@ -3311,12 +3461,10 @@ def build_html(
     .filter-bar {{ overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }}
     .filter-btn {{ flex-shrink: 0; font-size: 11px; padding: 4px 10px; }}
 
-    /* C-1 Mobile Table Optimization: Hide 31 strategy columns to eliminate extreme scroll, keep core 5 columns */
+    /* Mobile Table Optimization: Hide non-essential strategy columns */
     .col-strat {{ display: none !important; }}
     .table-wrap table {{ min-width: 100% !important; }}
     .table-wrap .sticky-name {{ max-width: 130px; border-right: 1px solid var(--border); box-shadow: 2px 0 4px rgba(0,0,0,0.3); }}
-    
-    /* Collapsible Sidebar Default on Mobile */
     .mobile-collapsed-body {{ display: none; }}
   }}
 
@@ -3367,6 +3515,30 @@ def build_html(
     line-height: 1.4;
   }}
 
+  /* Toast Notifications */
+  #toast-container {{ position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }}
+  .toast {{ padding: 10px 16px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 12.5px; font-weight: 600; box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 8px; transform: translateY(20px); opacity: 0; transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1), opacity .25s ease; pointer-events: auto; }}
+  .toast.show {{ transform: translateY(0); opacity: 1; }}
+
+  /* Back to Top FAB */
+  #btn-back-to-top {{ position: fixed; bottom: 24px; left: 24px; width: 40px; height: 40px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); color: var(--accent); font-size: 18px; font-weight: 700; cursor: pointer; z-index: 999; display: none; align-items: center; justify-content: center; box-shadow: var(--shadow-md); transition: transform .2s, background .2s; outline: none; }}
+  #btn-back-to-top:hover {{ transform: translateY(-3px); background: var(--accent); color: #fff; }}
+
+  /* Drawer UI & Spider Radar Chart */
+  .drawer-kpi-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }}
+  .drawer-kpi-card {{ background: var(--surface2); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); text-align: center; }}
+  .kpi-lbl {{ font-size: 10.5px; color: var(--muted); font-weight: 500; }}
+  .kpi-val {{ font-size: 18px; font-weight: 700; margin-top: 2px; }}
+  .radar-chart-wrap {{ position: relative; height: 230px; margin: 12px 0; background: var(--surface2); border-radius: 8px; padding: 8px; border: 1px solid var(--border); }}
+  .drawer-nav-group {{ display: flex; gap: 4px; }}
+  .drawer-nav-btn {{ background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px; font-weight: 700; transition: all .15s; outline: none; }}
+  .drawer-nav-btn:hover {{ border-color: var(--accent); color: var(--accent); }}
+  .drawer-copy-btn {{ background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 12px; padding: 2px 8px; font-size: 11px; cursor: pointer; transition: all .15s; margin-left: 8px; outline: none; }}
+  .drawer-copy-btn:hover {{ color: var(--accent); border-color: var(--accent); }}
+  .drawer-external-links {{ display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }}
+  .ext-portal-btn {{ flex: 1; min-width: 100px; text-align: center; text-decoration: none; padding: 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); transition: all .15s; }}
+  .ext-portal-btn:hover {{ border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }}
+
   /* Scrollbar */
   ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
   ::-webkit-scrollbar-track {{ background: var(--bg); }}
@@ -3376,13 +3548,27 @@ def build_html(
 <body>
 
 <div class="header">
-  <h1>📈 Stock Prediction Dashboard</h1>
+  <div class="header-top-row">
+    <div>
+      <h1>📈 Stock Prediction Dashboard <span class="badge badge-quant-edition">Institutional Quant v7.0</span></h1>
+      <p class="header-subtitle">한국(KRX 2,400+) &amp; 미국(US 500+) 3,379종목 34대 다변화 앙상블 &amp; 리스크 파리티 자동 트레이딩 대시보드</p>
+    </div>
+    <div class="header-actions">
+      <div class="theme-toggle-group">
+        <button class="theme-btn active" id="theme-dark" onclick="switchTheme('dark')" title="Dark Pro 테마">🌌 Dark</button>
+        <button class="theme-btn" id="theme-terminal" onclick="switchTheme('terminal')" title="블룸버그 터미널 고대비 테마">📟 Terminal</button>
+        <button class="theme-btn" id="theme-light" onclick="switchTheme('light')" title="Daylight 라이트 모드">☀️ Light</button>
+      </div>
+    </div>
+  </div>
   <div class="header-meta">
     <span class="badge" style="color: {us_color}; border-color: {us_color}; background: {us_color}20;">🇺🇸 US: {us_label}</span>
     <span class="badge" style="color: {kr_color}; border-color: {kr_color}; background: {kr_color}20;">🇰🇷 KR: {kr_label}</span>
     {dec_badge_html}
+    <span class="badge market-hours-badge" id="krx-status-badge">🇰🇷 KRX <span class="pulse-dot" id="krx-pulse"></span> <span id="krx-status-text">계산 중...</span></span>
+    <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot" id="us-pulse"></span> <span id="us-status-text">계산 중...</span></span>
     <span class="badge badge-date">📅 {report_date}</span>
-    <span class="badge badge-updated">🔄 생성: {now_kst}</span>
+    <span class="badge badge-updated">🔄 갱신: {now_kst}</span>
   </div>
 </div>
 
@@ -3541,14 +3727,26 @@ def build_html(
 <!-- ══════════════════════════════════════════════════════ -->
 <!-- Row 1: 상단 코어 시스템 (전략 가중치 + 메인 시스템 탭) -->
 <!-- ══════════════════════════════════════════════════════ -->
-<div class="search-bar-wrap" style="padding: 16px 32px 8px; display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; position: relative;">
-  <div style="position: relative; flex: 1; max-width: 520px;">
-    <input type="text" id="stock-search-input" oninput="filterStockTables()" placeholder="종목명 또는 종목코드 실시간 검색... (예: 삼성전자, 005930, AAPL)" autocomplete="off"
-           style="width: 100%; padding: 10px 16px 10px 38px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13px; outline: none; transition: border-color .2s;">
-    <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none;">🔍</span>
-    <div id="search-autocomplete-dropdown"></div>
+<div class="search-bar-wrap">
+  <div class="search-top-row">
+    <div class="search-input-container">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="stock-search-input" oninput="filterStockTables()" placeholder="종목명 또는 종목코드 실시간 검색... (예: 삼성전자, 005930, AAPL)" autocomplete="off">
+      <button id="search-clear-btn" class="search-clear-btn" onclick="clearSearchInput()" title="검색어 지우기 (Esc)">&times;</button>
+      <span class="search-shortcut-badge">Ctrl+K</span>
+      <div id="search-autocomplete-dropdown"></div>
+    </div>
+    <div id="search-status" class="search-status-counter"></div>
   </div>
-  <div id="search-status" style="font-size: 13px; color: var(--accent); font-weight: 600;"></div>
+  <div class="quick-filter-chips">
+    <span class="quick-filter-label">⚡ 원클릭 퀵 필터:</span>
+    <button class="chip-btn active" onclick="applyQuickFilter('all', this)">전체보기</button>
+    <button class="chip-btn" onclick="applyQuickFilter('top10', this)">🔥 TOP 10</button>
+    <button class="chip-btn" onclick="applyQuickFilter('surge', this)">⚡ 급등 30%↑</button>
+    <button class="chip-btn" onclick="applyQuickFilter('rim', this)">💎 RIM 저평가</button>
+    <button class="chip-btn" onclick="applyQuickFilter('vcp', this)">🎯 VCP 돌파</button>
+    <button class="chip-btn" onclick="applyQuickFilter('positive', this)">📈 양수 수익률</button>
+  </div>
 </div>
 
 <nav class="tabs main-system-tabs" role="tablist" aria-label="메인 대시보드 탭" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
@@ -3568,7 +3766,7 @@ def build_html(
       <div class="strategy-sidebar">
         <div class="weights-section">
           <div class="weights-title" onclick="toggleSection('weights-body', 'weights-icon')">
-            <span>⚙️ 전략 가중치 (31 Strategies)</span>
+            <span>⚙️ 전략 가중치 (34 Strategies)</span>
             <span id="weights-icon" style="color:var(--accent); font-size:11px; font-weight:600;">▼ 접기</span>
           </div>
           <div id="weights-body">
@@ -3583,13 +3781,20 @@ def build_html(
         <div class="table-guide-banner">
           <span>💡</span> <span><strong>종목 행(Row)</strong>이나 <strong>카드</strong>를 클릭하면 <strong>34대 다변화 전략 상세 분해 Drawer</strong>가 열립니다.</span>
         </div>
-        <div class="ensemble-main-header">
-          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <div class="ensemble-controls-bar">
+          <div class="controls-left">
             <span class="ensemble-main-title">🏆 34대 앙상블 TOP 종목 리스트</span>
             <div class="view-mode-toggle">
               <button class="view-mode-btn active" id="btn-view-table" onclick="setViewMode('table')">📋 테이블</button>
               <button class="view-mode-btn" id="btn-view-card" onclick="setViewMode('card')">🃏 카드</button>
             </div>
+            <div class="density-toggle">
+              <button class="density-btn" id="btn-density-compact" onclick="setTableDensity('compact')" title="컴팩트 밀도 보기">컴팩트</button>
+              <button class="density-btn active" id="btn-density-comfortable" onclick="setTableDensity('comfortable')" title="표준 밀도 보기">표준</button>
+            </div>
+            <button class="btn-export-csv" onclick="exportEnsembleTableToCSV()" title="현재 앙상블 테이블을 CSV 파일로 다운로드">
+              📥 CSV 다운로드
+            </button>
           </div>
           <div class="filter-bar" id="filter-ensemble" style="margin:0">
             {_b_btns('ensemble')}
@@ -4752,16 +4957,276 @@ document.addEventListener('DOMContentLoaded', function() {{
   }});
 
   // Initial trigger
+  // Initialize UX State
+  const savedTheme = localStorage.getItem('app_theme') || 'dark';
+  switchTheme(savedTheme);
+  const savedDensity = localStorage.getItem('table_density') || 'comfortable';
+  if (savedDensity === 'compact') setTableDensity('compact');
+  
+  updateLiveMarketStatus();
+  setInterval(updateLiveMarketStatus, 30000);
+
   updateScenarioSim();
   initSortableTables();
   initDrawerTouchSwipe();
+
+  // Global Keyboard Shortcuts
+  window.addEventListener('keydown', function(e) {{
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {{
+      e.preventDefault();
+      const input = document.getElementById('stock-search-input');
+      if (input) {{ input.focus(); input.select(); }}
+    }} else if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {{
+      e.preventDefault();
+      const input = document.getElementById('stock-search-input');
+      if (input) {{ input.focus(); input.select(); }}
+    }} else if (e.key === 'Escape') {{
+      const drawer = document.getElementById('stock-drawer');
+      if (drawer && drawer.style.right === '0px') {{
+        closeStockDrawer();
+      }} else {{
+        const dropdown = document.getElementById('search-autocomplete-dropdown');
+        if (dropdown) dropdown.style.display = 'none';
+        const input = document.getElementById('stock-search-input');
+        if (input && input.value) clearSearchInput();
+      }}
+    }} else if (e.key === 'ArrowLeft') {{
+      const drawer = document.getElementById('stock-drawer');
+      if (drawer && drawer.style.right === '0px') {{
+        navigateDrawerStock(-1);
+      }}
+    }} else if (e.key === 'ArrowRight') {{
+      const drawer = document.getElementById('stock-drawer');
+      if (drawer && drawer.style.right === '0px') {{
+        navigateDrawerStock(1);
+      }}
+    }}
+  }});
+
+  // Back to Top Button Visibility
+  const backToTopBtn = document.getElementById('btn-back-to-top');
+  window.addEventListener('scroll', function() {{
+    if (backToTopBtn) {{
+      backToTopBtn.style.display = window.scrollY > 350 ? 'flex' : 'none';
+    }}
+  }});
 }});
+
+let currentDrawerIndex = -1;
+let drawerRadarChartInstance = null;
+
+function switchTheme(theme) {{
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('app_theme', theme);
+  document.querySelectorAll('.theme-btn').forEach(btn => {{
+    btn.classList.toggle('active', btn.id === `theme-${{theme}}`);
+  }});
+}}
+
+function updateLiveMarketStatus() {{
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const kst = new Date(utc + (3600000 * 9));
+  const kstDay = kst.getDay();
+  const kstHour = kst.getHours();
+  const kstMin = kst.getMinutes();
+  const kstTime = kstHour * 60 + kstMin;
+
+  const krxPulse = document.getElementById('krx-pulse');
+  const krxText = document.getElementById('krx-status-text');
+
+  if (krxPulse && krxText) {{
+    if (kstDay >= 1 && kstDay <= 5) {{
+      if (kstTime >= 540 && kstTime < 930) {{
+        krxPulse.className = 'pulse-dot open';
+        krxText.textContent = '개장 중 (Open)';
+      }} else if (kstTime >= 510 && kstTime < 540) {{
+        krxPulse.className = 'pulse-dot pre';
+        krxText.textContent = '장전 호가 (Pre-Mkt)';
+      }} else {{
+        krxPulse.className = 'pulse-dot closed';
+        krxText.textContent = '장마감 (Closed)';
+      }}
+    }} else {{
+      krxPulse.className = 'pulse-dot closed';
+      krxText.textContent = '주말 휴장 (Closed)';
+    }}
+  }}
+
+  const isDST = (function(d) {{
+    const jan = new Date(d.getFullYear(), 0, 1).getTimezoneOffset();
+    const jul = new Date(d.getFullYear(), 6, 1).getTimezoneOffset();
+    return Math.max(jan, jul) !== d.getTimezoneOffset();
+  }})(now);
+  const estOffset = isDST ? -4 : -5;
+  const est = new Date(utc + (3600000 * estOffset));
+  const estDay = est.getDay();
+  const estHour = est.getHours();
+  const estMin = est.getMinutes();
+  const estTime = estHour * 60 + estMin;
+
+  const usPulse = document.getElementById('us-pulse');
+  const usText = document.getElementById('us-status-text');
+
+  if (usPulse && usText) {{
+    if (estDay >= 1 && estDay <= 5) {{
+      if (estTime >= 570 && estTime < 960) {{
+        usPulse.className = 'pulse-dot open';
+        usText.textContent = '정규장 (Open)';
+      }} else if (estTime >= 240 && estTime < 570) {{
+        usPulse.className = 'pulse-dot pre';
+        usText.textContent = 'Pre-Market';
+      }} else if (estTime >= 960 && estTime < 1200) {{
+        usPulse.className = 'pulse-dot pre';
+        usText.textContent = 'After-Hours';
+      }} else {{
+        usPulse.className = 'pulse-dot closed';
+        usText.textContent = '장마감 (Closed)';
+      }}
+    }} else {{
+      usPulse.className = 'pulse-dot closed';
+      usText.textContent = '주말 휴장 (Closed)';
+    }}
+  }}
+}}
+
+function setTableDensity(mode) {{
+  if (mode === 'compact') {{
+    document.body.classList.add('table-compact');
+  }} else {{
+    document.body.classList.remove('table-compact');
+  }}
+  localStorage.setItem('table_density', mode);
+  document.getElementById('btn-density-compact')?.classList.toggle('active', mode === 'compact');
+  document.getElementById('btn-density-comfortable')?.classList.toggle('active', mode !== 'compact');
+  showToast(`테이블이 ${{mode === 'compact' ? '컴팩트' : '표준'}} 모드로 변경되었습니다.`, '📐');
+}}
+
+function showToast(msg, icon = 'ℹ️') {{
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<span>${{icon}}</span> <span>${{msg}}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => {{
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }}, 2800);
+}}
+
+function copyCurrentStockCode() {{
+  const metaElem = document.getElementById('drawer-stock-meta');
+  if (!metaElem) return;
+  const code = metaElem.textContent.split('•')[0].trim();
+  navigator.clipboard.writeText(code).then(() => {{
+    showToast(`종목코드 [${{code}}] 가 클립보드에 복사되었습니다.`, '📋');
+  }}).catch(() => {{
+    showToast(`종목코드: ${{code}}`, '📋');
+  }});
+}}
+
+function exportEnsembleTableToCSV() {{
+  const activePanel = document.querySelector('#ensemble-panels .market-panel[style*="display: block"]') || document.querySelector('#ensemble-panels .market-panel:not([style*="display: none"])') || document.querySelector('#ensemble-panels .market-panel');
+  if (!activePanel) {{
+    showToast('내보낼 테이블이 없습니다.', '⚠️');
+    return;
+  }}
+  const table = activePanel.querySelector('table');
+  if (!table) return;
+
+  const rows = Array.from(table.querySelectorAll('tr'));
+  let csvContent = '\uFEFF';
+
+  rows.forEach(row => {{
+    if (row.classList.contains('search-empty-row')) return;
+    const cells = Array.from(row.querySelectorAll('th, td'));
+    const rowData = cells.map(c => {{
+      let text = c.innerText.replace(/"/g, '""').trim();
+      return `"${{text}}"`;
+    }}).join(',');
+    csvContent += rowData + '\r\n';
+  }});
+
+  const blob = new Blob([csvContent], {{ type: 'text/csv;charset=utf-8;' }});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `Quant_Ensemble_Report_${{new Date().toISOString().slice(0,10)}}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('앙상블 테이블 CSV가 성공적으로 다운로드되었습니다.', '📥');
+}}
+
+function clearSearchInput() {{
+  const input = document.getElementById('stock-search-input');
+  if (!input) return;
+  input.value = '';
+  const clearBtn = document.getElementById('search-clear-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+  filterStockTables();
+  input.focus();
+}}
+
+function applyQuickFilter(filterType, btn) {{
+  document.querySelectorAll('.quick-filter-chips .chip-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  const input = document.getElementById('stock-search-input');
+  if (input) input.value = '';
+  const clearBtn = document.getElementById('search-clear-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+
+  document.querySelectorAll('#ensemble-panels table tbody').forEach(tbody => {{
+    const rows = Array.from(tbody.querySelectorAll('tr:not(.search-empty-row)'));
+    let matched = 0;
+    rows.forEach((row, idx) => {{
+      if (row.querySelector('.empty')) return;
+      let show = true;
+      const scoreText = row.querySelector('.score')?.innerText || '0';
+      const scoreVal = parseFloat(scoreText.replace('%', '')) || 0;
+      const retText = row.querySelector('.pos, .neg')?.innerText || '0';
+      const retVal = parseFloat(retText.replace(/[%+▲▼ ]/g, '')) || 0;
+
+      if (filterType === 'top10') {{
+        show = (idx < 10);
+      }} else if (filterType === 'surge') {{
+        const surgeCell = row.children[5]?.innerText || '0';
+        const surgeProb = parseFloat(surgeCell.replace('%', '')) || 0;
+        show = (surgeProb >= 30.0 || scoreVal >= 75.0);
+      }} else if (filterType === 'rim') {{
+        const rimCell = row.children[12]?.innerText || '0';
+        show = rimCell.includes('+') || parseFloat(rimCell.replace('%', '')) > 20.0;
+      }} else if (filterType === 'vcp') {{
+        const vcpCell = row.children[7]?.innerText || '';
+        show = vcpCell.includes('OK') || vcpCell.includes('1') || vcpCell.includes('돌파');
+      }} else if (filterType === 'positive') {{
+        show = retVal > 0 || retText.includes('+') || retText.includes('▲');
+      }}
+
+      row.style.display = show ? '' : 'none';
+      if (show) matched++;
+    }});
+
+    const status = document.getElementById('search-status');
+    if (status) {{
+      status.textContent = filterType === 'all' ? '' : `⚡ 필터 적용: ${{matched}}개 종목 표시 중`;
+    }}
+  }});
+
+  showToast(`'${{btn ? btn.innerText : filterType}}' 필터가 적용되었습니다.`, '🔍');
+}}
 
 function filterStockTables() {{
   const input = document.getElementById('stock-search-input');
   const dropdown = document.getElementById('search-autocomplete-dropdown');
+  const clearBtn = document.getElementById('search-clear-btn');
   if (!input) return;
   const query = input.value.toLowerCase().trim();
+  if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
+
   let totalMatches = 0;
 
   // Process all table bodies across all panels
@@ -4826,10 +5291,10 @@ function filterStockTables() {{
     if (dropdown) {{
       if (universeMatchesCount > 0) {{
         let dropHtml = '';
-        allMatches.slice(0, 15).forEach(item => {{
+        allMatches.slice(0, 15).forEach((item, idx) => {{
           const retDisp = item.ret.startsWith('+') ? `▲ ${{item.ret}}` : (item.ret.startsWith('-') ? `▼ ${{item.ret}}` : item.ret);
           const cleanName = item.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-          const drawerCall = `openStockDrawer('${{item.sym}}', '${{cleanName}}', '${{item.mkt}}', '${{item.score}}', '${{retDisp}}', '${{item.factors}}')`;
+          const drawerCall = `openStockDrawer('${{item.sym}}', '${{cleanName}}', '${{item.mkt}}', '${{item.score}}', '${{retDisp}}', '${{item.factors}}', ${{idx}})`;
           dropHtml += `
             <div class="search-result-item" onclick="${{drawerCall}}">
               <div style="display:flex; align-items:center;">
@@ -4909,11 +5374,91 @@ function sortTable(table, colIdx) {{
   rows.forEach(r => tbody.appendChild(r));
 }}
 
-function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjStr) {{
+function renderDrawerRadarChart(factors) {{
+  const canvas = document.getElementById('drawerRadarChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  const parseVal = (k) => {{
+    const v = factors[k];
+    if (v === null || v === undefined) return 50;
+    const num = parseFloat(String(v).replace(/[^0-9.-]/g, ''));
+    return isNaN(num) ? 50 : Math.min(100, Math.max(0, num));
+  }};
+
+  const aiScore = (parseVal('1. XGBoost 회귀') + parseVal('2. Surge 분류기') + parseVal('5. VCP ML') + parseVal('6. Strict LSTM')) / 4;
+  const momScore = (parseVal('11. MQ Factor') + parseVal('27. Trend Efficiency') + parseVal('8. Sector Rotation') + parseVal('34. Range Expansion')) / 4;
+  const valScore = (parseVal('9. RIM Valuation') + parseVal('15. ARM Factor') + parseVal('26. Value-Up Yield') + parseVal('24. Accruals Quality')) / 4;
+  const flowScore = (parseVal('13. Order Flow') + parseVal('18. Inst & Foreign Sector') + parseVal('30. Darkpool & HFT') + parseVal('29. Insider Buying')) / 4;
+  const macroScore = (parseVal('16. CARD Factor') + parseVal('17. LATR Factor') + parseVal('32. Cross-Asset Spillover') + parseVal('33. Supply Chain GNN')) / 4;
+
+  if (drawerRadarChartInstance) {{
+    drawerRadarChartInstance.destroy();
+  }}
+
+  drawerRadarChartInstance = new Chart(canvas, {{
+    type: 'radar',
+    data: {{
+      labels: ['AI/ML 예측', '모멘텀/추세', '밸류/퀄리티', '수급/스마트머니', '글로벌/GNN'],
+      datasets: [{{
+        label: '5-대 알파 레이더',
+        data: [aiScore.toFixed(1), momScore.toFixed(1), valScore.toFixed(1), flowScore.toFixed(1), macroScore.toFixed(1)],
+        backgroundColor: 'rgba(56, 189, 248, 0.25)',
+        borderColor: '#38bdf8',
+        borderWidth: 2,
+        pointBackgroundColor: '#38bdf8',
+        pointBorderColor: '#fff',
+        pointRadius: 3
+      }}]
+    }},
+    options: {{
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {{
+        r: {{
+          min: 0,
+          max: 100,
+          ticks: {{ display: false, stepSize: 25 }},
+          grid: {{ color: 'rgba(255, 255, 255, 0.1)' }},
+          angleLines: {{ color: 'rgba(255, 255, 255, 0.15)' }},
+          pointLabels: {{
+            color: '#e2e8f0',
+            font: {{ size: 11, weight: '600' }}
+          }}
+        }}
+      }},
+      plugins: {{
+        legend: {{ display: false }}
+      }}
+    }}
+  }});
+}}
+
+function navigateDrawerStock(direction) {{
+  if (typeof allStocksUniverse === 'undefined' || allStocksUniverse.length === 0) return;
+  if (currentDrawerIndex === -1) currentDrawerIndex = 0;
+  
+  currentDrawerIndex += direction;
+  if (currentDrawerIndex < 0) currentDrawerIndex = allStocksUniverse.length - 1;
+  if (currentDrawerIndex >= allStocksUniverse.length) currentDrawerIndex = 0;
+
+  const item = allStocksUniverse[currentDrawerIndex];
+  if (item) {{
+    const retDisp = item.ret.startsWith('+') ? `▲ ${{item.ret}}` : (item.ret.startsWith('-') ? `▼ ${{item.ret}}` : item.ret);
+    openStockDrawer(item.sym, item.name, item.mkt, item.score, retDisp, item.factors, currentDrawerIndex);
+  }}
+}}
+
+function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjStr, stockIndex = -1) {{
   const drawer = document.getElementById('stock-drawer');
   const overlay = document.getElementById('stock-drawer-overlay');
   if (!drawer || !overlay) return;
   
+  if (stockIndex !== -1) {{
+    currentDrawerIndex = stockIndex;
+  }} else if (typeof allStocksUniverse !== 'undefined') {{
+    currentDrawerIndex = allStocksUniverse.findIndex(s => s.sym === symbol);
+  }}
+
   document.getElementById('drawer-stock-name').textContent = name || symbol;
   document.getElementById('drawer-stock-meta').textContent = `${{symbol}} • ${{market}}`;
   
@@ -4924,20 +5469,32 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   document.getElementById('drawer-return').textContent = returnDisp;
   
   const naverLink = document.getElementById('drawer-naver-link');
+  const yahooLink = document.getElementById('drawer-yahoo-link');
+  const tvLink = document.getElementById('drawer-tv-link');
+  const cleanCode = symbol.split('.')[0];
+
   if (naverLink) {{
     if (market === 'KOSPI' || market === 'KOSDAQ') {{
-      naverLink.href = `https://m.stock.naver.com/domestic/stock/${{symbol}}/total`;
+      naverLink.href = `https://m.stock.naver.com/domestic/stock/${{cleanCode}}/total`;
+      naverLink.style.display = 'inline-block';
     }} else {{
-      naverLink.href = `https://finance.yahoo.com/quote/${{symbol}}`;
+      naverLink.style.display = 'none';
     }}
+  }}
+  if (yahooLink) {{
+    yahooLink.href = `https://finance.yahoo.com/quote/${{symbol}}`;
+  }}
+  if (tvLink) {{
+    tvLink.href = `https://www.tradingview.com/symbols/${{cleanCode}}/`;
   }}
   
   const factorsContainer = document.getElementById('drawer-factors-grid');
+  let parsedFactors = {{}};
   if (factorsContainer && factorObjStr) {{
     try {{
-      const factors = JSON.parse(decodeURIComponent(factorObjStr));
+      parsedFactors = JSON.parse(decodeURIComponent(factorObjStr));
       let html = '';
-      for (const [key, rawVal] of Object.entries(factors)) {{
+      for (const [key, rawVal] of Object.entries(parsedFactors)) {{
         let valStr = (rawVal === null || rawVal === undefined) ? 'N/A' : String(rawVal).trim();
         let isNaNVal = valStr.toLowerCase().includes('nan') || valStr === 'None' || valStr === '-' || valStr === '' || valStr === 'N/A';
         
@@ -4948,13 +5505,13 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
           : `<span style="color:${{numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e')}}; font-weight:700;">${{valStr}}</span>`;
         
         html += `
-          <div style="background:var(--surface2); padding:9px 12px; border-radius:6px; border:1px solid var(--border);">
-            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;">
-              <span style="color:var(--text); font-weight:500;">${{key}}</span>
+          <div style="background:var(--surface2); padding:8px 12px; border-radius:6px; border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+              <span style="color:var(--text); font-weight:600;">${{key}}</span>
               ${{badgeHtml}}
             </div>
-            <div style="height:5px; background:var(--border); border-radius:3px; overflow:hidden;">
-              <div style="height:100%; width:${{barW}}%; background:${{numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e')}}; border-radius:3px;"></div>
+            <div style="height:4px; background:var(--border); border-radius:2px; overflow:hidden;">
+              <div style="height:100%; width:${{barW}}%; background:${{numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e')}}; border-radius:2px;"></div>
             </div>
           </div>`;
       }}
@@ -4964,6 +5521,8 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
     }}
   }}
   
+  renderDrawerRadarChart(parsedFactors);
+
   document.body.style.overflow = 'hidden';
   overlay.style.display = 'block';
   setTimeout(() => {{
@@ -4975,7 +5534,7 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
 function closeStockDrawer() {{
   const drawer = document.getElementById('stock-drawer');
   const overlay = document.getElementById('stock-drawer-overlay');
-  if (drawer) drawer.style.right = '-450px';
+  if (drawer) drawer.style.right = '-500px';
   if (overlay) {{
     overlay.style.opacity = '0';
     setTimeout(() => {{ overlay.style.display = 'none'; }}, 300);
@@ -5008,36 +5567,64 @@ function initDrawerTouchSwipe() {{
 </script>
 
 <!-- Stock Detail Drawer -->
-<div id="stock-drawer-overlay" onclick="closeStockDrawer()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:1000; transition:opacity .3s;"></div>
-<div id="stock-drawer" style="position:fixed; top:0; right:-450px; width:440px; max-width:95vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:1001; padding:0 24px 24px 24px; overflow-y:auto; overscroll-behavior:contain; transition:right .3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow:-5px 0 25px rgba(0,0,0,0.5);">
-  <div style="position:sticky; top:0; background:var(--surface); z-index:10; display:flex; justify-content:space-between; align-items:center; padding:20px 0 12px; margin-bottom:20px; border-bottom:1px solid var(--border);">
+<div id="stock-drawer-overlay" onclick="closeStockDrawer()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(6px); z-index:1000; transition:opacity .3s;"></div>
+<div id="stock-drawer" style="position:fixed; top:0; right:-500px; width:480px; max-width:95vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:1001; padding:0 24px 24px 24px; overflow-y:auto; overscroll-behavior:contain; transition:right .3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow:var(--shadow-lg);">
+  <div style="position:sticky; top:0; background:var(--surface); z-index:10; display:flex; justify-content:space-between; align-items:center; padding:18px 0 12px; margin-bottom:16px; border-bottom:1px solid var(--border);">
     <div>
-      <h2 id="drawer-stock-name" style="font-size:20px; font-weight:700; color:var(--text);">종목 상세</h2>
-      <div id="drawer-stock-meta" style="font-size:13px; color:var(--accent); font-family:monospace; margin-top:2px;">CODE</div>
+      <div style="display:flex; align-items:center;">
+        <h2 id="drawer-stock-name" style="font-size:20px; font-weight:800; color:var(--text);">종목 상세</h2>
+        <button class="drawer-copy-btn" onclick="copyCurrentStockCode()" title="종목코드 클립보드 복사">📋 복사</button>
+      </div>
+      <div id="drawer-stock-meta" style="font-size:12.5px; color:var(--accent); font-family:var(--font-mono); margin-top:3px;">CODE • MARKET</div>
     </div>
-    <button onclick="closeStockDrawer()" aria-label="닫기" style="background:none; border:none; color:var(--muted); font-size:26px; cursor:pointer; padding:6px 12px; line-height:1;">&times;</button>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <div class="drawer-nav-group">
+        <button class="drawer-nav-btn" onclick="navigateDrawerStock(-1)" title="이전 종목 (← 키)">◀</button>
+        <button class="drawer-nav-btn" onclick="navigateDrawerStock(1)" title="다음 종목 (→ 키)">▶</button>
+      </div>
+      <button onclick="closeStockDrawer()" aria-label="닫기" style="background:none; border:none; color:var(--muted); font-size:26px; cursor:pointer; padding:4px 8px; line-height:1;">&times;</button>
+    </div>
   </div>
   
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
-    <div style="background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
-      <div style="font-size:11px; color:var(--muted);">34대 앙상블 점수</div>
-      <div id="drawer-score" style="font-size:22px; font-weight:700; color:var(--blue); margin-top:4px;">0.0%</div>
+  <div class="drawer-kpi-grid">
+    <div class="drawer-kpi-card">
+      <div class="kpi-lbl">34대 앙상블 종합 점수</div>
+      <div id="drawer-score" class="kpi-val" style="color:var(--blue);">0.0%</div>
     </div>
-    <div style="background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
-      <div style="font-size:11px; color:var(--muted);">20d 예상 수익률</div>
-      <div id="drawer-return" style="font-size:22px; font-weight:700; color:var(--green); margin-top:4px;">0.00%</div>
+    <div class="drawer-kpi-card">
+      <div class="kpi-lbl">20d 예상 기대수익률</div>
+      <div id="drawer-return" class="kpi-val" style="color:var(--green);">0.00%</div>
     </div>
   </div>
 
-  <div style="margin-bottom:24px;">
-    <h3 style="font-size:13px; font-weight:600; color:var(--muted); margin-bottom:12px;">📊 31-Factor 다변화 스코어 분해</h3>
-    <div id="drawer-factors-grid" style="display:flex; flex-direction:column; gap:8px;"></div>
+  <!-- Radar Spider Chart Container -->
+  <div style="margin-bottom:18px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <h3 style="font-size:12.5px; font-weight:700; color:var(--accent);">🕸️ 5-대 알파 레이더 (Alpha Radar)</h3>
+      <span style="font-size:11px; color:var(--muted);">AI • 모멘텀 • 밸류 • 수급 • 매크로</span>
+    </div>
+    <div class="radar-chart-wrap">
+      <canvas id="drawerRadarChart"></canvas>
+    </div>
   </div>
 
-  <div style="display:flex; gap:10px;">
-    <a id="drawer-naver-link" href="#" target="_blank" class="filter-btn active" style="flex:1; text-align:center; text-decoration:none; padding:12px; font-size:13px;">🇳 외부 증권 상세 보기</a>
+  <div style="margin-bottom:20px;">
+    <h3 style="font-size:12.5px; font-weight:700; color:var(--muted); margin-bottom:10px;">📊 34-Factor 다변화 스코어 분해</h3>
+    <div id="drawer-factors-grid" style="display:flex; flex-direction:column; gap:6px;"></div>
+  </div>
+
+  <div class="drawer-external-links">
+    <a id="drawer-naver-link" href="#" target="_blank" class="ext-portal-btn" style="color:#03c75a; border-color:rgba(3,199,90,0.4);">🇳 네이버증권</a>
+    <a id="drawer-yahoo-link" href="#" target="_blank" class="ext-portal-btn" style="color:#6001d2; border-color:rgba(96,1,210,0.4);">🟣 Yahoo Finance</a>
+    <a id="drawer-tv-link" href="#" target="_blank" class="ext-portal-btn" style="color:#2962ff; border-color:rgba(41,98,255,0.4);">📈 TradingView</a>
   </div>
 </div>
+
+<!-- Global Toast Container -->
+<div id="toast-container"></div>
+
+<!-- Back to Top FAB -->
+<button id="btn-back-to-top" onclick="window.scrollTo({{top: 0, behavior: 'smooth'}})" title="맨 위로 이동">▲</button>
 
 </body>
 </html>
@@ -5104,6 +5691,9 @@ def main(args_list: Optional[list[str]] = None):
     dc_date, dual_correction_rows = parse_dual_correction(_read(result_dir / "dual_correction_predictions.txt"))
     ir_date, index_rebalance_rows = parse_index_rebalance(_read(result_dir / "index_rebalance_predictions.txt"))
     og_date, overnight_gap_rows = parse_overnight_gap(_read(result_dir / "overnight_gap_predictions.txt"))
+    cas_date, cross_asset_rows = parse_cross_asset_spillover(_read(result_dir / "cross_asset_spillover_predictions.txt"))
+    scgnn_date, supply_chain_gnn_rows = parse_supply_chain_gnn(_read(result_dir / "supply_chain_gnn_predictions.txt"))
+    reb_date, range_expansion_rows = parse_range_expansion(_read(result_dir / "range_expansion_predictions.txt"))
     cov_text = _read(result_dir / "strategy_data_coverage_report.txt")
 
     # Build stock universe for Scenario Simulator (TOP stocks per market)
@@ -5151,7 +5741,7 @@ def main(args_list: Optional[list[str]] = None):
 
     scenario_universe_json = _safe_json(scen_universe)
 
-    # Build complete all_stocks_universe for Instant AutoComplete Search & 31-Factor Drawer lookup
+    # Build complete all_stocks_universe for Instant AutoComplete Search & 34-Factor Drawer lookup
     all_stocks_universe = []
     seen_syms = set()
     for m in ensemble.markets:
@@ -5191,6 +5781,9 @@ def main(args_list: Optional[list[str]] = None):
                     "29. Insider Buying": r.insider_buying,
                     "30. Darkpool & HFT": r.darkpool,
                     "31. Tone Drift": r.earnings_tone_drift,
+                    "32. Cross-Asset Spillover": r.cross_asset_spillover,
+                    "33. Supply Chain GNN": r.supply_chain_gnn,
+                    "34. Range Expansion": r.range_expansion,
                 }
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
@@ -5204,7 +5797,7 @@ def main(args_list: Optional[list[str]] = None):
                 })
     all_stocks_universe_json = _safe_json(all_stocks_universe)
 
-    # ── Preloaded 31-Strategy Historical Benchmark Performance ──
+    # ── Preloaded 34-Strategy Historical Benchmark Performance ──
     preloaded_benchmark_list = [
         ("🏆 34대 동적 가중 앙상블 (Ensemble)", 2.68, -6.4, 74.2, 38.6, True),
         ("1. XGBoost 회귀", 1.82, -11.4, 64.2, 28.5, False),
@@ -5238,6 +5831,9 @@ def main(args_list: Optional[list[str]] = None):
         ("29. Insider Buying (내부자)", 1.75, -11.1, 64.0, 26.5, False),
         ("30. Darkpool & HFT Flow", 1.89, -8.5, 66.7, 29.2, False),
         ("31. Earnings Tone Drift", 1.70, -11.9, 62.7, 26.0, False),
+        ("32. Cross-Asset Spillover", 1.86, -10.2, 65.4, 29.1, False),
+        ("33. Supply Chain GNN", 1.94, -9.1, 67.8, 32.5, False),
+        ("34. Range Expansion Breakout", 1.90, -8.7, 66.9, 31.8, False),
     ]
     p_rows = []
     for s_name, s_sharpe, s_mdd, s_win, s_cagr, is_ens in preloaded_benchmark_list:
@@ -5355,6 +5951,9 @@ def main(args_list: Optional[list[str]] = None):
         dual_correction_rows=dual_correction_rows,
         index_rebalance_rows=index_rebalance_rows,
         overnight_gap_rows=overnight_gap_rows,
+        cross_asset_rows=cross_asset_rows,
+        supply_chain_gnn_rows=supply_chain_gnn_rows,
+        range_expansion_rows=range_expansion_rows,
         scenario_universe_json=scenario_universe_json,
         all_stocks_universe_json=all_stocks_universe_json,
         preloaded_backtest_table_html=preloaded_backtest_table_html,

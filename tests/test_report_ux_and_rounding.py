@@ -114,13 +114,14 @@ def test_ensemble_table_headers_31_strategies_alignment():
         sentiment="90%", factor_neutralized="50%", vol_target="40%",
         microstructure="30%", accruals_quality="20%", short_squeeze="10%",
         valueup_catalyst="50%", trend_efficiency="60%", gamma_squeeze="70%",
-        insider_buying="80%", darkpool="90%", earnings_tone_drift="50%"
+        insider_buying="80%", darkpool="90%", earnings_tone_drift="50%",
+        cross_asset_spillover="60%", supply_chain_gnn="70%", range_expansion="80%"
     ))
     ensemble.markets.append(mkt)
 
     html_out = _call_build_html(ensemble=ensemble)
 
-    # Verify all 31 strategy headers and 20D expected return are present in order
+    # Verify all 34 strategy headers and 20D expected return are present in order
     headers_expected = [
         "순위 ↕", "종목코드 ↕", "종목명 ↕", "앙상블 ↕", "20D 예상수익률 ↕",
         "1. Reg ↕", "2. Surge ↕", "3. L-L ↕", "4. VCP-R ↕", "5. VCP-M ↕",
@@ -131,7 +132,7 @@ def test_ensemble_table_headers_31_strategies_alignment():
         "19. Supply ↕", "20. NLP ↕", "21. Neutral ↕", "22. Vol-T ↕",
         "23. Micro ↕", "24. Accrual ↕", "25. S-Sq ↕", "26. ValueUp ↕",
         "27. TrendEff ↕", "28. GammaSq ↕", "29. Insider ↕", "30. Darkpool ↕",
-        "31. ToneDrift ↕"
+        "31. ToneDrift ↕", "32. CAS ↕", "33. GNN ↕", "34. REB ↕"
     ]
     for h in headers_expected:
         assert h in html_out, f"Missing header: {h}"
@@ -221,7 +222,7 @@ def test_parse_strategy_coverage_report_full():
     from trading_system.generate_report import parse_strategy_coverage_report
     sample_report = """
 ================================================================================
-31-Strategy Data Coverage & Missingness Audit Report (2026-08-29)
+34-Strategy Data Coverage & Missingness Audit Report (2026-08-29)
 ================================================================================
 Total Evaluated Symbols: 948
 
@@ -237,7 +238,7 @@ stat_arb                           0       948       0.0%   NO_COINTEGRATED_PAIR
 """
     tot, items = parse_strategy_coverage_report(sample_report)
     assert tot == 948
-    assert len(items) == 31
+    assert len(items) == 34
 
     reg_item = next(i for i in items if i.strategy_id == "regression")
     assert reg_item.status == "HEALTHY"
