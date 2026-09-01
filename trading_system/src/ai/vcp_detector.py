@@ -166,13 +166,15 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
     if momentum_ok:
         score += 15.0
 
-    # Tightness bonus
-    if current_range < 4:
-        score += 20.0
-    elif current_range < 7:
-        score += 12.0
-    elif current_range < 10:
-        score += 6.0
+    # Tightness bonus (Ultra-tight coil before explosive breakout)
+    if current_range < 3.0:
+        score += 25.0  # Super Elite Tightness Coil
+    elif current_range < 5.0:
+        score += 18.0
+    elif current_range < 8.0:
+        score += 10.0
+    elif current_range < 12.0:
+        score += 5.0
 
     score = float(min(max(score, 0.0), 100.0))
     score = score if np.isfinite(score) else 0.0
