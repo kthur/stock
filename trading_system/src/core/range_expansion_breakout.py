@@ -221,8 +221,11 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
             is_bearish_bar = (curr_close < curr_open) and (clv < 0.40)
 
             if is_bullish_bar:
-                # Bullish range expansion score [0.50, 0.95]
+                # Bullish range expansion score [0.50, 0.98]
                 score = 0.50 + 0.45 * raw_breakout_signal
+                # Super Breakout Ignition: Compression precursor (NR7/Squeeze) + Violent REF (>=2.0) + Massive RVOL (>=2.5) + High CLV (>=0.80)
+                if compression_score >= 0.50 and ref >= 1.8 and rvol >= 2.0 and clv >= 0.75:
+                    score += 0.08
             elif is_bearish_bar:
                 # Bearish breakdown [0.05, 0.50]
                 score = 0.50 - 0.45 * raw_breakout_signal
@@ -233,7 +236,7 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
             if not np.isfinite(score):
                 return 0.50
 
-            return float(np.clip(score, 0.05, 0.95))
+            return float(np.clip(score, 0.05, 0.98))
 
         except Exception as e:
             logger.debug(f"[RangeExpansion] Calculation error: {e}")
@@ -279,6 +282,16 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
             scores[sym_str] = round(score, 4)
 
         res_df = make_score_dataframe(scores, score_column="range_expansion_score")
+        if not res_df.empty:
+            s_series = pd.to_numeric(res_df['range_expansion_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            if len(res_df) > 1:
+                ranks = s_series.rank(pct=True, ascending=True)
+                # Multi-Tier Range Expansion Super Breakout Booster
+                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.98), s_series))
+                res_df['range_expansion_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+            else:
+                res_df['range_expansion_score'] = s_series
         return res_df
 
 
