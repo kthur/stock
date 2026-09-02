@@ -98,6 +98,9 @@ class ExecutionOMSEngine:
                     quantity INTEGER,
                     execution_strategy TEXT DEFAULT 'DIRECT',
                     slice_count INTEGER DEFAULT 1,
+                    sleeve_type TEXT,
+                    target_take_profit REAL,
+                    target_stop_loss REAL,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 )
@@ -111,6 +114,12 @@ class ExecutionOMSEngine:
                     cursor.execute("ALTER TABLE order_plans ADD COLUMN execution_strategy TEXT DEFAULT 'DIRECT'")
                 if cols and "slice_count" not in cols:
                     cursor.execute("ALTER TABLE order_plans ADD COLUMN slice_count INTEGER DEFAULT 1")
+                if cols and "sleeve_type" not in cols:
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN sleeve_type TEXT")
+                if cols and "target_take_profit" not in cols:
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN target_take_profit REAL")
+                if cols and "target_stop_loss" not in cols:
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN target_stop_loss REAL")
             except Exception:
                 pass
             cursor.execute("""
@@ -748,9 +757,9 @@ class ExecutionOMSEngine:
 
                 cursor.execute("""
                     INSERT OR REPLACE INTO order_plans
-                    (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, status, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, exec_strategy, slice_count, status, now_str))
+                    (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, exec_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, now_str))
 
             # Gate 8: Synthetic Beta Inverse Hedge Overlay (Bear / Crisis regime)
             if "BEAR" in str(regime_label).upper() or "CRISIS" in str(regime_label).upper():
@@ -775,6 +784,7 @@ class ExecutionOMSEngine:
                         is_krx_hedge = str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() or str(h_sym).endswith((".KS", ".KQ"))
                         h_amount_local = h_amount if is_krx_hedge else (h_amount / fx_rate)
                         lot_h = getattr(self, 'lot_size_krx', 1) if is_krx_hedge else 1
+                        raw_h_qty = int(h_amount_local / max(hedge_price, 1e-6))
                         h_quantity = (raw_h_qty // lot_h) * lot_h
 
                         h_entry = {
@@ -789,15 +799,18 @@ class ExecutionOMSEngine:
                             "quantity": h_quantity,
                             "execution_strategy": "DIRECT",
                             "slice_count": 1,
+                            "sleeve_type": "FAST",
+                            "target_take_profit": None,
+                            "target_stop_loss": None,
                             "status": "HEDGE_ACTIVE",
                             "created_at": now_str
                         }
                         order_plans.append(h_entry)
                         cursor.execute("""
                             INSERT OR REPLACE INTO order_plans
-                            (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, status, created_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", first_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount_local, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "HEDGE_ACTIVE", now_str))
+                            (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", first_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount_local, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "FAST", None, None, "HEDGE_ACTIVE", now_str))
                 except Exception as _hedge_e:
                     logger.warning(f"[OMS HEDGE OVERLAY] Hedge order plan generation skipped: {_hedge_e}")
 
@@ -806,6 +819,8 @@ class ExecutionOMSEngine:
             if self.db_path != ":memory:":
                 conn.close()
         return order_plans
+
+    generate_order_plans = generate_order_plan
 
     def record_execution(
         self,

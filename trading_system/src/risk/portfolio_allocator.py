@@ -923,6 +923,10 @@ class PortfolioAllocator:
         total_k = np.sum(raw_kelly)
 
         if total_k <= 1e-8:
+            if top_k_concentration is not None and 0 < top_k_concentration < n_assets:
+                equal_w = 1.0 / float(top_k_concentration)
+                top_syms = set(symbols[:top_k_concentration])
+                return {sym: (float(min(equal_w, cap)) if sym in top_syms else 0.0) for sym in symbols}
             equal_w = 1.0 / float(n_assets)
             return {sym: float(min(equal_w, cap)) for sym in symbols}
 

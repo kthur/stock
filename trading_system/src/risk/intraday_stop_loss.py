@@ -53,7 +53,7 @@ class IntradayStopLossEngine:
         self,
         peak_drop_threshold: float = -0.04,
         volume_spike_threshold: float = 3.0,
-        atr_multiplier: float = 2.0,
+        atr_multiplier: float = 2.5,
         max_symbols: int = 1000,
         stop_loss_threshold: float = -0.04,
         order_imbalance_threshold: float = -0.6,
@@ -63,7 +63,7 @@ class IntradayStopLossEngine:
         self.peak_drop_threshold = min(-0.001, safe_peak_drop)
         safe_vol_spike = float(volume_spike_threshold) if (volume_spike_threshold is not None and np.isfinite(volume_spike_threshold)) else 3.0
         self.volume_spike_threshold = max(1.0, safe_vol_spike)
-        safe_atr_mult = float(atr_multiplier) if (atr_multiplier is not None and np.isfinite(atr_multiplier)) else 2.0
+        safe_atr_mult = float(atr_multiplier) if (atr_multiplier is not None and np.isfinite(atr_multiplier)) else 2.5
         self.atr_multiplier = max(0.5, safe_atr_mult)
         self.max_symbols = max(10, int(max_symbols)) if max_symbols is not None else 1000
         safe_stop_thresh = float(stop_loss_threshold) if (stop_loss_threshold is not None and np.isfinite(stop_loss_threshold)) else -0.04

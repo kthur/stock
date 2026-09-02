@@ -45,11 +45,20 @@ class IndexRebalanceEngine(BaseStrategyEngine):
         today = current_date or datetime.date.today()
         month = today.month
 
-        # Major rebalance months: 2, 5, 6, 8, 11, 12
-        is_rebal_season = month in [2, 5, 6, 8, 11, 12]
-        is_pre_window = month in [1, 4, 5, 7, 10, 11]
+        # Major rebalance months:
+        # - S&P 500 / NASDAQ 100 / Russell / FTSE: March (3), June (6), September (9), December (12)
+        # - KOSPI 200 / KOSDAQ 150: June (6), December (12)
+        # - MSCI Reviews: February (2), May (5), August (8), November (11)
+        is_rebal_season = month in [2, 3, 5, 6, 8, 9, 11, 12]
+        is_pre_window = month in [1, 2, 4, 5, 7, 8, 10, 11]
 
-        target_index = "KOSPI200" if month in [5, 6, 11, 12] else "MSCI"
+        if month in [5, 6, 11, 12]:
+            target_index = "KOSPI200"
+        elif month in [3, 9]:
+            target_index = "SP500_NASDAQ"
+        else:
+            target_index = "MSCI"
+
         days_to_rebal = 20 if is_rebal_season else (40 if is_pre_window else 90)
 
         return {

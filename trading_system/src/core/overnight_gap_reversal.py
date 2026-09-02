@@ -126,9 +126,31 @@ class OvernightGapReversalEngine(BaseStrategyEngine):
                 # 3. Gap Fill Directionality & Mean Reversion Sizing
                 # If gap is downward (gap_z < -1.0), strong bounce mean-reversion signal
                 # If gap is upward (gap_z > +1.0), fade probability
-                # Baseline neutral is 0.50
-                # Formula: score = 0.50 - 0.35 * tanh(gap_z / 1.5)
                 reversion_score = 0.50 - 0.35 * np.tanh(gap_z / 1.5)
+
+                # 4. Intraday Gap Fill Check & Persistence Calibration:
+                # If today's bar already closed and the gap completely filled intraday:
+                curr_high = high.iloc[-1] if len(high) > 0 else curr_open
+                curr_low = low.iloc[-1] if len(low) > 0 else curr_open
+                curr_close = close.iloc[-1]
+
+                if gap_pct < -0.005:  # Downward gap
+                    if curr_high >= prev_close:
+                        # Gap already filled intraday: mean-reversion trade completed, damp toward neutral
+                        reversion_score = 0.50 + 0.20 * (reversion_score - 0.50)
+                    else:
+                        # Unfilled down gap: persistent dislocation.
+                        # Bullish pin at close (curr_close > curr_open) increases multi-day gap fill edge
+                        if curr_close > curr_open:
+                            reversion_score = min(0.95, reversion_score * 1.05)
+                elif gap_pct > 0.005:  # Upward gap
+                    if curr_low <= prev_close:
+                        # Gap already filled downward intraday
+                        reversion_score = 0.50 + 0.20 * (reversion_score - 0.50)
+                    else:
+                        # Unfilled up gap: if closing below open (bearish exhaustion pin), amplify fade
+                        if curr_close < curr_open:
+                            reversion_score = max(0.05, reversion_score * 0.95)
 
                 score = float(np.clip(reversion_score, 0.05, 0.95)) if np.isfinite(reversion_score) else 0.50
                 results.append({'symbol': str(sym), 'overnight_gap_score': round(score, 4)})
