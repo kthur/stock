@@ -2208,4 +2208,82 @@ class PortfolioAllocator:
             res[s] = float(w_adj)
         return res
 
+    # =========================================================================
+    # OBJECTIVE 12: HIGHER-ORDER CUMULANT EXPANSION KELLY SIZING (SKEW & KURT)
+    # =========================================================================
 
+    def allocate_higher_order_cumulant_kelly(
+        self,
+        expected_returns: pd.Series,
+        returns_df: Optional[pd.DataFrame] = None,
+        max_weight: Optional[float] = None,
+        kelly_fraction: float = 0.25,
+        risk_free_rate: float = 0.035,
+        horizon_days: int = 20,
+        max_skew_boost: float = 1.50,
+        min_kurt_penalty: float = 0.40
+    ) -> Dict[str, float]:
+        """
+        Taylor Cumulant Expansion Kelly Allocation incorporating Skewness (S) and Kurtosis (K):
+        f^*_higher = f^*_Gaussian * [ 1 + (S/3) * (mu/sigma) - ((K - 3)/12) * (mu/sigma)^2 ]
+
+        Expands bet sizing by up to +50% for positive-skewed breakout opportunities
+        while sharply penalizing fat-tailed crash risk.
+        """
+        cap = max_weight if max_weight is not None else self.default_max_weight
+        symbols = list(expected_returns.index)
+        n = len(symbols)
+        if n == 0:
+            return {}
+        if n == 1:
+            return {symbols[0]: 1.0}
+
+        horizon = horizon_days / 252.0
+        rf_h = risk_free_rate * horizon
+        excess_mu = np.maximum(0.0, expected_returns.values - rf_h)
+
+        # Baseline volatilities, skewness, and kurtosis
+        vols = np.full(n, 0.02, dtype=float)
+        skews = np.zeros(n, dtype=float)
+        excess_kurts = np.zeros(n, dtype=float)
+
+        if returns_df is not None and not returns_df.empty:
+            for idx, sym in enumerate(symbols):
+                if sym in returns_df.columns:
+                    s_rets = returns_df[sym].dropna().values.astype(np.float64)
+                    if len(s_rets) >= 10:
+                        std_s = float(np.std(s_rets) or 0.02)
+                        vols[idx] = max(0.005, std_s)
+                        mean_s = float(np.mean(s_rets))
+                        centered = s_rets - mean_s
+                        m3 = float(np.mean(centered ** 3))
+                        m4 = float(np.mean(centered ** 4))
+                        skews[idx] = float(np.clip(m3 / (std_s ** 3 + 1e-8), -3.0, 3.0))
+                        excess_kurts[idx] = float(np.clip((m4 / (std_s ** 4 + 1e-8)) - 3.0, -1.0, 10.0))
+
+        # 1. Standard Gaussian Kelly
+        gaussian_kelly = float(kelly_fraction) * (excess_mu / (vols ** 2 * horizon))
+
+        # 2. Higher-order cumulant Taylor multiplier
+        # Daily Sharpe ratio per period
+        daily_excess_mu = excess_mu / 252.0
+        sr_daily = daily_excess_mu / np.maximum(vols, 1e-4)
+        
+        # Cumulant expansion with scaling factor
+        cumulant_multiplier = 1.0 + (skews / 3.0) * (sr_daily * 10.0) - (excess_kurts / 12.0) * ((sr_daily * 10.0) ** 2)
+        cumulant_multiplier = np.clip(cumulant_multiplier, min_kurt_penalty, max_skew_boost)
+
+        # 3. Higher-order scaled Kelly
+        higher_order_kelly = gaussian_kelly * cumulant_multiplier
+        higher_order_kelly = np.maximum(0.0, higher_order_kelly)
+        tot_k = np.sum(higher_order_kelly)
+
+        if tot_k <= 1e-8:
+            return {s: float(1.0 / n) for s in symbols}
+
+        norm_w = higher_order_kelly / tot_k
+        eff_cap = max(cap, 1.0 / n)
+        clamped_w = np.clip(norm_w, 0.0, eff_cap)
+        clamped_w /= np.sum(clamped_w)
+
+        return {sym: float(w) for sym, w in zip(symbols, clamped_w)}

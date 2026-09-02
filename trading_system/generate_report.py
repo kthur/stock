@@ -1076,7 +1076,7 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
             data.remaining_cash = m.group(2).strip()
 
         m = re.match(
-            r"^(\d+)\s+(\S+)\s+(.+?)\s+([A-Za-z0-9_]+)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$",
+            r"^(\d+)\s+(\S+)\s+(.+?)\s+([A-Za-z0-9_]+)(?:\s+[\d,]+)?(?:\s+\d+)?\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$",
             line
         )
         if m:

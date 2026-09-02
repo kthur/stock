@@ -2,7 +2,7 @@ import functools
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +269,22 @@ class FactorOrthogonalizerEngine:
         C_shrunk = (1.0 - delta) * C_sample + delta * target
         return cast(np.ndarray, C_shrunk + self.ridge_epsilon * np.eye(K))
 
+    def extract_pure_idiosyncratic_alpha(
+        self,
+        scores: pd.Series,
+        market_beta: Optional[pd.Series] = None,
+        sector_series: Optional[pd.Series] = None
+    ) -> Dict[str, Any]:
+        """
+        Extracts pure idiosyncratic alpha by stripping market beta and industry sector co-movements.
+        """
+        neutralizer = CrossSectionalFactorNeutralizer(ridge_epsilon=self.ridge_epsilon)
+        return neutralizer.extract_pure_idiosyncratic_alpha(
+            scores=scores,
+            market_beta=market_beta,
+            sector_series=sector_series
+        )
+
 
 class CrossSectionalFactorNeutralizer:
     """
@@ -402,5 +418,80 @@ class CrossSectionalFactorNeutralizer:
                 )
         return out_df
 
+    def extract_pure_idiosyncratic_alpha(
+        self,
+        scores: pd.Series,
+        market_beta: Optional[pd.Series] = None,
+        sector_series: Optional[pd.Series] = None
+    ) -> Dict[str, Any]:
+        """
+        Extracts pure idiosyncratic alpha by stripping market beta and industry sector co-movements:
+        s_idiosyncratic = (I - B(B^T B)^(-1) B^T) s_raw
 
+        Enables the portfolio to scale gross exposure without taking uncompensated systematic sector risk.
+        """
+        if scores is None or len(scores) < 4:
+            return {
+                "pure_scores": scores if scores is not None else pd.Series([], dtype=float),
+                "r_squared": 0.0,
+                "idiosyncratic_ratio": 1.0
+            }
 
+        valid_idx = scores.dropna().index
+        if len(valid_idx) < 4:
+            return {
+                "pure_scores": scores,
+                "r_squared": 0.0,
+                "idiosyncratic_ratio": 1.0
+            }
+
+        y = scores.loc[valid_idx].to_numpy(dtype=np.float64)
+        N = len(valid_idx)
+
+        # Build Design Matrix B
+        cols_to_concat = [pd.Series(1.0, index=valid_idx, name="intercept")]
+        if market_beta is not None:
+            f_beta = market_beta.reindex(valid_idx).fillna(1.0)
+            std_b = float(f_beta.std() or 1.0)
+            f_std = ((f_beta - f_beta.mean()) / (std_b + 1e-6)).fillna(0.0)
+            cols_to_concat.append(f_std)
+
+        if sector_series is not None and len(sector_series) > 0:
+            sec_aligned = sector_series.reindex(valid_idx).fillna("UNKNOWN")
+            if sec_aligned.nunique() > 1:
+                dummies = pd.get_dummies(sec_aligned, drop_first=True, dtype=float)
+                cols_to_concat.append(dummies)
+
+        B_df = pd.concat(cols_to_concat, axis=1)
+        B = B_df.to_numpy(dtype=np.float64)
+        K_cols = B.shape[1]
+
+        BtB = np.dot(B.T, B) + self.ridge_epsilon * np.eye(K_cols)
+        try:
+            beta_hat = np.linalg.solve(BtB, np.dot(B.T, y))
+        except np.linalg.LinAlgError:
+            beta_hat = np.dot(np.linalg.pinv(BtB), np.dot(B.T, y))
+
+        fitted = np.dot(B, beta_hat)
+        residuals = y - fitted
+
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
+        ss_res = np.sum(residuals ** 2)
+        r2 = float(np.clip(1.0 - (ss_res / max(ss_tot, 1e-8)), 0.0, 1.0))
+        idio_ratio = float(1.0 - r2)
+
+        res_std = np.std(residuals)
+        if res_std > 1e-8:
+            z_scores = residuals / res_std
+            pure_scores = 1.0 / (1.0 + np.exp(-z_scores))
+        else:
+            pure_scores = np.full(N, 0.5, dtype=np.float64)
+
+        result = scores.copy()
+        result.loc[valid_idx] = pure_scores
+
+        return {
+            "pure_scores": result,
+            "r_squared": round(r2, 4),
+            "idiosyncratic_ratio": round(idio_ratio, 4)
+        }

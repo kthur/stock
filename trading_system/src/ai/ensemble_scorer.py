@@ -3265,5 +3265,99 @@ class EnsembleScoringEngine:
         except Exception:
             return np.asarray(np.clip(np.mean(factor_scores_df.values, axis=1), 0.0, 1.0), dtype=np.float64)
 
+    # =========================================================================
+    # OBJECTIVE 13: KAUFMAN EFFICIENCY (KER) DYNAMIC ALPHA SWITCHING
+    # =========================================================================
 
+    TREND_STRATEGIES = [
+        'regression', 'surge', 'vcp_rule', 'vcp_ml', 'lstm',
+        'range_expansion_breakout', 'supply_chain_gnn', 'mq_factor',
+        'trend_efficiency', 'supply_chain', 'lead_lag'
+    ]
 
+    REVERSAL_STRATEGIES = [
+        'short_term_reversal', 'stat_arb', 'iv_skew', 'microstructure',
+        'card_factor', 'latr_factor'
+    ]
+
+    @classmethod
+    def apply_ker_dynamic_alpha_switching(
+        cls,
+        strategy_weights: Dict[str, float],
+        ker_value: float,
+        ker_high: float = 0.55,
+        ker_low: float = 0.25
+    ) -> Dict[str, float]:
+        """
+        Dynamically adjusts strategy weights based on asset-level Kaufman Efficiency Ratio (KER):
+        - When KER >= 0.55 (clean directional trend): Boosts trend alphas to 85%, suppresses reversal to 15%.
+        - When KER <= 0.25 (choppy noise / mean-reverting): Boosts reversal alphas to 85%, suppresses trend to 15%.
+        - Smooth sigmoid / linear transition in between.
+        Eliminates internal alpha cannibalization between momentum and mean-reversion.
+        """
+        if not strategy_weights:
+            return {}
+
+        k_val = float(np.clip(ker_value, 0.0, 1.0))
+        if k_val >= ker_high:
+            trend_mult = 1.85
+            rev_mult = 0.15
+        elif k_val <= ker_low:
+            trend_mult = 0.15
+            rev_mult = 1.85
+        else:
+            # Linear interpolation between ker_low and ker_high
+            alpha_ratio = (k_val - ker_low) / max(1e-4, ker_high - ker_low)
+            trend_mult = 0.15 + alpha_ratio * (1.85 - 0.15)
+            rev_mult = 2.0 - trend_mult
+
+        adjusted_weights = {}
+        for strat, w in strategy_weights.items():
+            if strat in cls.TREND_STRATEGIES:
+                adjusted_weights[strat] = w * trend_mult
+            elif strat in cls.REVERSAL_STRATEGIES:
+                adjusted_weights[strat] = w * rev_mult
+            else:
+                adjusted_weights[strat] = w
+
+        # Re-normalize weights
+        tot_w = sum(adjusted_weights.values())
+        if tot_w > 1e-8:
+            adjusted_weights = {k: v / tot_w for k, v in adjusted_weights.items()}
+        return adjusted_weights
+
+    # =========================================================================
+    # OBJECTIVE 14: BESSEMBINDER CONVEX POWER-LAW ALPHA SIZING (TOP-DECILE TILT)
+    # =========================================================================
+
+    @staticmethod
+    def apply_bessembinder_convex_power_law(
+        scores: Union[pd.Series, np.ndarray, List[float]],
+        top_percentile: float = 90.0,
+        power_gamma: float = 1.60,
+        max_boost: float = 0.50
+    ) -> np.ndarray:
+        """
+        Applies Bessembinder Right-Tail Convex Power-Law Scaling to top-decile composite scores:
+        s_tilde_i = s_i * [ 1 + max_boost * ((s_i - P90) / (P99 - P90))^gamma ] for s_i > P90
+
+        Concentrates risk budget onto genuine 99th-percentile multi-strategy consensus winners,
+        generating convex upside payoff while keeping low-conviction allocations conservative.
+        """
+        arr = np.nan_to_num(np.asarray(scores, dtype=np.float64), nan=0.0)
+        if len(arr) < 5:
+            return arr
+
+        p_low = np.percentile(arr, top_percentile)
+        p_high = np.percentile(arr, 99.0)
+        denom = max(1e-4, p_high - p_low)
+
+        boosted = arr.copy()
+        mask_top = arr > p_low
+        if np.any(mask_top):
+            norm_excess = np.clip((arr[mask_top] - p_low) / denom, 0.0, 1.0)
+            convex_mult = 1.0 + max_boost * np.power(norm_excess, power_gamma)
+            boosted[mask_top] = arr[mask_top] * convex_mult
+
+        # Clip output to [0.0, 1.0]
+        return np.clip(boosted, 0.0, 1.0)

@@ -170,6 +170,7 @@ flowchart TB
 | `src/ai/factor_suppression.py` | FactorSuppressionEngine: VIF & 2D 레짐 기반 팩터 노이즈 억제 |
 | `src/analysis/coverage_analyzer.py` | StrategyCoverageAnalyzer: 34대 전략 커버리지 및 최빈 데이터 결측(Missingness) 정밀 분석 |
 | `src/analysis/portfolio_optimizer.py` | PortfolioOptimizer: HRP (Hierarchical Risk Parity), Black-Litterman & Ledoit-Wolf 공분산 축소 |
+| `src/risk/unified_portfolio_allocator.py` | UnifiedPortfolioAllocator: 레짐 적응형 3대 최적화(BL+HERC+CVaR) 앙상블, 3/2승 시장충격 페널티, 12% 목표 변동성 & Leland 버퍼 |
 | `src/risk/portfolio_allocator.py` | PortfolioAllocator: EVT-CVaR 극단값 꼬리위험 예산 & Leland 동적 버퍼 밴드 |
 | `src/risk/risk_manager.py` | RiskManager & CrisisDetector: 거시 위기 단계 판정 및 VIX 속도/기간구조 기반 완충 제어 |
 | `src/execution/order_manager.py` | ExecutionOMSEngine: 7대 주문 안전 게이트, Almgren-Chriss 트랜치 분할 & 주문 생성 |

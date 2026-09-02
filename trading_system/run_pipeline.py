@@ -4021,6 +4021,38 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     if 'name' not in ensemble_df_merged.columns:
         ensemble_df_merged['name'] = ensemble_df_merged['symbol']
 
+    # ── Institutional Portfolio Optimization (Unified Multi-Model Allocator) ──
+    unified_alloc_df = pd.DataFrame()
+    try:
+        from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        unified_allocator = UnifiedPortfolioAllocator(
+            target_volatility=0.12,
+            default_max_total_allocation=max_alloc if 'max_alloc' in locals() else 0.90,
+            target_horizon=20
+        )
+        curr_holdings_dict = {}
+        try:
+            from src.execution.oms_engine import ExecutionOMSEngine
+            _temp_oms = ExecutionOMSEngine(db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trade_logs.db"))
+            curr_holdings_dict = _temp_oms.get_current_holdings_from_db()
+        except Exception:
+            pass
+
+        unified_alloc_df = unified_allocator.allocate(
+            predictions_df=ensemble_df_merged,
+            prices_dict=infer_data_dict,
+            total_portfolio_value=getattr(cfg, 'portfolio_capital_krw', 100_000_000.0),
+            regime=current_2d_regime if 'current_2d_regime' in locals() else "BULL_LOW_VOL",
+            current_holdings=curr_holdings_dict,
+            top_n=30
+        )
+        if not unified_alloc_df.empty:
+            weight_map = dict(zip(unified_alloc_df['symbol'].astype(str), unified_alloc_df['weight'].astype(float)))
+            ensemble_df_merged['portfolio_weight'] = ensemble_df_merged['symbol'].astype(str).map(weight_map).fillna(0.0)
+            logger.info(f"[PORTFOLIO OPTIMIZATION] Injected {len(weight_map)} institutional multi-model weights into ensemble_df_merged")
+    except Exception as _p_opt_e:
+        logger.warning(f"[PORTFOLIO OPTIMIZATION] UnifiedPortfolioAllocator execution skipped: {_p_opt_e}")
+
     # ── Execution OMS Order Plan Generation & DB Logging ──
     try:
         from src.execution.oms_engine import ExecutionOMSEngine
@@ -4322,8 +4354,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     ensemble_for_alloc = src_ens[['symbol', 'market', 'ensemble_expected_return']].rename(
         columns={'ensemble_expected_return': 20}
     )
-    allocator = PortfolioAllocator(target_horizon=20, max_total_allocation=max_alloc)
-    alloc_df = allocator.allocate(ensemble_for_alloc, infer_data_dict, total_portfolio_value=cfg.portfolio_capital_krw, use_hrp=True, regime=current_2d_regime)
+    if 'unified_alloc_df' in locals() and isinstance(unified_alloc_df, pd.DataFrame) and not unified_alloc_df.empty:
+        alloc_df = unified_alloc_df.copy()
+        logger.info("[Portfolio Allocation] Using Unified Institutional Multi-Model Allocator results for reporting")
+    else:
+        allocator = PortfolioAllocator(target_horizon=20, max_total_allocation=max_alloc)
+        alloc_df = allocator.allocate(ensemble_for_alloc, infer_data_dict, total_portfolio_value=cfg.portfolio_capital_krw, use_hrp=True, regime=current_2d_regime)
 
     if not alloc_df.empty:
         cols_to_drop = [c for c in ['name', 'market'] if c in alloc_df.columns]
