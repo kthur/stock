@@ -114,6 +114,8 @@ class StrategyRegistry:
             "src.core.insider_buying",
             "src.core.earnings_tone_drift",
             "src.core.dual_correction",
+            "src.core.index_rebalance",
+            "src.core.overnight_gap_reversal",
             "src.core.cross_asset_spillover",
             "src.core.supply_chain_gnn",
             "src.core.range_expansion_breakout",

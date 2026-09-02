@@ -102,11 +102,11 @@ class EnsembleScoringEngine:
             'vcp_rule', 'vcp_ml', 'surge', 'lead_lag', 'stat_arb', 'sector_rotation',
             'lstm', 'sentiment', 'inst_foreign_sector', 'supply_chain',
             'gamma_squeeze', 'short_squeeze', 'insider_buying', 'trend_efficiency', 'event_driven',
-            'cross_asset_spillover', 'supply_chain_gnn',
+            'cross_asset_spillover', 'supply_chain_gnn', 'dual_correction', 'index_rebalance',
         ],
         'fast': [
             'microstructure', 'order_flow', 'short_term_reversal', 'darkpool',
-            'range_expansion_breakout',
+            'range_expansion_breakout', 'overnight_gap_reversal',
         ],
     }
     TIER_WEIGHTS = {'slow': 0.50, 'medium': 0.35, 'fast': 0.15}
@@ -1383,6 +1383,7 @@ class EnsembleScoringEngine:
                                  regime: Union[int, str] = 'BULL_LOW_VOL',
                                  scores_df: Optional[pd.DataFrame] = None,
                                  regression_df: Optional[pd.DataFrame] = None,
+                                 reg_df: Optional[pd.DataFrame] = None,
                                  surge_df: Optional[pd.DataFrame] = None,
                                  lead_lag_df: Optional[pd.DataFrame] = None,
                                  vcp_ml_df: Optional[pd.DataFrame] = None,
@@ -1418,6 +1419,10 @@ class EnsembleScoringEngine:
                                  supply_chain_gnn_df: Optional[pd.DataFrame] = None,
                                  range_expansion_df: Optional[pd.DataFrame] = None,
                                  range_expansion_breakout_df: Optional[pd.DataFrame] = None,
+                                 dual_correction_df: Optional[pd.DataFrame] = None,
+                                 index_rebalance_df: Optional[pd.DataFrame] = None,
+                                 overnight_gap_df: Optional[pd.DataFrame] = None,
+                                 overnight_gap_reversal_df: Optional[pd.DataFrame] = None,
                                  rolling_sharpes: Optional[Dict[str, float]] = None,
                                  sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                                  target_horizon: int = 20,
@@ -1429,7 +1434,7 @@ class EnsembleScoringEngine:
                                  dual_regimes: Optional[Dict[str, Any]] = None,
                                  prices_dict: Optional[Dict[str, pd.DataFrame]] = None) -> pd.DataFrame:
         """
-        Calculates 34-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
+        Calculates 37-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
         Supports dual market regime weighting for US (SP500/NASDAQ/RUSSELL2000) and KR (KOSPI/KOSDAQ).
         """
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
@@ -1454,7 +1459,7 @@ class EnsembleScoringEngine:
                 if st in us_weights:
                     us_weights[st] += 0.015
             # KR Bear: amplify defensive valuation, foreign flow, supply chain & reversal
-            for st in ['rim_valuation', 'valueup_catalyst', 'order_flow', 'supply_chain', 'supply_chain_gnn', 'cross_asset_spillover', 'short_term_reversal']:
+            for st in ['rim_valuation', 'valueup_catalyst', 'order_flow', 'supply_chain', 'supply_chain_gnn', 'cross_asset_spillover', 'short_term_reversal', 'dual_correction', 'overnight_gap_reversal']:
                 if st in kr_weights:
                     kr_weights[st] += 0.015
 
@@ -1488,7 +1493,7 @@ class EnsembleScoringEngine:
 
         return self.combine_predictions(
             scores_df=scores_df,
-            reg_df=regression_df,
+            reg_df=regression_df if regression_df is not None else reg_df,
             s_df=surge_df,
             ll_df=lead_lag_df,
             v_rule_df=v_rule_input,
@@ -1523,6 +1528,10 @@ class EnsembleScoringEngine:
             supply_chain_gnn_df=supply_chain_gnn_df,
             range_expansion_df=range_expansion_df if range_expansion_df is not None else range_expansion_breakout_df,
             range_expansion_breakout_df=range_expansion_breakout_df if range_expansion_breakout_df is not None else range_expansion_df,
+            dual_correction_df=dual_correction_df,
+            index_rebalance_df=index_rebalance_df,
+            overnight_gap_df=overnight_gap_df if overnight_gap_df is not None else overnight_gap_reversal_df,
+            overnight_gap_reversal_df=overnight_gap_reversal_df if overnight_gap_reversal_df is not None else overnight_gap_df,
             weights=us_weights,
             us_weights=us_weights,
             kr_weights=kr_weights,
@@ -1573,6 +1582,10 @@ class EnsembleScoringEngine:
                             supply_chain_gnn_df: Optional[pd.DataFrame] = None,
                             range_expansion_df: Optional[pd.DataFrame] = None,
                             range_expansion_breakout_df: Optional[pd.DataFrame] = None,
+                            dual_correction_df: Optional[pd.DataFrame] = None,
+                            index_rebalance_df: Optional[pd.DataFrame] = None,
+                            overnight_gap_df: Optional[pd.DataFrame] = None,
+                            overnight_gap_reversal_df: Optional[pd.DataFrame] = None,
                             weights: Optional[Dict[str, float]] = None,
                             us_weights: Optional[Dict[str, float]] = None,
                             kr_weights: Optional[Dict[str, float]] = None,
@@ -2191,7 +2204,47 @@ class EnsembleScoringEngine:
         else:
             reb_df = pd.DataFrame(columns=['symbol', 'range_expansion_score'])
 
-        # Combine all 34 strategy DataFrames efficiently while preserving metadata
+        # 35. Strategy 35: Dual Correction Engine
+        if dual_correction_df is not None and not dual_correction_df.empty:
+            dc_df = dual_correction_df.copy()
+            num_cols = [c for c in dc_df.columns if c != 'symbol' and c not in META_COLS]
+            dc_col = 'dual_correction_score' if 'dual_correction_score' in dc_df.columns else ('correction_score' if 'correction_score' in dc_df.columns else (num_cols[-1] if num_cols else dc_df.columns[-1]))
+            meta_cols = [c for c in META_COLS if c in dc_df.columns]
+            dc_df = dc_df[['symbol'] + meta_cols + [dc_col]].rename(columns={dc_col: 'dual_correction_score'})
+            if dc_df['dual_correction_score'].max() > 1.0:
+                dc_df['dual_correction_score'] = dc_df['dual_correction_score'] / 100.0
+            dc_df['dual_correction_score'] = dc_df['dual_correction_score'].clip(0.0, 1.0)
+        else:
+            dc_df = pd.DataFrame(columns=['symbol', 'dual_correction_score'])
+
+        # 36. Strategy 36: Index Rebalance Structural Flow Engine
+        if index_rebalance_df is not None and not index_rebalance_df.empty:
+            ir_df = index_rebalance_df.copy()
+            num_cols = [c for c in ir_df.columns if c != 'symbol' and c not in META_COLS]
+            ir_col = 'index_rebalance_score' if 'index_rebalance_score' in ir_df.columns else ('rebalance_score' if 'rebalance_score' in ir_df.columns else (num_cols[-1] if num_cols else ir_df.columns[-1]))
+            meta_cols = [c for c in META_COLS if c in ir_df.columns]
+            ir_df = ir_df[['symbol'] + meta_cols + [ir_col]].rename(columns={ir_col: 'index_rebalance_score'})
+            if ir_df['index_rebalance_score'].max() > 1.0:
+                ir_df['index_rebalance_score'] = ir_df['index_rebalance_score'] / 100.0
+            ir_df['index_rebalance_score'] = ir_df['index_rebalance_score'].clip(0.0, 1.0)
+        else:
+            ir_df = pd.DataFrame(columns=['symbol', 'index_rebalance_score'])
+
+        # 37. Strategy 37: Overnight Gap Reversal Engine
+        og_input = overnight_gap_df if overnight_gap_df is not None else overnight_gap_reversal_df
+        if og_input is not None and not og_input.empty:
+            og_df = og_input.copy()
+            num_cols = [c for c in og_df.columns if c != 'symbol' and c not in META_COLS]
+            og_col = 'overnight_gap_score' if 'overnight_gap_score' in og_df.columns else ('gap_score' if 'gap_score' in og_df.columns else (num_cols[-1] if num_cols else og_df.columns[-1]))
+            meta_cols = [c for c in META_COLS if c in og_df.columns]
+            og_df = og_df[['symbol'] + meta_cols + [og_col]].rename(columns={og_col: 'overnight_gap_score'})
+            if og_df['overnight_gap_score'].max() > 1.0:
+                og_df['overnight_gap_score'] = og_df['overnight_gap_score'] / 100.0
+            og_df['overnight_gap_score'] = og_df['overnight_gap_score'].clip(0.0, 1.0)
+        else:
+            og_df = pd.DataFrame(columns=['symbol', 'overnight_gap_score'])
+
+        # Combine all 37 strategy DataFrames efficiently while preserving metadata
         if scores_df is not None and not scores_df.empty:
             merged = scores_df.copy()
         else:
@@ -2199,7 +2252,7 @@ class EnsembleScoringEngine:
                 reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df,
                 m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df,
                 micro_df, aq_df, sq_df, vu_df, te_df, gs_df, ib_df, dp_df, etd_df,
-                cas_df, scg_df, reb_df
+                cas_df, scg_df, reb_df, dc_df, ir_df, og_df
             ]
             valid_dfs = []
             for d in dfs:
@@ -2253,6 +2306,9 @@ class EnsembleScoringEngine:
             ('cross_asset_spillover', 'cross_asset_spillover_score'),
             ('supply_chain_gnn', 'supply_chain_gnn_score'),
             ('range_expansion_breakout', 'range_expansion_score'),
+            ('dual_correction', 'dual_correction_score'),
+            ('index_rebalance', 'index_rebalance_score'),
+            ('overnight_gap_reversal', 'overnight_gap_score'),
         ]
 
         # Phase 3-Pre: Apply Isotonic / Platt Probability Calibration to raw scores if calibrators are fitted

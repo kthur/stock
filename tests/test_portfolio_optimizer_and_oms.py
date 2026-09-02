@@ -186,11 +186,11 @@ def test_oms_kill_switch_blocks_all_plans(tmp_path, monkeypatch):
 
 
 def test_oms_quantity_conversion_and_lot_rounding(tmp_path):
-    """Live-money guard: target_amount -> quantity with KRX 10-lot / US 1-lot rounding."""
+    """Live-money guard: target_amount -> quantity with KRX 1-lot standard / 10-lot config / US 1-lot rounding."""
     db_file = os.path.join(tmp_path, "test_trade_logs_qty.db")
-    oms = ExecutionOMSEngine(db_path=db_file)
+    oms = ExecutionOMSEngine(db_path=db_file)  # Default lot_size_krx=1 (KRX standard since 2014)
 
-    # KRX: 100M * 0.5 = 50M won @ 70000 -> 714 shares -> 710 (10-lot)
+    # KRX: 100M * 0.5 = 50M won @ 70000 -> 714 shares (1-lot)
     top_predictions = [
         {"symbol": "005930", "name": "Samsung", "market": "KOSPI", "close_price": 70000},
         # US: 100M * 0.5 = 50M won / 1350 USD/KRW / $250 -> 148 shares (1-lot)
@@ -201,18 +201,23 @@ def test_oms_quantity_conversion_and_lot_rounding(tmp_path):
     plans = oms.generate_order_plan(top_predictions, weights, total_capital=100000000)
     plans_by_sym = {p["symbol"]: p for p in plans}
 
-    assert plans_by_sym["005930"]["quantity"] == 710
+    assert plans_by_sym["005930"]["quantity"] == 714
     assert plans_by_sym["AAPL"]["quantity"] == 148
 
     conn = sqlite3.connect(db_file)
     qty_krx = conn.execute("SELECT quantity FROM order_plans WHERE symbol='005930'").fetchone()[0]
     conn.close()
-    assert qty_krx == 710
+    assert qty_krx == 714
+
+    # Configured 10-lot execution check (rounds 714 -> 710)
+    oms_10 = ExecutionOMSEngine(db_path=os.path.join(tmp_path, "test_trade_logs_10.db"), lot_size_krx=10)
+    plans_10 = oms_10.generate_order_plan(top_predictions, weights, total_capital=100000000)
+    assert {p["symbol"]: p for p in plans_10}["005930"]["quantity"] == 710
 
     # Sub-lot plan must be dropped entirely
     tiny_plans = oms.generate_order_plan(
         [{"symbol": "005930", "name": "S", "market": "KOSPI", "close_price": 70000}],
-        {"005930": 0.00001}, total_capital=100000000)
+        {"005930": 0.0000001}, total_capital=100000000)
     assert tiny_plans == []
 
 

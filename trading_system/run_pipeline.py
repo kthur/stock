@@ -3490,6 +3490,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         cross_asset_spillover_df=cross_asset_spillover_df,
         supply_chain_gnn_df=supply_chain_gnn_df,
         range_expansion_breakout_df=range_expansion_breakout_df,
+        dual_correction_df=dual_correction_df,
+        index_rebalance_df=index_rebalance_df,
+        overnight_gap_df=overnight_gap_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20,
         prices_dict=infer_data_dict if 'infer_data_dict' in locals() else None
@@ -4049,15 +4052,33 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         if not unified_alloc_df.empty:
             weight_map = dict(zip(unified_alloc_df['symbol'].astype(str), unified_alloc_df['weight'].astype(float)))
             ensemble_df_merged['portfolio_weight'] = ensemble_df_merged['symbol'].astype(str).map(weight_map).fillna(0.0)
-            logger.info(f"[PORTFOLIO OPTIMIZATION] Injected {len(weight_map)} institutional multi-model weights into ensemble_df_merged")
+            # Re-sort by portfolio_weight so top picks correspond to actual optimized allocations!
+            sort_cols = ['portfolio_weight']
+            for extra_col in ['ensemble_expected_return', 'ensemble_score']:
+                if extra_col in ensemble_df_merged.columns:
+                    sort_cols.append(extra_col)
+            ensemble_df_merged = ensemble_df_merged.sort_values(by=sort_cols, ascending=[False] * len(sort_cols)).reset_index(drop=True)
+            logger.info(f"[PORTFOLIO OPTIMIZATION] Injected {len(weight_map)} institutional multi-model weights and re-sorted ensemble_df_merged")
     except Exception as _p_opt_e:
         logger.warning(f"[PORTFOLIO OPTIMIZATION] UnifiedPortfolioAllocator execution skipped: {_p_opt_e}")
 
     # ── Execution OMS Order Plan Generation & DB Logging ──
     try:
         from src.execution.oms_engine import ExecutionOMSEngine
-        oms_engine = ExecutionOMSEngine(db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trade_logs.db"))
-        top_picks_dicts = ensemble_df_merged.head(20).to_dict(orient="records")
+        oms_engine = ExecutionOMSEngine(
+            db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trade_logs.db"),
+            lot_size_krx=1
+        )
+        # Select all positive weight allocations first (up to top 30), or fallback to top 20
+        if 'portfolio_weight' in ensemble_df_merged.columns:
+            pos_weight_df = ensemble_df_merged[ensemble_df_merged['portfolio_weight'] > 0.0]
+            if len(pos_weight_df) >= 3:
+                top_picks_dicts = pos_weight_df.head(30).to_dict(orient="records")
+            else:
+                top_picks_dicts = ensemble_df_merged.head(20).to_dict(orient="records")
+        else:
+            top_picks_dicts = ensemble_df_merged.head(20).to_dict(orient="records")
+
         # Enrich top picks with the latest observed close price so order plans
         # carry a real reference price (never the 1.0 fallback).
         _last_close_map = {}
@@ -4080,12 +4101,16 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         p_weights = ensemble_df_merged['portfolio_weight'] if 'portfolio_weight' in ensemble_df_merged.columns else pd.Series(0.05, index=ensemble_df_merged.index)
         weight_dict = dict(zip(ensemble_df_merged['symbol'], p_weights))
         curr_holdings = oms_engine.get_current_holdings_from_db()
+
+        # UnifiedPortfolioAllocator already performed Leland dynamic buffer bands on target weights.
+        # If unified allocator succeeded, use_leland_buffer=False prevents redundant double-buffering.
+        _applied_leland_in_alloc = ('unified_alloc_df' in locals() and not unified_alloc_df.empty)
         order_plans = oms_engine.generate_order_plan(
             top_picks_dicts, weight_dict,
             total_capital=cfg.portfolio_capital_krw,
             crisis_level=_crisis_lvl_str,
             current_holdings=curr_holdings,
-            use_leland_buffer=True
+            use_leland_buffer=(not _applied_leland_in_alloc)
         )
         logger.info(f"[OMS ENGINE] Generated & saved {len(order_plans)} order execution plans to trade_logs.db (crisis_level={_crisis_lvl_str}, current_holdings={len(curr_holdings)})")
     except Exception as _oms_e:

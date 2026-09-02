@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **34대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D/Dual 시장 레짐 기반 앙상블, 포트폴리오 최적화, 자율 주문 실행(OMS)을 수행합니다:
+통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D/Dual 시장 레짐 기반 앙상블, 포트폴리오 최적화, 자율 주문 실행(OMS)을 수행합니다:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -40,6 +40,9 @@
 | **32** | Cross-Asset Spillover Momentum | 업종별 거시지표(SOX/FX/WTI/TNX/VIX/Gold/DXY/SP500) 탄력도 벡터 기반 글로벌 매크로 임펄스 & 주가 미가격 리드-래그 파급 | `cross_asset_spillover_predictions.txt` |
 | **33** | Supply Chain GNN | 글로벌 밸류체인 2-hop 그래프 메시지 패싱 + 불위그 쇼크 비선형 증폭 & 업종 플로우 유동성 모멘텀 | `supply_chain_gnn_predictions.txt` |
 | **34** | Range Expansion Breakout | 변동성 압축(NR7/볼린저 스퀴즈/Inside Day) 후 REF≥1.5 폭발적 레인지 확장 + RVOL≥1.8 거래량 서지 + CLV≥0.65 | `range_expansion_predictions.txt` |
+| **35** | Dual Correction | 피보나치(38.2%/50%/61.8%) 및 앵커드 VWAP 가격 조정 + 거래량 고갈 정밀 눌림목 반등 | `dual_correction_predictions.txt` |
+| **36** | Index Rebalance Structural Flow | KOSPI200/MSCI 패시브 ETF 40조 수급 리밸런싱 15~30일 선반영 패시브 추종 차익 | `index_rebalance_predictions.txt` |
+| **37** | Overnight Gap Reversal | 개장가-전일종가 갭 정규화(ATR) 기반 통계적 갭 메우기(Gap Fill) 및 오버익스텐션 반전 | `overnight_gap_predictions.txt` |
 
 ## Pipeline
 

@@ -238,31 +238,26 @@ def calculate_black_litterman_weights(
 
         # Convert annualized risk-free rate to daily equivalent if in annual scale (> 0.005)
         rf_daily = (1.0 + risk_free_rate) ** (1.0 / 252.0) - 1.0 if risk_free_rate > 0.005 else risk_free_rate
-        all_negative_excess = bool(np.max(mu_bl) <= rf_daily)
         lambda_aversion = max(0.1, float(risk_aversion))
+
+        # Smooth strictly convex Markowitz-Black-Litterman Quadratic Utility:
+        # min_w 0.5 * lambda * w^T Sigma_BL w - w^T (mu_BL - rf)
+        # Guarantees C-infinity smoothness and 100% SLSQP convergence without jump discontinuities.
+        excess_mu = mu_bl - rf_daily
 
         def objective(w):
             w = np.asarray(w)
-            port_ret = float(w @ mu_bl)
-            port_var = float(w @ cov_bl @ w)
-            port_vol = float(np.sqrt(max(1e-8, port_var)))
+            return 0.5 * lambda_aversion * float(w @ cov_bl @ w) - float(w @ excess_mu)
 
-            if all_negative_excess:
-                # Quadratic utility maximization: max (w^T mu - 0.5 * lambda * w^T Sigma w)
-                return - (port_ret - 0.5 * lambda_aversion * port_var)
-            else:
-                # Maximize Sharpe ratio with smooth quadratic penalty if below r_f
-                excess = port_ret - rf_daily
-                if excess > 0:
-                    return - (excess / port_vol)
-                else:
-                    return 0.5 * lambda_aversion * port_var - (excess / port_vol)
+        def objective_grad(w):
+            w = np.asarray(w)
+            return lambda_aversion * (cov_bl @ w) - excess_mu
 
         w0 = np.full(n, 1.0 / n)
         cons = {"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)}
         bounds = [(0.0, 1.0) for _ in range(n)]
 
-        res = minimize(objective, w0, method="SLSQP", bounds=bounds, constraints=cons)
+        res = minimize(objective, w0, method="SLSQP", jac=objective_grad, bounds=bounds, constraints=cons)
         if res.success:
             weights = np.asarray(res.x)
             # Normalize to sum to exactly 1.0 and clip

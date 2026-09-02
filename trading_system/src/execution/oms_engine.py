@@ -65,10 +65,10 @@ class ExecutionOMSEngine:
     Order Management & Execution Engine for Stock Trading System.
     Generates actionable trade execution plans and monitors slippage and tracking error.
     """
-    def __init__(self, db_path: str = "trade_logs.db", lot_size_krx: int = 10, config: Optional[Any] = None):
+    def __init__(self, db_path: str = "trade_logs.db", lot_size_krx: int = 1, config: Optional[Any] = None):
         self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
         self.config = config
-        self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 10
+        self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 1
         self._mem_conn = sqlite3.connect(":memory:") if self.db_path == ":memory:" else None
         self._init_db()
 
@@ -455,6 +455,11 @@ class ExecutionOMSEngine:
                 if close_price is None or close_price == "":
                     close_price = plan_price
                 if close_price is None or close_price == "":
+                    for alt_k in ["close", "price", "current_price"]:
+                        if pred.get(alt_k) not in (None, ""):
+                            close_price = pred.get(alt_k)
+                            break
+                if close_price is None or close_price == "":
                     continue
                 try:
                     f_price = float(close_price)
@@ -769,8 +774,8 @@ class ExecutionOMSEngine:
 
                         is_krx_hedge = str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() or str(h_sym).endswith((".KS", ".KQ"))
                         h_amount_local = h_amount if is_krx_hedge else (h_amount / fx_rate)
-                        raw_h_qty = int(h_amount_local // hedge_price) if hedge_price > 0 else 0
-                        h_quantity = (raw_h_qty // 10) * 10 if is_krx_hedge else raw_h_qty
+                        lot_h = getattr(self, 'lot_size_krx', 1) if is_krx_hedge else 1
+                        h_quantity = (raw_h_qty // lot_h) * lot_h
 
                         h_entry = {
                             "order_id": h_order_id,

@@ -77,7 +77,19 @@ class UnifiedPortfolioAllocator:
         """
         close_series = {}
         for sym in symbols:
-            p_df = prices_dict.get(sym)
+            candidates = [sym, str(sym).upper(), str(sym).lower()]
+            if str(sym).endswith(('.KS', '.KQ')):
+                candidates.append(str(sym).split('.')[0])
+            elif str(sym).isdigit():
+                candidates.extend([f"{sym}.KS", f"{sym}.KQ"])
+
+            p_df = None
+            if prices_dict and isinstance(prices_dict, dict):
+                for c_sym in candidates:
+                    if c_sym in prices_dict:
+                        p_df = prices_dict[c_sym]
+                        break
+
             if p_df is not None and not p_df.empty:
                 c_col = "Close" if "Close" in p_df.columns else ("close" if "close" in p_df.columns else None)
                 if c_col:
@@ -412,21 +424,36 @@ class UnifiedPortfolioAllocator:
         sec_map = sector_map or {}
         sectors = [sec_map.get(s, "General") for s in valid_symbols]
 
-        # Extract ADVs if available
+        # Extract ADVs (trading turnover in currency) if available
         advs = None
-        for adv_col in ["adv", "trading_value", "volume"]:
-            if adv_col in df_candidates.columns:
-                advs = df_candidates[adv_col].values.astype(float)
-                break
+        if "adv" in df_candidates.columns:
+            advs = df_candidates["adv"].values.astype(float)
+        elif "trading_value" in df_candidates.columns:
+            advs = df_candidates["trading_value"].values.astype(float)
+        elif "volume" in df_candidates.columns:
+            px = df_candidates["close"].values.astype(float) if "close" in df_candidates.columns else np.ones(len(df_candidates))
+            advs = df_candidates["volume"].values.astype(float) * px
 
-        # Extract current weights from current_holdings
+        # Extract current weights from current_holdings (supports float weight map or dict holding details)
         current_weights = np.zeros(len(valid_symbols))
         if current_holdings and total_portfolio_value > 0:
             for i, sym in enumerate(valid_symbols):
-                h = current_holdings.get(sym, {})
-                qty = float(h.get("quantity", 0.0))
-                p = float(h.get("current_price", h.get("entry_price", 0.0)))
-                current_weights[i] = (qty * p) / total_portfolio_value
+                sym_str = str(sym)
+                base_sym = sym_str.split('.')[0]
+                candidates = [sym_str, sym, base_sym, f"{base_sym}.KS", f"{base_sym}.KQ"]
+                h = None
+                for c_k in candidates:
+                    if c_k in current_holdings:
+                        h = current_holdings[c_k]
+                        break
+
+                if h is not None:
+                    if isinstance(h, (int, float)):
+                        current_weights[i] = float(h)
+                    elif isinstance(h, dict):
+                        qty = float(h.get("quantity", 0.0))
+                        p = float(h.get("current_price", h.get("entry_price", 0.0)))
+                        current_weights[i] = (qty * p) / total_portfolio_value
 
         # Step 1: Multi-Model Regime-Adaptive Blending
         w_opt = self.optimize_multi_model_blend(
@@ -464,14 +491,14 @@ class UnifiedPortfolioAllocator:
         df_candidates["predicted_return"] = pred_rets
         df_candidates["allocation_amount"] = w_final * total_portfolio_value
 
-        # Lot size resolution (KRX: 10 shares, TSE/HKEX: 100 shares, US: 1 share)
+        # Lot size resolution (KRX: 1 share since 2014, TSE/HKEX/HOSE: 100 shares, US: 1 share)
         shares_list = []
         lot_list = []
         for i, row in enumerate(df_candidates.itertuples()):
             sym = str(row.symbol)
             mkt = str(getattr(row, "market", "KOSPI")).upper()
             is_krx = sym.isdigit() or mkt in ["KOSPI", "KOSDAQ", "KRX"]
-            lot = 10 if is_krx else (100 if mkt in ["JAPAN_TSE", "HKEX"] else 1)
+            lot = 1 if is_krx else (100 if mkt in ["JAPAN_TSE", "HKEX", "VIETNAM_HOSE"] else 1)
             px = latest_prices[i]
             alloc_amt = row.allocation_amount
             raw_shares = int(alloc_amt // px) if px > 0 else 0
