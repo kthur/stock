@@ -1238,9 +1238,10 @@ class PortfolioAllocator:
         delta_raw = np.cbrt(cubic_term)
         if np.isnan(delta_raw) or np.isinf(delta_raw):
             return self.delta_floor
-        effective_cap = min(self.delta_cap, max(self.delta_floor, target_weight * 0.35))
-        delta_res = float(min(max(delta_raw, self.delta_floor), effective_cap))
-        return delta_res if np.isfinite(delta_res) else self.delta_floor
+        effective_floor = min(self.delta_floor, max(0.0005, target_weight * 0.20))
+        effective_cap = min(self.delta_cap, max(effective_floor, target_weight * 0.35))
+        delta_res = float(min(max(delta_raw, effective_floor), effective_cap))
+        return delta_res if np.isfinite(delta_res) else effective_floor
 
     def compute_portfolio_rebalance(
         self,

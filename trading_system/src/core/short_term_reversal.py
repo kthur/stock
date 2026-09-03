@@ -133,14 +133,26 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         else:
             vol_surge = pd.Series(False, index=close_2d.columns)
 
-        # Multi-Tier Reversal Ignition & Turnaround Confirmation
+        # Multi-Tier Reversal Catalyst: Rewards smart-money accumulation at panic exhaustion
+        # and confirmed volume absorption, eliminating late chasing penalty (+2% after-the-fact bounce).
+        panic_exhaustion = (consec >= 3.0) & (ret_5d <= -0.08) & (dist_lower_band < -0.01)
+        absorption_turnaround = (consec_prior >= 2.0) & (ret_1d > -0.005) & vol_surge
+
         bounce_bonus = np.where(
-            (consec_prior >= 3.0) & (ret_1d >= 0.02) & vol_surge,
-            0.42,  # Super Reversal Turnaround: Severe oversold streak + strong green impulse + volume surge
+            panic_exhaustion & vol_surge,
+            0.38,  # Peak panic selling absorbed by surge volume (smart money contrarian entry)
             np.where(
-                (consec_prior >= 2.0) & (ret_1d > 0.0),
-                np.where(vol_surge, 0.30, 0.18),
-                0.0
+                absorption_turnaround,
+                0.28,  # Selling momentum halted with volume absorption
+                np.where(
+                    panic_exhaustion,
+                    0.20,  # Deep oversold exhaustion baseline
+                    np.where(
+                        (consec_prior >= 2.0) & (ret_1d > 0.0),
+                        0.15,
+                        0.0
+                    )
+                )
             )
         )
 

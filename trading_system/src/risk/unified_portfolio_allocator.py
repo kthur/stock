@@ -120,8 +120,51 @@ class UnifiedPortfolioAllocator:
 
         prices_df = pd.DataFrame(close_series).ffill()
         valid_symbols = [s for s in symbols if s in prices_df.columns]
-        returns_df = prices_df[valid_symbols].pct_change().dropna(how="all").fillna(0.0)
         return returns_df, valid_symbols
+
+    @staticmethod
+    def compute_hybrid_ewma_covariance(
+        returns_df: pd.DataFrame,
+        halflife: int = 15,
+        lw_weight: float = 0.40
+    ) -> np.ndarray:
+        """
+        Computes hybrid covariance matrix: (1 - lw_weight) * EWMA + lw_weight * Ledoit-Wolf Shrinkage.
+        Captures fast volatility/correlation spikes without lagging 60 days, while maintaining
+        positive-definiteness and well-conditioned numerical stability.
+        """
+        clean_df = returns_df.fillna(0.0)
+        T, n = clean_df.shape
+        if T <= 2 or n <= 1:
+            cov_val = clean_df.cov().fillna(0.0).values if n > 0 else np.eye(max(n, 1))
+            return shrink_covariance_matrix(cov_val, n_samples=max(T, 1))
+
+        # EWMA weights with exponential decay
+        alpha = 1.0 - np.exp(-np.log(2.0) / max(halflife, 2))
+        weights = (1.0 - alpha) ** np.arange(T - 1, -1, -1)
+        w_sum = weights.sum()
+        if w_sum > 0:
+            weights /= w_sum
+        else:
+            weights = np.full(T, 1.0 / T)
+
+        vals = clean_df.values  # T x n
+        mean_w = np.sum(vals * weights[:, None], axis=0)
+        demeaned = vals - mean_w
+        ewma_cov = (demeaned.T * weights) @ demeaned
+
+        # Ledoit-Wolf Shrunk sample cov
+        sample_cov = clean_df.cov().fillna(0.0).values
+        shrunk_cov = shrink_covariance_matrix(sample_cov, n_samples=T)
+
+        # Hybrid blend
+        hybrid_cov = (1.0 - lw_weight) * ewma_cov + lw_weight * shrunk_cov
+        # Symmetrize and ensure diagonal positivity
+        hybrid_cov = 0.5 * (hybrid_cov + hybrid_cov.T)
+        min_diag = np.min(np.diag(hybrid_cov))
+        if min_diag <= 0:
+            hybrid_cov += (abs(min_diag) + 1e-6) * np.eye(n)
+        return hybrid_cov
 
     def calculate_cvar_weights(
         self,
@@ -537,13 +580,9 @@ class UnifiedPortfolioAllocator:
         valid_symbols = [str(s) for s in df_candidates["symbol"].tolist()]
         returns_df = returns_df[valid_symbols]
 
-        # Calculate shrunk covariance matrix from true pairwise returns
-        cov_df = returns_df.cov()
-        if cov_df.shape == (len(valid_symbols), len(valid_symbols)) and not cov_df.isna().all().all():
-            sample_cov = cov_df.fillna(0.0).values
-        else:
-            sample_cov = np.cov(returns_df.fillna(0.0).values, rowvar=False)
-        cov_matrix = shrink_covariance_matrix(sample_cov, n_samples=len(returns_df))
+        # Calculate hybrid EWMA (half-life 15d) + Ledoit-Wolf shrunk covariance matrix
+        # Captures fast-moving volatility/correlation spikes without 60-day lag
+        cov_matrix = self.compute_hybrid_ewma_covariance(returns_df, halflife=15, lw_weight=0.40)
 
         # Extract expected returns vector (C-01 fix: scale alignment between percentage and decimal)
         if score_col:

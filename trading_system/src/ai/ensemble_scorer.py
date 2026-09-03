@@ -3046,9 +3046,18 @@ class EnsembleScoringEngine:
 
         # Brokerage fee is charged round-trip (both buy and sell legs)
         raw_total_cost = stt_tax + (2.0 * brokerage_fee) + (1.0 * clamped_spread) + (2.0 * impact_one_way)
-        cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
+        mkt_scaling_map = getattr(self, 'market_cost_scaling_map', None)
+        if mkt_scaling_map and isinstance(mkt_scaling_map, dict):
+            mkt_scaling_vec = np.ones(len(merged), dtype=float)
+            for mkt_name, sc_val in mkt_scaling_map.items():
+                if np.isfinite(sc_val) and sc_val > 0:
+                    m_mask = mkt_col.str.upper().str.contains(str(mkt_name).upper())
+                    mkt_scaling_vec[m_mask] = float(sc_val)
+            eff_scaling = mkt_scaling_vec
+        else:
+            eff_scaling = float(getattr(self, 'cost_scaling_factor', 1.0))
         max_cost_cap = np.where(ov_mask, 0.20, 0.05)
-        cost_series = np.minimum(raw_total_cost * cost_scaling, max_cost_cap)
+        cost_series = np.minimum(raw_total_cost * eff_scaling, max_cost_cap)
         # Fixed roundtrip friction cost (V7-01: Remove artificial 4.47x multiplier on short-horizon trades)
         # Leland buffer bands and turnover manager protect against excessive churn
         friction_cost_pct = cost_series * 100.0

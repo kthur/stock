@@ -30,6 +30,15 @@ class SlippageMetrics:
             "RUSSELL2000": 7.0,
         }
     )
+    market_cost_scaling_map: Dict[str, float] = field(
+        default_factory=lambda: {
+            "KOSPI": 1.0,
+            "KOSDAQ": 1.0,
+            "SP500": 1.0,
+            "NASDAQ": 1.0,
+            "RUSSELL2000": 1.0,
+        }
+    )
     total_trades: int = 0
     mean_slippage_bps: float = 5.0
     max_slippage_bps: float = 15.0
@@ -236,14 +245,24 @@ class SlippageFeedbackEngine:
             alpha = 0.50
 
             final_mkt_map = {}
+            final_mkt_scaling = {}
+            baseline_defaults = {"KOSPI": 5.0, "KOSDAQ": 8.0, "SP500": 3.0, "NASDAQ": 4.0, "RUSSELL2000": 7.0}
             for mkt, val_list in mkt_slippage.items():
+                base_bps = baseline_defaults.get(mkt, self.default_slippage_bps)
                 v_finite = [v for v in val_list if math.isfinite(v)]
                 if v_finite:
                     m_val = float(np.mean(v_finite))
-                    final_mkt_map[mkt] = float(np.clip(m_val, 0.1, 100.0)) if math.isfinite(m_val) else self.default_slippage_bps
+                    final_mkt_map[mkt] = float(np.clip(m_val, 0.1, 100.0)) if math.isfinite(m_val) else base_bps
+                    final_mkt_scaling[mkt] = float(np.clip(m_val / max(base_bps, 0.1), 0.5, 4.0))
                 else:
-                    baseline_defaults = {"KOSPI": 5.0, "KOSDAQ": 8.0, "SP500": 3.0, "NASDAQ": 4.0, "RUSSELL2000": 7.0}
-                    final_mkt_map[mkt] = baseline_defaults.get(mkt, self.default_slippage_bps)
+                    final_mkt_map[mkt] = base_bps
+                    final_mkt_scaling[mkt] = 1.0
+
+            for mkt, base_bps in baseline_defaults.items():
+                if mkt not in final_mkt_map:
+                    final_mkt_map[mkt] = base_bps
+                if mkt not in final_mkt_scaling:
+                    final_mkt_scaling[mkt] = 1.0
 
             return SlippageMetrics(
                 avg_slippage_bps=avg_slip,
@@ -251,6 +270,7 @@ class SlippageFeedbackEngine:
                 sample_count=len(valid_slippages),
                 cost_scaling_factor=scaling,
                 market_slippage_map=final_mkt_map,
+                market_cost_scaling_map=final_mkt_scaling,
                 total_trades=len(valid_slippages),
                 mean_slippage_bps=avg_slip,
                 max_slippage_bps=max_slip,

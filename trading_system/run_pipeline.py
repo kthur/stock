@@ -3730,11 +3730,19 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         crisis_detector.save_state()
         logger.info(f"[RISK MANAGER] Current Market Crisis Level evaluated: {crisis_lvl.value}")
         if crisis_lvl in [CrisisLevel.SEVERE, CrisisLevel.ACTIVE]:
-            logger.warning(f"[RISK MANAGER] Crisis Level {crisis_lvl.value} active! Scaling down ensemble expected returns.")
-            scale_factor = 0.5 if crisis_lvl == CrisisLevel.ACTIVE else 0.0
-            ensemble_df['ensemble_expected_return'] = ensemble_df['ensemble_expected_return'] * scale_factor
-            if crisis_lvl == CrisisLevel.SEVERE:
-                ensemble_df['ensemble_score'] = 0.0
+            logger.warning(f"[RISK MANAGER] Crisis Level {crisis_lvl.value} active! Applying continuous crisis dampening.")
+            scale_factor = 0.50 if crisis_lvl == CrisisLevel.ACTIVE else 0.15
+            reversal_cols = [c for c in ['short_term_reversal', 'oversold_bounce', 'stat_arb'] if c in ensemble_df.columns]
+            if reversal_cols:
+                reversal_mask = (ensemble_df[reversal_cols] > 0.65).any(axis=1)
+                ensemble_df.loc[~reversal_mask, 'ensemble_expected_return'] *= scale_factor
+                ensemble_df.loc[reversal_mask, 'ensemble_expected_return'] *= max(scale_factor, 0.50)
+                if crisis_lvl == CrisisLevel.SEVERE:
+                    ensemble_df.loc[~reversal_mask, 'ensemble_score'] *= 0.10
+            else:
+                ensemble_df['ensemble_expected_return'] *= scale_factor
+                if crisis_lvl == CrisisLevel.SEVERE:
+                    ensemble_df['ensemble_score'] *= 0.10
 
         # Intraday Microstructure Risk Evaluation
         if 'infer_data_dict' in locals() and infer_data_dict:

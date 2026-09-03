@@ -1801,21 +1801,42 @@ class OnDevicePredictionModel:
                     fold_ic_xgb.append(_calc_rank_ic(y_va_clean, pred_xgb_clean))
 
                     # LightGBM fold
-                    _m_lgb = lgb.LGBMRegressor(**kw_lgb)
-                    try:
-                        _m_lgb.fit(X_tr, y_tr,
-                                   sample_weight=sample_weights_tr,
-                                   eval_set=[(X_va, y_va)],
-                                   callbacks=[lgb.early_stopping(50, verbose=False)])
-                        if hasattr(_m_lgb, 'best_iteration_') and _m_lgb.best_iteration_ is not None:
-                            best_iters_lgb.append(_m_lgb.best_iteration_)
-                    except Exception as ex:
-                        if _is_gpu_error(ex):
-                            kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
-                            _m_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
-                            _m_lgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
-                        else:
-                            _m_lgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
+                    if getattr(self, '_ranking_mode', False) and 'date' in df_h.columns:
+                        try:
+                            kw_lgb_rank = {k: v for k, v in kw_lgb.items() if k not in ('objective', 'metric')}
+                            kw_lgb_rank['objective'] = 'lambdarank'
+                            _m_lgb = lgb.LGBMRanker(**kw_lgb_rank)
+                            _m_lgb.fit(
+                                X_tr, y_tr,
+                                group=tr_groups,
+                                eval_set=[(X_va, y_va)],
+                                eval_group=[va_groups],
+                                callbacks=[lgb.early_stopping(50, verbose=False)]
+                            )
+                            if hasattr(_m_lgb, 'best_iteration_') and _m_lgb.best_iteration_ is not None:
+                                best_iters_lgb.append(_m_lgb.best_iteration_)
+                        except Exception as lgb_rank_ex:
+                            logger.debug(f"LGBMRanker fold failed ({lgb_rank_ex}), falling back to LGBMRegressor")
+                            _m_lgb = lgb.LGBMRegressor(**kw_lgb)
+                            _m_lgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr, eval_set=[(X_va, y_va)], callbacks=[lgb.early_stopping(50, verbose=False)])
+                            if hasattr(_m_lgb, 'best_iteration_') and _m_lgb.best_iteration_ is not None:
+                                best_iters_lgb.append(_m_lgb.best_iteration_)
+                    else:
+                        _m_lgb = lgb.LGBMRegressor(**kw_lgb)
+                        try:
+                            _m_lgb.fit(X_tr, y_tr,
+                                       sample_weight=sample_weights_tr,
+                                       eval_set=[(X_va, y_va)],
+                                       callbacks=[lgb.early_stopping(50, verbose=False)])
+                            if hasattr(_m_lgb, 'best_iteration_') and _m_lgb.best_iteration_ is not None:
+                                best_iters_lgb.append(_m_lgb.best_iteration_)
+                        except Exception as ex:
+                            if _is_gpu_error(ex):
+                                kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
+                                _m_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
+                                _m_lgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
+                            else:
+                                _m_lgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
                     pred_lgb_clean = np.nan_to_num(_m_lgb.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
                     fold_mse_lgb.append(float(mean_squared_error(y_va_clean, pred_lgb_clean)))
                     fold_ic_lgb.append(_calc_rank_ic(y_va_clean, pred_lgb_clean))
@@ -1904,16 +1925,27 @@ class OnDevicePredictionModel:
             kw_lgb_final = {k: v for k, v in kw_lgb.items() if k != 'device_type'} if self._has_gpu else dict(kw_lgb)
             if best_iters_lgb:
                 kw_lgb_final['n_estimators'] = max(30, int(np.median(best_iters_lgb) * 1.15))
-            model_lgb = lgb.LGBMRegressor(**kw_lgb_final)
-            try:
-                model_lgb.fit(X_all, y_all)
-            except Exception as ex:
-                if _is_gpu_error(ex):
-                    kw_lgb_cpu = {k: v for k, v in kw_lgb_final.items() if k != 'device_type'}
-                    model_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
+            if getattr(self, '_ranking_mode', False) and 'date' in df_h.columns:
+                try:
+                    kw_lgb_final_rank = {k: v for k, v in kw_lgb_final.items() if k not in ('objective', 'metric')}
+                    kw_lgb_final_rank['objective'] = 'lambdarank'
+                    model_lgb = lgb.LGBMRanker(**kw_lgb_final_rank)
+                    model_lgb.fit(X_all, y_all, group=all_groups)
+                except Exception as lgb_rank_ex:
+                    logger.debug(f"Final LGBMRanker retraining fallback to LGBMRegressor: {lgb_rank_ex}")
+                    model_lgb = lgb.LGBMRegressor(**kw_lgb_final)
                     model_lgb.fit(X_all, y_all)
-                else:
-                    raise ex
+            else:
+                model_lgb = lgb.LGBMRegressor(**kw_lgb_final)
+                try:
+                    model_lgb.fit(X_all, y_all)
+                except Exception as ex:
+                    if _is_gpu_error(ex):
+                        kw_lgb_cpu = {k: v for k, v in kw_lgb_final.items() if k != 'device_type'}
+                        model_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
+                        model_lgb.fit(X_all, y_all)
+                    else:
+                        raise ex
             self.lgb_models[market][h] = model_lgb
 
             kw_cat_final = dict(kw_cat)
