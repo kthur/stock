@@ -341,12 +341,15 @@ class RIMValuationEngine(BaseStrategyEngine):
             if current_bps <= 0.0:
                 excess_income = 0.0
                 current_bps = 0.0
+                current_roe = r_e
             else:
                 net_income = current_bps * current_roe
                 excess_income = current_bps * (current_roe - r_e)
                 # BPS grows by retained positive net income (or decreases by net losses)
                 retention = self.retention_ratio if net_income > 0 else 1.0
                 current_bps += net_income * retention
+                # V8 Fix: Decay ROE toward required return on equity (r_e)
+                current_roe = r_e + (current_roe - r_e) * (1.0 - eff_decay)
             pv_excess += excess_income / ((1.0 + r_e) ** t)
         # Ohlson (1995) Terminal Residual Income Persistence Annuity beyond Horizon T
         omega = 1.0 - eff_decay

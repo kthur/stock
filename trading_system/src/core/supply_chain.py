@@ -245,12 +245,23 @@ class SupplyChainEngine(BaseStrategyEngine):
             return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
 
         # Compute 1D, 3D, and 5D returns for all symbols
-        # Timezone-aware approach: ffill() propagates latest valid prices rather than hardcoded shifting,
-        # naturally aligning US (T-1 or T) to KR (T) depending on run time.
-        close_pivot_filled = close_pivot.ffill()
-        returns_1d = close_pivot_filled.pct_change(1).iloc[-1] if len(close_pivot_filled) >= 2 else pd.Series(dtype=float)
-        returns_3d = close_pivot_filled.pct_change(3).iloc[-1] if len(close_pivot_filled) >= 4 else pd.Series(dtype=float)
-        returns_5d = close_pivot_filled.pct_change(5).iloc[-1] if len(close_pivot_filled) >= 6 else pd.Series(dtype=float)
+        # V8-HIGH-02 Fix: Compute returns per column on its own valid trading days
+        # to prevent US stocks ending at T-1 from producing 0.0 return when ffilled to KRX date T.
+        r1_dict = {}
+        r3_dict = {}
+        r5_dict = {}
+        for col in close_pivot.columns:
+            s_clean = close_pivot[col].dropna()
+            if len(s_clean) >= 2:
+                r1_dict[col] = float(s_clean.iloc[-1] / s_clean.iloc[-2] - 1.0)
+            if len(s_clean) >= 4:
+                r3_dict[col] = float(s_clean.iloc[-1] / s_clean.iloc[-4] - 1.0)
+            if len(s_clean) >= 6:
+                r5_dict[col] = float(s_clean.iloc[-1] / s_clean.iloc[-6] - 1.0)
+
+        returns_1d = pd.Series(r1_dict)
+        returns_3d = pd.Series(r3_dict)
+        returns_5d = pd.Series(r5_dict)
 
         def clean_sym(s: str) -> str:
             raw = s.split(".")[0].strip()

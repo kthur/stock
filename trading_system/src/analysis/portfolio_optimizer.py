@@ -152,6 +152,8 @@ def calculate_black_litterman_weights(
     symbols: Optional[list] = None,
     sectors: Optional[list] = None,
     regime: Optional[Any] = None,
+    view_horizon: int = 20,
+    returns_are_percentage: Optional[bool] = None,
 ) -> np.ndarray:
     """
     Computes optimal portfolio weights using the Black-Litterman model.
@@ -208,9 +210,21 @@ def calculate_black_litterman_weights(
         if len(Q) != n:
             logger.warning("Length of predicted_returns does not match cov_matrix. Using flat returns.")
             Q = np.zeros(n)
-        # Normalize units: if Q is in percentage (> 0.5 mean), scale to decimal matching Pi
-        if np.nanmean(np.abs(Q)) > 0.50:
-            Q = Q / 100.0
+
+        # V8-CRIT-02 Fix: Dynamic scale auto-detection & decimal alignment
+        if returns_are_percentage is True:
+            Q_decimal = Q / 100.0
+        elif returns_are_percentage is False:
+            Q_decimal = Q.copy()
+        else:
+            if np.any(np.abs(Q) >= 1.0):
+                Q_decimal = Q / 100.0
+            else:
+                Q_decimal = Q.copy()
+
+        # Convert cumulative horizon return to daily equivalent to match daily cov_matrix
+        eff_horizon = max(int(view_horizon), 1)
+        Q_daily = Q_decimal / float(eff_horizon)
 
         # Uncertainty Omega (diagonal of covariance matrix scaled by dynamic meta conviction)
         if meta_convictions is not None and len(meta_convictions) == n:
@@ -224,8 +238,8 @@ def calculate_black_litterman_weights(
         # A = (tau * Sigma + Omega)
         A = tau * horizon_cov + Omega
 
-        # mu_bl = Pi + tau * Sigma @ (tau * Sigma + Omega)^-1 @ (Q - Pi)
-        inv_A_diff = np.linalg.solve(A, Q - Pi)
+        # mu_bl = Pi + tau * Sigma @ (tau * Sigma + Omega)^-1 @ (Q_daily - Pi)
+        inv_A_diff = np.linalg.solve(A, Q_daily - Pi)
         mu_bl = Pi + tau * (horizon_cov @ inv_A_diff)
 
         # Sigma_bl = (1 + tau) * Sigma - tau^2 * Sigma @ (tau * Sigma + Omega)^-1 @ Sigma
@@ -551,7 +565,9 @@ def calculate_herc_weights(
     sectors: Optional[list] = None,
     linkage_method: str = "ward",
     max_k: int = 5,
-    risk_measure: str = "volatility"
+    risk_measure: str = "volatility",
+    max_single_stock_weight: float = 0.20,
+    max_sector_weight: float = 0.35
 ) -> np.ndarray:
     """
     Computes Hierarchical Equal Risk Contribution (HERC) portfolio weights (Raffinot 2017, Lopez de Prado 2020).
@@ -631,8 +647,8 @@ def calculate_herc_weights(
                 herc_w,
                 symbols=symbols,
                 sectors=sectors,
-                max_single_stock_weight=0.20,
-                max_sector_weight=0.35
+                max_single_stock_weight=max_single_stock_weight,
+                max_sector_weight=max_sector_weight
             )
         return np.full(n, 1.0 / n)
     except Exception as e:

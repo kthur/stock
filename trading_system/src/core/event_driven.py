@@ -170,9 +170,14 @@ class EventDrivenEngine(BaseStrategyEngine):
         eff_filings = filings if filings is not None else self.fetch_recent_dart_filings()
 
         if filings is None:
-            for sym in symbols:
-                if not sym.isdigit() and not sym.endswith('.KS') and not sym.endswith('.KQ'):
+            us_syms = [s for s in symbols if not s.isdigit() and not s.endswith(('.KS', '.KQ'))]
+            # V8-MED-03 Fix: SEC EDGAR rate limit protection. Only query individually if target list is small (<= 25)
+            # to prevent hitting SEC's 10 req/s hard IP ban on full universe scans.
+            if len(us_syms) <= 25:
+                for sym in us_syms:
                     eff_filings.extend(self.fetch_recent_sec_filings(sym))
+            else:
+                logger.info(f"EventDrivenEngine: Skipping synchronous SEC Edgar per-symbol queries for {len(us_syms)} US symbols to prevent SEC IP ban. Provide pre-fetched filings.")
         if eff_filings:
             try:
                 from src.data_layer.dart_corp_mapper import DARTCorpMapper

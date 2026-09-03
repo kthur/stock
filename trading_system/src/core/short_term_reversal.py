@@ -84,8 +84,10 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         if not valid_cols:
             return pd.DataFrame(columns=['symbol', 'reversal_score'])
 
-        # Align all series on Date Index, sort chronologically, forward-fill missing dates, and take last 20 trading days
-        close_2d = pd.DataFrame(valid_cols).sort_index().ffill().tail(20)
+        # Align all series on Date Index, sort chronologically, forward-fill missing dates
+        # V8-MED-05 Fix: Keep up to 100 bars for accurate Wilder's RMA warmup while using tail(20) for short-term bands
+        close_full = pd.DataFrame(valid_cols).sort_index().ffill().tail(100)
+        close_2d = close_full.tail(20)
         if len(close_2d) < 6:
             return pd.DataFrame(columns=['symbol', 'reversal_score'])
         cur_price = close_2d.iloc[-1]
@@ -143,7 +145,8 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         )
 
         # Vectorized Dual-Horizon RSI (Fast RSI-5 + Standard RSI-14) with R7-8 Wilder's Exponential Smoothing
-        delta = close_2d.diff().iloc[1:]
+        # V8-MED-05 Fix: Calculated over close_full for sufficient warmup of Wilder's RMA
+        delta = close_full.diff().iloc[1:]
         gain = np.maximum(delta, 0.0)
         loss = np.maximum(-delta, 0.0)
         # Wilder's exponential moving average smoothing (alpha = 1/N)

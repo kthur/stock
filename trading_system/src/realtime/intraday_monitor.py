@@ -31,12 +31,16 @@ class WatchItem:
     expected_return: float = 0.0      # 일봉 ensemble 예상 수익률 (0.05 = +5%)
     ensemble_score: float = 0.0       # 일봉 ensemble 스코어
     name: str = ""
+    entry_score: float = 0.0          # 진입 시점 ensemble 스코어
+    current_score: float = 0.0        # 현재 시점 ensemble 스코어
+    days_held: int = 0                # 보유 거래일 수
+    sleeve_type: str = "CORE"         # FAST | CORE
 
 
 @dataclass
 class MonitorAction:
     symbol: str
-    action_type: str  # STOP_LOSS | TAKE_PROFIT | SIGNAL_DOWNGRADE | MACRO_ALERT | POSITION_OPEN
+    action_type: str  # STOP_LOSS | TAKE_PROFIT | SIGNAL_DOWNGRADE | MACRO_ALERT | POSITION_OPEN | ALPHA_DECAY_EXIT | TIME_STOP_EXIT
     reason: str
     price: float = 0.0
     drop_pct: float = 0.0
@@ -46,8 +50,10 @@ class MonitorAction:
     def __post_init__(self):
         if self.action_type in ("STOP_LOSS", "MACRO_ALERT"):
             self.severity = "CRITICAL"
-        elif self.action_type == "SIGNAL_DOWNGRADE":
+        elif self.action_type in ("SIGNAL_DOWNGRADE", "ALPHA_DECAY_EXIT"):
             self.severity = "WARN"
+        elif self.action_type == "TIME_STOP_EXIT":
+            self.severity = "INFO"
 
 
 class IntradayMonitor:
@@ -221,6 +227,35 @@ class IntradayMonitor:
                         reason=f"장중 {intraday_ret*100:.1f}% 하락 (시가 대비) — 매수 신호 다운그레이드",
                         price=qp, drop_pct=intraday_ret,
                     ))
+
+        # 5) 알파 감쇠 선제 청산 (Alpha Decay Soft Exit): 앙상블 스코어 급락 (-30% 이상)
+        if not state.stop_triggered and item.entry_price > 0 and item.position_qty > 0:
+            eff_entry_score = item.entry_score if item.entry_score > 0 else item.ensemble_score
+            if eff_entry_score > 0 and item.current_score > 0:
+                if item.current_score < eff_entry_score * 0.70:
+                    drop_pct = (qp - item.entry_price) / item.entry_price
+                    actions.append(MonitorAction(
+                        symbol=item.symbol, action_type="ALPHA_DECAY_EXIT",
+                        reason=f"알파 스코어 30% 이상 급락 ({eff_entry_score:.2f} -> {item.current_score:.2f}) — 선제적 Soft Exit",
+                        price=qp, drop_pct=drop_pct, severity="WARN"
+                    ))
+
+        # 6) 시간 손절 (Time-Stop Exit): 반감기 초과 유휴 자본 회수
+        if not state.stop_triggered and item.entry_price > 0 and item.position_qty > 0 and item.days_held > 0:
+            gain_pct = (qp - item.entry_price) / item.entry_price
+            is_fast = str(item.sleeve_type).upper().startswith("FAST")
+            if is_fast and item.days_held >= 5 and gain_pct < 0.03:
+                actions.append(MonitorAction(
+                    symbol=item.symbol, action_type="TIME_STOP_EXIT",
+                    reason=f"Fast 슬리브 5일 시간 손절 (수익률 {gain_pct*100:.1f}% 미달) — 기회비용 회수 청산",
+                    price=qp, drop_pct=gain_pct, severity="INFO"
+                ))
+            elif (not is_fast) and item.days_held >= 30 and gain_pct < 0.05:
+                actions.append(MonitorAction(
+                    symbol=item.symbol, action_type="TIME_STOP_EXIT",
+                    reason=f"Core 슬리브 30일 시간 손절 (수익률 {gain_pct*100:.1f}% 미달) — 기회비용 회수 청산",
+                    price=qp, drop_pct=gain_pct, severity="INFO"
+                ))
 
         state.updated_at = datetime.now().isoformat(timespec="seconds")
         if force_alert or actions or open_initialized:

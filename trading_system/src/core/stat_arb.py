@@ -745,7 +745,8 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         df = pd.DataFrame(symbol_scores)
         if not df.empty:
             s_series = pd.to_numeric(df['stat_arb_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
-            if len(df) > 1:
+            # V8-MED-06 Fix: Guard percentile rank booster with len(df) >= 20 to prevent 2-stock distortions
+            if len(df) >= 20:
                 ranks = s_series.rank(pct=True, ascending=True)
                 # Multi-Tier Stat-Arb Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
                 enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
@@ -789,6 +790,14 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             missing = [{"symbol": s, "stat_arb_score": 0.50, "long_only_mode": False} for s in all_syms if s not in existing_syms]
             if missing:
                 res = pd.concat([res, pd.DataFrame(missing)], ignore_index=True)
+
+            # V8-MED-06 Fix: Apply rank booster on full cross-section only when len(pairs) >= 20
+            if len(pairs) >= 20:
+                s_ser = pd.to_numeric(res['stat_arb_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
+                ranks = s_ser.rank(pct=True, ascending=True)
+                enhanced = np.where(ranks >= 0.95, (s_ser * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (s_ser * 1.10).clip(0.05, 0.98), s_ser))
+                res['stat_arb_score'] = pd.to_numeric(pd.Series(enhanced, index=res.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
             return res
 
         except Exception as e:

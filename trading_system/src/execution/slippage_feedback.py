@@ -34,6 +34,7 @@ class SlippageMetrics:
     mean_slippage_bps: float = 5.0
     max_slippage_bps: float = 15.0
     recommended_market_impact_multiplier: float = 1.0
+    bayesian_cost_scaling_factor: float = 1.0
 
 
 class SlippageFeedbackEngine:
@@ -64,7 +65,7 @@ class SlippageFeedbackEngine:
             safe_slip = 5.0
         self.default_slippage_bps = max(0.0, min(1000.0, safe_slip))
 
-    def calculate_realized_slippage(self, *args, **kwargs) -> SlippageMetrics:
+    def calculate_realized_slippage(self, *args, use_bayesian_shrinkage: bool = False, **kwargs) -> SlippageMetrics:
         """Reads trade_logs.db and returns realized slippage metrics in basis points (bps)."""
         if not Path(self.db_path).exists():
             return SlippageMetrics(
@@ -215,11 +216,21 @@ class SlippageFeedbackEngine:
             avg_slip = float(np.clip(avg_slip, -50.0, 100.0)) if (avg_slip is not None and math.isfinite(avg_slip)) else self.default_slippage_bps
             max_slip = float(np.clip(max_slip, -100.0, 500.0)) if (max_slip is not None and math.isfinite(max_slip)) else 15.0
 
-            # V7-22: Dynamic slippage scaling cap up to 8.0x for illiquid micro-cap protection
+            # V8-HIGH-04 Fix: Bayesian shrinkage for small sample counts (N < 10) to prevent 1-trade outlier explosion
             max_scale_cap = 8.0
-            scaling = float(np.clip(avg_slip / self.default_slippage_bps, 0.5, max_scale_cap)) if self.default_slippage_bps > 0 else 1.0
-            if not math.isfinite(scaling):
-                scaling = 1.0
+            raw_scaling = float(np.clip(avg_slip / self.default_slippage_bps, 0.5, max_scale_cap)) if self.default_slippage_bps > 0 else 1.0
+            if not math.isfinite(raw_scaling):
+                raw_scaling = 1.0
+
+            n_samples = len(valid_slippages)
+            prior_n = 10.0
+            bayesian_scaling = float(np.clip(
+                (n_samples / (n_samples + prior_n)) * raw_scaling + (prior_n / (n_samples + prior_n)) * 1.0,
+                0.5,
+                max_scale_cap
+            ))
+            scaling = bayesian_scaling if use_bayesian_shrinkage else raw_scaling
+
             # Square-root market impact power exponent alpha = 0.50 (Almgren-Chriss / Kyle standard)
             # Level scaling is handled via cost_scaling_factor to avoid double counting
             alpha = 0.50
@@ -243,7 +254,8 @@ class SlippageFeedbackEngine:
                 total_trades=len(valid_slippages),
                 mean_slippage_bps=avg_slip,
                 max_slippage_bps=max_slip,
-                recommended_market_impact_multiplier=scaling,
+                recommended_market_impact_multiplier=bayesian_scaling,
+                bayesian_cost_scaling_factor=bayesian_scaling,
             )
 
         except Exception as e:

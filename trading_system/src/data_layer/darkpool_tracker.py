@@ -71,6 +71,17 @@ class DarkPoolTrackerEngine:
         """Alias for compute_darkpool_scores."""
         return self.compute_darkpool_scores(symbols, prices_dict, darkpool_data_dict)
 
+    def compute_scores(
+        self,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        symbols: Optional[List[str]] = None,
+        darkpool_data_dict: Optional[Dict[str, Any]] = None,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """Pipeline standard adapter interface."""
+        sym_list = list(symbols) if symbols is not None else (list(prices_dict.keys()) if prices_dict else [])
+        return self.compute_darkpool_scores(sym_list, prices_dict, darkpool_data_dict)
+
     def compute_darkpool_scores(
         self,
         symbols: List[str],

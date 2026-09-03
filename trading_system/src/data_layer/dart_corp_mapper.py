@@ -69,8 +69,30 @@ class DARTCorpMapper:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _ensure_loaded(self):
-        """Load from cache; refresh from API if stale or missing."""
+    def _load_cache(self, allow_stale: bool = False) -> bool:
+        """Load the JSON cache if it exists and is not stale. Returns True on success."""
+        if not self.cache_path.exists():
+            return False
+        if not allow_stale:
+            mtime = datetime.fromtimestamp(self.cache_path.stat().st_mtime)
+            if datetime.now() - mtime > timedelta(days=_REFRESH_DAYS):
+                logger.info("DARTCorpMapper: cache is stale, will refresh.")
+                return False
+        try:
+            with self.cache_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            self._mapping = data.get("mapping", {})
+            logger.info(
+                f"DARTCorpMapper: loaded {len(self._mapping)} corp_codes from cache "
+                f"({self.cache_path.name}) [stale={allow_stale}]."
+            )
+            return bool(self._mapping)
+        except Exception as e:
+            logger.warning(f"DARTCorpMapper: failed to read cache: {e}")
+            return False
+
+    def ensure_loaded(self) -> None:
+        """Ensure the corp_code mapping is loaded into memory."""
         if self._loaded:
             return
         if self._load_cache():
@@ -80,32 +102,20 @@ class DARTCorpMapper:
         if self.api_key and self._download_and_build():
             self._loaded = True
         else:
-            logger.warning(
-                "DARTCorpMapper: no valid cache and no API key. "
-                "corp_code resolution will fail for all symbols."
-            )
-            self._loaded = True  # mark as loaded to avoid repeated retries
+            # V8-MED-02 Fix: Fall back to existing stale cache if download fails or API key is missing
+            if self.cache_path.exists() and self._load_cache(allow_stale=True):
+                logger.warning(
+                    f"DARTCorpMapper: download failed, preserved existing stale cache ({self.cache_path.name})"
+                )
+                self._loaded = True
+            else:
+                logger.warning(
+                    "DARTCorpMapper: no valid cache and no API key. "
+                    "corp_code resolution will fail for all symbols."
+                )
+                self._loaded = True  # mark as loaded to avoid repeated retries
 
-    def _load_cache(self) -> bool:
-        """Load the JSON cache if it exists and is not stale. Returns True on success."""
-        if not self.cache_path.exists():
-            return False
-        mtime = datetime.fromtimestamp(self.cache_path.stat().st_mtime)
-        if datetime.now() - mtime > timedelta(days=_REFRESH_DAYS):
-            logger.info("DARTCorpMapper: cache is stale, will refresh.")
-            return False
-        try:
-            with self.cache_path.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-            self._mapping = data.get("mapping", {})
-            logger.info(
-                f"DARTCorpMapper: loaded {len(self._mapping)} corp_codes from cache "
-                f"({self.cache_path.name})."
-            )
-            return True
-        except Exception as e:
-            logger.warning(f"DARTCorpMapper: failed to read cache: {e}")
-            return False
+    _ensure_loaded = ensure_loaded
 
     def _download_and_build(self) -> bool:
         """Download CORPCODE.xml ZIP from OpenDART, parse it, build and cache the mapping."""

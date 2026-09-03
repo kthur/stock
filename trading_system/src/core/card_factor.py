@@ -171,7 +171,7 @@ class CARDFactorEngine(BaseStrategyEngine):
                                 import statsmodels.api as sm
                                 X = sm.add_constant(df_ols[['FX', 'WTI', 'VIX']])
                                 model = sm.OLS(df_ols['R'], X).fit()
-                                macro_impact = (model.params.get('FX', 0.0) * usdkrw_chg + model.params.get('WTI', 0.0) * wti_chg - model.params.get('VIX', 0.0) * vix_pct_shock)
+                                macro_impact = (model.params.get('FX', 0.0) * usdkrw_chg + model.params.get('WTI', 0.0) * wti_chg + model.params.get('VIX', 0.0) * vix_pct_shock)
                     except Exception:
                         pass
 

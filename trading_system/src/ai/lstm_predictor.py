@@ -100,18 +100,14 @@ class LSTMPredictor:
                 else:
                     continue
 
-            # Per-stock normalization
-            normed_feats = []
-            for f in avail_features:
-                vals = group_sorted[f].fillna(0.0).values
-                std = np.std(vals)
-                if std > 1e-6:
-                    vals = (vals - np.mean(vals)) / std
-                else:
-                    vals = vals - np.mean(vals)
-                normed_feats.append(vals)
-
-            stacked_feats = np.column_stack(normed_feats)
+            # V8-CRIT-03 Fix: Causal Expanding & Rolling Normalization without lookahead (.bfill completely eliminated)
+            # Normalized strictly causally using expanding window (min_periods=1, shift(1))
+            # For days >= 60, rolling 60-day window takes over, shifted by 1 to maintain point-in-time validity
+            feat_df = group_sorted[avail_features].fillna(0.0)
+            r_mean = feat_df.rolling(window=60, min_periods=1).mean().shift(1).fillna(0.0)
+            r_std = feat_df.rolling(window=60, min_periods=1).std().shift(1).fillna(1.0).replace(0.0, 1.0)
+            norm_df = ((feat_df - r_mean) / r_std).fillna(0.0)
+            stacked_feats = norm_df.values
 
             if target_col in group_sorted.columns:
                 from src.ai.target_transform import transform_sharpe

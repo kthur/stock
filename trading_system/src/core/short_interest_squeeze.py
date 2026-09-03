@@ -96,31 +96,9 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                         if len(c_series) >= 6:
                             ret_5d = (c_series.iloc[-1] / c_series.iloc[-6]) - 1.0
 
-            # Fallback estimation if explicit short data is unavailable:
-            # High volume surge + oversold bounce as proxy short squeeze signal
+            # V8-HIGH-12 Fix: Return NaN when explicit short interest/DTC is unavailable
+            # to allow ensemble missingness renormalization without corrupting cross-sectional ranks.
             if pd.isna(short_ratio) or pd.isna(dtc):
-                if prices_dict and (sym_str in prices_dict or sym in prices_dict):
-                    p_df = prices_dict.get(sym_str, prices_dict.get(sym))
-                    if isinstance(p_df, pd.DataFrame) and len(p_df) >= 20:
-                        vol_col = 'volume' if 'volume' in p_df.columns else 'Volume'
-                        close_col = 'close' if 'close' in p_df.columns else 'Close'
-                        if vol_col in p_df.columns and close_col in p_df.columns:
-                            v_series = p_df[vol_col].dropna()
-                            c_series = p_df[close_col].dropna()
-                            if len(v_series) >= 20 and len(c_series) >= 20:
-                                vol_surge = v_series.iloc[-1] / (v_series.iloc[-20:-1].mean() + 1e-5)
-                                vol_surge = float(np.clip(vol_surge, 0.0, 5.0)) if np.isfinite(vol_surge) else 1.0
-                                ret_20d = float((c_series.iloc[-1] / c_series.iloc[-20]) - 1.0) if len(c_series) >= 20 and c_series.iloc[-20] > 0 else 0.0
-                                ret_20d = ret_20d if np.isfinite(ret_20d) else 0.0
-                                # High volume surge + positive recent bounce = squeeze proxy (calibrated to [0.0, 0.50] scale)
-                                proxy_score = float(
-                                    0.15 * max(-0.2, min(0.5, ret_5d))
-                                    + 0.10 * (min(3.0, vol_surge) / 3.0)
-                                    + 0.10 * max(-0.2, min(0.5, ret_20d))
-                                    + 0.05
-                                )
-                                results[sym_str] = float(np.clip(proxy_score, 0.0, 1.0))
-                                continue
                 results[sym_str] = np.nan
             else:
                 # Formula: Short Interest Ratio * DTC * Momentum Condition

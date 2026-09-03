@@ -762,26 +762,56 @@ class ExecutionOMSEngine:
                 """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, exec_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, now_str))
 
             # Gate 8: Synthetic Beta Inverse Hedge Overlay (Bear / Crisis regime)
+            # V8-HIGH-03 Fix: Multi-market decomposed inverse hedging (KRX vs US independent hedges)
             if "BEAR" in str(regime_label).upper() or "CRISIS" in str(regime_label).upper():
                 try:
                     from src.risk.portfolio_allocator import PortfolioAllocator
-                    first_market = str(top_predictions[0].get("market", "KOSPI")) if top_predictions else "KOSPI"
-                    hedge_info = PortfolioAllocator.compute_synthetic_inverse_hedge(
-                        portfolio_weights=portfolio_weights,
-                        market=first_market,
-                        regime_label=regime_label
-                    )
-                    if hedge_info.get("hedge_required") and hedge_info.get("hedge_weight", 0.0) > 0:
+
+                    krx_sub_weights = {s: w for s, w in portfolio_weights.items() if str(s).isdigit() or str(s).endswith(('.KS', '.KQ'))}
+                    us_sub_weights = {s: w for s, w in portfolio_weights.items() if s not in krx_sub_weights}
+
+                    hedge_specs = []
+                    if sum(krx_sub_weights.values()) > 0.05:
+                        h_krx = PortfolioAllocator.compute_synthetic_inverse_hedge(
+                            portfolio_weights=krx_sub_weights,
+                            market="KOSPI",
+                            regime_label=regime_label
+                        )
+                        if h_krx.get("hedge_required") and h_krx.get("hedge_weight", 0.0) > 0:
+                            hedge_specs.append((h_krx, "KOSPI"))
+
+                    if sum(us_sub_weights.values()) > 0.05:
+                        has_nasdaq = any("NASDAQ" in str(pred.get("market", "")).upper() for pred in (top_predictions or []) if pred.get("symbol") in us_sub_weights)
+                        us_mkt = "NASDAQ" if has_nasdaq else "SP500"
+                        h_us = PortfolioAllocator.compute_synthetic_inverse_hedge(
+                            portfolio_weights=us_sub_weights,
+                            market=us_mkt,
+                            regime_label=regime_label
+                        )
+                        if h_us.get("hedge_required") and h_us.get("hedge_weight", 0.0) > 0:
+                            hedge_specs.append((h_us, us_mkt))
+
+                    if not hedge_specs and portfolio_weights:
+                        first_market = str(top_predictions[0].get("market", "KOSPI")) if top_predictions else "KOSPI"
+                        h_fallback = PortfolioAllocator.compute_synthetic_inverse_hedge(
+                            portfolio_weights=portfolio_weights,
+                            market=first_market,
+                            regime_label=regime_label
+                        )
+                        if h_fallback.get("hedge_required") and h_fallback.get("hedge_weight", 0.0) > 0:
+                            hedge_specs.append((h_fallback, first_market))
+
+                    for hedge_info, target_market in hedge_specs:
                         h_sym = hedge_info["hedge_symbol"]
                         h_weight = float(np.clip(hedge_info["hedge_weight"], 0.0, 0.50))
                         h_amount = tot_cap * h_weight
                         h_order_id = f"ORD_HEDGE_{h_sym}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}"
                         hedge_price = self._get_latest_price(h_sym, prices_dict=prices_dict, top_predictions=top_predictions)
                         if hedge_price <= 0.0:
-                            hedge_price = 10000.0 if str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() else 50.0
-                        hedge_price = self.round_to_tick_size(hedge_price, market=first_market)
+                            hedge_price = 10000.0 if str(target_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() else 50.0
+                        hedge_price = self.round_to_tick_size(hedge_price, market=target_market)
 
-                        is_krx_hedge = str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() or str(h_sym).endswith((".KS", ".KQ"))
+                        is_krx_hedge = str(target_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() or str(h_sym).endswith((".KS", ".KQ"))
                         h_amount_local = h_amount if is_krx_hedge else (h_amount / fx_rate)
                         lot_h = getattr(self, 'lot_size_krx', 1) if is_krx_hedge else 1
                         raw_h_qty = int(h_amount_local / max(hedge_price, 1e-6))
@@ -791,7 +821,7 @@ class ExecutionOMSEngine:
                             "order_id": h_order_id,
                             "symbol": h_sym,
                             "name": "INVERSE_HEDGE_OVERLAY",
-                            "market": first_market,
+                            "market": target_market,
                             "action": "BUY_HEDGE",
                             "target_weight": round(h_weight, 4),
                             "target_amount": round(h_amount_local, 2),
@@ -810,7 +840,7 @@ class ExecutionOMSEngine:
                             INSERT OR REPLACE INTO order_plans
                             (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", first_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount_local, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "FAST", None, None, "HEDGE_ACTIVE", now_str))
+                        """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", target_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount_local, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "FAST", None, None, "HEDGE_ACTIVE", now_str))
                 except Exception as _hedge_e:
                     logger.warning(f"[OMS HEDGE OVERLAY] Hedge order plan generation skipped: {_hedge_e}")
 
@@ -1094,14 +1124,15 @@ class ExecutionOMSEngine:
         prices_dict: Optional[Dict[str, Any]] = None,
         atr_multiplier: float = 2.0,
         profit_take_threshold: float = 0.15,
-        regime: Optional[str] = None
+        regime: Optional[str] = None,
+        enable_3tier_tp: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Engine 3: 4-Tier Multi-Stage Dynamic Profit-Taking & Chandelier/KAMA Trend Runner Engine.
-        - Tier 1 (+8%): 25% Partial TP + Move stop to Breakeven (+0.3% cost) -> Free Trade.
-        - Tier 2 (+15%): 25% Partial TP + Chandelier ATR (High_20 - 1.5 * ATR) Trailing Stop.
+        - Tier 1 (+8% or +1.5R): 30% Partial TP + Move stop to Breakeven (+0.3% friction) -> Free Trade.
+        - Tier 2 (+15% or +3.0R): 30% Partial TP + Chandelier ATR (High_20 - 1.5 * ATR) Trailing Stop.
         - Tier 3 (+25%): 25% Partial TP + KAMA Adaptive Moving Average Trailing Stop.
-        - Tier 4 (Runner 25%): Let run until 50-day MA or Parabolic SAR breakdown.
+        - Tier 4 (Runner 25~40%): Let run until 50-day MA or Chandelier trailing stop breakdown.
         - Integrates Signal Exhaustion, Time-Stop, and Emergency Order Flow exits.
         """
         trailing_plans: List[Dict[str, Any]] = []
@@ -1125,6 +1156,7 @@ class ExecutionOMSEngine:
             mfi = float(h_info.get("mfi", 50.0))
             obi = float(h_info.get("obi", 0.0))
             correction_phase = str(h_info.get("correction_phase", "")).upper()
+            use_3tier = bool(enable_3tier_tp or h_info.get("enable_3tier_tp") or h_info.get("auto_tier_tp"))
             if qty <= 0 or entry_p <= 0 or curr_p <= 0:
                 continue
 
@@ -1225,7 +1257,26 @@ class ExecutionOMSEngine:
             stop_loss_p = entry_p - (local_sl_mult * atr)
             breakeven_p = entry_p * 1.003  # Free-trade breakeven with friction costs
 
-            if unrealized_return >= tp_t3:
+            peak_return = (high_20 - entry_p) / entry_p
+
+            # Monotonic Ratchet Stop Calculation based on peak achieved return
+            if peak_return >= tp_t2:
+                effective_stop_p = max(stop_loss_p, entry_p * (1.0 + tp_t1 * 0.5), breakeven_p)
+            elif peak_return >= tp_t1:
+                effective_stop_p = max(stop_loss_p, breakeven_p)
+            else:
+                effective_stop_p = stop_loss_p
+
+            # Priority A: Check if current price breached effective stop loss (ATR Stop or Breakeven Lock)
+            if curr_p <= effective_stop_p:
+                reason = "BREAKEVEN_PROFIT_LOCK" if effective_stop_p > stop_loss_p else "ATR_STOP_LOSS"
+                trailing_plans.append({
+                    "symbol": sym, "action": "SELL", "reason": reason,
+                    "quantity": int(qty), "unrealized_return": round(unrealized_return, 4),
+                    "stop_loss_price": round(effective_stop_p, 2), "current_price": round(curr_p, 2)
+                })
+            # Priority B: If still above effective stop loss, evaluate profit taking tiers
+            elif unrealized_return >= tp_t3:
                 # Tier 3 & Runner (+25%): Chandelier/KAMA trailing lock
                 if curr_p <= trailing_stop_p or curr_p < ma_50:
                     trailing_plans.append({
@@ -1241,29 +1292,27 @@ class ExecutionOMSEngine:
                         "trailing_stop_price": round(trailing_stop_p, 2), "current_price": round(curr_p, 2)
                     })
             elif unrealized_return >= tp_t2:
-                # Tier 2 (+15%): 25% take profit + Chandelier ATR trailing
+                # Tier 2 (+15%): 25-30% take profit + Chandelier ATR trailing
                 if curr_p <= trailing_stop_p:
                     trailing_plans.append({
                         "symbol": sym, "action": "SELL", "reason": "CHANDELIER_TRAILING_PROFIT",
                         "quantity": max(1, int(qty * 0.50)), "unrealized_return": round(unrealized_return, 4),
                         "trailing_stop_price": round(trailing_stop_p, 2), "current_price": round(curr_p, 2)
                     })
-            elif unrealized_return >= tp_t1:
-                # Tier 1 (+8%): 25% take profit + raise stop to breakeven (Free Trade)
-                effective_stop_p = max(stop_loss_p, breakeven_p)
-                if curr_p <= effective_stop_p:
+                elif use_3tier and not h_info.get("tier2_taken", False):
                     trailing_plans.append({
-                        "symbol": sym, "action": "SELL", "reason": "BREAKEVEN_PROFIT_LOCK",
-                        "quantity": int(qty), "unrealized_return": round(unrealized_return, 4),
+                        "symbol": sym, "action": "SELL", "reason": "TIER_2_PROFIT_LOCK",
+                        "quantity": max(1, int(qty * 0.30)), "unrealized_return": round(unrealized_return, 4),
+                        "trailing_stop_price": round(trailing_stop_p, 2), "current_price": round(curr_p, 2)
+                    })
+            elif unrealized_return >= tp_t1:
+                # Tier 1 (+8%): 30% take profit when 3tier active
+                if use_3tier and not h_info.get("tier1_taken", False):
+                    trailing_plans.append({
+                        "symbol": sym, "action": "SELL", "reason": "TIER_1_PROFIT_LOCK",
+                        "quantity": max(1, int(qty * 0.30)), "unrealized_return": round(unrealized_return, 4),
                         "stop_loss_price": round(effective_stop_p, 2), "current_price": round(curr_p, 2)
                     })
-            elif curr_p <= stop_loss_p:
-                # Hard Stop Loss
-                trailing_plans.append({
-                    "symbol": sym, "action": "SELL", "reason": "ATR_STOP_LOSS",
-                    "quantity": int(qty), "unrealized_return": round(unrealized_return, 4),
-                    "stop_loss_price": round(stop_loss_p, 2), "current_price": round(curr_p, 2)
-                })
 
         return trailing_plans
 
@@ -1402,8 +1451,23 @@ class GatheralMarketImpactKernel:
         alloc = np.round(norm_weights * total_quantity).astype(int)
         diff_total = total_quantity - int(np.sum(alloc))
         if diff_total != 0:
-            alloc[0] += diff_total
-        return [int(max(0, x)) for x in alloc]
+            # V8-MED-13 Fix: Safely distribute residual difference while ensuring every tranche >= 0
+            if diff_total > 0:
+                alloc[0] += diff_total
+            else:
+                # Distribute negative remainder backwards from tranches that have positive quantities
+                rem = -diff_total
+                for i in range(len(alloc) - 1, -1, -1):
+                    deduct = min(alloc[i], rem)
+                    alloc[i] -= deduct
+                    rem -= deduct
+                    if rem == 0:
+                        break
+        # Final safety check: if total still doesn't match due to extreme inputs, assign all to first tranche
+        if int(np.sum(alloc)) != total_quantity:
+            alloc = np.zeros(n_slices, dtype=int)
+            alloc[0] = total_quantity
+        return [int(x) for x in alloc]
 
 
 # Module level alias for backward compatibility

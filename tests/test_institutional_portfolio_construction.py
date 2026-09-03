@@ -187,11 +187,11 @@ class TestUnifiedPortfolioAllocatorEndToEnd:
         assert "lot_size" in res.columns
         assert "allocation_amount" in res.columns
 
-        # Lot sizes: KRX = 10, US = 1
+        # Lot sizes: KRX = 1 (single share standard since 2014), US = 1
         p_krx = res[res["symbol"] == "005930"].iloc[0]
         p_us = res[res["symbol"] == "AAPL"].iloc[0]
-        assert p_krx["lot_size"] == 10
-        assert p_krx["shares"] % 10 == 0
+        assert p_krx["lot_size"] == 1
+        assert p_krx["shares"] % 1 == 0
         assert p_us["lot_size"] == 1
 
 

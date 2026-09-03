@@ -964,20 +964,21 @@ class EnsembleScoringEngine:
             return weights
 
         try:
-            subset_df = scores_df[list(valid_cols.values())].apply(pd.to_numeric, errors='coerce').dropna()
-            if len(subset_df) < 10:
+            # V8-CRIT-09 Fix: Pairwise complete observations correlation with PSD eigenvalue flooring
+            subset_df = scores_df[list(valid_cols.values())].apply(pd.to_numeric, errors='coerce')
+            corr_matrix = subset_df.corr(min_periods=5).fillna(0.0)
+            if corr_matrix.empty or len(corr_matrix) < 2:
                 return weights
 
-            corr_matrix = subset_df.corr().abs().fillna(0.0)
-            np.fill_diagonal(corr_matrix.values, 1.0)
+            # Ensure symmetry and unit diagonal
+            C = 0.5 * (corr_matrix.values + corr_matrix.values.T)
+            np.fill_diagonal(C, 1.0)
             col_to_sid = {v: k for k, v in valid_cols.items()}
 
-            # Löwdin Symmetric Orthogonalization: C^(-1/2) for order-independent penalization
-            C = corr_matrix.values
+            # Löwdin Symmetric Orthogonalization: C^(-1/2) with robust PSD eigenvalue floor (lambda >= 0.05)
             evals, evecs = np.linalg.eigh(C)
-            # R10-7 Fix: Continuous Tikhonov ridge regularization evals + 1e-4
-            evals = np.maximum(evals + 1e-4, 1e-6)
-            inv_sqrt_C = evecs @ np.diag(1.0 / np.sqrt(evals)) @ evecs.T
+            evals_floored = np.maximum(evals, 0.05)
+            inv_sqrt_C = evecs @ np.diag(1.0 / np.sqrt(evals_floored)) @ evecs.T
 
             diag_penalties = np.diag(inv_sqrt_C)
             mean_p = np.mean(diag_penalties) if np.mean(diag_penalties) > 0 else 1.0
@@ -2459,11 +2460,13 @@ class EnsembleScoringEngine:
         tot_nominal_weight = pd.Series(0.0, index=merged.index)
         valid_weight_series = pd.Series(0.0, index=merged.index)
 
+        col_to_w_series = {}
         for strat_name, score_col in strategy_cols:
             w_us = eff_us_weights.get(strat_name, 0.0 if is_custom_us else default_strat_w)
             w_kr = eff_kr_weights.get(strat_name, 0.0 if is_custom_kr else default_strat_w)
             w_series = pd.Series(np.where(is_kr, w_kr, w_us), index=merged.index)
             tot_nominal_weight += w_series
+            col_to_w_series[score_col] = w_series
 
             if score_col in merged.columns:
                 valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
@@ -2493,6 +2496,11 @@ class EnsembleScoringEngine:
             raw_linear_score = pd.to_numeric(merged['ensemble_score'], errors='coerce').fillna(0.0).clip(0.0, 1.0)
         else:
             raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
+
+        # V8-HIGH-10 Fix: Optional Bayesian coverage shrinkage when enabled (getattr(self, 'enable_coverage_shrinkage', False))
+        if getattr(self, 'enable_coverage_shrinkage', False) and len(strategy_cols) >= 10:
+            cov_lambda = (valid_weight_series / 0.60).clip(0.0, 1.0)
+            raw_linear_score = pd.Series(np.where(has_valid, cov_lambda * raw_linear_score + (1.0 - cov_lambda) * 0.50, 0.0), index=merged.index)
         linear_score = raw_linear_score.copy()
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
@@ -2506,9 +2514,12 @@ class EnsembleScoringEngine:
                     return None
                 sub_df = merged[cols_list]
                 v_mask = sub_df.notna() & np.isfinite(sub_df)
-                v_counts = v_mask.sum(axis=1)
-                sub_sums = np.where(v_mask, sub_df.values, 0.0).sum(axis=1)
-                return np.where(v_counts > 0, sub_sums / np.maximum(v_counts, 1), np.nan)
+                # V8-HIGH-09 Fix: Weight each strategy inside the tier by dynamic strategy weight
+                tier_w_mat = np.column_stack([col_to_w_series.get(c, pd.Series(1.0, index=merged.index)).values for c in cols_list])
+                eff_w_mat = np.where(v_mask, tier_w_mat, 0.0)
+                sum_w = eff_w_mat.sum(axis=1)
+                weighted_sums = np.where(v_mask, sub_df.values * tier_w_mat, 0.0).sum(axis=1)
+                return np.where(sum_w > 0, weighted_sums / np.maximum(sum_w, 1e-9), np.nan)
 
             s_slow = _calc_tier_score(slow_cols)
             s_med = _calc_tier_score(med_cols)
@@ -2799,7 +2810,8 @@ class EnsembleScoringEngine:
         # Vectorized Microstructure Friction Model
         mkt_col = merged['market'].fillna('').astype(str).str.upper() if 'market' in merged.columns else pd.Series('', index=merged.index)
         sym_col = merged['symbol'].astype(str)
-        is_us_stock = mkt_col.isin(['SP500', 'NASDAQ', 'RUSSELL2000']) | (sym_col.str.isalpha() & (sym_col.str.len() <= 5))
+        # V8-HIGH-11 Fix: Allow ticker classes with dots (e.g. BRK.B, BF.B) in US stock classification
+        is_us_stock = mkt_col.isin(['SP500', 'NASDAQ', 'RUSSELL2000']) | sym_col.str.match(r'^[A-Z]{1,5}(\.[A-Z])?$', case=False)
 
         vol_data = merged['volatility_20d'] if 'volatility_20d' in merged.columns else pd.Series(np.nan, index=merged.index)
         default_vols = np.where(is_us_stock, default_volatility_sp500, default_volatility_krx)
@@ -2807,7 +2819,7 @@ class EnsembleScoringEngine:
         vols = np.where(vols <= 0, default_vols, vols)
 
         vol_col = merged['volume'].fillna(0.0).astype(float).values if 'volume' in merged.columns else np.zeros(len(merged))
-        close_col = merged['close'].fillna(0.0).astype(float).values if 'close' in merged.columns else np.zeros(len(merged))
+        close_col = merged['close'].fillna(0.0).astype(float).values if 'close' in merged.columns else (merged['close_price'].fillna(0.0).astype(float).values if 'close_price' in merged.columns else np.zeros(len(merged)))
         turnover = vol_col * close_col
 
         stt_tax = np.full(len(merged), 0.0015)
@@ -2981,11 +2993,7 @@ class EnsembleScoringEngine:
         adv_ref[m_canada] = 800_000.0
         impact_coeff[m_canada] = 0.50
 
-        # Extract real 20-day Average Daily Volume (turnover)
-        vol_col = merged['volume'] if 'volume' in merged.columns else pd.Series(0.0, index=merged.index)
-        close_col = merged['close'] if 'close' in merged.columns else (merged['close_price'] if 'close_price' in merged.columns else pd.Series(0.0, index=merged.index))
-        turnover = vol_col.values * close_col.values
-
+        # V8-MED-10 Fix: Reuse precomputed turnover to avoid redundant array recomputation
         min_adv = np.where(is_us_stock, 10_000.0, 10_000_000.0)
         adv = np.where(turnover > 0, np.maximum(turnover, min_adv), adv_ref)
 

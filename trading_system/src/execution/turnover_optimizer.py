@@ -34,13 +34,16 @@ class TurnoverOptimizer:
 
     def optimize_allocations(self, current_holdings: Dict[str, float],
                              target_allocations: Dict[str, float],
-                             total_capital: float = 100000000.0) -> Dict[str, Dict[str, Any]]:
+                             total_capital: float = 100000000.0,
+                             currency: str = "KRW",
+                             **kwargs: Any) -> Dict[str, Dict[str, Any]]:
         """Filter target allocations against current holdings using turnover hysteresis.
 
         Args:
             current_holdings: Dict of symbol -> current holding weight (0.0 to 1.0).
             target_allocations: Dict of symbol -> raw target weight (0.0 to 1.0).
             total_capital: Total portfolio capital.
+            currency: Portfolio base currency ("KRW" or "USD").
 
         Returns:
             Dict of symbol -> {'target_weight': float, 'action': 'HOLD'|'BUY'|'SELL', 'delta_amount': float}.
@@ -53,15 +56,21 @@ class TurnoverOptimizer:
 
         all_symbols = set(str(k).strip() for k in current_holdings.keys() if str(k).strip()) | set(str(k).strip() for k in target_allocations.keys() if str(k).strip())
         optimized: Dict[str, Dict[str, Any]] = {}
-
         total_turnover_reduced = 0.0
 
         def _get_w(d: Dict[str, float], sym: str) -> float:
+            if not isinstance(d, dict) or sym not in d:
+                return 0.0
             try:
                 val = float(d.get(sym, 0.0))
                 return max(0.0, min(1.0, val)) if math.isfinite(val) else 0.0
             except (ValueError, TypeError):
                 return 0.0
+
+        # V8-CRIT-07: Currency-adaptive minimum trade delta
+        curr_str = str(kwargs.get("currency", currency)).upper().strip()
+        is_usd = curr_str == "USD" or (cap < 5_000_000.0 and any(not str(s).isdigit() for s in all_symbols))
+        min_rebalance_delta = 50.0 if is_usd else self.min_rebalance_delta_krw
 
         for sym in sorted(all_symbols):
             curr_w = _get_w(current_holdings, sym)
@@ -72,7 +81,7 @@ class TurnoverOptimizer:
             # Full liquidation (raw_w == 0) and fresh entries (curr_w == 0) bypass hysteresis threshold
             is_full_exit = (raw_w == 0.0 and curr_w > 0.0)
             is_fresh_entry = (curr_w == 0.0 and raw_w > 0.0)
-            if not is_full_exit and not is_fresh_entry and (weight_delta < self.turnover_threshold_pct or amount_delta < self.min_rebalance_delta_krw):
+            if not is_full_exit and not is_fresh_entry and (weight_delta < self.turnover_threshold_pct or amount_delta < min_rebalance_delta):
                 final_w = curr_w
                 action = "HOLD"
                 total_turnover_reduced += amount_delta

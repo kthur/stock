@@ -158,7 +158,7 @@ from src.core.strategy_registry import register_strategy, StrategyMeta
         score_column="microstructure_score",
         category="factor",
         output_file="microstructure_predictions.txt",
-        is_standalone=True,
+        is_standalone=False,
     )
 )
 class MicrostructureImbalanceEngine(BaseStrategyEngine):

@@ -25,7 +25,17 @@ logger = logging.getLogger(__name__)
         display_name="Index Rebalance Structural Flow",
         score_column="index_rebalance_score",
         category="event",
-        output_file="index_rebalance_predictions.txt"
+        output_file="index_rebalance_predictions.txt",
+        is_standalone=False,
+        default_regime_weights={
+            "BULL_LOW_VOL": 0.02,
+            "BULL_HIGH_VOL": 0.02,
+            "SIDEWAYS_LOW_VOL": 0.03,
+            "SIDEWAYS_HIGH_VOL": 0.03,
+            "BEAR_LOW_VOL": 0.02,
+            "BEAR_HIGH_VOL": 0.02,
+            "CRISIS": 0.01,
+        },
     )
 )
 class IndexRebalanceEngine(BaseStrategyEngine):

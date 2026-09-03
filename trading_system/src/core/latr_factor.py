@@ -118,7 +118,18 @@ class LATRFactorEngine(BaseStrategyEngine):
 
                 # 4. Amihud Illiquidity Ratio (|ret| / (Volume * Price)) with cross-market USD normalization
                 is_kr = str(sym).isdigit() or str(sym).endswith(('.KS', '.KQ'))
-                fx_norm = usdkrw_rate if is_kr else 1.0
+                if is_kr:
+                    fx_norm = usdkrw_rate
+                elif str(sym).endswith(('.T', '.TYO')):
+                    fx_norm = 155.0
+                elif str(sym).endswith(('.TW', '.TWO')):
+                    fx_norm = 32.0
+                elif str(sym).endswith(('.HK',)):
+                    fx_norm = 7.8
+                elif str(sym).endswith(('.L', '.LON')):
+                    fx_norm = 0.77
+                else:
+                    fx_norm = 1.0
                 turnover_usd = (vol.tail(20) * close.tail(20) / fx_norm).replace(0, 1.0)
                 amihud_illiq = float((daily_rets.abs().tail(20) / turnover_usd).mean() * 1e6)
 

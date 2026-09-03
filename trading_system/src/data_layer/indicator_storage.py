@@ -350,6 +350,12 @@ class MarketIndicatorStorage:
                     insider_buying_score REAL,
                     darkpool_score REAL,
                     earnings_tone_drift_score REAL,
+                    cross_asset_spillover_score REAL,
+                    supply_chain_gnn_score REAL,
+                    range_expansion_score REAL,
+                    dual_correction_score REAL,
+                    index_rebalance_score REAL,
+                    overnight_gap_score REAL,
                     outcome_return REAL,
                     outcome_label INTEGER,
                     PRIMARY KEY (date, symbol)
@@ -365,6 +371,9 @@ class MarketIndicatorStorage:
                 'microstructure_score', 'accruals_quality_score', 'short_squeeze_score',
                 'valueup_catalyst_score', 'trend_efficiency_score', 'gamma_squeeze_score',
                 'insider_buying_score', 'darkpool_score', 'earnings_tone_drift_score',
+                'cross_asset_spillover_score', 'supply_chain_gnn_score',
+                'range_expansion_score', 'dual_correction_score',
+                'index_rebalance_score', 'overnight_gap_score',
                 'outcome_return', 'outcome_label'
             ]
             _ens_existing = {r[1] for r in conn.execute("PRAGMA table_info(ensemble_predictions)").fetchall()}
@@ -508,6 +517,12 @@ class MarketIndicatorStorage:
                     insider_buying_score REAL,
                     darkpool_score REAL,
                     earnings_tone_drift_score REAL,
+                    cross_asset_spillover_score REAL,
+                    supply_chain_gnn_score REAL,
+                    range_expansion_score REAL,
+                    dual_correction_score REAL,
+                    index_rebalance_score REAL,
+                    overnight_gap_score REAL,
                     portfolio_weight REAL,
                     outcome_return REAL,
                     PRIMARY KEY (run_id, symbol)
@@ -550,6 +565,12 @@ class MarketIndicatorStorage:
                 ("ensemble_prediction_history", "hit_1d", "INTEGER"),
                 ("ensemble_prediction_history", "hit_5d", "INTEGER"),
                 ("ensemble_prediction_history", "hit_20d", "INTEGER"),
+                ("ensemble_prediction_history", "cross_asset_spillover_score", "REAL"),
+                ("ensemble_prediction_history", "supply_chain_gnn_score", "REAL"),
+                ("ensemble_prediction_history", "range_expansion_score", "REAL"),
+                ("ensemble_prediction_history", "dual_correction_score", "REAL"),
+                ("ensemble_prediction_history", "index_rebalance_score", "REAL"),
+                ("ensemble_prediction_history", "overnight_gap_score", "REAL"),
             ]
             for tbl, col, col_def in migrations:
                 if not _column_exists(conn, tbl, col):
@@ -1221,7 +1242,10 @@ class MarketIndicatorStorage:
             'vol_target_score', 'microstructure_score', 'accruals_quality_score',
             'short_squeeze_score', 'valueup_catalyst_score', 'trend_efficiency_score',
             'gamma_squeeze_score', 'insider_buying_score', 'darkpool_score',
-            'earnings_tone_drift_score'
+            'earnings_tone_drift_score',
+            'cross_asset_spillover_score', 'supply_chain_gnn_score',
+            'range_expansion_score', 'dual_correction_score',
+            'index_rebalance_score', 'overnight_gap_score'
         ]
         _cols_sql = ", ".join(_score_cols)
         _placeholders = ", ".join(["?"] * len(_score_cols))
@@ -1576,7 +1600,10 @@ class MarketIndicatorStorage:
             'vol_target_score', 'microstructure_score', 'accruals_quality_score',
             'short_squeeze_score', 'valueup_catalyst_score', 'trend_efficiency_score',
             'gamma_squeeze_score', 'insider_buying_score', 'darkpool_score',
-            'earnings_tone_drift_score'
+            'earnings_tone_drift_score',
+            'cross_asset_spillover_score', 'supply_chain_gnn_score',
+            'range_expansion_score', 'dual_correction_score',
+            'index_rebalance_score', 'overnight_gap_score'
         ]
         all_cols = ['ensemble_score', 'net_expected_return', 'regime', 'portfolio_weight'] + score_cols
         col_names = ['run_id', 'date', 'symbol'] + all_cols

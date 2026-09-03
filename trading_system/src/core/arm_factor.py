@@ -84,8 +84,9 @@ class ARMFactorEngine(BaseStrategyEngine):
                 f_dict.get('eps_growth') is not None
             )
 
+            # V8-MED-04 Fix: Return NaN for missing symbols to trigger missing-strategy zero weighting in ensemble
             if not has_revision_data or not f_dict:
-                raw_scores[sym] = 0.50
+                raw_scores[sym] = np.nan
                 continue
 
             # 1. Consensus Revision (EPS 추정치 변경율 및 fallback)
@@ -150,16 +151,19 @@ class ARMFactorEngine(BaseStrategyEngine):
         if not raw_scores:
             return make_score_dataframe({}, 'arm_score')
 
-        vals = np.array([v for v in raw_scores.values() if np.isfinite(v)])
+        vals = np.array([v for v in raw_scores.values() if pd.notna(v) and np.isfinite(v)])
         if len(vals) == 0:
-            return make_score_dataframe({k: 0.5 for k in raw_scores.keys()}, 'arm_score')
+            return make_score_dataframe({k: np.nan for k in raw_scores.keys()}, 'arm_score')
         lower = float(np.percentile(vals, 1))
         upper = float(np.percentile(vals, 99))
         if upper <= lower:
-            return make_score_dataframe({k: 0.5 for k in raw_scores.keys()}, 'arm_score')
+            return make_score_dataframe({k: (0.5 if (pd.notna(v) and np.isfinite(v)) else np.nan) for k, v in raw_scores.items()}, 'arm_score')
 
         res_scores = {}
         for k, v in raw_scores.items():
+            if pd.isna(v) or not np.isfinite(v):
+                res_scores[k] = np.nan
+                continue
             sc = float(np.clip((v - lower) / (upper - lower), 0.0, 1.0))
             # ARM Consensus Revision Booster for high-conviction analyst upgrades (smooth continuous)
             smooth_boost = 1.0 + 0.20 / (1.0 + np.exp(-10.0 * (sc - 0.70)))
@@ -167,11 +171,14 @@ class ARMFactorEngine(BaseStrategyEngine):
 
         res_df = make_score_dataframe(res_scores, 'arm_score')
         if not res_df.empty:
-            s_series = pd.to_numeric(res_df['arm_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
-            if len(res_df) > 1:
-                ranks = s_series.rank(pct=True, ascending=True)
+            s_series = pd.to_numeric(res_df['arm_score'], errors='coerce')
+            valid_mask = s_series.notna() & np.isfinite(s_series)
+            if valid_mask.sum() > 1:
+                ranks = s_series[valid_mask].rank(pct=True, ascending=True)
                 # Multi-Tier ARM Consensus Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
-                enhanced = np.where(ranks >= 0.95, (s_series * 1.15).clip(0.05, 0.98),
-                           np.where(ranks >= 0.85, (s_series * 1.10).clip(0.05, 0.98), s_series))
-                res_df['arm_score'] = pd.to_numeric(pd.Series(enhanced, index=res_df.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+                enhanced = np.where(ranks >= 0.95, (s_series[valid_mask] * 1.15).clip(0.05, 0.98),
+                           np.where(ranks >= 0.85, (s_series[valid_mask] * 1.10).clip(0.05, 0.98), s_series[valid_mask]))
+                res_df.loc[valid_mask, 'arm_score'] = enhanced
+            elif valid_mask.sum() == 1:
+                res_df.loc[valid_mask, 'arm_score'] = s_series[valid_mask]
         return res_df

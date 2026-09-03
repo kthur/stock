@@ -684,9 +684,17 @@ class PortfolioAllocator:
                         + (z_alpha**3 - 3.0 * z_alpha) * kurt_c / 24.0
                         - (2.0 * z_alpha**3 - 5.0 * z_alpha) * (skew_c**2) / 36.0
                     )
-                    cvar_val = float(max(0.0, - (m_ret + z_cf * s_ret)))
+                    var_val = float(max(0.0, - (m_ret + z_cf * s_ret)))
+                    # V8-HIGH-15 Fix: Compute true CVaR (Expected Shortfall beyond VaR)
+                    tail_losses = -port_rets[-port_rets >= var_val]
+                    if len(tail_losses) > 0:
+                        cvar_val = float(np.mean(tail_losses))
+                    else:
+                        cvar_val = float(max(var_val, -m_ret + s_ret * (abs(z_cf) + 0.418)))
                 else:
-                    cvar_val = float(np.percentile(-port_rets, 95))
+                    v_p95 = float(np.percentile(-port_rets, 95))
+                    tail_l = -port_rets[-port_rets >= v_p95]
+                    cvar_val = float(np.mean(tail_l)) if len(tail_l) > 0 else v_p95
                 return max_cvar - cvar_val
 
             maxiter_cf = min(150, max(40, 6 * N))
@@ -1244,12 +1252,17 @@ class PortfolioAllocator:
         portfolio_value: float = 100_000_000.0,
         rebalance_mode: Optional[str] = None,
         slippage_multiplier: float = 1.0,
-        slippage_map: Optional[Dict[str, float]] = None
+        slippage_map: Optional[Dict[str, float]] = None,
+        unrealized_returns: Optional[Dict[str, float]] = None,
+        use_asymmetric_bands: bool = True
     ) -> Dict[str, Any]:
         """
         Evaluates dynamic buffer bands [w_target - delta_i, w_target + delta_i]:
         - If current_weight is INSIDE band: returns action HOLD with 0 trade weight.
         - If current_weight BREACHES band: triggers BUY/SELL rebalancing trade.
+        - Supports Asymmetric Leland Buffer Bands:
+          * Winning positions (unrealized_return >= +8%): expands upper band (1.8x) to prevent premature rebalance sales.
+          * Lagging positions (unrealized_return <= -3%): tightens lower band (0.6x) for swift de-risking.
         """
         mode = (rebalance_mode or self.rebalance_mode).lower()
         curr_w_dict = current_weights if isinstance(current_weights, dict) else {}
@@ -1288,15 +1301,34 @@ class PortfolioAllocator:
                 cost_rate=cost_rate,
                 volatility_20d=vol
             )
-            # R9-2 Fix: Account scale-aware buffer band to suppress uneconomical tiny fraction rebalances
-            min_trade_krw = 50_000.0
-            min_weight_delta = min_trade_krw / max(1_000_000.0, portfolio_value) if portfolio_value > 0 else 0.001
+            # V8-CRIT-07 Fix: Currency & account scale-aware buffer band to suppress uneconomical tiny fraction rebalances
+            mkt_str = str(market_map.get(sym, "")).upper()
+            is_us_asset = mkt_str in ["SP500", "NASDAQ", "RUSSELL2000", "US"] or (not str(sym).isdigit() and "." not in str(sym))
+            is_usd_account = (portfolio_value < 5_000_000.0 and is_us_asset)
+            min_trade_val = 50.0 if is_usd_account else 50_000.0
+            floor_capital = 1_000.0 if is_usd_account else 1_000_000.0
+            min_weight_delta = min_trade_val / max(floor_capital, portfolio_value) if portfolio_value > 0 else 0.001
             delta_i = max(delta_i, min_weight_delta)
             if w_targ > 0.0:
                 delta_i = min(delta_i, max(w_targ * 0.40, min_weight_delta))
 
-            L_i = max(0.0, w_targ - delta_i)
-            U_i = w_targ + delta_i
+            # Asymmetric Leland No-Trade Buffer Bands:
+            unrealized_ret = float(unrealized_returns.get(sym, 0.0)) if (unrealized_returns and sym in unrealized_returns and np.isfinite(unrealized_returns[sym])) else 0.0
+            if use_asymmetric_bands and unrealized_returns is not None:
+                if unrealized_ret >= 0.08:
+                    upper_mult = 1.8
+                    lower_mult = 1.0
+                elif unrealized_ret <= -0.03:
+                    upper_mult = 1.0
+                    lower_mult = 0.6
+                else:
+                    upper_mult = 1.0
+                    lower_mult = 1.0
+                L_i = max(0.0, w_targ - lower_mult * delta_i)
+                U_i = w_targ + upper_mult * delta_i
+            else:
+                L_i = max(0.0, w_targ - delta_i)
+                U_i = w_targ + delta_i
             buffer_bands[sym] = (L_i, U_i, delta_i)
 
             # Check inside buffer band [L_i, U_i] (Bypass for new entries w_curr==0 or full exits w_targ==0)
@@ -1368,6 +1400,80 @@ class PortfolioAllocator:
                 "cash_weight": max(0.0, 1.0 - sum(new_weights.values()))
             }
         }
+
+    @staticmethod
+    def calculate_alpha_vol_blended_weights(
+        hrp_weights: Dict[str, float],
+        alpha_scores: Dict[str, float],
+        beta: float = 0.50,
+        max_single_weight: float = 0.15,
+        target_total_weight: float = 0.95
+    ) -> Dict[str, float]:
+        """
+        Alpha-Vol Blended Sizing:
+        Combines risk-parity / HRP allocation weights with cross-sectional standardized alpha scores:
+            w_tilde_i = w_HRP_i * exp(beta * clip(z_i, -2.5, 2.5))
+        where z_i = (S_i - mean(S)) / std(S) is the cross-sectional Z-score of alpha scores.
+        Rescales final weights to target_total_weight while enforcing max_single_weight cap.
+        """
+        if not hrp_weights:
+            return {}
+        if not alpha_scores:
+            return dict(hrp_weights)
+
+        common_symbols = [s for s, w in hrp_weights.items() if w > 0]
+        if not common_symbols:
+            return dict(hrp_weights)
+
+        scores = [float(alpha_scores.get(s, 0.50)) for s in common_symbols]
+        mu_s = float(np.mean(scores))
+        sigma_s = float(np.std(scores))
+        if sigma_s < 1e-6:
+            sigma_s = 1.0
+
+        z_scores = {
+            s: float(np.clip((float(alpha_scores.get(s, mu_s)) - mu_s) / sigma_s, -2.5, 2.5))
+            for s in common_symbols
+        }
+
+        # Exponential alpha tilting
+        tilted_weights = {}
+        for s in common_symbols:
+            w_base = float(hrp_weights[s])
+            z_val = z_scores[s]
+            tilted_weights[s] = w_base * float(np.exp(beta * z_val))
+
+        # Iterative normalization and capping
+        tot_tilted = sum(tilted_weights.values())
+        if tot_tilted <= 0:
+            return dict(hrp_weights)
+
+        normalized = {s: (w / tot_tilted) * target_total_weight for s, w in tilted_weights.items()}
+
+        # Cap enforcement
+        capped = {}
+        excess = 0.0
+        for s, w in normalized.items():
+            if w > max_single_weight:
+                capped[s] = max_single_weight
+                excess += (w - max_single_weight)
+            else:
+                capped[s] = w
+
+        if excess > 0:
+            uncapped_syms = [s for s, w in capped.items() if w < max_single_weight]
+            uncapped_sum = sum(capped[s] for s in uncapped_syms)
+            if uncapped_sum > 0:
+                for s in uncapped_syms:
+                    addition = excess * (capped[s] / uncapped_sum)
+                    capped[s] = min(max_single_weight, capped[s] + addition)
+
+        # Final check for all original symbols
+        final_weights = {}
+        for s in hrp_weights:
+            final_weights[s] = round(capped.get(s, 0.0), 6)
+
+        return final_weights
 
     # =========================================================================
     # OBJECTIVE 3: SECTOR EXPOSURE CAPPING & FACTOR NEUTRALITY CONSTRAINTS

@@ -5,6 +5,7 @@ import json
 import logging
 import sqlite3
 import threading
+import weakref
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
@@ -448,9 +449,17 @@ class DataValidator:
         anomalies = pct_chg > max_daily_jump
         transient_spikes = pd.Series(False, index=df_clean.index)
         if anomalies.any():
-            # Check for transient single-day spike/drop that reverts immediately
-            next_pct_chg = close.pct_change(-1).abs()
-            transient_spikes = anomalies & (next_pct_chg > (max_daily_jump * 0.8))
+            # V8-HIGH-13 Fix: Causal isolation for real-time / current bar (eliminate pct_change(-1) lookahead)
+            if len(close) >= 3:
+                next_pct_chg = close.pct_change(-1).abs()
+                is_transient = anomalies.iloc[:-1] & (next_pct_chg.iloc[:-1] > (max_daily_jump * 0.8))
+                transient_spikes.iloc[:-1] = is_transient
+
+                # Causal guard for current bar: check against causal rolling median without looking forward
+                if bool(anomalies.iloc[-1]):
+                    rolling_med = close.iloc[-21:-1].median() if len(close) >= 21 else close.iloc[:-1].median()
+                    if rolling_med > 0 and abs(close.iloc[-1] / rolling_med - 1.0) > (max_daily_jump * 2.0):
+                        transient_spikes.iloc[-1] = True
             if transient_spikes.any():
                 logger.warning(f"Detected {transient_spikes.sum()} transient price anomalies. Interpolating clean OHLC values.")
                 for col in ['Close', 'Open', 'High', 'Low']:
@@ -544,7 +553,8 @@ class StockPriceDB:
         self.db_path = p
         self.logger = logger
         self._local = threading.local()
-        self._all_conns: set[sqlite3.Connection] = set()
+        # V8-MED-01 Fix: Track connections by thread ID and purge dead thread connections to avoid leaking file descriptors
+        self._all_conns: Dict[int, sqlite3.Connection] = {}
         self._conns_lock = threading.Lock()
         self._init_db()
 
@@ -565,13 +575,17 @@ class StockPriceDB:
     def close(self):
         """Close all thread connections safely."""
         with self._conns_lock:
-            for conn in list(self._all_conns):
+            for conn in list(self._all_conns.values()):
                 try:
                     conn.close()
                 except Exception:
                     pass
             self._all_conns.clear()
         if hasattr(self._local, "conn") and self._local.conn is not None:
+            try:
+                self._local.conn.close()
+            except Exception:
+                pass
             self._local.conn = None
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -585,8 +599,19 @@ class StockPriceDB:
             conn.execute("PRAGMA temp_store=MEMORY")
             conn.execute("PRAGMA mmap_size=268435456") # 256MB memory mapped I/O
             self._local.conn = conn
+            
+            # V8-MED-01 Fix: Automatically close and purge connections from terminated worker threads
+            alive_threads = {t.ident for t in threading.enumerate()}
             with self._conns_lock:
-                self._all_conns.add(conn)
+                dead_tids = [tid for tid in self._all_conns if tid not in alive_threads]
+                for tid in dead_tids:
+                    dead_conn = self._all_conns.pop(tid, None)
+                    if dead_conn:
+                        try:
+                            dead_conn.close()
+                        except Exception:
+                            pass
+                self._all_conns[threading.get_ident()] = conn
         return cast(sqlite3.Connection, self._local.conn)
 
     def _init_db(self):

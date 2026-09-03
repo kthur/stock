@@ -1077,11 +1077,21 @@ class OnDevicePredictionModel:
                             date_col = col
                             break
 
-                # Apply market-aware dynamic filing lag to fundamental dates (KRX 45d, US 40d, eliminate lookahead bias)
+                # V8-CRIT-13: Apply market-aware dynamic filing lag (Annual: KRX 90d, US 60d; Quarterly: KRX 45d, US 40d)
                 df_fun_shifted = df_fun.copy()
                 if 'date_available' not in df_fun_shifted.columns:
-                    lag_d = 45 if (str(symbol).isdigit() or str(symbol).endswith(('.KS', '.KQ'))) else 40
-                    df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=lag_d)
+                    is_krx = str(symbol).isdigit() or str(symbol).endswith(('.KS', '.KQ'))
+                    fund_dates = pd.to_datetime(df_fun_shifted['date'])
+
+                    def _get_lag_delta(dt):
+                        try:
+                            if hasattr(dt, 'month') and dt.month == 12:
+                                return pd.Timedelta(days=90 if is_krx else 60)
+                            return pd.Timedelta(days=45 if is_krx else 40)
+                        except Exception:
+                            return pd.Timedelta(days=45 if is_krx else 40)
+
+                    df_fun_shifted['date_available'] = fund_dates + fund_dates.apply(_get_lag_delta)
                 else:
                     df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date_available'])
 
@@ -1393,7 +1403,19 @@ class OnDevicePredictionModel:
         # R12-6 Fix: Use np.maximum on volatility denominator to prevent micro-volatility distortions
         dp_ratio = 0.35 + 0.1 * (vol_ratio_20d - 1.0) - 0.05 * (df['ret_1d'].abs() / np.maximum(ret_vol_20d, 1e-4))
         df['dark_pool_ratio'] = dp_ratio.clip(0.1, 0.6).fillna(0.35)
-        fx_conv = 1350.0 if is_krx_symbol else 1.0
+        # V8-HIGH-07 Fix: Determine conversion rate to USD for non-US assets based on symbol suffix
+        if is_krx_symbol:
+            fx_conv = 1350.0
+        elif str(symbol).endswith(('.T', '.TYO')):
+            fx_conv = 155.0
+        elif str(symbol).endswith(('.TW', '.TWO')):
+            fx_conv = 32.0
+        elif str(symbol).endswith(('.HK',)):
+            fx_conv = 7.8
+        elif str(symbol).endswith(('.L', '.LON')):
+            fx_conv = 0.77
+        else:
+            fx_conv = 1.0
         df['block_trade_net_usd'] = ((volume * close / fx_conv) * df['ret_1d'] * df['dark_pool_ratio']).fillna(0.0)
 
         # Merge global indicator history by date index BEFORE calculating macro sensitivities
@@ -3164,12 +3186,12 @@ class OnDevicePredictionModel:
             ind_df.index = pd.to_datetime(ind_df.index)
             ind_df.index.name = 'date'
 
-            # Shift US ETFs by 1 day because US market closes next morning KST (prevent look-ahead bias)
-            us_etfs = {'XLK', 'XLF', 'XLV', 'XLE'}
+            # V8-HIGH-14 Fix: Shift all US-origin indices and sector ETFs by 1 day because US market closes next morning KST
+            us_leaders = {'^GSPC', 'XLK', 'XLF', 'XLV', 'XLE'}
             for src_col, target_sym in index_sector_mapping.items():
                 if src_col in ind_df.columns:
                     ret_series = ind_df[src_col] / 100.0
-                    if target_sym in us_etfs:
+                    if target_sym in us_leaders:
                         ret_series = ret_series.shift(1)
                     ret_pivot[target_sym] = ret_series
                     forced_leaders.append(target_sym)

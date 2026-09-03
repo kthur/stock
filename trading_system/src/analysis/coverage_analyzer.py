@@ -192,6 +192,12 @@ class StrategyCoverageAnalyzer:
                     tone_strats = {'earnings_tone_drift', 'tone_drift'}
                     lead_lag_strats = {'lead_lag'}
                     supply_strats = {'supply_chain'}
+                    cross_asset_strats = {'cross_asset_spillover', 'cas'}
+                    gnn_strats = {'supply_chain_gnn', 'sc_gnn'}
+                    range_strats = {'range_expansion', 'range_expansion_breakout'}
+                    dual_strats = {'dual_correction'}
+                    rebal_strats = {'index_rebalance'}
+                    gap_strats = {'overnight_gap'}
 
                     if strat in options_strats:
                         reasons['NO_OPTIONS_CHAIN'] = other_cnt
@@ -209,6 +215,18 @@ class StrategyCoverageAnalyzer:
                         reasons['NO_LEAD_LAG_LEADER'] = other_cnt
                     elif strat in supply_strats:
                         reasons['NO_SUPPLY_CHAIN_MAPPING'] = other_cnt
+                    elif strat in cross_asset_strats:
+                        reasons['NO_MACRO_ELASTICITY_DATA'] = other_cnt
+                    elif strat in gnn_strats:
+                        reasons['NO_GRAPH_TOPOLOGY_MAPPING'] = other_cnt
+                    elif strat in range_strats:
+                        reasons['NO_VOLATILITY_CONTRACTION_SETUP'] = other_cnt
+                    elif strat in dual_strats:
+                        reasons['NO_FIBONACCI_PULLBACK_SETUP'] = other_cnt
+                    elif strat in rebal_strats:
+                        reasons['OFF_SEASON_REBALANCE'] = other_cnt
+                    elif strat in gap_strats:
+                        reasons['NO_OVERNIGHT_GAP_SETUP'] = other_cnt
                     else:
                         reasons['STRATEGY_SIGNAL_NEUTRAL'] = other_cnt
 

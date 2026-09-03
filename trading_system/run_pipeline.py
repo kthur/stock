@@ -1254,20 +1254,15 @@ def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> s
         f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         "=" * 30,
     ]
-    krx_markets = ['KOSPI', 'KOSDAQ']
-    us_markets = ['SP500', 'NASDAQ', 'RUSSELL2000']
+    active_markets = [m for m, syms in market_syms.items() if syms]
+    if not active_markets:
+        active_markets = ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']
     for h in horizons:
         if h not in res_df.columns:
             continue
         sorted_df = res_df.sort_values(by=h, ascending=False)
 
-        for m in krx_markets:
-            m_df = sorted_df[sorted_df['symbol'].isin(market_syms.get(m, set()))]
-            if not m_df.empty:
-                lines.append(f"\n*{h}일 예상수익률 — {m} TOP 10*")
-                lines.extend(_fmt_top(m_df, h, symbol_to_name, symbol_to_market, 10))
-
-        for m in us_markets:
+        for m in active_markets:
             m_df = sorted_df[sorted_df['symbol'].isin(market_syms.get(m, set()))]
             if not m_df.empty:
                 lines.append(f"\n*{h}일 예상수익률 — {m} TOP 10*")
@@ -2267,12 +2262,14 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         f.write("Full data: pipeline_result.csv / pipeline_result.jsonl\n\n")
         if res_df.empty:
             f.write("데이터 없음\n")
-        krx_markets = ['KOSPI', 'KOSDAQ']
+        all_pred_mkts = [m for m in _get_target_markets_to_save(universe=universe) if market_syms.get(m)]
+        if not all_pred_mkts:
+            all_pred_mkts = [m for m, syms in market_syms.items() if syms] or ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']
         for h in _SUMMARY_HORIZONS:
             sorted_df = res_df.sort_values(by=h, ascending=False)
             f.write(f"{'='*60}\n")
             f.write(f"Horizon: {h}d\n\n")
-            for m in krx_markets:
+            for m in all_pred_mkts:
                 m_set = market_syms.get(m, set())
                 m_df = _slice_top_df(sorted_df[sorted_df['symbol'].isin(m_set)], pred_limit)
                 if m_df.empty:
@@ -2282,16 +2279,6 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     name = symbol_to_name.get(row['symbol'], "Unknown")
                     f.write(f"  {rank}. {row['symbol']} ({name}): {_fmt_pct(row, h)}\n")
                 f.write("\n")
-            us_markets = ['SP500', 'NASDAQ', 'RUSSELL2000']
-            for m in us_markets:
-                m_set = market_syms.get(m, set())
-                m_df = _slice_top_df(sorted_df[sorted_df['symbol'].isin(m_set)], pred_limit)
-                if not m_df.empty:
-                    f.write(f"--- {m} {'ALL' if is_all_pred else f'TOP {_TOP_N}'} ---\n")
-                    for rank, (_, row) in enumerate(m_df.iterrows(), 1):
-                        name = symbol_to_name.get(row['symbol'], "Unknown")
-                        f.write(f"  {rank}. {row['symbol']} ({name}): {_fmt_pct(row, h)}\n")
-                    f.write("\n")
     logger.info(f"Saved summarized pipeline result ({_HEADER_LABEL}, {len(_SUMMARY_HORIZONS)} horizons) to {output_path}")
 
     # Per-market suffix files for pipeline_result (Strategy 1 / Regression)
@@ -2674,6 +2661,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                             'insider_buying': 'insider_buying_score',
                             'darkpool': 'darkpool_score',
                             'earnings_tone_drift': 'earnings_tone_drift_score',
+                            'cross_asset_spillover': 'cross_asset_spillover_score',
+                            'supply_chain_gnn': 'supply_chain_gnn_score',
+                            'range_expansion_breakout': 'range_expansion_score',
+                            'dual_correction': 'dual_correction_score',
+                            'index_rebalance': 'index_rebalance_score',
+                            'overnight_gap_reversal': 'overnight_gap_score',
                         }
                 _strat_scores = {}
                 for _sname, _scol in _strategy_cols.items():
@@ -3089,8 +3082,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             if 'date_available' in _fd.columns:
                 _fd_valid = _fd[pd.to_datetime(_fd['date_available']) <= _cur_dt]
             elif 'date' in _fd.columns:
-                _lag_d = 45 if (str(_sym).isdigit() or str(_sym).endswith(('.KS', '.KQ'))) else 40
-                _fd_valid = _fd[pd.to_datetime(_fd['date']) + pd.Timedelta(days=_lag_d) <= _cur_dt]
+                is_krx = str(_sym).isdigit() or str(_sym).endswith(('.KS', '.KQ'))
+                fund_dts = pd.to_datetime(_fd['date'])
+                lags = fund_dts.apply(lambda dt: pd.Timedelta(days=90 if is_krx else 60) if getattr(dt, 'month', 0) == 12 else pd.Timedelta(days=45 if is_krx else 40))
+                _fd_valid = _fd[fund_dts + lags <= _cur_dt]
             else:
                 _fd_valid = _fd
 
@@ -3112,12 +3107,30 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             elif isinstance(_last, pd.Series):
                 _eps_g = float(_last.get('eps_growth_1y') or 0.0)
                 _rev_g = float(_last.get('revenue_growth_1y') or 0.0)
+
+            # V8-HIGH-05 Fix: Extract analyst target price revision and consensus EPS revision if available
+            _tp_rev = None
+            _eps_rev = None
+            _per = None
+            if isinstance(_last, (pd.Series, dict)):
+                _tp_rev = _last.get('tp_revision_pct') or _last.get('target_price_change_pct')
+                _eps_rev = _last.get('eps_revision_pct') or _last.get('eps_consensus_change_pct')
+                _per = _last.get('per') or _last.get('pe_ratio')
+
+            if _tp_rev is None and isinstance(_last, (pd.Series, dict)) and 'target_price' in _last and _sym in infer_data_dict:
+                tp_val = float(_last.get('target_price') or 0.0)
+                px_df = infer_data_dict[_sym]
+                if tp_val > 0 and px_df is not None and not px_df.empty:
+                    cur_px = float(px_df['Close'].iloc[-1])
+                    if cur_px > 0:
+                        _tp_rev = float((tp_val / cur_px - 1.0) * 100.0)
+
             _arm_fund[_sym] = {
-                'eps_revision_pct': None,
-                'tp_revision_pct': None,
+                'eps_revision_pct': _eps_rev,
+                'tp_revision_pct': _tp_rev,
                 'eps_growth': _eps_g,
                 'revenue_growth': _rev_g,
-                'per': None,
+                'per': _per,
             }
 
     sector_mapping = dict(zip(universe['symbol'], universe.get('sector', universe.get('industry', 'DEFAULT')))) if 'symbol' in universe.columns else {}
@@ -3154,7 +3167,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
 
     def _eval_card_factor() -> pd.DataFrame:
         from src.core.card_factor import CARDFactorEngine
-        res = CARDFactorEngine().compute_scores(prices_dict=infer_data_dict, indicators_df=indicator_infer if 'indicator_infer' in locals() else pd.DataFrame())
+        res = CARDFactorEngine().compute_scores(prices_dict=infer_data_dict, indicators_df=indicator_infer if 'indicator_infer' in locals() else pd.DataFrame(), sector_map=sector_mapping)
         if isinstance(res, dict):
             return pd.DataFrame([{'symbol': k, 'card_score': v} for k, v in res.items()])
         return res if isinstance(res, pd.DataFrame) else pd.DataFrame()
@@ -3409,7 +3422,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 ('earnings_tone_drift', 'earnings_tone_drift_score'),
                 ('cross_asset_spillover', 'cross_asset_spillover_score'),
                 ('supply_chain_gnn', 'supply_chain_gnn_score'),
-                ('range_expansion_breakout', 'range_expansion_score')
+                ('range_expansion_breakout', 'range_expansion_score'),
+                ('dual_correction', 'dual_correction_score'),
+                ('index_rebalance', 'index_rebalance_score'),
+                ('overnight_gap_reversal', 'overnight_gap_score'),
             ]:
                 if col in hist_df.columns and 'outcome_return' in hist_df.columns:
                     valid_sub = hist_df[hist_df[col].notna() & hist_df['outcome_return'].notna()]
@@ -3697,12 +3713,17 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         from src.risk.risk_manager import RiskManager, CrisisDetector, CrisisLevel
         risk_mgr = RiskManager()
         crisis_detector = CrisisDetector(risk_mgr)
+        state_restored = crisis_detector.load_state()
+        if not state_restored and 'indicator_infer' in locals() and indicator_infer is not None and not indicator_infer.empty:
+            crisis_detector.seed_history_from_dataframe(indicator_infer)
+
         crisis_lvl = crisis_detector.evaluate(
             vix=vix_report,
             usdkrw=usdkrw_report,
             oil=wti_report,
             tnx=us10y_report
         )
+        crisis_detector.save_state()
         logger.info(f"[RISK MANAGER] Current Market Crisis Level evaluated: {crisis_lvl.value}")
         if crisis_lvl in [CrisisLevel.SEVERE, CrisisLevel.ACTIVE]:
             logger.warning(f"[RISK MANAGER] Crisis Level {crisis_lvl.value} active! Scaling down ensemble expected returns.")
@@ -4047,7 +4068,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             total_portfolio_value=getattr(cfg, 'portfolio_capital_krw', 100_000_000.0),
             regime=current_2d_regime if 'current_2d_regime' in locals() else "BULL_LOW_VOL",
             current_holdings=curr_holdings_dict,
-            top_n=30
+            top_n=30,
+            base_currency="KRW",
+            usd_krw=float(usdkrw_report if 'usdkrw_report' in locals() and usdkrw_report else 1350.0),
         )
         if not unified_alloc_df.empty:
             weight_map = dict(zip(unified_alloc_df['symbol'].astype(str), unified_alloc_df['weight'].astype(float)))

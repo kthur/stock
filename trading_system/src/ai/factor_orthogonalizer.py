@@ -37,10 +37,17 @@ class FactorOrthogonalizerEngine:
     while preserving directional alpha and [0.0, 1.0] score bounds without sign-inversion distortion.
     """
 
-    def __init__(self, default_method: str = 'pca_symmetric', ridge_epsilon: float = 1e-6, shrinkage_alpha: float = 0.01):
+    def __init__(
+        self,
+        default_method: str = 'pca_symmetric',
+        ridge_epsilon: float = 1e-6,
+        shrinkage_alpha: float = 0.01,
+        preserve_consensus_pc1: bool = False
+    ):
         self.default_method = default_method
         self.ridge_epsilon = ridge_epsilon
         self.shrinkage_alpha = shrinkage_alpha
+        self.preserve_consensus_pc1 = preserve_consensus_pc1
 
     def orthogonalize(
         self,
@@ -48,7 +55,8 @@ class FactorOrthogonalizerEngine:
         strategy_cols: List[str],
         weights: Optional[Dict[str, float]] = None,
         method: Optional[str] = None,
-        scaling_method: Optional[str] = None
+        scaling_method: Optional[str] = None,
+        preserve_consensus_pc1: Optional[bool] = None,
     ) -> pd.DataFrame:
         eff_method = method or self.default_method
         valid_cols = [c for c in strategy_cols if c in score_df.columns]
@@ -106,7 +114,8 @@ class FactorOrthogonalizerEngine:
             X_decorr = self._esrw_whitening(X_bar, C_shrunk)
             X_ortho = col_means + X_decorr * col_stds
         else:
-            X_ortho = self._pca_zca_symmetric(X_clean, col_means, col_stds)
+            eff_preserve_pc1 = self.preserve_consensus_pc1 if preserve_consensus_pc1 is None else preserve_consensus_pc1
+            X_ortho = self._pca_zca_symmetric(X_clean, col_means, col_stds, preserve_pc1=eff_preserve_pc1)
 
         if has_nans:
             X_ortho[nan_mask] = np.nan
@@ -207,7 +216,8 @@ class FactorOrthogonalizerEngine:
         self,
         X: np.ndarray,
         means: np.ndarray,
-        stds: np.ndarray
+        stds: np.ndarray,
+        preserve_pc1: bool = False
     ) -> np.ndarray:
         N, K = X.shape
         # Standardize matrix to zero mean, unit variance
@@ -224,13 +234,18 @@ class FactorOrthogonalizerEngine:
         eigenvalues, eigenvectors = np.linalg.eigh(C_sym.astype(np.float64))
 
         # Smooth Spectral Tikhonov / ESRW Whitening Operator:
-        # Multi-model consensus preservation (V7-03):
-        # Do not compress the leading principal component (PC1 = shared multi-strategy consensus).
-        # For lambda_max (last eigen-pair in ascending eigh), keep whitening filter = 1.0.
-        # For residual eigenvalues, apply smooth spectral Tikhonov damping.
+        # Multi-model consensus preservation (V7-03 / CRIT-11):
+        # When preserve_pc1 is enabled, do not compress the leading principal component (PC1).
         lambdas_clean = np.maximum(eigenvalues, 0.0)
         ridge_eps = float(np.clip(self.ridge_epsilon, 1e-6, 1e-3))
         whitening_filter = 1.0 / np.sqrt(lambdas_clean + ridge_eps)
+
+        # Preserve leading consensus alpha (PC1 filter = 1.0)
+        if preserve_pc1 and len(whitening_filter) > 0:
+            whitening_filter[-1] = 1.0
+
+        # Cap maximum amplification to prevent noise explosion
+        whitening_filter = np.minimum(whitening_filter, 10.0)
 
         # Compute ZCA whitening operator: C^(-1/2) = V * diag(whitening_filter) * V^T
         inv_sqrt_lambda = np.diag(whitening_filter)

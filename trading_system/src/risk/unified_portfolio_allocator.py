@@ -133,7 +133,8 @@ class UnifiedPortfolioAllocator:
             def constr_sum_w(var):
                 return float(np.sum(var[:n]) - 1.0)
 
-            bounds = [(0.0, self.max_single_weight) for _ in range(n)] + [(None, None)] + [(0.0, None) for _ in range(T)]
+            max_w = min(1.0, max(self.max_single_weight, 1.0 / max(n - 1, 1)))
+            bounds = [(0.0, max_w) for _ in range(n)] + [(None, None)] + [(0.0, None) for _ in range(T)]
 
             # Linear constraint for tail loss: u_t + R_t @ w + gamma >= 0
             def constr_tail_losses(var):
@@ -160,7 +161,7 @@ class UnifiedPortfolioAllocator:
             )
 
             if res.success and np.all(np.isfinite(res.x[:n])):
-                w = np.clip(res.x[:n], 0.0, self.max_single_weight)
+                w = np.clip(res.x[:n], 0.0, max_w)
                 tot = np.sum(w)
                 return w / tot if tot > 0 else np.full(n, 1.0 / n)
         except Exception as e:
@@ -377,6 +378,8 @@ class UnifiedPortfolioAllocator:
         current_holdings: Optional[Dict[str, Dict[str, Any]]] = None,
         sector_map: Optional[Dict[str, str]] = None,
         top_n: int = 20,
+        base_currency: str = "KRW",
+        usd_krw: float = 1350.0,
     ) -> pd.DataFrame:
         """
         Master Pipeline Allocation Method:
@@ -492,16 +495,29 @@ class UnifiedPortfolioAllocator:
         df_candidates["allocation_amount"] = w_final * total_portfolio_value
 
         # Lot size resolution (KRX: 1 share since 2014, TSE/HKEX/HOSE: 100 shares, US: 1 share)
+        # V8-CRIT-01 Fix: Multi-currency aware FX translation
         shares_list = []
         lot_list = []
+        rate_val = float(usd_krw) if usd_krw and usd_krw > 0 else 1350.0
+        base_curr_norm = str(base_currency).upper().strip()
         for i, row in enumerate(df_candidates.itertuples()):
             sym = str(row.symbol)
             mkt = str(getattr(row, "market", "KOSPI")).upper()
             is_krx = sym.isdigit() or mkt in ["KOSPI", "KOSDAQ", "KRX"]
+            is_us = mkt in ["SP500", "NASDAQ", "RUSSELL2000", "US"] or not is_krx
             lot = 1 if is_krx else (100 if mkt in ["JAPAN_TSE", "HKEX", "VIETNAM_HOSE"] else 1)
-            px = latest_prices[i]
-            alloc_amt = row.allocation_amount
-            raw_shares = int(alloc_amt // px) if px > 0 else 0
+            px = float(latest_prices[i])
+            alloc_amt = float(row.allocation_amount)
+
+            # V8-CRIT-01 Fix: Multi-currency aware FX translation
+            if is_us and base_curr_norm == "KRW":
+                eff_price = px * rate_val
+            elif is_krx and base_curr_norm == "USD":
+                eff_price = px / rate_val
+            else:
+                eff_price = px
+
+            raw_shares = int(alloc_amt // eff_price) if eff_price > 0 else 0
             adj_shares = (raw_shares // lot) * lot
             shares_list.append(adj_shares)
             lot_list.append(lot)
@@ -513,4 +529,5 @@ class UnifiedPortfolioAllocator:
             f"[UnifiedPortfolioAllocator] Allocated {len(df_candidates)} assets. "
             f"Total Invested: {df_candidates['weight'].sum():.1%} (Effective Alloc: {effective_alloc:.1%})"
         )
+
         return df_candidates

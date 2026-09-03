@@ -244,13 +244,13 @@ class TimeCorrectionScorer:
         category="factor",
         output_file="dual_correction_predictions.txt",
         default_regime_weights={
-            "BULL_LOW_VOL": 0.10,
-            "BULL_HIGH_VOL": 0.08,
-            "SIDEWAYS_LOW_VOL": 0.07,
-            "SIDEWAYS_HIGH_VOL": 0.06,
-            "BEAR_LOW_VOL": 0.05,
+            "BULL_LOW_VOL": 0.03,
+            "BULL_HIGH_VOL": 0.04,
+            "SIDEWAYS_LOW_VOL": 0.03,
+            "SIDEWAYS_HIGH_VOL": 0.03,
+            "BEAR_LOW_VOL": 0.03,
             "BEAR_HIGH_VOL": 0.04,
-            "CRISIS": 0.02
+            "CRISIS": 0.02,
         },
     )
 )

@@ -139,10 +139,11 @@ class CrossSectionalScoreNormalizer:
                         rank_s = pd.Series(vals).rank(ascending=True, method='average')
                         norm_vals = ((rank_s - 0.5) / float(n_valid)).clip(0.005, 0.995)
 
-                        # If a large inactive block of exact zeros exists in a non-negative sparse factor (>20% of universe, N >= 10), isolate and assign neutral midpoint
+                        # V8-MED-09 Fix: Relax threshold from n_valid >= 10 to n_valid >= 4
+                        # to protect small sectors (4-9 stocks) from artificial down-ranking on sparse zero factors
                         is_exact_zero = (vals == 0.0)
                         if (
-                            n_valid >= 10
+                            n_valid >= 4
                             and (vals >= 0.0).all()
                             and is_exact_zero.any()
                             and not is_exact_zero.all()

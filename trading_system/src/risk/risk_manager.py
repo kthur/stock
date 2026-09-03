@@ -164,12 +164,12 @@ class CrisisDetector:
         except Exception as e:
             logger.warning(f"Failed to save CrisisDetector state: {e}")
 
-    def load_state(self, file_path: str = "models/crisis_state.json") -> None:
+    def load_state(self, file_path: str = "models/crisis_state.json") -> bool:
         """Restore CrisisDetector state and indicator histories from JSON file."""
         try:
             p = Path(file_path)
             if not p.exists():
-                return
+                return False
             with open(p, "r", encoding="utf-8") as f:
                 state = json.load(f)
             self.crisis_level = CrisisLevel(state.get("crisis_level", "NONE"))
@@ -183,9 +183,33 @@ class CrisisDetector:
             self._days_in_crisis = state.get("days_in_crisis", 0)
             self._days_since_crisis_ended = state.get("days_since_crisis_ended", 0)
             logger.info(f"CrisisDetector state restored from {file_path} (level={self.crisis_level.value})")
+            return True
         except Exception as e:
             logger.warning(f"Failed to load CrisisDetector state: {e}")
+            return False
 
+    def seed_history_from_dataframe(self, df: pd.DataFrame) -> None:
+        """Seed indicator history queues from an indicator history dataframe."""
+        if df is None or df.empty:
+            return
+        with self._lock:
+            for col, hist in [
+                ("vix_raw", self._vix_history),
+                ("VIX", self._vix_history),
+                ("usdkrw_raw", self._usdkrw_history),
+                ("USDKRW", self._usdkrw_history),
+                ("wti_raw", self._oil_history),
+                ("WTI", self._oil_history),
+                ("tnx_raw", self._tnx_history),
+                ("TNX", self._tnx_history),
+                ("dxy_raw", self._dxy_history),
+                ("DXY", self._dxy_history),
+            ]:
+                if col in df.columns:
+                    s = df[col].dropna().tail(252).tolist()
+                    if s:
+                        hist.clear()
+                        hist.extend([float(x) for x in s if isinstance(x, (int, float)) and np.isfinite(x)])
 
     def evaluate(
         self,
@@ -326,7 +350,17 @@ class CrisisDetector:
                 vix_roc = (fv - past_vix) / max(past_vix, 0.1)
         raw = (fv - 15.0) / 40.0
         roc_bonus = max(0.0, min(0.3, vix_roc * 0.1))
-        return float(min(1.0, max(0.0, raw + roc_bonus)))
+
+        # MED-11: VIX Term Structure Backwardation Gate (VIX / SMA60 > 1.15)
+        term_structure_bonus = 0.0
+        if len(self._vix_history) >= 20:
+            hist_sample = [x for x in list(self._vix_history)[-60:] if x is not None and isinstance(x, (int, float)) and np.isfinite(x) and x > 0]
+            if len(hist_sample) >= 10:
+                vix_sma60 = float(np.mean(hist_sample))
+                if vix_sma60 > 0 and (fv / vix_sma60) > 1.15:
+                    term_structure_bonus = min(0.25, (fv / vix_sma60 - 1.15) * 0.5)
+
+        return float(min(1.0, max(0.0, raw + roc_bonus + term_structure_bonus)))
 
     def _score_drawdown(self, dd: float) -> float:
         dd_speed = 0.0

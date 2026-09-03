@@ -192,6 +192,7 @@ class IntradayStopLossEngine:
                 volume_ma_20 = float(data.get("volume_ma_20", 0.0))
                 atr = float(data.get("atr", 0.0))
                 prev_price = float(data.get("prev_price", current_price))
+                entry_price = float(data.get("entry_price", 0.0))
             else:
                 return StopLossSignal(symbol=symbol, triggered=False, reason="EVALUATION_ERROR")
 
@@ -240,6 +241,9 @@ class IntradayStopLossEngine:
             # Rule 1: Dynamic ATR Trailing Stop Breach with Ratchet Monotonicity
             if atr > 0:
                 raw_stop = peak_price - self.atr_multiplier * atr
+                # Breakeven ratchet lock: if gain from entry >= 8%, stop is raised to at least breakeven (+0.5%)
+                if 'entry_price' in locals() and entry_price > 0 and (current_price - entry_price) / entry_price >= 0.08:
+                    raw_stop = max(raw_stop, entry_price * 1.005)
                 last_stop = self._symbol_stops.get(symbol, 0.0)
                 effective_stop = max(last_stop, raw_stop)
                 self._symbol_stops[symbol] = effective_stop
