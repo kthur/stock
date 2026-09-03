@@ -2519,7 +2519,7 @@ class EnsembleScoringEngine:
             raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
 
         # V8-HIGH-10 Fix: Bayesian coverage shrinkage towards cross-sectional mean for stocks with <0.60 valid weight
-        if getattr(self, 'enable_coverage_shrinkage', True) and len(strategy_cols) >= 10:
+        if getattr(self, 'enable_coverage_shrinkage', True) and len(strategy_cols) >= 10 and (valid_weight_series > 0).any():
             valid_scores = raw_linear_score[has_valid]
             cs_mean = float(valid_scores.mean()) if len(valid_scores) > 0 else 0.50
             cov_lambda = (valid_weight_series / 0.60).clip(0.0, 1.0)
@@ -2601,9 +2601,10 @@ class EnsembleScoringEngine:
 
         # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend
         explicit_weights_provided = (weights is not None and len(weights) > 0 and len(merged) < 5)
+        has_strategy_features = bool((valid_weight_series > 0).any())
         try:
             meta_learner = MetaEnsembleLearner()
-            if meta_learner.is_fitted and not explicit_weights_provided:
+            if meta_learner.is_fitted and not explicit_weights_provided and has_strategy_features:
                 meta_score = meta_learner.predict(merged)
                 meta_weight = 0.50
                 if hasattr(meta_learner, 'oob_score_') and pd.notna(meta_learner.oob_score_):
@@ -3047,6 +3048,7 @@ class EnsembleScoringEngine:
         # Brokerage fee is charged round-trip (both buy and sell legs)
         raw_total_cost = stt_tax + (2.0 * brokerage_fee) + (1.0 * clamped_spread) + (2.0 * impact_one_way)
         mkt_scaling_map = getattr(self, 'market_cost_scaling_map', None)
+        eff_scaling: Any
         if mkt_scaling_map and isinstance(mkt_scaling_map, dict):
             mkt_scaling_vec = np.ones(len(merged), dtype=float)
             for mkt_name, sc_val in mkt_scaling_map.items():
@@ -3080,8 +3082,10 @@ class EnsembleScoringEngine:
             # Preferred stock check (KRX naming convention & 6-digit ticker 5/7/9/K/L/M/N/O suffix)
             if name.endswith(('우', '우B', '1우', '2우B', '3우B', '우(전환)', '우A', '우C')) or '우선주' in name:
                 return True
+            mkt = str(row.get('market', '')).upper()
+            is_krx = mkt in ['KOSPI', 'KOSDAQ', 'KONEX'] or sym.endswith(('.KS', '.KQ'))
             raw_sym = sym.split('.')[0] if '.' in sym else sym
-            if len(raw_sym) == 6 and raw_sym[-1] in ['5', '7', '9', 'K', 'L', 'M', 'N', 'O']:
+            if is_krx and len(raw_sym) == 6 and raw_sym[-1] in ['5', '7', '9', 'K', 'L', 'M', 'N', 'O']:
                 return True
             # SPAC check
             if '스팩' in name or 'SPAC' in name.upper():

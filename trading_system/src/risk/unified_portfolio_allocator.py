@@ -11,7 +11,7 @@ Tier-1 Hedge Fund Portfolio Construction Framework:
 
 import logging
 import math
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, cast
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
@@ -119,7 +119,8 @@ class UnifiedPortfolioAllocator:
             return pd.DataFrame(), []
 
         prices_df = pd.DataFrame(close_series).ffill()
-        valid_symbols = [s for s in symbols if s in prices_df.columns]
+        returns_df = prices_df.pct_change().dropna(how='all')
+        valid_symbols = [s for s in symbols if s in returns_df.columns]
         return returns_df, valid_symbols
 
     @staticmethod
@@ -164,7 +165,7 @@ class UnifiedPortfolioAllocator:
         min_diag = np.min(np.diag(hybrid_cov))
         if min_diag <= 0:
             hybrid_cov += (abs(min_diag) + 1e-6) * np.eye(n)
-        return hybrid_cov
+        return cast(np.ndarray, hybrid_cov)
 
     def calculate_cvar_weights(
         self,

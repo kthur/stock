@@ -42,7 +42,7 @@ class FactorOrthogonalizerEngine:
         default_method: str = 'pca_symmetric',
         ridge_epsilon: float = 1e-6,
         shrinkage_alpha: float = 0.01,
-        preserve_consensus_pc1: bool = True
+        preserve_consensus_pc1: bool = False
     ):
         self.default_method = default_method
         self.ridge_epsilon = ridge_epsilon
@@ -217,7 +217,7 @@ class FactorOrthogonalizerEngine:
         X: np.ndarray,
         means: np.ndarray,
         stds: np.ndarray,
-        preserve_pc1: bool = True
+        preserve_pc1: bool = False
     ) -> np.ndarray:
         N, K = X.shape
         # Standardize matrix to zero mean, unit variance
@@ -244,8 +244,8 @@ class FactorOrthogonalizerEngine:
         if preserve_pc1 and len(whitening_filter) > 0:
             whitening_filter[-1] = 1.0
 
-        # Cap maximum amplification to prevent noise explosion on weak spectral dimensions (C-05 / optimal 3.5 bound)
-        whitening_filter = np.minimum(whitening_filter, 3.5)
+        # Cap maximum amplification to prevent noise explosion on weak spectral dimensions (C-05 / optimal bound)
+        whitening_filter = np.minimum(whitening_filter, 10.0)
 
         # Compute ZCA whitening operator: C^(-1/2) = V * diag(whitening_filter) * V^T
         inv_sqrt_lambda = np.diag(whitening_filter)
