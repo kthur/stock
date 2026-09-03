@@ -56,7 +56,8 @@ class OpeningAuctionArbitrageEngine:
         Projects fair value opening gap:
         Delta Gap = beta_lead * r_US_Leader + beta_broad * r_SPY + fx_sens * r_USDKRW
         """
-        theme = self.SYMBOL_SECTOR_MAP.get(symbol, "general")
+        sym_clean = str(symbol).strip().split('.')[0]
+        theme = self.SYMBOL_SECTOR_MAP.get(sym_clean, self.SYMBOL_SECTOR_MAP.get(str(symbol).strip(), "general"))
         us_proxy = self.US_LEADER_MAP.get(theme, "SPY")
 
         r_lead = float(us_overnight_returns.get(us_proxy, us_overnight_returns.get("SPY", 0.0)))

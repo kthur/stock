@@ -3942,7 +3942,7 @@ def build_html(
         <div style="font-size: 12px; color: var(--muted); line-height: 1.6;">
           <div>• <strong>Dynamic No-Trade Band</strong>: <span style="color:#e3b341; font-weight:600;">&plusmn;2.50% Band (Rebalance Threshold)</span></div>
           <div>• <strong>Rebalance Bypass</strong>: <span style="color:#2ea043; font-weight:600;">New Entry &amp; Full Exit Active (Bypass Band)</span></div>
-          <div>• <strong>Friction Costs Applied</strong>: <span style="color:var(--text);">STT 0.18%, SEC 0.00278%, 5bp Spread, Kyle's Lambda</span></div>
+          <div>• <strong>Friction Costs Applied</strong>: <span style="color:var(--text);">STT 0.15%, SEC 0.00278%, 5bp Spread, Kyle's Lambda</span></div>
           <div>• <strong>Execution Slicing</strong>: <span style="color:#38bdf8; font-weight:600;">Almgren-Chriss Optimal Slicing Active</span></div>
         </div>
       </div>
@@ -4005,7 +4005,7 @@ def build_html(
       <div class="weights-title">📊 37대 전략 역사적 벤치마크 백테스트 성과 (5Y Walk-Forward Baseline)</div>
       <div style="font-size: 12px; color: var(--muted); padding: 12px 14px 0; line-height: 1.5;">
         📌 <strong>검증 방식</strong>: 5대 시장(KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) 5개년 롤링 워크포워드 OOS 시뮬레이션 (20D Holding)<br>
-        📌 <strong>거래비용 차감</strong>: 한국 STT 0.18%, 미국 SEC Fee, 5bp 양방향 스프레드 및 Kyle's Lambda 마켓 임팩트 전액 반영
+        📌 <strong>거래비용 차감</strong>: 한국 STT 0.15%, 미국 SEC Fee, 5bp 양방향 스프레드 및 Kyle's Lambda 마켓 임팩트 전액 반영
       </div>
       <div class="table-wrap" style="padding: 12px 14px;">
         <table>

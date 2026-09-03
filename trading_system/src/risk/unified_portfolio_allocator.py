@@ -105,7 +105,8 @@ class UnifiedPortfolioAllocator:
                             sym_str = str(sym)
                             is_krx = sym_str.isdigit() or sym_str.endswith(('.KS', '.KQ'))
                             try:
-                                aligned_fx = fx_series.reindex(s_tail.index).ffill().bfill()
+                                first_valid_fx = float(fx_series.dropna().iloc[0]) if not fx_series.dropna().empty else 1350.0
+                                aligned_fx = fx_series.reindex(s_tail.index).ffill().fillna(first_valid_fx)
                                 if not is_krx and base_curr_norm == "KRW":
                                     s_tail = s_tail * aligned_fx
                                 elif is_krx and base_curr_norm == "USD":

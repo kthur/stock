@@ -146,6 +146,34 @@ class SmartOrderRouter:
                 "dma_gateway": "krx_open_api",
                 "venue": "KRX_ATS_NEXTRADE"
             }
+        elif mkt in ["JAPAN_TSE", "JAPAN", "TSE", "NIKKEI", "TOPIX"] or sym.endswith(".T"):
+            return {
+                "market_region": "JP",
+                "primary_broker": "interactive_brokers",
+                "dma_gateway": "fix_protocol",
+                "venue": "TSE_DIRECT"
+            }
+        elif mkt in ["HKEX", "HONGKONG", "HANGSENG"] or sym.endswith(".HK"):
+            return {
+                "market_region": "HK",
+                "primary_broker": "interactive_brokers",
+                "dma_gateway": "fix_protocol",
+                "venue": "HKEX_DIRECT"
+            }
+        elif mkt in ["EUROPE_STOXX", "EUROPE", "STOXX", "DAX", "FTSE", "CAC"] or sym.endswith((".DE", ".PA", ".AS", ".L", ".SW")):
+            return {
+                "market_region": "EU",
+                "primary_broker": "interactive_brokers",
+                "dma_gateway": "fix_protocol",
+                "venue": "EURONEXT_XETRA"
+            }
+        elif mkt in ["CANADA_TSX", "CANADA", "TSX"] or sym.endswith(".TO"):
+            return {
+                "market_region": "CA",
+                "primary_broker": "interactive_brokers",
+                "dma_gateway": "fix_protocol",
+                "venue": "TSX_DIRECT"
+            }
         else:
             return {
                 "market_region": "US",
