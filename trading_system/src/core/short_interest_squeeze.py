@@ -52,7 +52,8 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
         self,
         symbols: list,
         prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
-        features_df: Optional[Any] = None
+        features_df: Optional[Any] = None,
+        **kwargs: Any
     ) -> pd.DataFrame:
         """
         Computes Short Interest & Squeeze Score per symbol.
@@ -60,6 +61,9 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
         """
         if not symbols:
             return pd.DataFrame(columns=['symbol', 'short_squeeze_score'])
+
+        if features_df is None and 'fundamentals_dict' in kwargs:
+            features_df = kwargs['fundamentals_dict']
 
         results = {}
 
@@ -98,8 +102,12 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
 
             # V8-HIGH-12 Fix: Return NaN when explicit short interest/DTC is unavailable
             # to allow ensemble missingness renormalization without corrupting cross-sectional ranks.
+            # If evaluating a single stock (N=1), return neutral 0.50 guardrail.
             if pd.isna(short_ratio) or pd.isna(dtc):
-                results[sym_str] = np.nan
+                if len(symbols) == 1:
+                    results[sym_str] = 0.50
+                else:
+                    results[sym_str] = np.nan
             else:
                 # Formula: Short Interest Ratio * DTC * Momentum Condition
                 # Add squeeze ignition multiplier when momentum turns positive with heavy DTC
@@ -107,7 +115,7 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                     f_sr = float(short_ratio)
                     f_dtc = float(dtc)
                     if not (np.isfinite(f_sr) and np.isfinite(f_dtc) and f_sr >= 0 and f_dtc >= 0):
-                        results[sym_str] = np.nan
+                        results[sym_str] = 0.50 if len(symbols) == 1 else np.nan
                     else:
                         # Multi-Tier Squeeze Ignition Accelerator:
                         # Explosive Squeeze Trigger: High DTC + High Short Float + Strong 5D Breakout
@@ -125,14 +133,15 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                         mom_factor = (1.0 + float(ret_5d) * 4.5) if ret_5d >= 0 else max(0.10, 1.0 + float(ret_5d) * 2.0)
                         mom_factor = mom_factor if np.isfinite(mom_factor) else 1.0
                         raw_squeeze = float(f_sr * f_dtc * mom_factor * ignite_mult * htb_squeeze_mult)
-                        results[sym_str] = raw_squeeze if np.isfinite(raw_squeeze) else np.nan
+                        results[sym_str] = raw_squeeze if np.isfinite(raw_squeeze) else (0.50 if len(symbols) == 1 else np.nan)
                 except (ValueError, TypeError):
-                    results[sym_str] = np.nan
+                    results[sym_str] = 0.50 if len(symbols) == 1 else np.nan
 
         # Build output DataFrame and normalize
         df_out = pd.DataFrame(list(results.items()), columns=['symbol', 'raw_score'])
         df_out['raw_score'] = pd.to_numeric(df_out['raw_score'], errors='coerce')
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
+        df_out['short_squeeze_score'] = np.nan
 
         if valid_mask.sum() > 1:
             ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
@@ -142,11 +151,10 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
             df_out.loc[valid_mask, 'short_squeeze_score'] = pd.Series(boosted_ranks, index=df_out.loc[valid_mask].index).clip(0.05, 0.98)
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'short_squeeze_score'] = 0.50
+        elif len(symbols) == 1:
+            df_out['short_squeeze_score'] = 0.50
         else:
-            if len(df_out) == 1:
-                df_out['short_squeeze_score'] = 0.50
-            else:
-                df_out['short_squeeze_score'] = np.nan
+            df_out['short_squeeze_score'] = np.nan
 
         df_out['short_squeeze_score'] = df_out['short_squeeze_score'].astype(float)
 

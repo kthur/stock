@@ -2,7 +2,7 @@ import functools
 import logging
 import numpy as np
 import pandas as pd
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class FactorOrthogonalizerEngine:
         default_method: str = 'pca_symmetric',
         ridge_epsilon: float = 1e-6,
         shrinkage_alpha: float = 0.01,
-        preserve_consensus_pc1: bool = False
+        preserve_consensus_pc1: bool = True
     ):
         self.default_method = default_method
         self.ridge_epsilon = ridge_epsilon
@@ -217,7 +217,7 @@ class FactorOrthogonalizerEngine:
         X: np.ndarray,
         means: np.ndarray,
         stds: np.ndarray,
-        preserve_pc1: bool = False
+        preserve_pc1: bool = True
     ) -> np.ndarray:
         N, K = X.shape
         # Standardize matrix to zero mean, unit variance

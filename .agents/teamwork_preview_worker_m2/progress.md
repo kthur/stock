@@ -1,33 +1,22 @@
-# Progress — Milestone 2 Worker
+# Progress - Worker M2
 
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Read explorer reports (m2_1, m2_2, m2_3)
-- [x] Inspect existing files:
-  - `trading_system/run_pipeline.py`
-  - `AGENTS.md`
-  - `trading_system/scripts/verify_gha_artifacts.py`
-  - `.agents/skills/gha-artifact-verifier/SKILL.md`
-- [x] Implement Task 1: `trading_system/run_pipeline.py`
-  - Reordered STRATEGY_REGISTRY (Strategy 6 `lstm`, Strategy 30 `darkpool`, Strategy 31 `earnings_tone_drift`)
-  - Expanded `verification_files` from 13 to 34 output files
-- [x] Implement Task 2: `AGENTS.md`
-  - Updated strategy table rows 30/31 (Darkpool / Tone Drift)
-  - Updated Mermaid architecture diagram
-  - Updated Key Files table
-- [x] Implement Task 3: `trading_system/scripts/verify_gha_artifacts.py`
-  - Updated STRATEGIES list to 31 canonical items (1..31)
-  - Added files_map and check_funcs for all 31 strategies
-  - Added STRATEGY_PANEL_ALIASES and verified all 31 panels in HTML DOM
-  - Updated print_report to 31-column matrix display
-- [x] Implement Task 4: `.agents/skills/gha-artifact-verifier/SKILL.md`
-  - Updated YAML frontmatter
-  - Updated Key Verification Requirements table to 31 individual rows
-  - Updated Step 2 categories
-- [x] Added unit tests: `tests/test_verify_gha_artifacts.py` (8 test functions)
-- [x] Run verification tests and scripts:
-  - `verify_gha_artifacts.py` executed successfully (all 31 strategy HTML panels verified)
-  - Pytest full suite: 119/119 tests PASSED in 14.73s
-- [x] Write `report.md` and `handoff.md`
-- [x] Send completion message to parent
-
-Last visited: 2026-09-01T00:19:15+09:00
+- **Last visited**: 2026-09-03T12:15:00Z
+- **Current state**: Completed Milestone 2 / Requirement 2 & OMS Fixes.
+- **Completed Objectives**:
+  1. CRIT-01: Multi-Currency FX Translation in `src/risk/unified_portfolio_allocator.py` & `run_pipeline.py`.
+  2. CRIT-02: Black-Litterman Horizon vs Covariance Scaling in `src/analysis/portfolio_optimizer.py` & `unified_portfolio_allocator.py` (`view_horizon=self.target_horizon`).
+  3. CRIT-06: Small Universe (N <= 4) CVaR Bound in `src/risk/unified_portfolio_allocator.py` (`max_w = min(1.0, max(self.max_single_weight, 1.0 / max(n - 1, 1)))`).
+  4. CRIT-07: Currency-Adaptive Minimum Trade Threshold in `src/execution/turnover_optimizer.py` & `src/risk/portfolio_allocator.py` (`min_rebalance_delta = 50.0 if is_usd else 50_000.0`).
+  5. HIGH-15: Cornish-Fisher VaR fallback to Expected Shortfall in `src/risk/portfolio_allocator.py` (`cvar_val = float(np.mean(tail_losses))`).
+  6. HIGH-16: Gatheral 3/2-Power Market Impact & 5% ADV Bound in `unified_portfolio_allocator.py` (`abs(w_i - w_curr_i) <= (0.05 * ADV_i) / V_port`).
+  7. MED-12: HERC dynamic weight caps delegated from `UnifiedPortfolioAllocator` (`max_single_stock_weight`, `max_sector_weight`).
+  8. Asymmetric Leland No-Trade Buffer Bands in `unified_portfolio_allocator.py` & `portfolio_allocator.py` (fixed variance formula to $\Delta_i \propto (c \cdot \sigma_{ann}^2 / \gamma)^{1/3}$, 1.8x winner, 0.6x lagger, bypass for fresh entries / full exits).
+  9. Active Regression Fix in `src/execution/oms_engine.py:716-725` (use `current_holdings[sym]["quantity"]` directly on full liquidation SELL orders).
+- **Verification Results**:
+  - `tests/test_institutional_portfolio_construction.py`: 13 passed
+  - `tests/test_portfolio_optimizer_and_oms.py`: 11 passed
+  - `tests/test_turnover_optimizer.py`: 4 passed
+  - `tests/test_position_lifecycle_optimization.py`: 11 passed
+  - `tests/test_v8_remediation.py`: 21 passed
+  - Total: **60 passed in 24.71s (100% Pass, 0 Failures)**.
+- **Next steps**: Submit handoff report and notify parent.

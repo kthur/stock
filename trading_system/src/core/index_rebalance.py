@@ -11,7 +11,7 @@ import logging
 import datetime
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional
+from typing import Dict, List, Any, Optional
 
 from .base_strategy import BaseStrategyEngine
 from src.core.strategy_registry import register_strategy, StrategyMeta

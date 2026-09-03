@@ -172,7 +172,7 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                         # to eliminate the ~14.5 hour timezone lookahead bias.
                         is_us_macro = k in ["sox", "sp500", "vix", "tnx", "wti", "gold", "dxy"]
                         use_lag = is_krx and is_us_macro and len(series) >= 2
-                        
+
                         # If series is already a change / return column
                         if "change" in matched_col.lower() or "pct" in matched_col.lower():
                             val = float(series.iloc[-2] if use_lag else series.iloc[-1])

@@ -1,36 +1,48 @@
-# BRIEFING — 2026-08-31T14:54:00Z
+# BRIEFING — 2026-09-03T12:03:30Z
 
 ## Mission
-Survey and investigate requirement R3: GitHub Pages Dashboard Metric Consolidation & UX Enhancement. Group fragmented indicators into 3 unified consolidated cards, detail responsive design, badges, tooltips, compact tables, and 31-strategy tab UX.
+Investigate and design actionable blueprint for Milestone 3 / Requirement 3 (Test Suite Verification, Fixes, and Quantitative Benchmark Framework across 5 markets).
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: survey, analysis, synthesis
+- Roles: survey_3 (Test Suite & Quantitative Benchmark Expert)
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3
-- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Milestone: survey_r3_dashboard_ux
+- Original parent: 9f89ea60-abb5-4468-88df-62eb0473f19b
+- Milestone: Milestone 3 / Requirement 3 (R3 & Test Suite)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement in source files (only write reports and metadata in own .agents/ folder)
-- Adhere strictly to 5-Component Handoff Report and Teamwork explorer protocols
+- Read-only investigation — do NOT implement changes in source code
+- Investigate test suite under `tests/` (test count, files, known failures, fragile assertions)
+- Investigate performance evaluation metrics and design benchmarking script and schema
 
 ## Current Parent
-- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Updated: 2026-08-31T23:54:00+09:00
+- Conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
+- Updated: 2026-09-03T12:03:30Z
 
 ## Investigation State
-- **Explored paths**: `ORIGINAL_REQUEST.md`, `AGENTS.md`, `trading_system/generate_report.py`, `trading_system/src/pipeline/reporter.py`, `gh-pages/index.html`, `trading_system/result/strategy_data_coverage_report.txt`, `trading_system/portfolio_allocation.txt`, `trading_system/ensemble_predictions.txt`, `tests/test_report_generator_hrp.py`, `tests/test_report_ux_and_rounding.py`
-- **Key findings**: Designed complete architectural blueprints for (1) Card 1: Market Regime & Risk Gates, (2) Card 2: Strategy Coverage & Missingness Diagnosis, and (3) Card 3: Portfolio Optimization & Execution OMS, complete with responsive CSS, interactive JS filtering, direct tab jumps, and stock drawer integration.
-- **Unexplored areas**: None within R3 survey scope.
+- **Explored paths**:
+  - `tests/` directory (136 test files, 2,173 test cases).
+  - `tests/test_institutional_portfolio_construction.py:193` (HIGH-01 verified resolved in commit 65d7b6bc).
+  - `tests/test_position_lifecycle_optimization.py:297` (discovered active failure in `test_rebalance_liquidation_of_dropped_holdings`).
+  - `trading_system/src/execution/oms_engine.py:426-446` & `664-730` (root cause for dropped holding liquidation failure).
+  - `trading_system/src/analysis/backtest_summary.py` (missing strategies 32-37 in score columns).
+  - `trading_system/src/analysis/walk_forward_backtester.py` (Pearson IC & Spearman Rank-IC).
+  - `trading_system/src/execution/turnover_optimizer.py` (turnover reduction hysteresis & delta).
+  - `trading_system/src/risk/unified_portfolio_allocator.py` & `portfolio_optimizer.py` (BL, HERC, CVaR, Leland buffer).
+  - `trading_system/generate_report.py` & `src/pipeline/reporter.py` (report generation and formatting).
+- **Key findings**:
+  - Total test count: 2,173 test cases across 136 files.
+  - Known failure HIGH-01 is verified fixed (13 passed in 35s).
+  - Active test failure discovered in `test_position_lifecycle_optimization.py:297`: OMS skips liquidation order for unannotated symbols because of USD currency conversion and zero share floor.
+  - Designed clean reproducible benchmarking harness `scripts/benchmark_quant_performance.py`.
+  - Designed 3-tier schema for Quantitative Comparison Table required by R3.
+- **Unexplored areas**: None. Full scope for Milestone 3 / R3 survey completed.
 
 ## Key Decisions Made
-- Completed `survey_report.md` detailing the exact layout, CSS, and JS specifications for the 3 target consolidated cards.
-- Verified test suite: 23 unit tests passing 100%.
-- Produced 5-component `handoff.md`.
+- Adhere strictly to read-only investigation and 5-component handoff structure.
+- Provided exact line numbers, root cause, and remediation code in handoff.md.
 
 ## Artifact Index
-- `DISPATCH.md` — Inbound mission dispatch
-- `BRIEFING.md` — Situational awareness and identity
-- `progress.md` — Execution progress and heartbeat
-- `survey_report.md` — Comprehensive survey report on dashboard consolidation
-- `handoff.md` — 5-component handoff report for parent agent
+- `handoff.md` — Comprehensive R3 & Test Suite blueprint
+- `progress.md` — Liveness heartbeat and detailed investigation steps
+- `DISPATCH.md` — Recorded incoming task dispatch

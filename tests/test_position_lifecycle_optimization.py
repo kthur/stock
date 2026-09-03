@@ -261,6 +261,60 @@ class TestPositionLifecycleOptimization(unittest.TestCase):
         self.assertTrue(res.triggered)
         self.assertIn("DYNAMIC_ATR_TRAILING_BREACH", res.reason)
 
+    # =========================================================================
+    # 6. Rebalance Liquidation & Unified Allocator Integration Tests
+    # =========================================================================
+
+    def test_rebalance_liquidation_of_dropped_holdings(self):
+        """Verify that when a stock is held but drops out of top_predictions, OMS generates SELL order."""
+        # Current holdings has DROPPED_SYM with 10% weight
+        current_holdings = {
+            "DROPPED_SYM": {
+                "weight": 0.10,
+                "current_price": 50000.0,
+                "quantity": 20
+            }
+        }
+        # Top predictions only has NEW_LEADER with target weight 0.15
+        top_predictions = [
+            {"symbol": "NEW_LEADER", "close_price": 100000.0, "market": "KOSPI", "action": "BUY"}
+        ]
+        portfolio_weights = {
+            "NEW_LEADER": 0.15,
+            "DROPPED_SYM": 0.0  # Zero target weight
+        }
+
+        order_plans = self.oms.generate_order_plan(
+            top_predictions=top_predictions,
+            portfolio_weights=portfolio_weights,
+            total_capital=100_000_000.0,
+            current_holdings=current_holdings,
+            use_leland_buffer=False
+        )
+
+        # There should be a SELL order for DROPPED_SYM
+        actions = {p["symbol"]: p["action"] for p in order_plans}
+        self.assertIn("DROPPED_SYM", actions)
+        self.assertEqual(actions["DROPPED_SYM"], "SELL")
+
+    def test_get_current_holdings_details_from_db(self):
+        """Verify get_current_holdings_details_from_db returns rich metadata."""
+        # Insert a mock executed order
+        conn = self.oms._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO order_plans (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, status, created_at, sleeve_type)
+            VALUES ('ORD_TEST_1', 'HOLD_SYM', 'Hold Corp', 'KOSPI', 'BUY', 0.10, 10000000.0, 50000.0, 200, 'EXECUTED', '2026-08-20 10:00:00', 'FAST_MOMENTUM')
+        """)
+        conn.commit()
+
+        details = self.oms.get_current_holdings_details_from_db()
+        self.assertIn("HOLD_SYM", details)
+        self.assertEqual(details["HOLD_SYM"]["quantity"], 200)
+        self.assertEqual(details["HOLD_SYM"]["entry_price"], 50000.0)
+        self.assertEqual(details["HOLD_SYM"]["sleeve_type"], "FAST_MOMENTUM")
+        self.assertTrue(details["HOLD_SYM"]["days_held"] > 0)
+
 
 if __name__ == "__main__":
     unittest.main()

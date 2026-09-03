@@ -1,56 +1,34 @@
-# BRIEFING — 2026-08-31T23:54:15+09:00
+# BRIEFING — 2026-09-03T12:05:00Z
 
 ## Mission
-Survey and investigate requirement R2: 31-Strategy Canonical Sequence Unification across AGENTS.md, pipeline, ensemble scorer, reports, GHA verifier, and UI.
+Deep investigation and blueprint creation for R2: Portfolio Allocator, FX translation, Black-Litterman horizon scaling, CVaR feasibility, HERC bounds, Gatheral impact, Cornish-Fisher ES, and Asymmetric Leland Buffer Bands.
 
 ## 🔒 My Identity
-- Archetype: explorer
-- Roles: Survey Explorer (teamwork_preview_explorer)
+- Archetype: teamwork_preview_explorer
+- Roles: Explorer Survey 2 (Portfolio Allocator & Cost Model Expert)
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2
-- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Milestone: Requirement R2 Investigation
+- Original parent: 9f89ea60-abb5-4468-88df-62eb0473f19b
+- Milestone: Milestone 2 / Requirement 2 (R2)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement code changes to src/ or trading_system/
-- Write reports to .agents/teamwork_preview_explorer_survey_2/
-- Follow 5-Component Handoff Report Protocol
-- Communicate via send_message to parent (b672d6c7-56c6-40df-9cff-af49d8b4ec1c)
+- Read-only investigation — do NOT implement
+- Focus on portfolio optimization, risk allocation, friction cost models, and numerical stability
 
 ## Current Parent
-- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Updated: 2026-08-31T23:54:15+09:00
+- Conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
+- Updated: 2026-09-03T11:56:34Z
 
 ## Investigation State
-- **Explored paths**:
-  - `AGENTS.md`
-  - `trading_system/run_pipeline.py`
-  - `trading_system/generate_report.py`
-  - `trading_system/src/pipeline/reporter.py`
-  - `trading_system/src/ai/ensemble_scorer.py`
-  - `trading_system/src/ai/correlation_monitor.py`
-  - `trading_system/src/ai/score_normalizer.py`
-  - `trading_system/src/analysis/coverage_analyzer.py`
-  - `trading_system/scripts/verify_gha_artifacts.py`
-  - `skills/gha-artifact-verifier/SKILL.md`
-  - `trading_system/merge_predictions.py`
-  - `tests/test_all_16_markets_31_strategies.py`
-  - `tests/test_merge_generic_strategies.py`
-- **Key findings**:
-  - Established canonical sequence 1..31 for all strategies.
-  - Identified swap between #30 and #31 in AGENTS.md table vs internal code metadata.
-  - Identified `verify_gha_artifacts.py` and `SKILL.md` missing strategies 24..31 and non-canonical order.
-  - Identified `generate_report.py` containing 3 extra tabs (32-34) in UI.
-  - Identified `run_pipeline.py` verification list checking only 13 files instead of all 31.
-- **Unexplored areas**: None within R2 scope.
+- **Explored paths**: `unified_portfolio_allocator.py`, `portfolio_optimizer.py`, `turnover_optimizer.py`, `portfolio_allocator.py`, `ensemble_scorer.py`, `run_pipeline.py`, `tests/test_v8_remediation.py`, `tests/test_institutional_portfolio_construction.py`, `tests/test_portfolio_optimizer_and_oms.py`, `tests/test_turnover_optimizer.py`.
+- **Key findings**: Complete blueprint synthesized for CRIT-01, CRIT-02, CRIT-06, CRIT-07, HIGH-15, HIGH-16, MED-12, and Asymmetric Leland Bands. All 49 existing test cases confirmed passing (100% Pass).
+- **Unexplored areas**: None for R2.
 
 ## Key Decisions Made
-- Canonical master sequence defined (1 to 31).
-- Survey report written to `survey_report.md`.
-- Handoff report written to `handoff.md`.
+- Confirmed degree-of-freedom formulation for CVaR ($w_i \le \min(1.0, \max(0.20, 1/(n-1)))$) preventing box-in while ensuring feasibility.
+- Confirmed scaling $Q_{daily} = Q_{20d} / 20$ in Black-Litterman to restore quadratic curvature.
+- Identified inverted volatility term in `unified_portfolio_allocator.py:427` Leland buffer band formula.
 
 ## Artifact Index
-- DISPATCH.md — Original dispatch message
-- BRIEFING.md — Persistent working memory
-- progress.md — Liveness progress heartbeat
-- survey_report.md — Comprehensive survey report on 31-Strategy Canonical Sequence
-- handoff.md — 5-component handoff report
+- handoff.md — Comprehensive investigation report
+- progress.md — Liveness heartbeat
+- DISPATCH.md — Received requests

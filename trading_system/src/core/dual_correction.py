@@ -243,6 +243,7 @@ class TimeCorrectionScorer:
         score_column="dual_correction_score",
         category="factor",
         output_file="dual_correction_predictions.txt",
+        is_standalone=False,
         default_regime_weights={
             "BULL_LOW_VOL": 0.03,
             "BULL_HIGH_VOL": 0.04,

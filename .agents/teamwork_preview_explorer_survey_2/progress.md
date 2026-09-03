@@ -1,21 +1,18 @@
-# Progress Log
+# Progress — Explorer Survey 2
 
-Last visited: 2026-08-31T23:54:15+09:00
+Last visited: 2026-09-03T21:03:00+09:00
 
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Read ORIGINAL_REQUEST.md and AGENTS.md
-- [x] Inspect 31 strategy definitions across codebase:
-  - AGENTS.md
-  - trading_system/run_pipeline.py
-  - src/ai/ensemble_scorer.py
-  - src/pipeline/reporter.py
-  - generate_report.py
-  - trading_system/scripts/verify_gha_artifacts.py
-  - skills/gha-artifact-verifier/SKILL.md
-  - txt files output generation
-  - gh-pages/index.html and web generator
-- [x] Analyze differences in strategy keys, order, names, output files, tab indices
-- [x] Formulate complete 1-31 canonical sequence mapping
-- [x] Write survey_report.md and handoff.md
-- [x] Updated BRIEFING.md
-- [x] Send message to caller parent
+## Status
+- [x] Initialized workspace and briefing
+- [x] Read ORIGINAL_REQUEST.md and system_improvement_plan_v8.md
+- [x] Investigate CRIT-01: Multi-currency FX translation in `unified_portfolio_allocator.py` & `run_pipeline.py`
+- [x] Investigate CRIT-02: Black-Litterman horizon vs daily covariance scaling mismatch
+- [x] Investigate CRIT-06: Small universe (N <= 4) CVaR upper bound constraint
+- [x] Investigate CRIT-07: Hardcoded KRW 50,000 threshold in turnover/allocator
+- [x] Investigate HIGH-15: Cornish-Fisher VaR fallback to Expected Shortfall
+- [x] Investigate HIGH-16: Gatheral 3/2-power market impact formulation
+- [x] Investigate MED-12: HERC hardcoded weight caps
+- [x] Investigate Asymmetric Leland No-Trade Buffer Bands
+- [x] Empirically verify existing tests: 49 tests passed (100% Pass, 0 Failures)
+- [x] Synthesize findings and generate handoff.md
+- [x] Send handoff message to parent

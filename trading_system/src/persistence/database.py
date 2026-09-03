@@ -5,7 +5,6 @@ import json
 import logging
 import sqlite3
 import threading
-import weakref
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
@@ -599,7 +598,7 @@ class StockPriceDB:
             conn.execute("PRAGMA temp_store=MEMORY")
             conn.execute("PRAGMA mmap_size=268435456") # 256MB memory mapped I/O
             self._local.conn = conn
-            
+
             # V8-MED-01 Fix: Automatically close and purge connections from terminated worker threads
             alive_threads = {t.ident for t in threading.enumerate()}
             with self._conns_lock:

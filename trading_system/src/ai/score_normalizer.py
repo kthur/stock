@@ -48,21 +48,35 @@ class CrossSectionalScoreNormalizer:
         df: pd.DataFrame,
         score_cols: List[str],
         method: Optional[str] = None,
-        group_col: Optional[str] = 'market'
+        group_col: Optional[str] = 'market',
+        sector_col: Optional[str] = None,
     ) -> pd.DataFrame:
         """Alias for normalize_scores matching interface contract."""
-        return self.normalize_scores(df=df, strategy_cols=score_cols, market_col=group_col, method=method)
+        return self.normalize_scores(df=df, strategy_cols=score_cols, market_col=group_col, method=method, sector_col=sector_col)
+
+    def normalize(
+        self,
+        df: pd.DataFrame,
+        score_cols: List[str],
+        method: Optional[str] = None,
+        group_col: Optional[str] = 'market',
+        sector_col: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Alias for normalize_scores."""
+        return self.normalize_scores(df=df, strategy_cols=score_cols, market_col=group_col, method=method, sector_col=sector_col)
 
     def normalize_scores(
         self,
         df: pd.DataFrame,
         strategy_cols: List[str],
         market_col: Optional[str] = 'market',
-        method: Optional[str] = None
+        method: Optional[str] = None,
+        sector_col: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Applies cross-sectional normalization to specified strategy score columns.
         NaN values are preserved strictly as NaN.
+        Supports sector neutralization if sector_col is provided.
         """
         eff_method = method or self.method
         if df.empty:
@@ -82,10 +96,47 @@ class CrossSectionalScoreNormalizer:
         for col in valid_cols:
             out_df[col] = pd.to_numeric(out_df[col], errors='coerce').astype(float)
 
-        # Partition by market if market_col is available
+        # Partition by market and/or sector if available
         has_market = market_col is not None and market_col in out_df.columns and out_df[market_col].notna().any()
+        has_sector = sector_col is not None and sector_col in out_df.columns and out_df[sector_col].notna().any()
 
-        if has_market:
+        if has_market and has_sector:
+            mkt_clean = out_df[market_col].fillna('UNKNOWN').astype(str)
+            sec_clean = out_df[sector_col].fillna('UNKNOWN').astype(str)
+            group_key = mkt_clean + "__" + sec_clean
+            sector_groups = out_df.groupby(group_key, dropna=False).groups
+            small_indices = []
+
+            for grp_val, group_idx in sector_groups.items():
+                if len(group_idx) >= self.min_symbols_per_market:
+                    sub_df = out_df.loc[group_idx, valid_cols]
+                    out_df.loc[group_idx, valid_cols] = self._normalize_matrix(sub_df, eff_method)
+                else:
+                    small_indices.extend(list(group_idx))
+
+            # Handle small (market, sector) groups via market fallback
+            if small_indices:
+                small_df = out_df.loc[small_indices]
+                mkt_groups = small_df.groupby(mkt_clean.loc[small_indices], dropna=False).groups
+                still_small_indices = []
+                for mkt_val, group_idx in mkt_groups.items():
+                    if len(group_idx) >= self.min_symbols_per_market:
+                        sub_df = out_df.loc[group_idx, valid_cols]
+                        out_df.loc[group_idx, valid_cols] = self._normalize_matrix(sub_df, eff_method)
+                    else:
+                        still_small_indices.extend(list(group_idx))
+
+                # Handle remaining small groups via regional/global fallback
+                if still_small_indices:
+                    still_small_df = out_df.loc[still_small_indices]
+                    region_series = still_small_df[market_col].fillna('UNKNOWN').astype(str).map(
+                        lambda m: self.REGION_MAP.get(m.upper(), 'GLOBAL')
+                    ).fillna('GLOBAL')
+                    region_groups = still_small_df.groupby(region_series, dropna=False).groups
+                    for region, actual_idx in region_groups.items():
+                        sub_small = out_df.loc[actual_idx, valid_cols]
+                        out_df.loc[actual_idx, valid_cols] = self._normalize_matrix(sub_small, eff_method)
+        elif has_market:
             mkt_clean_series = out_df[market_col].fillna('UNKNOWN').astype(str)
             market_groups = out_df.groupby(mkt_clean_series, dropna=False).groups
             small_indices = []
@@ -107,6 +158,20 @@ class CrossSectionalScoreNormalizer:
                 for region, actual_idx in region_groups.items():
                     sub_small = out_df.loc[actual_idx, valid_cols]
                     out_df.loc[actual_idx, valid_cols] = self._normalize_matrix(sub_small, eff_method)
+        elif has_sector:
+            sec_clean_series = out_df[sector_col].fillna('UNKNOWN').astype(str)
+            sector_groups = out_df.groupby(sec_clean_series, dropna=False).groups
+            small_indices = []
+
+            for sec_val, group_idx in sector_groups.items():
+                if len(group_idx) >= self.min_symbols_per_market:
+                    sub_df = out_df.loc[group_idx, valid_cols]
+                    out_df.loc[group_idx, valid_cols] = self._normalize_matrix(sub_df, eff_method)
+                else:
+                    small_indices.extend(list(group_idx))
+
+            if small_indices:
+                out_df.loc[small_indices, valid_cols] = self._normalize_matrix(out_df.loc[small_indices, valid_cols], eff_method)
         else:
             out_df[valid_cols] = self._normalize_matrix(out_df[valid_cols], eff_method)
 
@@ -159,22 +224,56 @@ class CrossSectionalScoreNormalizer:
 
                         norm_df.loc[valid_mask, col] = norm_vals.values if isinstance(norm_vals, pd.Series) else norm_vals
                     elif method_clean in ('winsorized_zscore', 'zscore'):
-                        q005 = np.percentile(vals, 0.5)
-                        q995 = np.percentile(vals, 99.5)
-                        w_vals = np.clip(vals, q005, q995)
-                        med = float(np.median(w_vals))
-                        mad = float(np.median(np.abs(w_vals - med)))
-                        robust_std = 1.4826 * mad
-                        if robust_std < 1e-6:
-                            # Fallback to standard deviation if MAD is zero (e.g. discrete repeated values)
-                            sample_std = float(np.std(w_vals))
-                            robust_std = sample_std if sample_std > 1e-6 else 1.0
-                        z = (w_vals - med) / (robust_std if robust_std > 1e-6 else 1.0)
-                        z_clipped = np.clip(z, -8.0, 8.0)
-                        # Standard Gaussian CDF Phi(z) = 0.5 * (1 + erf(z / sqrt(2)))
-                        phi_z = 0.5 * (1.0 + erf(z_clipped / np.sqrt(2.0)))
-                        phi_clean = np.nan_to_num(phi_z, nan=0.50, posinf=0.995, neginf=0.005)
-                        norm_df.loc[valid_mask, col] = np.clip(phi_clean, 0.005, 0.995)
+                        # V8-MED-09 Fix: Add inactive 0-score block isolation for N >= 4
+                        # matching rank_percentile to protect inactive stocks in sparse factors
+                        # from artificial negative z-score penalty.
+                        is_exact_zero = (vals == 0.0)
+                        if (
+                            n_valid >= 4
+                            and (vals >= 0.0).all()
+                            and is_exact_zero.any()
+                            and not is_exact_zero.all()
+                            and (is_exact_zero.sum() / float(n_valid)) > 0.20
+                        ):
+                            nz_mask = ~is_exact_zero
+                            norm_vals = np.full(n_valid, 0.50, dtype=np.float64)
+                            if nz_mask.sum() > 1:
+                                nz_vals = vals[nz_mask]
+                                q005 = np.percentile(nz_vals, 0.5)
+                                q995 = np.percentile(nz_vals, 99.5)
+                                w_vals = np.clip(nz_vals, q005, q995)
+                                med = float(np.median(w_vals))
+                                mad = float(np.median(np.abs(w_vals - med)))
+                                robust_std = 1.4826 * mad
+                                if robust_std < 1e-6:
+                                    sample_std = float(np.std(w_vals))
+                                    robust_std = sample_std if sample_std > 1e-6 else 1.0
+                                z = (w_vals - med) / (robust_std if robust_std > 1e-6 else 1.0)
+                                z_clipped = np.clip(z, -8.0, 8.0)
+                                phi_z = 0.5 * (1.0 + erf(z_clipped / np.sqrt(2.0)))
+                                phi_clean = np.nan_to_num(phi_z, nan=0.50, posinf=0.995, neginf=0.005)
+                                nz_norm = (0.52 + 0.475 * phi_clean).clip(0.52, 0.995)
+                                norm_vals[nz_mask] = nz_norm
+                            elif nz_mask.sum() == 1:
+                                norm_vals[nz_mask] = 0.75
+                            norm_df.loc[valid_mask, col] = norm_vals
+                        else:
+                            q005 = np.percentile(vals, 0.5)
+                            q995 = np.percentile(vals, 99.5)
+                            w_vals = np.clip(vals, q005, q995)
+                            med = float(np.median(w_vals))
+                            mad = float(np.median(np.abs(w_vals - med)))
+                            robust_std = 1.4826 * mad
+                            if robust_std < 1e-6:
+                                # Fallback to standard deviation if MAD is zero (e.g. discrete repeated values)
+                                sample_std = float(np.std(w_vals))
+                                robust_std = sample_std if sample_std > 1e-6 else 1.0
+                            z = (w_vals - med) / (robust_std if robust_std > 1e-6 else 1.0)
+                            z_clipped = np.clip(z, -8.0, 8.0)
+                            # Standard Gaussian CDF Phi(z) = 0.5 * (1 + erf(z / sqrt(2)))
+                            phi_z = 0.5 * (1.0 + erf(z_clipped / np.sqrt(2.0)))
+                            phi_clean = np.nan_to_num(phi_z, nan=0.50, posinf=0.995, neginf=0.005)
+                            norm_df.loc[valid_mask, col] = np.clip(phi_clean, 0.005, 0.995)
                     else:
                         clean_vals = np.nan_to_num(vals, nan=0.50, posinf=1.0, neginf=0.0)
                         norm_df.loc[valid_mask, col] = np.clip(clean_vals, 0.0, 1.0)

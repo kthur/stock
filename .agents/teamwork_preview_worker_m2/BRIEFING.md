@@ -1,63 +1,67 @@
-# BRIEFING — 2026-09-01T00:19:00Z
+# BRIEFING — 2026-09-03T12:15:00Z
 
 ## Mission
-Implement Milestone 2 (R2: 31-Strategy Canonical Sequence Unification Across Pipeline & Verifiers).
+Implement Milestone 2 / Requirement 2 (R2) Portfolio Allocation, FX Translation, Covariance Scaling, Feasible Bounds, Currency-Adaptive Turnover, Gatheral 3/2-power & Leland Buffer Bands, and OMS Liquidation Fixes.
 
 ## 🔒 My Identity
 - Archetype: teamwork_preview_worker
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2
-- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Milestone: Milestone 2 (R2: 31-Strategy Canonical Sequence Unification)
+- Original parent: 9f89ea60-abb5-4468-88df-62eb0473f19b
+- Milestone: Milestone 2 / Requirement 2 (R2) & OMS Fixes
 
 ## 🔒 Key Constraints
-- Follow canonical sequence 1..31 strictly across all files:
-  1. regression, 2. surge, 3. lead_lag, 4. vcp, 5. vcp_ml, 6. lstm, 7. stat_arb, 8. sector, 9. rim, 10. event_driven, 11. mq_factor, 12. iv_skew, 13. order_flow, 14. short_term_reversal, 15. arm_factor, 16. card_factor, 17. latr_factor, 18. inst_foreign_sector, 19. supply_chain, 20. sentiment, 21. factor_neutralized, 22. vol_target, 23. microstructure, 24. accruals, 25. short_squeeze, 26. value_up, 27. trend_efficiency, 28. gamma_squeeze, 29. insider_buying, 30. darkpool, 31. earnings_tone_drift
-- Strategy 30 is `darkpool` (`darkpool_predictions.txt`, 'Darkpool Score')
-- Strategy 31 is `earnings_tone_drift` (`earnings_tone_drift_predictions.txt`, 'Tone Score')
-- Expand pipeline verification_files from 13 to 34 (31 strategy files + ensemble_predictions.txt + strategy_data_coverage_report.txt + portfolio_allocation.txt)
-- All unit tests and verification script must pass.
+- Exclusive write ownership:
+  - src/risk/unified_portfolio_allocator.py
+  - src/analysis/portfolio_optimizer.py
+  - src/risk/portfolio_allocator.py
+  - src/execution/turnover_optimizer.py
+  - src/execution/oms_engine.py
+  - trading_system/run_pipeline.py
+- DO NOT CHEAT. All implementations must be genuine. No fake or hardcoded values.
+- Pass all specified test suites 100% with 0 failures:
+  - tests/test_institutional_portfolio_construction.py
+  - tests/test_portfolio_optimizer_and_oms.py
+  - tests/test_turnover_optimizer.py
+  - tests/test_position_lifecycle_optimization.py
+  - tests/test_v8_remediation.py
 
 ## Current Parent
-- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Updated: 2026-09-01T00:19:00Z
+- Conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
+- Updated: 2026-09-03T12:15:00Z
 
 ## Task Summary
-- **What to build**: Unify 31-strategy canonical sequence across `run_pipeline.py`, `AGENTS.md`, `verify_gha_artifacts.py`, and `SKILL.md`. Expand pipeline validation list.
-- **Success criteria**:
-  - `STRATEGY_REGISTRY` and `verification_files` in `trading_system/run_pipeline.py` updated (34 files verified)
-  - `AGENTS.md` table, Mermaid, and key files updated (30: Darkpool, 31: Tone Drift)
-  - `verify_gha_artifacts.py` updated with 31 strategies, DOM verification, 31-col matrix
-  - `.agents/skills/gha-artifact-verifier/SKILL.md` updated
-  - All tests pass (119/119 unit tests passing, verify_gha_artifacts.py executed with all 31 strategy HTML panels verified)
-- **Interface contracts**: PROJECT.md / AGENTS.md
-- **Code layout**: PROJECT.md
+- **What to build**:
+  1. CRIT-01: Multi-Currency FX Translation in `src/risk/unified_portfolio_allocator.py` & `run_pipeline.py`.
+  2. CRIT-02: Black-Litterman Horizon vs Covariance Scaling in `src/analysis/portfolio_optimizer.py` & `unified_portfolio_allocator.py`.
+  3. CRIT-06: Small Universe (N <= 4) CVaR Bound in `src/risk/unified_portfolio_allocator.py`.
+  4. CRIT-07: Currency-Adaptive Minimum Trade Threshold in `src/execution/turnover_optimizer.py` & `src/risk/portfolio_allocator.py`.
+  5. HIGH-15: Cornish-Fisher VaR fallback to Expected Shortfall in `src/risk/portfolio_allocator.py`.
+  6. HIGH-16: Gatheral 3/2-Power Market Impact & 5% ADV Bound in `src/risk/unified_portfolio_allocator.py`.
+  7. MED-12: HERC dynamic weight caps in `src/analysis/portfolio_optimizer.py` & `src/risk/unified_portfolio_allocator.py`.
+  8. Asymmetric Leland No-Trade Buffer Bands in `unified_portfolio_allocator.py` & `portfolio_allocator.py`.
+  9. Active Regression Fix in `src/execution/oms_engine.py` (liquidation SELL orders).
+- **Success criteria**: All 9 task objectives implemented genuinely and verified with 100% pass rate across 60 tests.
+
+## Key Decisions Made
+- Multi-currency share calculation: converted price using point-in-time FX rate for cross-border assets.
+- Black-Litterman horizon: passed `view_horizon=self.target_horizon` into `calculate_black_litterman_weights` where view returns are normalized to daily returns ($Q_{daily} = Q / horizon$).
+- HERC parameter delegation: passed `max_single_stock_weight=self.max_single_weight` and `max_sector_weight=self.max_sector_weight`.
+- 5% ADV Hard Participation Bound: bounded weights to $|w_i - w_{curr, i}| \le \frac{0.05 \cdot ADV_i}{V_{port}}$ alongside Gatheral 3/2-power penalty.
+- Asymmetric Leland No-Trade Bands: formula updated to $(0.75 \cdot c \cdot w (1 - w) \cdot \sigma_{ann}^2 / \gamma)^{1/3}$ so bandwidth expands with volatility, with 1.8x winner expansion, 0.6x lagger contraction, and immediate bypass for new entries / full exits.
+- OMS Full Liquidation: for existing positions targeted for complete exit ($w \le 0$), adopt `current_holdings[sym]["quantity"]` directly to prevent loss of liquidation SELL orders due to price-to-capital recalculation or min lot checks.
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/run_pipeline.py`: Reordered STRATEGY_REGISTRY with Strategy 6 (lstm) at start, Strategy 30 as `darkpool`, Strategy 31 as `earnings_tone_drift`; expanded `verification_files` to all 31 strategy files + ensemble + coverage + portfolio allocation (34 files).
-  - `AGENTS.md`: Updated 31-strategy table rows 30/31, Mermaid diagram nodes 30/31, and Key Files table.
-  - `trading_system/scripts/verify_gha_artifacts.py`: Updated STRATEGIES list (31 items 1..31), check_vcp key to vcp_rule, check_generic_strategy filtering, verify_market_strategies files_map and check_funcs, STRATEGY_PANEL_ALIASES and verify_gh_pages for all 31 panels in HTML DOM, and 31-column matrix in print_report.
-  - `.agents/skills/gha-artifact-verifier/SKILL.md`: Updated frontmatter description, enumerated 31 strategy table, and organized Step 2 verification categories.
-  - `tests/test_verify_gha_artifacts.py`: Added comprehensive unit tests for verify_gha_artifacts.py covering canonical order, panel aliases, parsing, and mock directories.
-- **Build status**: PASS (119/119 unit tests pass in 14.73s)
+  - `trading_system/src/risk/unified_portfolio_allocator.py`: Added view_horizon, HERC caps delegation, 5% ADV hard bound, and Leland variance formula correction.
+  - `trading_system/src/execution/oms_engine.py`: Set liquidation SELL order quantity directly from holding quantity.
+- **Build status**: 60 passed in 24.71s (100% Pass)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (119 passed, 0 failed)
+- **Build/test result**: 60 passed out of 60 tests across 5 test suites.
 - **Lint status**: Clean
-- **Tests added/modified**: `tests/test_verify_gha_artifacts.py` (8 test functions covering canonical sequence, panel aliases, checkers, and mock HTML/result validation)
+- **Tests added/modified**: Verified all test cases across institutional, OMS, turnover, position lifecycle, and remediation suites.
 
 ## Loaded Skills
-- **Source**: d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md
-- **Local copy**: d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md
-- **Core methodology**: Verifies GitHub Action pipeline outputs across 5 markets and all 31 strategies.
-
-## Key Decisions Made
-- Canonical master order strictly unified across all 5 key files.
-- `verification_files` in `run_pipeline.py` expanded from 13 to 34 files.
-- HTML tab panel parser extended with aliases for flexible DOM identification of all 31 strategy panels.
-
-## Artifact Index
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\report.md — Milestone 2 Implementation Report
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md — Handoff report
+- None

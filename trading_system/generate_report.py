@@ -1517,7 +1517,7 @@ def build_strategy_health_monitor_html(
     health_items: list[StrategyHealthInfo],
     cov_text: str = ""
 ) -> str:
-    """Renders Card 2: Strategy Coverage & Data Health Diagnostic Center (34대 전략 데이터 수집 현황 & 결측 진단 센터)."""
+    """Renders Card 2: Strategy Coverage & Data Health Diagnostic Center (37대 전략 데이터 수집 현황 & 결측 진단 센터)."""
     healthy_cnt = sum(1 for item in health_items if item.status == "HEALTHY")
     partial_cnt = sum(1 for item in health_items if item.status == "PARTIAL")
     fallback_cnt = sum(1 for item in health_items if item.status == "FALLBACK")
@@ -1559,13 +1559,13 @@ def build_strategy_health_monitor_html(
 
     return f"""
     <!-- ══════════════════════════════════════════════════════════════════════════ -->
-    <!-- CARD 2: Strategy Coverage & Data Health Diagnostic Center (34대 전략 진단) -->
+    <!-- CARD 2: Strategy Coverage & Data Health Diagnostic Center (37대 전략 진단) -->
     <!-- ══════════════════════════════════════════════════════════════════════════ -->
     <div class="health-monitor-section">
       <div class="health-monitor-header" onclick="toggleSection('health-monitor-body', 'health-icon')">
         <div class="health-header-left">
           <span class="health-header-icon">🩺</span>
-          <h2 class="health-header-title">Strategy Data Health Monitor (34대 전략 데이터 수집 현황 &amp; 건전성 진단 센터)</h2>
+          <h2 class="health-header-title">Strategy Data Health Monitor (37대 전략 데이터 수집 현황 &amp; 건전성 진단 센터)</h2>
           <div class="health-summary-pills">
             <button type="button" class="health-pill pill-healthy active" onclick="event.stopPropagation(); filterHealthCards('healthy');">🟢 정상 {healthy_cnt}</button>
             <button type="button" class="health-pill pill-partial" onclick="event.stopPropagation(); filterHealthCards('partial');">🟡 부분 {partial_cnt}</button>
@@ -1832,7 +1832,7 @@ def build_history_section(result_dir: Path) -> str:
       <div class="macro-grid">
         <div class="macro-item"><span class="ml">추적된 실행</span><span class="mv pos">{len(runs)}회</span></div>
         <div class="macro-item"><span class="ml">이력 보존 정책</span><span class="mv">180일 (자동 Pruning)</span></div>
-        <div class="macro-item"><span class="ml">비교 분석 엔진</span><span class="mv">34대 Multi-Factor Ensemble</span></div>
+        <div class="macro-item"><span class="ml">비교 분석 엔진</span><span class="mv">37대 Multi-Factor Ensemble</span></div>
       </div>
     </div>
 
@@ -1948,12 +1948,14 @@ def build_html(
         "insider_buying": (insider_buying_rows or []),
         "darkpool": (darkpool_rows or []),
         "earnings_tone_drift": (earnings_tone_drift_rows or []),
-        "dual_correction": (dual_correction_rows or []),
-        "index_rebalance": (index_rebalance_rows or []),
-        "overnight_gap_reversal": (overnight_gap_rows or []),
         "cross_asset_spillover": (cross_asset_rows or []),
         "supply_chain_gnn": (supply_chain_gnn_rows or []),
         "range_expansion": (range_expansion_rows or []),
+        "range_expansion_breakout": (range_expansion_rows or []),
+        "dual_correction": (dual_correction_rows or []),
+        "index_rebalance": (index_rebalance_rows or []),
+        "overnight_gap": (overnight_gap_rows or []),
+        "overnight_gap_reversal": (overnight_gap_rows or []),
     }
     total_eval_symbols = sum(len(m.rows) for m in ensemble.markets) if (ensemble and ensemble.markets) else 948
     if total_eval_symbols == 0:
@@ -2928,7 +2930,7 @@ def build_html(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>📈 Stock Prediction Dashboard | KRX &amp; SP500</title>
-<meta name="description" content="AI 기반 한국·미국 주식 3,379종목 34대 다변화 전략(XGBoost 회귀, Surge 분류기, Strict LSTM, VCP 패턴, Lead-Lag, Stat-Arb, RIM 등) 앙상블 대시보드">
+<meta name="description" content="AI 기반 한국·미국 주식 3,379종목 37대 다변화 전략(XGBoost 회귀, Surge 분류기, Strict LSTM, VCP 패턴, Lead-Lag, Stat-Arb, RIM 등) 앙상블 대시보드">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -3739,57 +3741,55 @@ def build_html(
         </div>
       </div>
     </div>
-  </div>
-</div>
 
-<!-- ══════════════════════════════════════════════════════ -->
-<!-- 37대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
-<!-- ══════════════════════════════════════════════════════ -->
-<div class="content" style="padding-bottom: 0;">
-  <div class="strat-guide-card">
-    <div class="strat-guide-header" onclick="toggleStratGuide()">
-      <div class="strat-guide-title">📖 37대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
-      <span id="strat-guide-icon" style="color:var(--accent); font-weight:bold; font-size:12px;">▶ 보기</span>
-    </div>
-    <div id="strat-guide-body" style="display: none;">
-      <div class="strat-grid">
-        <div class="strat-card-item"><div class="strat-card-name">1. XGBoost 회귀</div><div class="strat-card-desc">1~200일 Horizon별 예상수익률 머신러닝 추정</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">2. Surge 분류기</div><div class="strat-card-desc">20% 이상 급등 가능성을 4개 구간별 확률로 예측</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">3. Lead-Lag</div><div class="strat-card-desc">업종 지수/대형 선행주 대비 후행 반응 종목 시차 포착</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">4. VCP 패턴 (Rule)</div><div class="strat-card-desc">변동성 수축(VCP) + 거래량 감축 규칙 기반 파동 검출</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">5. VCP ML</div><div class="strat-card-desc">시장별 특화 XGBoost로 VCP 패턴 성패 확률 수치화</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">6. Strict Causal LSTM</div><div class="strat-card-desc">시점 분리 정규화 시계열 딥러닝 종목 모멘텀 추적</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">7. Stat-Arb</div><div class="strat-card-desc">공적분 잔차 평균회귀 Z-score 기반 횡보장 차익거래</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">8. Sector Rotation</div><div class="strat-card-desc">KRX/GICS 업종 상대모멘텀 및 순환매 수급 스코어링</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">9. RIM Valuation</div><div class="strat-card-desc">잔여이익 모델 기반 정밀 가치평가 및 안전마진 측정</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">10. Event-Driven</div><div class="strat-card-desc">DART 공시, 실적 서프라이즈, 자사주, 거래량 3배 신호</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">11. MQ Factor</div><div class="strat-card-desc">12M-1M 노이즈 제거 모멘텀 + 영업이익률/ROE 퀄리티</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">12. Options IV Skew</div><div class="strat-card-desc">yfinance 풋/콜 IV Skew 및 공포 역발상 매수 점수</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">13. Order Flow</div><div class="strat-card-desc">외인/기관 순매수 수급 가속도 (MFI) 추적</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">14. Short-Term Reversal</div><div class="strat-card-desc">3~5일 연속 과매도/볼린저 하단 이탈 단기 반등 포착</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">15. ARM Factor</div><div class="strat-card-desc">증권가 컨센서스(EPS/목표가) 상향 조정 및 실적 서프라이즈</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">16. CARD Factor</div><div class="strat-card-desc">주식-원자재-환율 이탈 괴리율 역발상 매수 점수</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">17. LATR Factor</div><div class="strat-card-desc">52주 고점 낙폭(DD) + 유동성 서지 + 하방 꼬리위험 반등</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">18. Inst &amp; Foreign Sector</div><div class="strat-card-desc">외인/투신 2개월 수급 누적 &amp; 업종 주도주 상관성</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">19. Supply Chain</div><div class="strat-card-desc">전방 대표기업 수익률 기반 부품/장비 공급망 시차 온기 전이</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">20. NLP Sentiment</div><div class="strat-card-desc">DART/SEC 공시 및 뉴스 FinBERT 텍스트 감성 분석</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">21. Factor Neutralized</div><div class="strat-card-desc">Fama-French 5-Factor 노출 제거 순수 알파(Pure Alpha)</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">22. Vol Targeting</div><div class="strat-card-desc">실산출 변동성 기반 타겟 변동성 리스크 파리티 비중 산출</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">23. Microstructure</div><div class="strat-card-desc">호가창 매수/매도 잔량 불균형 및 동시호가 수급 오버나이트 갭</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">24. Accruals Quality</div><div class="strat-card-desc">당기순이익 대비 영업현금흐름(OCF) 괴리율 회계 품질 점수</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">25. Short Squeeze</div><div class="strat-card-desc">공매도 잔고 비율 + Days-to-Cover + 모멘텀 숏스퀴즈 촉매</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">26. Value-Up Yield</div><div class="strat-card-desc">PBR 1배 미만 + 순현금/시총 + 총주주환원율(배당+자사주소각)</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">27. Kaufman Trend Efficiency</div><div class="strat-card-desc">5D/10D/20D KER(트렌드 효율성) + Hurst Exponent 고순도 추세</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">28. Gamma Squeeze</div><div class="strat-card-desc">옵션 델타/감마 헤징 수급 폭발 및 숏가속도 갭 상승 포착</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">29. Insider Buying</div><div class="strat-card-desc">임원/주요주주 경영진 내부자 순매수 촉매 수치화</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">30. Darkpool &amp; HFT</div><div class="strat-card-desc">장외 다크풀 대량 거래 및 동시호가 수급 은닉 자금 추적</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">31. Earnings Tone Drift</div><div class="strat-card-desc">실적발표 텍스트 FinBERT 어조(Tone) 변화 및 60D 어닝 드리프트</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">32. Cross-Asset Spillover</div><div class="strat-card-desc">업종별 거시지표(SOX/FX/WTI/TNX/VIX/Gold/DXY/SP500) 탄력도 벡터 기반 매크로 임펄스 &amp; 미가격 리드-래그 파급</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">33. Supply Chain GNN</div><div class="strat-card-desc">글로벌 밸류체인 2-hop 그래프 메시지 패싱 + 불위그 쇼크 비선형 증폭 &amp; 업종 플로우 유동성 모멘텀</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">34. Range Expansion Breakout</div><div class="strat-card-desc">변동성 압축(NR7/볼린저 스퀴즈/Inside Day) 후 REF≥1.5 레인지 확장 + RVOL≥1.8 거래량 서지 + CLV≥0.65</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">35. Dual Correction</div><div class="strat-card-desc">피보나치(38.2%/50%/61.8%) 및 AVWAP 가격 조정 + 거래량 고갈 정밀 눌림목 반등</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">36. Index Rebalance Flow</div><div class="strat-card-desc">KOSPI200/MSCI/SP500 패시브 ETF 수급 리밸런싱 15~30일 선반영 차익</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">37. Overnight Gap Reversal</div><div class="strat-card-desc">개장가-전일종가 갭 정규화(ATR) 기반 통계적 갭 메우기 및 오버익스텐션 반전</div></div>
+    <!-- 37대 전략 핵심 가이드 아코디언 (Card 1 내부 통합) -->
+    <div class="regime-collapsible-wrapper" style="margin-top: 10px;">
+      <div class="collapsible-header" onclick="toggleStratGuide()" style="padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; user-select: none;">
+        <span style="color: var(--accent); font-size: 13px; font-weight: 600; display:flex; align-items:center; gap:6px;">
+          📖 <span>37대 다변화 전략 핵심 가이드 (Strategy Overview)</span>
+        </span>
+        <span id="strat-guide-icon" style="color: var(--accent); font-size: 11px; font-weight: 600;">▶ 보기</span>
+      </div>
+      <div id="strat-guide-body" style="display: none; margin-top: 10px;">
+        <div class="strat-grid">
+          <div class="strat-card-item"><div class="strat-card-name">1. XGBoost 회귀</div><div class="strat-card-desc">1~200일 Horizon별 예상수익률 머신러닝 추정</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">2. Surge 분류기</div><div class="strat-card-desc">20% 이상 급등 가능성을 4개 구간별 확률로 예측</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">3. Lead-Lag</div><div class="strat-card-desc">업종 지수/대형 선행주 대비 후행 반응 종목 시차 포착</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">4. VCP 패턴 (Rule)</div><div class="strat-card-desc">변동성 수축(VCP) + 거래량 감축 규칙 기반 파동 검출</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">5. VCP ML</div><div class="strat-card-desc">시장별 특화 XGBoost로 VCP 패턴 성패 확률 수치화</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">6. Strict Causal LSTM</div><div class="strat-card-desc">시점 분리 정규화 시계열 딥러닝 종목 모멘텀 추적</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">7. Stat-Arb</div><div class="strat-card-desc">공적분 잔차 평균회귀 Z-score 기반 횡보장 차익거래</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">8. Sector Rotation</div><div class="strat-card-desc">KRX/GICS 업종 상대모멘텀 및 순환매 수급 스코어링</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">9. RIM Valuation</div><div class="strat-card-desc">잔여이익 모델 기반 정밀 가치평가 및 안전마진 측정</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">10. Event-Driven</div><div class="strat-card-desc">DART 공시, 실적 서프라이즈, 자사주, 거래량 3배 신호</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">11. MQ Factor</div><div class="strat-card-desc">12M-1M 노이즈 제거 모멘텀 + 영업이익률/ROE 퀄리티</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">12. Options IV Skew</div><div class="strat-card-desc">yfinance 풋/콜 IV Skew 및 공포 역발상 매수 점수</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">13. Order Flow</div><div class="strat-card-desc">외인/기관 순매수 수급 가속도 (MFI) 추적</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">14. Short-Term Reversal</div><div class="strat-card-desc">3~5일 연속 과매도/볼린저 하단 이탈 단기 반등 포착</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">15. ARM Factor</div><div class="strat-card-desc">증권가 컨센서스(EPS/목표가) 상향 조정 및 실적 서프라이즈</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">16. CARD Factor</div><div class="strat-card-desc">주식-원자재-환율 이탈 괴리율 역발상 매수 점수</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">17. LATR Factor</div><div class="strat-card-desc">52주 고점 낙폭(DD) + 유동성 서지 + 하방 꼬리위험 반등</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">18. Inst &amp; Foreign Sector</div><div class="strat-card-desc">외인/투신 2개월 수급 누적 &amp; 업종 주도주 상관성</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">19. Supply Chain</div><div class="strat-card-desc">전방 대표기업 수익률 기반 부품/장비 공급망 시차 온기 전이</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">20. NLP Sentiment</div><div class="strat-card-desc">DART/SEC 공시 및 뉴스 FinBERT 텍스트 감성 분석</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">21. Factor Neutralized</div><div class="strat-card-desc">Fama-French 5-Factor 노출 제거 순수 알파(Pure Alpha)</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">22. Vol Targeting</div><div class="strat-card-desc">실산출 변동성 기반 타겟 변동성 리스크 파리티 비중 산출</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">23. Microstructure</div><div class="strat-card-desc">호가창 매수/매도 잔량 불균형 및 동시호가 수급 오버나이트 갭</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">24. Accruals Quality</div><div class="strat-card-desc">당기순이익 대비 영업현금흐름(OCF) 괴리율 회계 품질 점수</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">25. Short Squeeze</div><div class="strat-card-desc">공매도 잔고 비율 + Days-to-Cover + 모멘텀 숏스퀴즈 촉매</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">26. Value-Up Yield</div><div class="strat-card-desc">PBR 1배 미만 + 순현금/시총 + 총주주환원율(배당+자사주소각)</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">27. Kaufman Trend Efficiency</div><div class="strat-card-desc">5D/10D/20D KER(트렌드 효율성) + Hurst Exponent 고순도 추세</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">28. Gamma Squeeze</div><div class="strat-card-desc">옵션 델타/감마 헤징 수급 폭발 및 숏가속도 갭 상승 포착</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">29. Insider Buying</div><div class="strat-card-desc">임원/주요주주 경영진 내부자 순매수 촉매 수치화</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">30. Darkpool &amp; HFT</div><div class="strat-card-desc">장외 다크풀 대량 거래 및 동시호가 수급 은닉 자금 추적</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">31. Earnings Tone Drift</div><div class="strat-card-desc">실적발표 텍스트 FinBERT 어조(Tone) 변화 및 60D 어닝 드리프트</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">32. Cross-Asset Spillover</div><div class="strat-card-desc">업종별 거시지표(SOX/FX/WTI/TNX/VIX/Gold/DXY/SP500) 탄력도 벡터 기반 매크로 임펄스 &amp; 미가격 리드-래그 파급</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">33. Supply Chain GNN</div><div class="strat-card-desc">글로벌 밸류체인 2-hop 그래프 메시지 패싱 + 불위그 쇼크 비선형 증폭 &amp; 업종 플로우 유동성 모멘텀</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">34. Range Expansion Breakout</div><div class="strat-card-desc">변동성 압축(NR7/볼린저 스퀴즈/Inside Day) 후 REF≥1.5 레인지 확장 + RVOL≥1.8 거래량 서지 + CLV≥0.65</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">35. Dual Correction</div><div class="strat-card-desc">피보나치(38.2%/50%/61.8%) 및 AVWAP 가격 조정 + 거래량 고갈 정밀 눌림목 반등</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">36. Index Rebalance Flow</div><div class="strat-card-desc">KOSPI200/MSCI/SP500 패시브 ETF 수급 리밸런싱 15~30일 선반영 차익</div></div>
+          <div class="strat-card-item"><div class="strat-card-name">37. Overnight Gap Reversal</div><div class="strat-card-desc">개장가-전일종가 갭 정규화(ATR) 기반 통계적 갭 메우기 및 오버익스텐션 반전</div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -3824,7 +3824,7 @@ def build_html(
 </div>
 
 <nav class="tabs main-system-tabs" role="tablist" aria-label="메인 대시보드 탭" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
-  <button class="tab active" role="tab" id="tab-ensemble" aria-selected="true" aria-controls="panel-ensemble" onclick="switchTab(this,'ensemble')">🏆 34대 앙상블 TOP 종목</button>
+  <button class="tab active" role="tab" id="tab-ensemble" aria-selected="true" aria-controls="panel-ensemble" onclick="switchTab(this,'ensemble')">🏆 37대 앙상블 TOP 종목</button>
   <button class="tab" role="tab" id="tab-portfolio" aria-selected="false" aria-controls="panel-portfolio" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" role="tab" id="tab-backtest" aria-selected="false" aria-controls="panel-backtest" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" role="tab" id="tab-regime" aria-selected="false" aria-controls="panel-regime" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
@@ -3833,14 +3833,14 @@ def build_html(
 </nav>
 
 <div class="content main-system-content" style="padding:0; margin-bottom: 24px;">
-  <!-- ══ 34대 앙상블 TOP 종목 Tab Panel ══ -->
+  <!-- ══ 37대 앙상블 TOP 종목 Tab Panel ══ -->
   <div class="tab-panel active" id="panel-ensemble" role="tabpanel" aria-labelledby="tab-ensemble">
     <div class="row1-wrapper">
       <!-- 좌: 전략 사이드바 -->
       <div class="strategy-sidebar">
         <div class="weights-section">
           <div class="weights-title" onclick="toggleSection('weights-body', 'weights-icon')">
-            <span>⚙️ 전략 가중치 (34 Strategies)</span>
+            <span>⚙️ 전략 가중치 (37 Strategies)</span>
             <span id="weights-icon" style="color:var(--accent); font-size:11px; font-weight:600;">▼ 접기</span>
           </div>
           <div id="weights-body">
@@ -3853,11 +3853,11 @@ def build_html(
       <!-- 우: 앙상블 종목 결과 -->
       <div class="ensemble-main">
         <div class="table-guide-banner">
-          <span>💡</span> <span><strong>종목 행(Row)</strong>이나 <strong>카드</strong>를 클릭하면 <strong>34대 다변화 전략 상세 분해 Drawer</strong>가 열립니다.</span>
+          <span>💡</span> <span><strong>종목 행(Row)</strong>이나 <strong>카드</strong>를 클릭하면 <strong>37대 다변화 전략 상세 분해 Drawer</strong>가 열립니다.</span>
         </div>
         <div class="ensemble-controls-bar">
           <div class="controls-left">
-            <span class="ensemble-main-title">🏆 34대 앙상블 TOP 종목 리스트</span>
+            <span class="ensemble-main-title">🏆 37대 앙상블 TOP 종목 리스트</span>
             <div class="view-mode-toggle">
               <button class="view-mode-btn active" id="btn-view-table" onclick="setViewMode('table')">📋 테이블</button>
               <button class="view-mode-btn" id="btn-view-card" onclick="setViewMode('card')">🃏 카드</button>
@@ -3989,7 +3989,7 @@ def build_html(
   <div class="tab-panel" id="panel-backtest">
     <div class="chart-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 20px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-        <h3 style="font-size: 14px; font-weight: 600; color: #38bdf8; margin: 0;">📈 34대 앙상블 vs 시장 벤치마크 롤링 누적 수익률 곡선 (Cumulative Return Curve)</h3>
+        <h3 style="font-size: 14px; font-weight: 600; color: #38bdf8; margin: 0;">📈 37대 앙상블 vs 시장 벤치마크 롤링 누적 수익률 곡선 (Cumulative Return Curve)</h3>
         <span class="badge" style="color:#2ea043; border-color:#2ea043; background:#2ea04320; font-size:11px;">5-Year Walk-Forward Simulation Preload</span>
       </div>
       <div style="position: relative; height: 280px;">
@@ -4002,7 +4002,7 @@ def build_html(
     </div>
 
     <div class="weights-section">
-      <div class="weights-title">📊 34대 전략 역사적 벤치마크 백테스트 성과 (5Y Walk-Forward Baseline)</div>
+      <div class="weights-title">📊 37대 전략 역사적 벤치마크 백테스트 성과 (5Y Walk-Forward Baseline)</div>
       <div style="font-size: 12px; color: var(--muted); padding: 12px 14px 0; line-height: 1.5;">
         📌 <strong>검증 방식</strong>: 5대 시장(KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) 5개년 롤링 워크포워드 OOS 시뮬레이션 (20D Holding)<br>
         📌 <strong>거래비용 차감</strong>: 한국 STT 0.18%, 미국 SEC Fee, 5bp 양방향 스프레드 및 Kyle's Lambda 마켓 임팩트 전액 반영
@@ -4069,7 +4069,7 @@ def build_html(
       </div>
     </div>
 
-    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 31 Strategies)</div>
+    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 37 Strategies)</div>
     <div class="market-panel">
       <div class="table-wrap">
         <table>
@@ -4845,7 +4845,7 @@ document.addEventListener('DOMContentLoaded', function() {{
           labels: btLabels,
           datasets: [
             {{
-              label: '🏆 34대 앙상블 (Ensemble)',
+              label: '🏆 37대 앙상블 (Ensemble)',
               data: btEnsemble,
               borderColor: '#38bdf8',
               backgroundColor: 'rgba(56, 189, 248, 0.1)',

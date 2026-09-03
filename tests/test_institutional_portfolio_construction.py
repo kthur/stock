@@ -221,3 +221,104 @@ class TestReportPortfolioParsing:
         assert data.rows[1].symbol == "AAPL"
         assert data.rows[1].weight == "7.00%"
 
+
+class TestInstitutionalReturnEnhancements:
+    def test_mean_cvar_alpha_tilt(self):
+        """Verify that calculate_cvar_weights tilts toward high alpha assets when predicted returns are provided."""
+        allocator = UnifiedPortfolioAllocator(max_single_weight=0.50)
+        np.random.seed(42)
+        n = 3
+        # Symmetric returns with similar volatility
+        rets_df = pd.DataFrame(np.random.normal(0.001, 0.02, (60, n)), columns=["A", "B", "C"])
+        
+        # Predicted returns: Asset A has high alpha (+20%), Asset C has negative alpha (-10%)
+        p_rets = np.array([0.20, 0.05, -0.10])
+        w_tilted = allocator.calculate_cvar_weights(
+            rets_df, confidence_level=0.95, predicted_returns=p_rets, lambda_alpha=1.0
+        )
+        assert len(w_tilted) == 3
+        # Asset A must receive significantly higher allocation than Asset C
+        assert w_tilted[0] > w_tilted[2]
+
+    def test_market_cap_black_litterman_prior(self):
+        """Verify that passing market_caps to optimize_multi_model_blend anchors BL prior to market capitalization."""
+        allocator = UnifiedPortfolioAllocator(max_single_weight=0.60)
+        symbols = ["MEGA_CAP", "MICRO_CAP"]
+        pred_rets = np.array([0.10, 0.10])
+        cov = np.eye(2) * 0.0004
+        rets_df = pd.DataFrame(np.random.normal(0, 0.02, (40, 2)), columns=symbols)
+        # MEGA_CAP is 100x bigger than MICRO_CAP
+        market_caps = np.array([100_000_000_000.0, 1_000_000_000.0])
+
+        w = allocator.optimize_multi_model_blend(
+            predicted_returns=pred_rets,
+            returns_df=rets_df,
+            cov_matrix=cov,
+            symbols=symbols,
+            market_caps=market_caps,
+            regime="BULL_LOW_VOL"
+        )
+        assert w[0] > w[1]
+
+    def test_fx_adjusted_returns_matrix(self):
+        """Verify that compute_returns_matrix properly harmonizes US and KRX asset prices using fx_series."""
+        dates = pd.date_range("2026-01-01", periods=30)
+        # US stock price in USD: steady at $100
+        p_us = pd.DataFrame({"Close": [100.0] * 30}, index=dates)
+        # KR stock price in KRW: steady at 100,000 KRW
+        p_kr = pd.DataFrame({"Close": [100_000.0] * 30}, index=dates)
+        # USD/KRW surges 10% over the period (1,300 -> 1,430)
+        fx_series = pd.Series(np.linspace(1300.0, 1430.0, 30), index=dates)
+
+        prices_dict = {"AAPL": p_us, "005930": p_kr}
+        returns_df, valid_symbols = UnifiedPortfolioAllocator.compute_returns_matrix(
+            symbols=["AAPL", "005930"],
+            prices_dict=prices_dict,
+            fx_series=fx_series,
+            base_currency="KRW"
+        )
+        assert len(valid_symbols) == 2
+        # For a KRW investor, AAPL return must reflect the USD/KRW appreciation (+10%)
+        # while 005930 return has 0 price change
+        aapl_total_return = (1.0 + returns_df["AAPL"]).prod() - 1.0
+        kr_total_return = (1.0 + returns_df["005930"]).prod() - 1.0
+        assert aapl_total_return > 0.08
+        assert abs(kr_total_return) < 0.001
+
+    def test_allocate_black_litterman_convenience(self):
+        """Verify allocate_black_litterman returns valid shares, lots, and weights."""
+        allocator = UnifiedPortfolioAllocator()
+        symbols = ["005930", "AAPL"]
+        dates = pd.date_range("2026-01-01", periods=30)
+        prices = {
+            "005930": pd.DataFrame({"Close": np.linspace(70000, 72000, 30)}, index=dates),
+            "AAPL": pd.DataFrame({"Close": np.linspace(200, 210, 30)}, index=dates),
+        }
+        pred_rets = {"005930": 12.0, "AAPL": 15.0}
+        res = allocator.allocate_black_litterman(
+            prices_dict=prices,
+            predicted_returns=pred_rets,
+            total_portfolio_value=100_000_000.0
+        )
+        assert not res.empty
+        assert "weight" in res.columns
+        assert "shares" in res.columns
+
+    def test_bull_conviction_kelly_scaling(self):
+        """Verify that high-conviction expected Sharpe in BULL_LOW_VOL triggers 100% allocation scaling."""
+        allocator = UnifiedPortfolioAllocator(target_volatility=0.12)
+        weights = np.array([0.50, 0.50])
+        # Very low portfolio volatility (8% annualized)
+        cov = np.eye(2) * (0.08 / np.sqrt(252.0)) ** 2
+        # High expected return (20%)
+        exp_rets = np.array([0.20, 0.20])
+
+        w_scaled, alloc = allocator.apply_target_volatility_scaling(
+            weights=weights,
+            cov_matrix=cov,
+            regime="BULL_LOW_VOL",
+            expected_returns=exp_rets
+        )
+        assert alloc >= 0.98
+
+

@@ -13,11 +13,10 @@ Optimizes order execution trajectory under real-time Limit Order Book microstruc
 
 from __future__ import annotations
 
-import math
 import logging
 from enum import IntEnum
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Any
 
 import numpy as np
 
@@ -94,7 +93,7 @@ class RLOrderExecutionAgent:
             q_vals[ExecutionAction.TACTICAL_PAUSE] += 1.5
             q_vals[ExecutionAction.AGGRESSIVE_TAKER] -= 2.0
 
-        return q_vals
+        return np.asarray(q_vals, dtype=np.float32)
 
     def select_action(self, state: ExecutionState, epsilon: float = 0.0) -> ExecutionAction:
         """Selects action via epsilon-greedy / argmax Q(s, a)."""

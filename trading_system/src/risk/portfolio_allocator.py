@@ -2378,7 +2378,7 @@ class PortfolioAllocator:
         # Daily Sharpe ratio per period
         daily_excess_mu = excess_mu / 252.0
         sr_daily = daily_excess_mu / np.maximum(vols, 1e-4)
-        
+
         # Cumulant expansion with scaling factor
         cumulant_multiplier = 1.0 + (skews / 3.0) * (sr_daily * 10.0) - (excess_kurts / 12.0) * ((sr_daily * 10.0) ** 2)
         cumulant_multiplier = np.clip(cumulant_multiplier, min_kurt_penalty, max_skew_boost)

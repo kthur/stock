@@ -8,7 +8,7 @@ explosive range expansion (REF >= 1.5), relative volume surge (RVOL >= 1.8), and
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 

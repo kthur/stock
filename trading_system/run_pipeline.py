@@ -2225,8 +2225,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         max_alloc = 0.50
         logger.info("Moderate risk mode active (SIDEWAYS market): restricting total allocation to 50.0%")
     else:  # BULL
-        max_alloc = 0.85
-        logger.info("Standard risk mode active (BULL market): setting total allocation to 85.0%")
+        if str(current_2d_regime).upper() == "BULL_LOW_VOL":
+            max_alloc = 0.98
+            logger.info("High-conviction mode active (BULL_LOW_VOL): setting total allocation to 98.0% (cash drag eliminated)")
+        else:
+            max_alloc = 0.90
+            logger.info("Standard risk mode active (BULL market): setting total allocation to 90.0%")
 
 
 
@@ -4054,11 +4058,14 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             default_max_total_allocation=max_alloc if 'max_alloc' in locals() else 0.90,
             target_horizon=20
         )
-        curr_holdings_dict = {}
+        curr_holdings_dict: Dict[str, Any] = {}
         try:
             from src.execution.oms_engine import ExecutionOMSEngine
             _temp_oms = ExecutionOMSEngine(db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trade_logs.db"))
-            curr_holdings_dict = _temp_oms.get_current_holdings_from_db()
+            if hasattr(_temp_oms, "get_current_holdings_details_from_db"):
+                curr_holdings_dict = _temp_oms.get_current_holdings_details_from_db()
+            else:
+                curr_holdings_dict = _temp_oms.get_current_holdings_from_db()
         except Exception:
             pass
 
@@ -4136,6 +4143,25 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             use_leland_buffer=(not _applied_leland_in_alloc)
         )
         logger.info(f"[OMS ENGINE] Generated & saved {len(order_plans)} order execution plans to trade_logs.db (crisis_level={_crisis_lvl_str}, current_holdings={len(curr_holdings)})")
+
+        # ── Trailing Stop & 3-Tier Profit Taking Plans ──
+        try:
+            detailed_holdings = oms_engine.get_current_holdings_details_from_db() if hasattr(oms_engine, "get_current_holdings_details_from_db") else {}
+            if detailed_holdings:
+                for _h_sym, _h_info in detailed_holdings.items():
+                    _h_px = _last_close_map.get(str(_h_sym))
+                    if _h_px and _h_px > 0:
+                        _h_info['current_price'] = _h_px
+                trailing_stop_plans = oms_engine.calculate_trailing_stop_plan(
+                    current_holdings=detailed_holdings,
+                    prices_dict=infer_data_dict if 'infer_data_dict' in locals() else None,
+                    regime=current_2d_regime if 'current_2d_regime' in locals() else "BULL_LOW_VOL",
+                    enable_3tier_tp=True
+                )
+                if trailing_stop_plans:
+                    logger.info(f"[OMS ENGINE] Evaluated {len(detailed_holdings)} holdings: Generated {len(trailing_stop_plans)} trailing stop / 3-Tier profit taking plans")
+        except Exception as _ts_e:
+            logger.debug(f"[OMS ENGINE] Trailing stop calculation skipped: {_ts_e}")
     except Exception as _oms_e:
         logger.warning(f"[OMS ENGINE] Order plan generation skipped: {_oms_e}")
 

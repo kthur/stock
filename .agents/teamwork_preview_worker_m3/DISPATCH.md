@@ -1,33 +1,38 @@
-## 2026-08-31T15:23:00Z
-You are a Worker (teamwork_preview_worker).
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_worker_m3\
-Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Project Scope path: d:\Finance\code\stock\PROJECT.md
+## 2026-09-03T12:20:06Z
+You are a Worker agent (teamwork_preview_worker) implementing Milestone 3 / Requirement 3 (R3: Benchmark & Verification).
+Your identity: Quant Benchmark & Verification Worker (Worker M3)
+Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m3
+Parent conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
+
+MANDATORY FIRST STEP:
+Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md, d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md, d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md, and d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md.
+
+EXCLUSIVE WRITE OWNERSHIP:
+- src/analysis/backtest_summary.py
+- trading_system/scripts/benchmark_quant_performance.py
 
 MANDATORY INTEGRITY WARNING:
 DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-Mission: Implement Milestone 3 (R3: GitHub Pages Dashboard Metric Consolidation & UX Enhancement).
-Read the architecture and structural blueprint in:
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\survey_report.md
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md
-
-Tasks to execute in `trading_system/generate_report.py`:
-1. Consolidate fragmented dashboard cards into the 3 Target Core Unified Cards:
-   - **Card 1: Market Regime & Risk Gates Console (`🌐 2D Market Regime & Risk Gates`)**:
-     Integrate dual-market 2D regime status badges (US & KR), Crisis Detector levels (NONE/WATCH/ACTIVE/SEVERE), VIX velocity and term structure gating, macro indicators with fallback badges and tooltips, 6-regime matrix, and AI Strategy Decision Rationale into a single high-density executive command card.
-   - **Card 2: Strategy Coverage & Missingness Diagnostic Center (`🩺 Strategy Coverage & Data Health Diagnostic Center`)**:
-     Integrate 31-strategy health monitor cards with dynamic status filtering (`[All]`, `[Healthy]`, `[Partial]`, `[Fallback]`, `[Need Data]`), multi-tier progress bars, Korean missingness reason explanations, symbol diagnostics, zero-weight safeguard notices, and CPCV / PBO overfitting stress test diagnostics. Add interactive click-to-jump navigation to strategy tab panels.
-   - **Card 3: Portfolio Optimization & Execution OMS Command Center (`💼 Portfolio Optimization & Execution OMS`)**:
-     Integrate HRP / Black-Litterman asset allocation donut chart and cross-market exposure bar chart with EVT-GPD CVaR tail risk budgeting metrics (95%/99% VaR/CVaR), Leland dynamic no-trade buffer bands (±2.5%), closed-loop realized slippage feedback by market (from `trade_logs.db`), OMS 7-Safety Gates status badges, and compact sortable execution order table with Leland status tags.
-2. Synchronize Canonical 31-Strategy Sequence (1..31):
-   - Ensure strategy tabs in navigation bar, tab panels, table columns, and stock drawer factor breakdown dictionaries strictly adhere to canonical sequence 1..31 (Strategy 30: `darkpool`, Strategy 31: `earnings_tone_drift`).
-3. Responsive UX & Interactive Styling:
-   - Ensure clean desktop (>1200px), tablet (768~1199px), and mobile (<768px) views.
-   - Add accessible tooltips, badge styles, collapsible mobile sections, and interactive stock drawer modal.
-4. Execute Dashboard Generation and Verification:
-   - Run `python trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html`.
-   - Run `python trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages`.
-   - Run pytest tests: `pytest tests/test_report_generator_hrp.py tests/test_report_ux_and_rounding.py tests/test_verify_gha_artifacts.py -v`.
-5. Write your implementation report to d:\Finance\code\stock\.agents\teamwork_preview_worker_m3\report.md and a handoff.md in your working directory.
-6. Send a message to your caller parent with your summary, dashboard file size, and test results.
+TASK OBJECTIVES:
+1. In `src/analysis/backtest_summary.py`:
+   - Append strategies 32~37 to `STRATEGY_SCORE_COLS`:
+     `cross_asset_spillover`, `supply_chain_gnn`, `range_expansion_breakout`, `dual_correction`, `index_rebalance`, `overnight_gap_reversal`.
+2. Implement `trading_system/scripts/benchmark_quant_performance.py`:
+   - Follow the design in Explorer Survey 3 (`.agents/teamwork_preview_explorer_survey_3/handoff.md`).
+   - The script must perform quantitative benchmarking comparing pre- vs post-optimization states across the 5 markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000):
+     - Net Expected Return (annualized)
+     - Sharpe Ratio
+     - Information Coefficient (Mean IC and Rank-IC)
+     - Maximum Drawdown (MDD)
+     - Turnover (%)
+     - Friction Cost reduction (bps)
+     - Win Rate (%)
+   - The script must generate the exact 3-tier Markdown comparison table required by Requirement 3:
+     - Table 1: Executive Summary Table (Overall 5-Market Aggregate)
+     - Table 2: Granular 5-Market Breakdown Table (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000)
+     - Table 3: Key Remediation Attribution Matrix (Impact of R1 alpha scaling/half-life/normalization, R2 BL/FX/CVaR/Leland bands, and OMS fixes).
+3. Execute the script with `.venv\Scripts\python.exe trading_system/scripts/benchmark_quant_performance.py` and capture its output.
+4. Run the comprehensive test suite with `.venv\Scripts\python.exe -m pytest tests/ -q --durations=10` and ensure 100% passing status (0 failures).
+5. Write your comprehensive handoff report to `d:\Finance\code\stock\.agents\teamwork_preview_worker_m3\handoff.md` including the full quantitative comparison tables and test results.
+Update `progress.md` and send completion message to parent.

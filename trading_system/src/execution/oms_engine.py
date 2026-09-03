@@ -15,7 +15,7 @@ from typing import Dict, List, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-_SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9.\-^]*$")
+_SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9._\-^]*$")
 
 # Conservative sanity bounds for order planning. Plans outside these are dropped:
 # sub-KRW-100 / sub-USD-1 prices indicate missing or corrupted price data.
@@ -392,11 +392,59 @@ class ExecutionOMSEngine:
             for p in (top_predictions or []) if isinstance(p, dict)
         )
 
+        def _get_holding_weight(h_item: Any) -> float:
+            if h_item is None:
+                return 0.0
+            if isinstance(h_item, (int, float)):
+                try:
+                    return float(h_item) if math.isfinite(float(h_item)) else 0.0
+                except (ValueError, TypeError):
+                    return 0.0
+            if isinstance(h_item, dict):
+                w = h_item.get("weight", h_item.get("target_weight", 0.0))
+                try:
+                    return float(w) if (w is not None and math.isfinite(float(w))) else 0.0
+                except (ValueError, TypeError):
+                    return 0.0
+            return 0.0
+
         conn = self._get_conn()
         try:
             cursor = conn.cursor()
 
-            for pred in top_predictions:
+            # Collect all predictions to process
+            predictions_to_process = list(top_predictions) if top_predictions else []
+            seen_symbols = set()
+            for p in predictions_to_process:
+                if isinstance(p, dict):
+                    s = self._validate_symbol(p.get("symbol"))
+                    if s:
+                        seen_symbols.add(s)
+
+            # Rebalance Liquidation: Include held symbols whose target weight dropped to 0 or fell out of top_predictions
+            if current_holdings:
+                for h_sym, h_val in current_holdings.items():
+                    v_sym = self._validate_symbol(h_sym)
+                    if not v_sym or v_sym in seen_symbols:
+                        continue
+                    h_w = _get_holding_weight(h_val)
+                    targ_w = portfolio_weights.get(v_sym, portfolio_weights.get(h_sym, 0.0))
+                    if h_w > 0.0 and (targ_w is None or targ_w <= 0.0):
+                        # Position dropped out of top rank or target weight is 0 -> Liquidate
+                        h_px = float(h_val.get("current_price", h_val.get("entry_price", 0.0))) if isinstance(h_val, dict) else 0.0
+                        h_mkt = "KOSPI" if (v_sym.isdigit() or v_sym.endswith((".KS", ".KQ")) or h_px > 500.0) else "US"
+                        if isinstance(h_val, dict) and h_val.get("market"):
+                            h_mkt = str(h_val["market"])
+                        predictions_to_process.append({
+                            "symbol": v_sym,
+                            "action": "SELL",
+                            "market": h_mkt,
+                            "close_price": h_px,
+                            "reason": "PORTFOLIO_REBALANCE_EXIT"
+                        })
+                        seen_symbols.add(v_sym)
+
+            for pred in predictions_to_process:
                 if not isinstance(pred, dict):
                     continue
 
@@ -411,7 +459,7 @@ class ExecutionOMSEngine:
                     continue
 
                 raw_action = str(pred.get("action", "BUY") or "BUY").upper()
-                curr_holding_w = float(current_holdings.get(sym, 0.0)) if current_holdings is not None else 0.0
+                curr_holding_w = _get_holding_weight(current_holdings.get(sym)) if current_holdings is not None else 0.0
                 if weight <= 0.0 and curr_holding_w > 0.0:
                     raw_action = "SELL"
 
@@ -435,7 +483,7 @@ class ExecutionOMSEngine:
 
                 # Gate: Leland Dynamic Buffer Band (No-Trade Zone) Gating
                 if use_leland_buffer and current_holdings is not None:
-                    curr_w = float(current_holdings.get(sym, 0.0))
+                    curr_w = _get_holding_weight(current_holdings.get(sym))
                     is_full_exit = (weight <= 0.0 or raw_action == "SELL")
                     is_new_entry = (curr_w <= 0.0 and weight > 0.0)
                     if not is_full_exit and not is_new_entry:
@@ -460,7 +508,7 @@ class ExecutionOMSEngine:
                         except Exception as _leland_e:
                             logger.debug(f"[OMS LELAND BUFFER] Leland buffer check skipped for {sym}: {_leland_e}")
 
-                curr_holding_w = float(current_holdings.get(sym, 0.0)) if current_holdings is not None else 0.0
+                curr_holding_w = _get_holding_weight(current_holdings.get(sym)) if current_holdings is not None else 0.0
                 if (raw_action == "SELL" or is_severe) and weight == 0.0 and curr_holding_w > 0.0:
                     target_amount = base_portfolio_cap * curr_holding_w
                 else:
@@ -478,6 +526,14 @@ class ExecutionOMSEngine:
                         if pred.get(alt_k) not in (None, ""):
                             close_price = pred.get(alt_k)
                             break
+                if (close_price is None or close_price == "" or float(close_price or 0.0) <= 0.0) and raw_action == "SELL":
+                    try:
+                        cursor.execute("SELECT target_price FROM order_plans WHERE symbol = ? AND target_price > 0 ORDER BY created_at DESC LIMIT 1", (sym,))
+                        row = cursor.fetchone()
+                        if row and row[0]:
+                            close_price = float(row[0])
+                    except Exception:
+                        pass
                 if close_price is None or close_price == "":
                     continue
                 try:
@@ -650,7 +706,7 @@ class ExecutionOMSEngine:
                     adv_val = 1_000_000_000.0 if curr_iso == "KRW" else 1_000_000.0
                 # Market-specific standard lot size constraints (KRX: lot_size_krx or 1 share, TSE/HOSE/HKEX: 100 shares, US: 1 share)
                 if is_krx or str(market).upper() in ("KOSPI", "KOSDAQ", "KRX") or curr_iso == "KRW":
-                    lot_size = getattr(self, 'lot_size_krx', 10)
+                    lot_size = getattr(self, 'lot_size_krx', 1)
                 elif str(market).upper() in ("JAPAN_TSE", "VIETNAM_HOSE", "HKEX") or curr_iso in ("JPY", "VND", "HKD") or sym.endswith((".T", ".VN", ".HK")):
                     lot_size = 100
                 else:
@@ -660,7 +716,17 @@ class ExecutionOMSEngine:
                 raw_quantity = int(effective_target_amount // target_price) if (target_price > 0 and np.isfinite(target_price) and np.isfinite(effective_target_amount)) else 0
                 quantity = (raw_quantity // lot_size) * lot_size
 
-                if quantity < min_order_qty:
+                # V8-REGRESSION Fix: In liquidation SELL orders for existing positions, use holding quantity directly
+                is_held_liquidation = False
+                if raw_action == "SELL" and current_holdings and isinstance(current_holdings, dict):
+                    h_held_item: Any = current_holdings.get(sym) or current_holdings.get(str(sym))
+                    if isinstance(h_held_item, dict):
+                        h_qty = int(h_held_item.get("quantity", 0))
+                        if h_qty > 0 and weight <= 0.0:
+                            quantity = h_qty
+                            is_held_liquidation = True
+
+                if not is_held_liquidation and quantity < min_order_qty:
                     min_order_cost = float(min_order_qty * target_price)
                     # If effective amount covers at least 50% of 1 lot and does not breach position cap
                     if effective_target_amount >= 0.50 * min_order_cost and min_order_cost <= (float(tot_cap) * 0.25):
@@ -738,8 +804,19 @@ class ExecutionOMSEngine:
                     target_price = target_price * 0.985  # Enter at 1.5% pullback discount
 
                 sleeve_type = "FAST_MOMENTUM" if effective_half_life <= 3.0 else "CORE_FUNDAMENTAL"
-                target_take_profit = round(target_price * 1.12, 2) if sleeve_type == "FAST_MOMENTUM" else round(target_price * 1.25, 2)
-                target_stop_loss = round(target_price * 0.96, 2) if sleeve_type == "FAST_MOMENTUM" else round(target_price * 0.92, 2)
+                regime_params = self.get_regime_timing_parameters(pred.get("market_regime", getattr(self, "current_regime", None)))
+                sl_mult = regime_params.get('sl_atr_mult', 1.5 if sleeve_type == "FAST_MOMENTUM" else 2.0)
+                tp_t2 = regime_params.get('tp_tier2', 0.15 if sleeve_type == "FAST_MOMENTUM" else 0.25)
+                vol_sigma = max(0.015, min(0.15, float(pred.get("volatility_20d", 0.02) or 0.02)))
+                dynamic_sl_pct = float(np.clip(sl_mult * vol_sigma, 0.03, 0.12))
+                min_reward = 2.5 * dynamic_sl_pct
+                raw_exp_alpha = float(pred.get("ensemble_expected_return", pred.get("expected_return", 0.0)) or 0.0)
+                exp_ret_decimal = (raw_exp_alpha / 100.0) if (is_batch_percent_scale or abs(raw_exp_alpha) >= 0.50) else raw_exp_alpha
+                target_reward = max(tp_t2, min_reward, max(0.0, exp_ret_decimal) * 1.25)
+                dynamic_tp_pct = float(np.clip(target_reward, 0.08, 0.40))
+
+                target_take_profit = round(target_price * (1.0 + dynamic_tp_pct), 2)
+                target_stop_loss = round(target_price * (1.0 - dynamic_sl_pct), 2)
 
                 order_amount = round(float(quantity * target_price), 2)
                 plan_entry = {
@@ -961,6 +1038,49 @@ class ExecutionOMSEngine:
                 conn.close()
         return holdings
 
+    def get_current_holdings_details_from_db(self) -> Dict[str, Dict[str, Any]]:
+        """Queries recent holding details (quantity, price, entry, weight, date, sleeve) from trade_logs.db."""
+        conn = self._get_conn()
+        holdings: Dict[str, Dict[str, Any]] = {}
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT symbol, target_weight, target_price, quantity, action, status, created_at, sleeve_type
+                FROM order_plans
+                WHERE status IN ('EXECUTED', 'PENDING', 'PARTIALLY_FILLED')
+                ORDER BY created_at DESC
+            """)
+            rows = cursor.fetchall()
+            for sym, w, p, qty, action, status, dt, sleeve in rows:
+                if sym not in holdings and action == "BUY" and w and float(w) > 0:
+                    try:
+                        days = 1
+                        if dt:
+                            try:
+                                dt_parsed = datetime.datetime.fromisoformat(str(dt).split('.')[0])
+                                days = max(1, (datetime.datetime.now() - dt_parsed).days)
+                            except Exception:
+                                days = 1
+                        holdings[sym] = {
+                            "symbol": sym,
+                            "quantity": int(qty or 1),
+                            "entry_price": float(p or 1.0),
+                            "current_price": float(p or 1.0),
+                            "weight": float(w),
+                            "target_weight": float(w),
+                            "days_held": days,
+                            "sleeve_type": str(sleeve or "CORE"),
+                            "enable_3tier_tp": True
+                        }
+                    except (ValueError, TypeError):
+                        continue
+        except Exception as e:
+            logger.debug(f"[OMS ENGINE] Failed to fetch holding details from DB: {e}")
+        finally:
+            if self.db_path != ":memory:":
+                conn.close()
+        return holdings
+
     @staticmethod
     def calculate_peg_limit_price(
         target_price: float,
@@ -1135,7 +1255,7 @@ class ExecutionOMSEngine:
         atr_multiplier: float = 2.0,
         profit_take_threshold: float = 0.15,
         regime: Optional[str] = None,
-        enable_3tier_tp: bool = False
+        enable_3tier_tp: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Engine 3: 4-Tier Multi-Stage Dynamic Profit-Taking & Chandelier/KAMA Trend Runner Engine.

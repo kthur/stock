@@ -1,7 +1,7 @@
 import logging
 import pandas as pd
 import numpy as np
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from .base_strategy import BaseStrategyEngine
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,21 @@ class ARMFactorEngine(BaseStrategyEngine):
     def __init__(self, lookback_days: int = 60):
         self.lookback_days = lookback_days
 
+    def calculate_scores(
+        self,
+        symbols: Optional[List[str]] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        """Alias for compute_scores matching BaseStrategyEngine interface."""
+        return self.compute_scores(
+            prices_dict=prices_dict or {},
+            fundamentals_dict=fundamentals_dict,
+            symbols=symbols,
+            **kwargs
+        )
+
     def compute_scores(
         self,
         prices_dict: Dict[str, pd.DataFrame],
@@ -56,6 +71,11 @@ class ARMFactorEngine(BaseStrategyEngine):
         from .base_strategy import make_score_dataframe
 
         # Robust argument binding (handles positional swaps or dict inputs)
+        sym_list = kwargs.get('symbols', None)
+        if isinstance(prices_dict, list):
+            sym_list = prices_dict
+            prices_dict = {}
+
         if isinstance(prices_dict, dict) and any(isinstance(v, dict) for v in prices_dict.values()):
             fund = prices_dict
             prc = fundamentals_dict if isinstance(fundamentals_dict, dict) else kwargs.get("prices_dict", {})
@@ -67,9 +87,11 @@ class ARMFactorEngine(BaseStrategyEngine):
             fund = fundamentals_dict if isinstance(fundamentals_dict, dict) else {}
 
         if not prc and not fund:
+            if sym_list:
+                return make_score_dataframe({s: np.nan for s in sym_list}, 'arm_score')
             return make_score_dataframe({}, 'arm_score')
 
-        symbols = list(set(list(prc.keys()) + list(fund.keys())))
+        symbols = list(set((list(sym_list) if sym_list else []) + list(prc.keys()) + list(fund.keys())))
         raw_scores = {}
 
         for sym in symbols:
@@ -146,7 +168,7 @@ class ARMFactorEngine(BaseStrategyEngine):
             synergy_bonus = float(0.25 * (syn_pos - syn_neg))
 
             raw_score = 0.5 + (revision_composite * 2.0) + (price_mom * 0.5) + synergy_bonus
-            raw_scores[sym] = float(np.clip(raw_score, -5.0, 5.0)) if np.isfinite(raw_score) else 0.5
+            raw_scores[sym] = float(np.clip(raw_score, -5.0, 5.0)) if np.isfinite(raw_score) else np.nan
 
         if not raw_scores:
             return make_score_dataframe({}, 'arm_score')

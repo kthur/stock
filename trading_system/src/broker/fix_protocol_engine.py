@@ -13,7 +13,7 @@ from __future__ import annotations
 import time
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Any
 
 from .protocol import BrokerProtocol
 
@@ -82,7 +82,6 @@ class FIXMessage:
 
         parts = [p for p in raw.split(delimiter) if p]
         msg = cls()
-        calc_body = []
 
         for p in parts:
             if "=" not in p:
@@ -129,25 +128,24 @@ class FIX44Engine(BrokerProtocol):
         self.sender_comp_id = sender_comp_id
         self.target_comp_id = target_comp_id
         self.account_id = account_id
+        self.account_number: Optional[str] = account_id
         self.seq_num = 1
-        self._is_connected = False
+        self.is_connected: bool = False
+        self.simulation_mode: bool = False
         self.orders: Dict[str, Dict[str, Any]] = {}
         self.positions: Dict[str, int] = {}
         self.cash_balance = 10_000_000.0
 
-    @property
-    def is_connected(self) -> bool:
-        return self._is_connected
-
     def connect(self, account_number: str) -> bool:
         """Sends Logon (35=A) message."""
         self.account_id = account_number or self.account_id
+        self.account_number = self.account_id
         logon_msg = FIXMessage("A", self.sender_comp_id, self.target_comp_id)
         logon_msg.set(98, 0)   # EncryptMethod: None
         logon_msg.set(108, 30) # HeartBtInt: 30s
         logon_msg.set(1, self.account_id)
         _ = logon_msg.encode(msg_seq_num=self._next_seq())
-        self._is_connected = True
+        self.is_connected = True
         logger.info(f"[FIX44] Connected to {self.target_comp_id} with account {self.account_id}")
         return True
 
@@ -156,7 +154,7 @@ class FIX44Engine(BrokerProtocol):
         logout_msg = FIXMessage("5", self.sender_comp_id, self.target_comp_id)
         logout_msg.set(58, "Client Logout")
         _ = logout_msg.encode(msg_seq_num=self._next_seq())
-        self._is_connected = False
+        self.is_connected = False
         logger.info("[FIX44] Disconnected.")
         return True
 
@@ -167,7 +165,7 @@ class FIX44Engine(BrokerProtocol):
 
     def buy(self, symbol: str, quantity: int, price: Optional[float] = None) -> bool:
         """Executes Buy using NewOrderSingle (35=D, Side=1)."""
-        if not self._is_connected or quantity <= 0:
+        if not self.is_connected or quantity <= 0:
             return False
 
         cl_ord_id = f"cl_{int(time.time()*1000)}_{symbol}"
@@ -182,7 +180,7 @@ class FIX44Engine(BrokerProtocol):
             msg.set(44, f"{price:.2f}")
         msg.set(60, datetime.now(timezone.utc).strftime("%Y%m%d-%H:%M:%S.%f")[:-3])
 
-        raw_fix = msg.encode(msg_seq_num=self._next_seq())
+        _ = msg.encode(msg_seq_num=self._next_seq())
 
         # Simulate institutional exchange execution report
         fill_price = price if price and price > 0 else 100.0
@@ -199,7 +197,7 @@ class FIX44Engine(BrokerProtocol):
 
     def sell(self, symbol: str, quantity: int, price: Optional[float] = None) -> bool:
         """Executes Sell using NewOrderSingle (35=D, Side=2)."""
-        if not self._is_connected or quantity <= 0:
+        if not self.is_connected or quantity <= 0:
             return False
 
         cur_pos = self.positions.get(symbol, 0)
@@ -218,7 +216,7 @@ class FIX44Engine(BrokerProtocol):
         if price and price > 0:
             msg.set(44, f"{price:.2f}")
 
-        raw_fix = msg.encode(msg_seq_num=self._next_seq())
+        _ = msg.encode(msg_seq_num=self._next_seq())
 
         fill_price = price if price and price > 0 else 100.0
         self.positions[symbol] -= quantity
@@ -246,3 +244,31 @@ class FIX44Engine(BrokerProtocol):
 
     def get_positions(self) -> Dict[str, int]:
         return {k: v for k, v in self.positions.items() if v > 0}
+
+    def place_order(self, code: str, quantity: int, price: float, order_type: str) -> str:
+        cl_ord_id = f"fix_{order_type.lower()}_{int(time.time()*1000)}_{code}"
+        if order_type.upper() == "BUY":
+            self.buy(code, quantity, price)
+        else:
+            self.sell(code, quantity, price)
+        return cl_ord_id
+
+    def get_order_status(self, order_id: str) -> Dict[str, Any]:
+        return self.orders.get(order_id, {"order_id": order_id, "status": "UNKNOWN"})
+
+    def get_stock_quote(self, code: str) -> Dict[str, Any]:
+        return {"code": code, "price": 100.0, "volume": 1000000}
+
+    def get_daily_chart(self, code: str, days: int) -> List[Dict[str, Any]]:
+        return [{"code": code, "close": 100.0, "volume": 1000000} for _ in range(days)]
+
+    def get_broker_info(self) -> Dict[str, Any]:
+        return {"broker": "FIX44", "sender_comp_id": self.sender_comp_id, "target_comp_id": self.target_comp_id, "account_number": self.account_number}
+
+    def get_account_info(self) -> Dict[str, Any]:
+        return {
+            "account_number": self.account_number,
+            "cash_balance": self.cash_balance,
+            "positions": self.get_positions(),
+            "is_connected": self.is_connected
+        }

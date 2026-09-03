@@ -10,10 +10,9 @@ opening auction dislocation alpha.
 from __future__ import annotations
 
 import logging
-import math
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, Optional
 
 from src.core.strategy_registry import StrategyMeta, StrategyRegistry
 

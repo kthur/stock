@@ -551,8 +551,9 @@ class EnsembleScoringEngine:
 
         self.correlation_monitor = StrategyCorrelationMonitor()
         self.factor_suppression = RegimeFactorSuppressionEngine()
-        self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric')
+        self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric', preserve_consensus_pc1=True)
         self.orthogonalizer_enabled = True
+        self.enable_coverage_shrinkage = getattr(config, 'enable_coverage_shrinkage', True)
         self.score_normalizer = CrossSectionalScoreNormalizer(method='winsorized_zscore')
         self._dsr_validator = DeflatedSharpeRatioValidator(n_strategies=34, n_horizons=8) if DeflatedSharpeRatioValidator is not None else None
 
@@ -1768,7 +1769,9 @@ class EnsembleScoringEngine:
                 valid_m = raw_vals.notna() & np.isfinite(raw_vals)
                 # Element-wise scaling: if value is in percentage form (|v| > 1.0), divide by 100.0
                 frac_vals = pd.Series(np.where(raw_vals.abs() > 1.0, raw_vals / 100.0, raw_vals), index=raw_vals.index)
-                reg_df_copy['reg_score'] = np.where(valid_m, (0.50 + frac_vals / (2.0 * 0.20)).clip(0.0, 1.0), np.nan)
+                h_int = int(str(target_horizon).replace('d', '')) if str(target_horizon).replace('d', '').isdigit() else 20
+                e_max = float(max(0.02, 0.20 * np.sqrt(max(1, h_int) / 20.0)))
+                reg_df_copy['reg_score'] = np.where(valid_m, (0.50 + frac_vals / (2.0 * e_max)).clip(0.0, 1.0), np.nan)
             else:
                 reg_df_copy['reg_score'] = np.nan
 
@@ -2370,7 +2373,8 @@ class EnsembleScoringEngine:
             merged = self.score_normalizer.normalize_scores(
                 df=merged,
                 strategy_cols=strategy_score_cols,
-                market_col='market' if 'market' in merged.columns else None
+                market_col='market' if 'market' in merged.columns else None,
+                sector_col='sector' if 'sector' in merged.columns else None
             )
         elif len(merged) >= 20:
             for _, score_col in strategy_cols:
@@ -2514,10 +2518,12 @@ class EnsembleScoringEngine:
         else:
             raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
 
-        # V8-HIGH-10 Fix: Optional Bayesian coverage shrinkage when enabled (getattr(self, 'enable_coverage_shrinkage', False))
-        if getattr(self, 'enable_coverage_shrinkage', False) and len(strategy_cols) >= 10:
+        # V8-HIGH-10 Fix: Bayesian coverage shrinkage towards cross-sectional mean for stocks with <0.60 valid weight
+        if getattr(self, 'enable_coverage_shrinkage', True) and len(strategy_cols) >= 10:
+            valid_scores = raw_linear_score[has_valid]
+            cs_mean = float(valid_scores.mean()) if len(valid_scores) > 0 else 0.50
             cov_lambda = (valid_weight_series / 0.60).clip(0.0, 1.0)
-            raw_linear_score = pd.Series(np.where(has_valid, cov_lambda * raw_linear_score + (1.0 - cov_lambda) * 0.50, 0.0), index=merged.index)
+            raw_linear_score = pd.Series(np.where(has_valid, cov_lambda * raw_linear_score + (1.0 - cov_lambda) * cs_mean, 0.0), index=merged.index)
         linear_score = raw_linear_score.copy()
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
@@ -2789,12 +2795,18 @@ class EnsembleScoringEngine:
         else:
             regime_elasticity = 1.0
         # Zero-centered around 0.50 neutral score so neutral assets generate 0.0% expected excess return.
+        # Sign-preserving conviction scaling: Cross-sectional rank modulates alpha amplitude
+        # without ever inverting the sign of positive absolute conviction (score > 0.50).
         ens_scores = merged['ensemble_score'].values
+        abs_centered = np.clip(ens_scores - 0.50, -0.50, 0.50)
         if len(ens_scores) >= 5:
             ranks = pd.Series(ens_scores).rank(pct=True).values
-            score_centered = np.clip(ranks - 0.50, -0.50, 0.50)
+            # For positive conviction: scale by (0.50 + ranks) in [0.5, 1.5]
+            # For negative conviction: scale by (1.50 - ranks) in [0.5, 1.5]
+            mult = np.where(abs_centered >= 0.0, 0.50 + ranks, 1.50 - ranks)
+            score_centered = np.clip(abs_centered * mult, -0.50, 0.50)
         else:
-            score_centered = np.clip(ens_scores - 0.50, -0.50, 0.50)
+            score_centered = abs_centered
         # Power-law convex transformation: Softened to 1.10 to prevent over-suppressing high-conviction signals (e.g. 0.75 score)
         convex_alpha = np.sign(score_centered) * (np.abs(score_centered * 2.0) ** 1.10)
         # Regime-dynamic return multiplier (V7-09: 25.0 in Bull, 20.0 in Normal, 15.0 in High Vol, 10.0 in Crisis)
@@ -2868,9 +2880,9 @@ class EnsembleScoringEngine:
         adv_ref[m_russell] = 500_000.0
         impact_coeff[m_russell] = impact_coeff_sp500
 
-        # R7-3 Fix: Actual Korean market STT rates: KOSDAQ 0.20% (0.0020), KOSPI 0.18% (0.0018)
+        # Korean market STT tax rate reform alignment: KOSDAQ 0.15% (0.0015), KOSPI 0.15% (0.0015)
         m_kosdaq = (mkt_col == 'KOSDAQ') | sym_col.str.endswith('.KQ')
-        stt_tax[m_kosdaq] = 0.0020
+        stt_tax[m_kosdaq] = 0.0015
         brokerage_fee[m_kosdaq] = 0.0003
         base_spread[m_kosdaq] = base_spread_kosdaq
         spread_min[m_kosdaq] = 0.0003
@@ -2880,7 +2892,7 @@ class EnsembleScoringEngine:
         impact_coeff[m_kosdaq] = impact_coeff_krx
 
         m_kospi = ((mkt_col == 'KOSPI') | sym_col.str.endswith('.KS') | (sym_col.str.isdigit() & (sym_col.str.len() == 6))) & ~m_kosdaq
-        stt_tax[m_kospi] = 0.0018
+        stt_tax[m_kospi] = 0.0015
         brokerage_fee[m_kospi] = 0.0003
         base_spread[m_kospi] = base_spread_kospi
         spread_min[m_kospi] = 0.0002
@@ -3286,7 +3298,7 @@ class EnsembleScoringEngine:
         "short_squeeze": 15.0,
         "insider_buying": 15.0,
         "inst_foreign_sector": 20.0,
-        "index_rebalance": 20.0,
+        "index_rebalance": 15.0,
         "regression": 20.0,
         "lstm": 20.0,
         "mq_factor": 20.0,
@@ -3306,6 +3318,9 @@ class EnsembleScoringEngine:
         "range_expansion_breakout": 1.5,
         "range_expansion": 1.5,
         "intraday_breakout": 1.5,
+        "dual_correction": 4.0,
+        "overnight_gap_reversal": 0.5,
+        "overnight_gap": 0.5,
     }
 
     @classmethod
@@ -3350,6 +3365,10 @@ class EnsembleScoringEngine:
                 'supply_chain_gnn_score': 'supply_chain_gnn',
                 'range_expansion_score': 'range_expansion_breakout', 'range_expansion_breakout_score': 'range_expansion_breakout',
                 'breakout_score': 'range_expansion_breakout',
+                'dual_correction_score': 'dual_correction',
+                'index_rebalance_score': 'index_rebalance',
+                'overnight_gap_score': 'overnight_gap_reversal',
+                'overnight_gap_reversal_score': 'overnight_gap_reversal',
             }
 
             for col in curr_indexed.columns:

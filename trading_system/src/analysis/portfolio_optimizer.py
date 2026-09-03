@@ -154,6 +154,8 @@ def calculate_black_litterman_weights(
     regime: Optional[Any] = None,
     view_horizon: int = 20,
     returns_are_percentage: Optional[bool] = None,
+    max_single_stock_weight: float = 0.20,
+    max_sector_weight: float = 0.35,
 ) -> np.ndarray:
     """
     Computes optimal portfolio weights using the Black-Litterman model.
@@ -272,7 +274,8 @@ def calculate_black_litterman_weights(
 
         w0 = np.full(n, 1.0 / n)
         cons = {"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)}
-        bounds = [(0.0, 1.0) for _ in range(n)]
+        max_w_bound = float(max_single_stock_weight) if (n * float(max_single_stock_weight) > 1.0) else 1.0
+        bounds = [(0.0, max_w_bound) for _ in range(n)]
 
         res = minimize(objective, w0, method="SLSQP", jac=objective_grad, bounds=bounds, constraints=cons, options={"ftol": 1e-12, "maxiter": 200})
         if res.success:
@@ -282,7 +285,13 @@ def calculate_black_litterman_weights(
             sum_w = np.sum(weights)
             if sum_w > 0:
                 weights = weights / sum_w
-                return apply_portfolio_constraints(weights, symbols=symbols, sectors=sectors)
+                return apply_portfolio_constraints(
+                    weights,
+                    symbols=symbols,
+                    sectors=sectors,
+                    max_single_stock_weight=max_single_stock_weight,
+                    max_sector_weight=max_sector_weight
+                )
 
     except Exception as e:
         logger.error(f"Black-Litterman optimization exception: {e}. Falling back to Risk Parity.")

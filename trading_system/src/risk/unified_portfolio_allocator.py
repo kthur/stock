@@ -11,7 +11,7 @@ Tier-1 Hedge Fund Portfolio Construction Framework:
 
 import logging
 import math
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
@@ -23,7 +23,6 @@ from src.analysis.portfolio_optimizer import (
     calculate_hrp_weights,
     shrink_covariance_matrix,
     apply_portfolio_constraints,
-    discretize_weights_to_lot_sizes,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,12 +69,17 @@ class UnifiedPortfolioAllocator:
     def compute_returns_matrix(
         symbols: List[str],
         prices_dict: Dict[str, pd.DataFrame],
-        lookback: int = 60
+        lookback: int = 60,
+        fx_series: Optional[pd.Series] = None,
+        base_currency: str = "KRW"
     ) -> Tuple[pd.DataFrame, List[str]]:
         """
         Extracts synchronized daily return series for a universe of symbols.
+        Supports cross-border multi-currency FX translation (USD/KRW) to ensure
+        unbiased portfolio covariance and capture realistic currency-hedge correlations.
         """
         close_series = {}
+        base_curr_norm = str(base_currency).upper().strip()
         for sym in symbols:
             candidates = [sym, str(sym).upper(), str(sym).lower()]
             if str(sym).endswith(('.KS', '.KQ')):
@@ -95,7 +99,20 @@ class UnifiedPortfolioAllocator:
                 if c_col:
                     s = p_df[c_col].dropna()
                     if len(s) >= 10:
-                        close_series[sym] = s.tail(lookback)
+                        s_tail = s.tail(lookback).copy()
+                        # Cross-Border FX currency harmonization
+                        if fx_series is not None and not fx_series.empty:
+                            sym_str = str(sym)
+                            is_krx = sym_str.isdigit() or sym_str.endswith(('.KS', '.KQ'))
+                            try:
+                                aligned_fx = fx_series.reindex(s_tail.index).ffill().bfill()
+                                if not is_krx and base_curr_norm == "KRW":
+                                    s_tail = s_tail * aligned_fx
+                                elif is_krx and base_curr_norm == "USD":
+                                    s_tail = s_tail / aligned_fx
+                            except Exception:
+                                pass
+                        close_series[sym] = s_tail
 
         if not close_series:
             return pd.DataFrame(), []
@@ -108,11 +125,14 @@ class UnifiedPortfolioAllocator:
     def calculate_cvar_weights(
         self,
         returns_df: pd.DataFrame,
-        confidence_level: float = 0.95
+        confidence_level: float = 0.95,
+        predicted_returns: Optional[np.ndarray] = None,
+        lambda_alpha: float = 0.50
     ) -> np.ndarray:
         """
-        Rockafellar & Uryasev (2000) Convex Conditional Value-at-Risk (CVaR) Minimization.
-        Minimizes expected tail loss beyond VaR_alpha.
+        Rockafellar & Uryasev (2000) Convex Conditional Value-at-Risk (CVaR) Minimization
+        with Alpha-Tilt (Mean-CVaR Optimization).
+        Minimizes expected tail loss beyond VaR_alpha while tilting towards positive alpha.
         """
         n = returns_df.shape[1]
         T = returns_df.shape[0]
@@ -124,11 +144,28 @@ class UnifiedPortfolioAllocator:
         R = returns_df.values  # T x n
         alpha = float(np.clip(confidence_level, 0.90, 0.99))
 
+        has_alpha = (
+            predicted_returns is not None
+            and len(predicted_returns) == n
+            and np.all(np.isfinite(predicted_returns))
+            and lambda_alpha > 0
+        )
+        if has_alpha:
+            p_rets = np.asarray(predicted_returns, dtype=float)
+            if np.any(np.abs(p_rets) >= 1.0):
+                p_rets = p_rets / 100.0  # normalize percentage to decimal
+        else:
+            p_rets = np.zeros(n)
+
         try:
             # Decision vector: x = [w_1...w_n, gamma (VaR), u_1...u_T]
-            # Objective: gamma + 1 / ((1 - alpha) * T) * sum(u_t)
+            # Mean-CVaR Objective: gamma + 1 / ((1 - alpha) * T) * sum(u_t) - lambda_alpha * (w @ p_rets)
             def obj_cvar(var):
-                return float(var[n] + (1.0 / ((1.0 - alpha) * T)) * np.sum(var[n + 1:]))
+                w = var[:n]
+                cvar_part = float(var[n] + (1.0 / ((1.0 - alpha) * T)) * np.sum(var[n + 1:]))
+                if has_alpha:
+                    return cvar_part - float(lambda_alpha * np.dot(w, p_rets))
+                return cvar_part
 
             def constr_sum_w(var):
                 return float(np.sum(var[:n]) - 1.0)
@@ -170,7 +207,7 @@ class UnifiedPortfolioAllocator:
         # Fallback to inverse volatility
         vols = np.maximum(returns_df.std().values, 1e-6)
         inv_v = 1.0 / vols
-        return inv_v / np.sum(inv_v)
+        return np.asarray(inv_v / np.sum(inv_v), dtype=float)
 
     def optimize_multi_model_blend(
         self,
@@ -183,6 +220,8 @@ class UnifiedPortfolioAllocator:
         current_weights: Optional[np.ndarray] = None,
         advs: Optional[np.ndarray] = None,
         total_capital: float = 100_000_000.0,
+        market_caps: Optional[np.ndarray] = None,
+        factor_loadings: Optional[Any] = None,
     ) -> np.ndarray:
         """
         3-Model Regime-Adaptive Multi-Model Blending:
@@ -198,19 +237,27 @@ class UnifiedPortfolioAllocator:
         regime_key = str(regime).upper() if regime else "BULL_LOW_VOL"
         blend_cfg = self.REGIME_OPTIMIZER_BLENDS.get(regime_key, self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
 
-        # 1. Model A: Black-Litterman Conviction
+        # 1. Model A: Black-Litterman Conviction (with CAPM Equilibrium Market-Cap Priors)
         w_bl = np.full(n, 1.0 / n)
         if blend_cfg["bl"] > 0:
             try:
+                prior_w = None
+                if market_caps is not None and len(market_caps) == n:
+                    tot_cap = float(np.sum(market_caps))
+                    if tot_cap > 0:
+                        prior_w = np.asarray(market_caps, dtype=float) / tot_cap
+
                 w_bl = calculate_black_litterman_weights(
                     cov_matrix=cov_matrix,
                     predicted_returns=predicted_returns,
+                    prior_weights=prior_w,
                     risk_aversion=self.risk_aversion,
                     symbols=symbols,
                     sectors=sectors,
                     max_single_stock_weight=self.max_single_weight,
                     max_sector_weight=self.max_sector_weight,
                     returns_are_percentage=False,
+                    view_horizon=self.target_horizon,
                 )
             except Exception as e:
                 logger.debug(f"[BL] Failed, fallback to equal: {e}")
@@ -225,10 +272,13 @@ class UnifiedPortfolioAllocator:
                     symbols=symbols,
                     sectors=sectors,
                     max_k=min(5, max(2, n // 2)),
+                    max_single_stock_weight=self.max_single_weight,
+                    max_sector_weight=self.max_sector_weight,
                 )
             except Exception as e:
                 logger.debug(f"[HERC] Failed, fallback to HRP: {e}")
-                w_herc = calculate_hrp_weights(cov_matrix, symbols=symbols, sectors=sectors)
+                w_hrp_raw = calculate_hrp_weights(cov_matrix, symbols=symbols, sectors=sectors)
+                w_herc = np.array([w_hrp_raw.get(s, 0.0) for s in symbols], dtype=float) if isinstance(w_hrp_raw, dict) else np.asarray(w_hrp_raw, dtype=float)
 
         # 3. Model C: Equal Risk Contribution / Risk Parity
         w_rp = np.full(n, 1.0 / n)
@@ -239,11 +289,16 @@ class UnifiedPortfolioAllocator:
                 logger.debug(f"[RP] Failed, fallback: {e}")
                 w_rp = np.full(n, 1.0 / n)
 
-        # 4. Model D: Tail-Risk CVaR Minimizer
+        # 4. Model D: Tail-Risk CVaR Minimizer with Alpha Tilt (Rockafellar & Uryasev 2002)
         w_cvar = np.full(n, 1.0 / n)
         if blend_cfg["cvar"] > 0:
             try:
-                w_cvar = self.calculate_cvar_weights(returns_df, confidence_level=0.95)
+                w_cvar = self.calculate_cvar_weights(
+                    returns_df,
+                    confidence_level=0.95,
+                    predicted_returns=predicted_returns,
+                    lambda_alpha=0.50
+                )
             except Exception as e:
                 logger.debug(f"[CVaR] Failed, fallback: {e}")
                 w_cvar = np.full(n, 1.0 / n)
@@ -255,6 +310,17 @@ class UnifiedPortfolioAllocator:
             blend_cfg["rp"] * w_rp +
             blend_cfg["cvar"] * w_cvar
         )
+
+        # Alpha-Vol Conviction Tilting: tilts risk-parity/HERC weights toward high-alpha leaders
+        if predicted_returns is not None and len(predicted_returns) == n:
+            preds = np.asarray(predicted_returns, dtype=float)
+            p_std = float(np.nanstd(preds))
+            if p_std > 1e-6:
+                p_mean = float(np.nanmean(preds))
+                z_alpha = np.clip((preds - p_mean) / p_std, -2.5, 2.5)
+                tilt_mult = np.exp(0.35 * z_alpha)
+                w_composite = w_composite * tilt_mult
+
         tot_w = np.sum(w_composite)
         w_blended = w_composite / tot_w if tot_w > 0 else np.full(n, 1.0 / n)
 
@@ -277,13 +343,21 @@ class UnifiedPortfolioAllocator:
             if s_damp > 0:
                 w_blended = w_damped / s_damp
 
+            # V8-HIGH-16: 5% ADV hard liquidity participation constraint: abs(w_i - w_curr_i) <= (0.05 * ADV_i) / V_port
+            max_delta_w = (0.05 * daily_advs) / float(total_capital)
+            w_bounded = np.clip(w_blended, np.maximum(0.0, w_curr - max_delta_w), w_curr + max_delta_w)
+            s_bound = np.sum(w_bounded)
+            if s_bound > 0:
+                w_blended = w_bounded / s_bound
+
         # 6. Apply Portfolio Constraints & Sector Neutralization
         final_w = apply_portfolio_constraints(
             w_blended,
             symbols=symbols,
             sectors=sectors,
             max_single_stock_weight=self.max_single_weight,
-            max_sector_weight=self.max_sector_weight
+            max_sector_weight=self.max_sector_weight,
+            factor_loadings=factor_loadings
         )
         return final_w
 
@@ -291,12 +365,14 @@ class UnifiedPortfolioAllocator:
         self,
         weights: np.ndarray,
         cov_matrix: np.ndarray,
-        regime: Optional[str] = "BULL_LOW_VOL"
+        regime: Optional[str] = "BULL_LOW_VOL",
+        expected_returns: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, float]:
         """
         Dynamic Target Volatility (12% Annualized) Scaling & Cash Drag Eliminator:
         Scales total portfolio allocation up or down based on current realized volatility.
         - In Bull Low-Vol: scales allocation up to 98% (eliminating cash drag).
+        - In High-Conviction Bull (Sharpe >= 1.5): scales allocation up to 100% (Kelly boost).
         - In Bear High-Vol / Crisis: scales allocation down to 40~50% (preserving cash).
         """
         n = len(weights)
@@ -310,6 +386,17 @@ class UnifiedPortfolioAllocator:
         if "BULL" in regime_str:
             max_alloc_cap = 0.98  # Cash drag eliminator
             min_alloc_floor = 0.80
+
+            # High-Conviction Continuous Kelly Edge Boost
+            if expected_returns is not None and len(expected_returns) == n:
+                p_rets = np.asarray(expected_returns, dtype=float)
+                if np.any(np.abs(p_rets) >= 1.0):
+                    p_rets = p_rets / 100.0
+                annualized_exp_ret = float(np.dot(weights, p_rets) * (252.0 / 20.0))
+                sharpe_proxy = (annualized_exp_ret - 0.03) / max(annualized_port_vol, 0.05)
+                if sharpe_proxy >= 1.50 and annualized_port_vol <= 0.15:
+                    max_alloc_cap = 1.00
+                    min_alloc_floor = 0.88
         elif "SIDEWAYS" in regime_str:
             max_alloc_cap = 0.85
             min_alloc_floor = 0.60
@@ -330,11 +417,14 @@ class UnifiedPortfolioAllocator:
         target_weights: np.ndarray,
         current_weights: np.ndarray,
         volatilities: np.ndarray,
+        unrealized_returns: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
         Asymmetric Leland Dynamic No-Trade Buffer Bands:
         Suppresses unnecessary churn and transaction taxes (STT) when drift is within noise band.
-        Delta_i = ( 3/4 * gamma * Cost_i / sigma_i^2 )^(1/3)
+        - Winning runners (unrealized_return >= +8%): Upper band expanded 1.8x to prevent premature rebalance sales.
+        - Laggards (unrealized_return <= -3%): Lower band tightened 0.6x for prompt de-risking.
+        Delta_i = ( 3/4 * Cost_i * w_i * (1 - w_i) * sigma_ann^2 / gamma )^(1/3)
         """
         n = len(target_weights)
         if current_weights is None or len(current_weights) != n or np.all(current_weights <= 0):
@@ -342,9 +432,13 @@ class UnifiedPortfolioAllocator:
 
         cost_fraction = self.leland_cost_bps / 10_000.0  # e.g. 20 bps = 0.0020
         vols = np.maximum(volatilities, 0.01)
-        # Leland half-width delta (typically 0.5% ~ 2.5%)
+        ann_variance = 252.0 * (vols ** 2)
+        gamma = max(1e-4, float(self.risk_aversion))
+        w_factor = np.maximum(1e-4, target_weights * (1.0 - np.minimum(0.99, target_weights)))
+        # Leland half-width delta (typically 0.5% ~ 3.5%): Delta_i proportional to (c * sigma_ann^2 / gamma)^(1/3)
+        cubic_term = (0.75 * cost_fraction * w_factor * ann_variance) / gamma
         leland_deltas = np.clip(
-            (0.75 * self.risk_aversion * cost_fraction / (vols ** 2)) ** (1.0 / 3.0),
+            np.cbrt(cubic_term),
             0.005,
             0.035
         )
@@ -358,15 +452,32 @@ class UnifiedPortfolioAllocator:
             # Bypass buffer for new entries (curr == 0) or full liquidations (tgt == 0)
             if curr_w <= 1e-4 or tgt_w <= 1e-4:
                 realized_w[i] = tgt_w
-            elif abs(tgt_w - curr_w) <= delta:
-                # Within no-trade band: hold current weight to save turnover and tax
+                continue
+
+            # Asymmetric band adjustments based on unrealized performance
+            u_ret = float(unrealized_returns[i]) if (unrealized_returns is not None and len(unrealized_returns) > i and np.isfinite(unrealized_returns[i])) else 0.0
+            if u_ret >= 0.08:
+                upper_mult = 1.8
+                lower_mult = 1.0
+            elif u_ret <= -0.03:
+                upper_mult = 1.0
+                lower_mult = 0.6
+            else:
+                upper_mult = 1.0
+                lower_mult = 1.0
+
+            upper_band = tgt_w + upper_mult * delta
+            lower_band = max(0.0, tgt_w - lower_mult * delta)
+
+            if lower_band <= curr_w <= upper_band:
+                # Within asymmetric no-trade band: hold current weight to save turnover and tax
                 realized_w[i] = curr_w
             elif tgt_w > curr_w:
                 # Buy only to lower boundary of band
-                realized_w[i] = tgt_w - delta
+                realized_w[i] = tgt_w - lower_mult * delta
             else:
                 # Sell only to upper boundary of band
-                realized_w[i] = tgt_w + delta
+                realized_w[i] = tgt_w + upper_mult * delta
 
         return realized_w
 
@@ -400,8 +511,19 @@ class UnifiedPortfolioAllocator:
         df_candidates = predictions_df.sort_values(score_col, ascending=False).head(top_n).copy() if score_col else predictions_df.head(top_n).copy()
         raw_symbols = [str(s) for s in df_candidates["symbol"].tolist()]
 
-        # Extract synchronized return series & covariance matrix
-        returns_df, valid_symbols = self.compute_returns_matrix(raw_symbols, prices_dict, lookback=60)
+        # Extract synchronized return series & covariance matrix (with FX cross-border calibration)
+        fx_series = None
+        if prices_dict and isinstance(prices_dict, dict):
+            for fx_k in ["USDKRW", "USD/KRW", "FX_USDKRW", "KRW=X"]:
+                if fx_k in prices_dict and isinstance(prices_dict[fx_k], pd.DataFrame) and not prices_dict[fx_k].empty:
+                    c_col = "Close" if "Close" in prices_dict[fx_k].columns else ("close" if "close" in prices_dict[fx_k].columns else None)
+                    if c_col:
+                        fx_series = prices_dict[fx_k][c_col].dropna()
+                        break
+
+        returns_df, valid_symbols = self.compute_returns_matrix(
+            raw_symbols, prices_dict, lookback=60, fx_series=fx_series, base_currency=base_currency
+        )
         if len(valid_symbols) < 2 or returns_df.empty:
             logger.warning("[UnifiedPortfolioAllocator] Insufficient historical data for covariance. Falling back to heuristic allocation.")
             df_candidates = df_candidates.head(min(len(df_candidates), 10)).copy()
@@ -414,8 +536,12 @@ class UnifiedPortfolioAllocator:
         valid_symbols = [str(s) for s in df_candidates["symbol"].tolist()]
         returns_df = returns_df[valid_symbols]
 
-        # Calculate shrunk covariance matrix
-        sample_cov = np.cov(returns_df.values, rowvar=False)
+        # Calculate shrunk covariance matrix from true pairwise returns
+        cov_df = returns_df.cov()
+        if cov_df.shape == (len(valid_symbols), len(valid_symbols)) and not cov_df.isna().all().all():
+            sample_cov = cov_df.fillna(0.0).values
+        else:
+            sample_cov = np.cov(returns_df.fillna(0.0).values, rowvar=False)
         cov_matrix = shrink_covariance_matrix(sample_cov, n_samples=len(returns_df))
 
         # Extract expected returns vector (C-01 fix: scale alignment between percentage and decimal)
@@ -444,6 +570,15 @@ class UnifiedPortfolioAllocator:
             px = df_candidates["close"].values.astype(float) if "close" in df_candidates.columns else np.ones(len(df_candidates))
             advs = df_candidates["volume"].values.astype(float) * px
 
+        # Extract market caps if available for Black-Litterman CAPM equilibrium prior
+        market_caps = None
+        for cap_col in ["market_cap", "marcap", "market_capitalization"]:
+            if cap_col in df_candidates.columns:
+                c_vals = df_candidates[cap_col].values.astype(float)
+                if np.any(np.isfinite(c_vals)) and np.nanmax(c_vals) > 0:
+                    market_caps = np.nan_to_num(c_vals, nan=np.nanmedian(c_vals[c_vals > 0]) if np.any(c_vals > 0) else 1.0)
+                    break
+
         # Extract current weights from current_holdings (supports float weight map or dict holding details)
         current_weights = np.zeros(len(valid_symbols))
         if current_holdings and total_portfolio_value > 0:
@@ -461,9 +596,10 @@ class UnifiedPortfolioAllocator:
                     if isinstance(h, (int, float)):
                         current_weights[i] = float(h)
                     elif isinstance(h, dict):
-                        qty = float(h.get("quantity", 0.0))
-                        p = float(h.get("current_price", h.get("entry_price", 0.0)))
-                        current_weights[i] = (qty * p) / total_portfolio_value
+                        qty = float(h.get("quantity") or 0.0)
+                        cp = h.get("current_price") or h.get("entry_price") or 0.0
+                        p_val = float(cp)
+                        current_weights[i] = (qty * p_val) / total_portfolio_value
 
         # Step 1: Multi-Model Regime-Adaptive Blending
         w_opt = self.optimize_multi_model_blend(
@@ -476,25 +612,73 @@ class UnifiedPortfolioAllocator:
             current_weights=current_weights,
             advs=advs,
             total_capital=total_portfolio_value,
+            market_caps=market_caps,
         )
 
         # Step 2: Target Volatility Scaling & Cash Drag Eliminator
-        w_scaled, effective_alloc = self.apply_target_volatility_scaling(w_opt, cov_matrix, regime=regime)
+        w_scaled, effective_alloc = self.apply_target_volatility_scaling(
+            w_opt, cov_matrix, regime=regime, expected_returns=pred_rets
+        )
 
         # Step 3: Asymmetric Leland Dynamic No-Trade Buffer
         vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-6))
-        w_final = self.apply_leland_no_trade_buffers(w_scaled, current_weights, volatilities=vols)
+        unrealized_rets = np.zeros(len(valid_symbols))
+        if current_holdings:
+            for i, sym in enumerate(valid_symbols):
+                sym_str = str(sym)
+                base_sym = sym_str.split('.')[0]
+                candidates = [sym_str, sym, base_sym, f"{base_sym}.KS", f"{base_sym}.KQ"]
+                h = None
+                for c_k in candidates:
+                    if c_k in current_holdings:
+                        h = current_holdings[c_k]
+                        break
+                if isinstance(h, dict):
+                    ret_val = h.get("unrealized_return")
+                    if ret_val is None:
+                        cp = float(h.get("current_price", 0.0))
+                        ep = float(h.get("entry_price", 0.0))
+                        if ep > 0 and cp > 0:
+                            ret_val = (cp - ep) / ep
+                    if ret_val is not None and math.isfinite(float(ret_val)):
+                        unrealized_rets[i] = float(ret_val)
+
+        w_final = self.apply_leland_no_trade_buffers(
+            w_scaled, current_weights, volatilities=vols, unrealized_returns=unrealized_rets
+        )
 
         # Step 4: Compute shares, lot sizes, and allocation amounts
         latest_prices = []
         for sym in valid_symbols:
-            p_df = prices_dict.get(sym)
-            if p_df is not None and not p_df.empty:
-                c_col = "Close" if "Close" in p_df.columns else ("close" if "close" in p_df.columns else None)
-                p = float(p_df[c_col].iloc[-1]) if c_col else 1.0
-            else:
-                p = 1.0
-            latest_prices.append(max(p, 1.0))
+            candidates = [sym, str(sym).upper(), str(sym).lower()]
+            if str(sym).endswith(('.KS', '.KQ')):
+                candidates.append(str(sym).split('.')[0])
+            elif str(sym).isdigit():
+                candidates.extend([f"{sym}.KS", f"{sym}.KQ"])
+
+            p: Optional[float] = None
+            if prices_dict and isinstance(prices_dict, dict):
+                for c_sym in candidates:
+                    if c_sym in prices_dict:
+                        p_df = prices_dict[c_sym]
+                        if p_df is not None and not p_df.empty:
+                            c_col = "Close" if "Close" in p_df.columns else ("close" if "close" in p_df.columns else None)
+                            if c_col and len(p_df[c_col].dropna()) > 0:
+                                val = float(p_df[c_col].dropna().iloc[-1])
+                                if math.isfinite(val) and val > 0:
+                                    p = val
+                                    break
+            # Fallback to close/close_price in df_candidates
+            if p is None or p <= 1.0:
+                sub_df = df_candidates[df_candidates["symbol"].astype(str) == str(sym)]
+                for col in ["close", "close_price", "price", "current_price"]:
+                    if col in sub_df.columns and not sub_df[col].dropna().empty:
+                        c_val = float(sub_df[col].dropna().iloc[0])
+                        if math.isfinite(c_val) and c_val > 0:
+                            p = c_val
+                            break
+
+            latest_prices.append(max(float(p if p is not None else 1.0), 1.0))
 
         df_candidates["weight"] = w_final
         df_candidates["volatility"] = vols
@@ -538,3 +722,42 @@ class UnifiedPortfolioAllocator:
         )
 
         return df_candidates
+
+    def allocate_black_litterman(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        predicted_returns: Dict[str, float],
+        total_portfolio_value: float = 100_000_000.0,
+        tau: float = 0.05,
+        risk_aversion: Optional[float] = None,
+        market_caps: Optional[Dict[str, float]] = None,
+        regime: Optional[str] = "BULL_LOW_VOL",
+        base_currency: str = "KRW",
+        usd_krw: float = 1350.0,
+    ) -> pd.DataFrame:
+        """
+        Standalone Bayesian Black-Litterman Portfolio Allocator:
+        Derives equilibrium prior from CAPM / market caps, integrates strategy views,
+        and discretizes optimal weights into execution lots.
+        """
+        symbols = [str(s) for s in predicted_returns.keys()]
+        if len(symbols) < 2:
+            return pd.DataFrame()
+
+        df_input = pd.DataFrame({
+            "symbol": symbols,
+            "ensemble_expected_return": [predicted_returns[s] for s in symbols]
+        })
+        if market_caps:
+            df_input["market_cap"] = [market_caps.get(s, 1.0) for s in symbols]
+
+        return self.allocate(
+            predictions_df=df_input,
+            prices_dict=prices_dict,
+            total_portfolio_value=total_portfolio_value,
+            regime="BULL_LOW_VOL" if not regime else str(regime),
+            top_n=len(symbols),
+            base_currency=base_currency,
+            usd_krw=usd_krw,
+        )
+

@@ -1,57 +1,57 @@
-# BRIEFING — 2026-08-21T20:28:00+09:00
+# BRIEFING — 2026-09-03T21:42:00+09:00
 
 ## Mission
-Independent review & adversarial stress-testing of changes in Domain 3 Part B (V5-26 ~ V5-31), Domain 4 (V5-24 ~ V5-25), and Domain 5 (V5-32).
+Rigorously review the mathematical and financial rigor of quantitative optimization across 7 specific task areas, stress-test assumptions, verify code and test outputs, check for integrity violations, and issue a verdict.
 
 ## 🔒 My Identity
 - Archetype: reviewer & critic
-- Roles: [reviewer, critic]
-- Working directory: D:\Finance\code\stock\.agents\teamwork_preview_reviewer_2
-- Original parent: 6ca0b715-13b6-471b-8297-997f4c66f01d
-- Milestone: Review Phase
-- Instance: 2 of 2
+- Roles: reviewer, critic
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_2
+- Original parent: 9f89ea60-abb5-4468-88df-62eb0473f19b
+- Milestone: Post-V8 Quantitative Optimization Rigor Review
+- Instance: Reviewer 2 (Quant Math & Financial Logic Reviewer)
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Verify 100% test pass rate across entire repo
-- Independent verification of all claims and code changes
-- Check integrity violations (hardcoded values, facade logic, bypasses)
+- Rigorously inspect 7 focus areas: Multi-Currency FX Translation, Black-Litterman Scaling, CVaR DOF bound ($N \le 4$), Asymmetric Leland buffer bands, Gatheral 3/2-power impact & 5% ADV bound, Winsorized Gaussian CDF zero-block isolation (0.50), Execute targeted verification commands via `.venv\Scripts\python.exe`.
+- Active adversarial critique: stress-test assumptions, boundary conditions, integrity violations.
 
 ## Current Parent
-- Conversation ID: 6ca0b715-13b6-471b-8297-997f4c66f01d
-- Updated: 2026-08-21T20:28:00+09:00
+- Conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
+- Updated: 2026-09-03T21:42:00+09:00
 
 ## Review Scope
-- **Files to review**: Domain 3 Part B, Domain 4, Domain 5 implementation and test files
-- **Interface contracts**: ORIGINAL_REQUEST.md / system_improvement_report_v5.md
-- **Review criteria**: Correctness, integrity, quality, coverage, boundary conditions, adversarial resilience
-
-## Key Decisions Made
-- Completed full test suite execution (1,226 items).
-- Identified 3 test failures: `short_interest_squeeze.py:116` (`NameError: ret_20d`), `event_driven.py:249` (`NameError: item`), and `test_config.py:46` (stale string assertion).
-- Issued verdict: `REQUEST_CHANGES`.
+- **Files to review**:
+  - `trading_system/src/risk/unified_portfolio_allocator.py`
+  - `trading_system/src/risk/portfolio_allocator.py`
+  - `trading_system/src/analysis/portfolio_optimizer.py`
+  - `trading_system/src/execution/turnover_optimizer.py`
+  - `trading_system/src/execution/oms_engine.py`
+  - `trading_system/src/ai/score_normalizer.py`
+  - `trading_system/src/ai/ensemble_scorer.py`
+  - `trading_system/scripts/benchmark_quant_performance.py`
+- **Review criteria**: Mathematical formulation correctness, unit consistency, boundary behavior, financial theory soundness, adversarial robustness, integrity violation check.
 
 ## Review Checklist
-- **Items reviewed**: Domain 3 Part B (V5-26 ~ V5-31), Domain 4 (V5-24 ~ V5-25), Domain 5 (V5-32), and full test suite.
-- **Verdict**: REQUEST_CHANGES
-- **Unverified claims**: None. All code paths and errors directly inspected and verified.
+- **Items reviewed**:
+  - `teamwork_preview_worker_m1/handoff.md` (read)
+  - `teamwork_preview_worker_m2/handoff.md` (read)
+  - `teamwork_preview_worker_m3/handoff.md` (read)
+- **Verdict**: PENDING
+- **Unverified claims**:
+  - Multi-Currency FX Translation in `UnifiedPortfolioAllocator.allocate()`
+  - BL scaling $Q_{daily} = Q / \text{eff\_horizon}$ in `calculate_black_litterman_weights()`
+  - Small universe CVaR degree of freedom bound ($N \le 4$)
+  - Leland buffer formula $\Delta_i \propto (c \cdot \sigma^2 / \gamma)^{1/3}$ with 1.8x / 0.6x asymmetric multipliers and entry/exit bypass
+  - Gatheral 3/2-power penalty and 5% ADV constraint
+  - Winsorized Gaussian CDF zero-block neutral isolation (0.50)
 
 ## Attack Surface
-- **Hypotheses tested**: 
-  - Downside semi-variance calculation in extreme bull/bear regimes (passed).
-  - Vol targeting single stock and uniform vol fallbacks (passed).
-  - Accruals quality N=1 boundary condition (passed).
-  - Continuous activation function smoothness (passed).
-  - DART insider buying keyword matching vs generic filings (passed).
-  - Config type conversions under bad inputs (passed).
-  - Realized slippage feedback signature unpacking (passed).
-  - Inverse ETF hedge pricing at low share prices (passed).
-  - Metric scale auto-detection for decimal feeds (passed).
-- **Vulnerabilities found**:
-  - `short_interest_squeeze.py` fallback calculation raises `NameError: ret_20d`.
-  - `event_driven.py` CB/BW evaluation missing `for item in eff_filings:`.
-- **Untested angles**: None within reviewed scope.
+- **Hypotheses tested**: [pending inspection]
+- **Vulnerabilities found**: [pending inspection]
+- **Untested angles**: [pending inspection]
 
 ## Artifact Index
-- D:\Finance\code\stock\.agents\teamwork_preview_reviewer_2\progress.md — Progress tracking
-- D:\Finance\code\stock\.agents\teamwork_preview_reviewer_2\handoff.md — Final review report
+- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_2\BRIEFING.md` — persistent memory
+- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_2\progress.md` — liveness heartbeat
+- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_2\handoff.md` — review report & verdict

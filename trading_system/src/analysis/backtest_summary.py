@@ -52,6 +52,12 @@ STRATEGY_SCORE_COLS: List[tuple] = [
     ("Insider Buying Flow", "insider_buying_score"),
     ("Earnings Tone Drift", "tone_drift_score"),
     ("HFT Microstructure Flow", "hft_score"),
+    ("Cross-Asset Spillover", "cross_asset_spillover_score"),
+    ("Supply Chain GNN", "supply_chain_gnn_score"),
+    ("Range Expansion Breakout", "range_expansion_score"),
+    ("Dual Correction", "dual_correction_score"),
+    ("Index Rebalance Flow", "index_rebalance_score"),
+    ("Overnight Gap Reversal", "overnight_gap_score"),
 ]
 
 _KST = timezone(timedelta(hours=9))
@@ -134,20 +140,34 @@ def compute_realized_backtest(history: pd.DataFrame, horizon: int = 20,
     if df.empty:
         return {}
 
+    score_col_aliases = {
+        "range_expansion_score": ["range_expansion_breakout_score"],
+        "overnight_gap_score": ["overnight_gap_reversal_score"],
+        "index_rebalance_score": ["index_rebalance_flow_score"],
+        "hft_score": ["darkpool_score"],
+    }
+
     # Ensure scores are numeric
     for _, col in STRATEGY_SCORE_COLS:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+        for c in [col] + score_col_aliases.get(col, []):
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
 
     strategies: Dict[str, Any] = {}
     for display_name, score_col in STRATEGY_SCORE_COLS:
-        if score_col not in df.columns:
-            continue
+        active_col = score_col
+        if active_col not in df.columns:
+            for alt in score_col_aliases.get(score_col, []):
+                if alt in df.columns:
+                    active_col = alt
+                    break
+            else:
+                continue
         portfolio_series = []
         for dt, grp in df.groupby('date', sort=True):
             if len(grp) == 0:
                 continue
-            top = grp.nlargest(top_n, score_col)
+            top = grp.nlargest(top_n, active_col)
             if top.empty or top['outcome_return'].isna().all():
                 continue
             portfolio_series.append((dt, float(top['outcome_return'].mean())))
