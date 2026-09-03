@@ -1097,6 +1097,23 @@ class ExecutionOMSEngine:
 
     generate_order_plans = generate_order_plan
 
+    def route_with_smart_order_router(
+        self,
+        order_plans: List[Dict[str, Any]],
+        ats_available: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Routes generated order plans through Multi-Venue SmartOrderRouter (SOR)
+        to minimize market impact, capture maker rebates, and leverage Dark Pool / ATS liquidity.
+        """
+        try:
+            from src.execution.smart_order_router import SmartOrderRouter
+            sor = SmartOrderRouter()
+            return sor.route_batch(order_plans, ats_available=ats_available)
+        except Exception as _sor_e:
+            logger.debug(f"[OMS SOR] Fallback routing without SOR: {_sor_e}")
+            return order_plans
+
     def record_execution(
         self,
         order_id: str,

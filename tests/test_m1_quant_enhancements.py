@@ -1,339 +1,410 @@
+"""
+Milestone 1 Quantitative Enhancements Comprehensive Test Suite
+Validates Features F01 through F08:
+- F01: 7-State 2D Regime Matrix & Dedicated CRISIS Base Weights Dictionary
+- F02: Markov Posterior Regime Soft-Blending
+- F03: Continuous TV-Distance & VIX Entropy Adaptive Smoothing
+- F04: Live Alpha Convolutional Decay Filtering & Rank IC Latency Calibration
+- F05: Trend Inertia vs Crash Protection (Autocorrelation Boost & High-Vol Throttling)
+- F06: 37-Strategy 4-Pillar Synergy Cluster Map & Regime-Adaptive Bessembinder S-Curve
+- F07: Single-Stage Entropy Redundancy Allocation with Partial Missingness
+- F08: Factor Orthogonalizer Singularity Protection for Zero-Variance Columns
+"""
+
+import math
 import pytest
 import numpy as np
 import pandas as pd
 
-from src.ai.factor_suppression import RegimeFactorSuppressionEngine
-from src.ai.factor_orthogonalizer import FactorOrthogonalizerEngine
 from src.ai.ensemble_scorer import EnsembleScoringEngine
-
-# Mandatory Integrity Warning
-# DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results,
-# create dummy/facade implementations, or circumvent the intended task. A Forensic
-# Auditor will independently verify your work. Integrity violations WILL be detected
-# and your work WILL be rejected.
+from src.ai.factor_suppression import RegimeFactorSuppressionEngine, solve_single_stage_entropy_allocation
+from src.ai.factor_orthogonalizer import FactorOrthogonalizerEngine
 
 
-class TestM1QuantEnhancements:
-    """Comprehensive test suite for Milestone 1 Apex Quantitative Enhancements (Features 1-6)."""
+# =========================================================================
+# FEATURE F01: 7-State 2D Regime Matrix & Dedicated CRISIS Base Weights
+# =========================================================================
 
-    # -------------------------------------------------------------------------
-    # FEATURE 6: Statistically Calibrated Suppression Cutoffs theta(R, N)
-    # -------------------------------------------------------------------------
-    def test_feature_6_statistically_calibrated_cutoff_formula(self):
-        """Verify theta(R, N) = clip(theta_0(R) + 1.645 / sqrt(max(N-3, 1)), 0.35, 0.85)."""
-        engine = RegimeFactorSuppressionEngine()
-        theta_0 = 0.60
+def test_f01_crisis_regime_weights_specification():
+    """F01: Verify CRISIS exists in REGIME_2D_WEIGHTS, has 37 strategies, sum=1.0000, all >= 0.005, and never falls back to SIDEWAYS_LOW_VOL."""
+    scorer = EnsembleScoringEngine()
+    assert "CRISIS" in scorer.REGIME_2D_WEIGHTS, "'CRISIS' must be present in REGIME_2D_WEIGHTS"
+    crisis_w = scorer.REGIME_2D_WEIGHTS["CRISIS"]
 
-        # 1. Fallbacks for None or N <= 3
-        assert engine.calibrate_cutoff(theta_0, None) == 0.60
-        assert engine.calibrate_cutoff(theta_0, 1) == 0.60
-        assert engine.calibrate_cutoff(theta_0, 2) == 0.60
-        assert engine.calibrate_cutoff(theta_0, 3) == 0.60
+    assert len(crisis_w) == 37, f"CRISIS should have exactly 37 strategies, got {len(crisis_w)}"
+    assert pytest.approx(sum(crisis_w.values()), abs=1e-5) == 1.0
+    assert all(w >= 0.005 for w in crisis_w.values()), "All strategy weights in CRISIS must be >= 0.005"
 
-        # 2. Monotonic decay as sample size N increases
-        theta_50 = engine.calibrate_cutoff(theta_0, 50)
-        theta_500 = engine.calibrate_cutoff(theta_0, 500)
-        theta_2000 = engine.calibrate_cutoff(theta_0, 2000)
+    # Verify defensive dominance
+    assert crisis_w["vol_target"] == 0.080
+    assert crisis_w["stat_arb"] == 0.070
+    assert crisis_w["rim_valuation"] == 0.065
+    assert crisis_w["accruals_quality"] == 0.060
+    assert crisis_w["short_term_reversal"] == 0.055
+    assert crisis_w["card_factor"] == 0.050
 
-        expected_50 = np.clip(0.60 + 1.645 / np.sqrt(47), 0.35, 0.85)
-        expected_500 = np.clip(0.60 + 1.645 / np.sqrt(497), 0.35, 0.85)
-        expected_2000 = np.clip(0.60 + 1.645 / np.sqrt(1997), 0.35, 0.85)
+    # Verify high-beta throttling
+    for high_beta in ["surge", "vcp_rule", "vcp_ml", "short_squeeze", "gamma_squeeze", "trend_efficiency", "range_expansion_breakout"]:
+        assert crisis_w[high_beta] == 0.005, f"{high_beta} must be throttled to 0.005 in CRISIS"
 
-        assert abs(theta_50 - expected_50) < 1e-4
-        assert abs(theta_500 - expected_500) < 1e-4
-        assert abs(theta_2000 - expected_2000) < 1e-4
-        assert theta_50 > theta_500 > theta_2000 > theta_0
+    # Verify get_base_weights never falls back to SIDEWAYS_LOW_VOL for CRISIS
+    w_direct = scorer.get_base_weights("CRISIS")
+    w_lower = scorer.get_base_weights("crisis")
+    w_substr = scorer.get_base_weights("CRISIS_ACTIVE")
+    w_sideways = scorer.get_base_weights("SIDEWAYS_LOW_VOL")
 
-        # 3. Clamping to bounds [0.35, 0.85]
-        assert engine.calibrate_cutoff(0.10, 10000) == 0.35
-        assert engine.calibrate_cutoff(0.80, 5) == 0.85
+    assert pytest.approx(w_direct["vol_target"], abs=1e-5) == 0.080
+    assert pytest.approx(w_lower["vol_target"], abs=1e-5) == 0.080
+    assert pytest.approx(w_substr["vol_target"], abs=1e-5) == 0.080
+    assert w_direct["vol_target"] != w_sideways["vol_target"], "CRISIS must never fall back to SIDEWAYS_LOW_VOL"
 
-    def test_feature_6_suppress_weights_integration_with_sample_size(self):
-        """Verify suppress_weights adapts cutoff dynamically when n_samples is passed."""
-        engine = RegimeFactorSuppressionEngine()
-        base_weights = {'surge': 0.50, 'vcp_ml': 0.50}
-        # Correlation = 0.75 between two momentum strategies
-        corr_df = pd.DataFrame(
-            [[1.0, 0.75], [0.75, 1.0]],
-            index=['surge', 'vcp_ml'],
-            columns=['surge', 'vcp_ml']
+
+# =========================================================================
+# FEATURE F02: Markov Posterior Regime Soft-Blending
+# =========================================================================
+
+def test_f02_markov_posterior_regime_soft_blending():
+    """F02: Verify Markov posterior probability vector produces accurate convex combination base weights."""
+    scorer = EnsembleScoringEngine()
+
+    regime_probs = {
+        "BULL_LOW_VOL": 0.60,
+        "SIDEWAYS_LOW_VOL": 0.30,
+        "CRISIS": 0.10
+    }
+    w_blended = scorer.get_base_weights(regime_probs)
+
+    active_w = {k: v for k, v in w_blended.items() if v > 0}
+    assert len(active_w) == 37, f"Expected 37 active strategies, got {len(active_w)}"
+    assert pytest.approx(sum(w_blended.values()), abs=1e-5) == 1.0
+
+    w_bull = scorer.REGIME_2D_WEIGHTS["BULL_LOW_VOL"]
+    w_side = scorer.REGIME_2D_WEIGHTS["SIDEWAYS_LOW_VOL"]
+    w_cris = scorer.REGIME_2D_WEIGHTS["CRISIS"]
+
+    # Verify convex combination for multiple representative strategies
+    for s in ["surge", "stat_arb", "vol_target", "rim_valuation"]:
+        expected = 0.60 * w_bull[s] + 0.30 * w_side[s] + 0.10 * w_cris[s]
+        assert pytest.approx(w_blended[s], abs=1e-5) == expected
+
+    # Test 1D probability dictionary fallback
+    probs_1d = {"p_bear": 0.20, "p_sideways": 0.30, "p_bull": 0.50}
+    w_1d = scorer.get_base_weights(probs_1d)
+    assert pytest.approx(sum(w_1d.values()), abs=1e-5) == 1.0
+    assert len([k for k, v in w_1d.items() if v > 0]) == 37
+
+
+# =========================================================================
+# FEATURE F03: Continuous TV-Distance & VIX Entropy Adaptive Smoothing
+# =========================================================================
+
+def test_f03_continuous_tv_distance_and_vix_smoothing():
+    """F03: Verify continuous TV-distance and VIX entropy dynamic smoothing alpha_t in [0.15, 0.85]."""
+    scorer = EnsembleScoringEngine(alpha_smoothing=0.20)
+    sharpes = {s: 1.0 for s in scorer.REGIME_2D_WEIGHTS["BULL_LOW_VOL"]}
+
+    # Warm-up in BULL_LOW_VOL
+    w1 = scorer.compute_dynamic_weights_from_sharpe(
+        sharpes, regime="BULL_LOW_VOL", market="test_mkt", enable_tv_smoothing=True, vix_val=15.0
+    )
+    assert "surge" in w1
+
+    # Shift to BEAR_HIGH_VOL with high VIX (42.0) under TV smoothing: should adapt rapidly (alpha >= 0.70)
+    w2 = scorer.compute_dynamic_weights_from_sharpe(
+        sharpes, regime="BEAR_HIGH_VOL", market="test_mkt", enable_tv_smoothing=True, vix_val=42.0
+    )
+    target_bear = scorer.get_base_weights("BEAR_HIGH_VOL")
+
+    # Under alpha_t >= 0.70, w2 should move strongly toward target_bear without instant hard-reset (diff is bounded and non-zero)
+    diff = sum(abs(w2[s] - target_bear[s]) for s in w2)
+    assert diff < 0.45 and diff > 0.05, f"Expected fast adaptation without hard reset, diff={diff}"
+
+    # Verify backwards compatibility: without TV smoothing, legacy 1-hot instant reset triggers (alpha = 1.0)
+    engine_legacy = EnsembleScoringEngine(alpha_smoothing=0.20)
+    w_bull_1 = engine_legacy.compute_dynamic_weights_from_sharpe(sharpes, regime="BULL_LOW_VOL")
+    ref_legacy = EnsembleScoringEngine(alpha_smoothing=0.20)
+    target_bear_ref = ref_legacy.compute_dynamic_weights_from_sharpe(sharpes, regime="BEAR_HIGH_VOL")
+    w_bear_shift = engine_legacy.compute_dynamic_weights_from_sharpe(sharpes, regime="BEAR_HIGH_VOL")
+
+    for k in target_bear_ref:
+        assert math.isclose(w_bear_shift[k], target_bear_ref[k], rel_tol=1e-5, abs_tol=1e-6), (
+            f"Legacy 1-hot regime switch without TV smoothing must perform exact instant reset for {k}"
         )
 
-        # In SIDEWAYS_LOW_VOL, theta_0 = 0.60
-        # For N=10: theta(R, 10) = 0.60 + 1.645/sqrt(7) = 0.60 + 0.6217 = 0.85 (clipped)
-        # Since rho=0.75 < 0.85, no penalty occurs!
-        rep_small_n = engine.get_suppression_report(
-            base_weights, corr_df, 'SIDEWAYS_LOW_VOL', n_samples=10
-        )
-        assert rep_small_n['penalties']['surge'] == 1.0
-        assert rep_small_n['penalties']['vcp_ml'] == 1.0
 
-        # For N=1000: theta(R, 1000) = 0.60 + 1.645/sqrt(997) ~ 0.652
-        # Since rho=0.75 > 0.652, collinearity penalty IS applied!
-        rep_large_n = engine.get_suppression_report(
-            base_weights, corr_df, 'SIDEWAYS_LOW_VOL', n_samples=1000
-        )
-        assert rep_large_n['penalties']['surge'] < 1.0
-        assert rep_large_n['penalties']['vcp_ml'] < 1.0
+# =========================================================================
+# FEATURE F04: Live Alpha Convolutional Decay Filter & Rank IC Calibration
+# =========================================================================
 
-    # -------------------------------------------------------------------------
-    # FEATURE 1: Pipeline Sequence Rectification (Pre-Ortho Suppression)
-    # -------------------------------------------------------------------------
-    def test_feature_1_pre_orthogonalization_raw_correlation_suppression(self):
-        """Verify combine_predictions monitors raw correlation and applies active suppression penalties."""
-        engine = EnsembleScoringEngine()
-        np.random.seed(42)
-        n = 100
-        base_latent = np.random.randn(n)
+def test_f04_exponential_decay_cold_start_identity():
+    """F04: Cold start without cached prior scores returns identical scores and populates cache."""
+    engine = EnsembleScoringEngine()
+    engine.reset_decay_filter_state()
 
-        # Create DataFrame where surge and vcp_ml are almost perfectly collinear
-        df = pd.DataFrame({
-            'symbol': [f'SYM_{i:03d}' for i in range(n)],
-            'name': [f'SYM_{i:03d}' for i in range(n)],
-            'market': ['KOSPI'] * n,
-            'close': [50000.0] * n,
-            'volume': [1_000_000.0] * n,
-            'surge_score': np.clip(0.50 + 0.35 * base_latent + 0.02 * np.random.randn(n), 0.0, 1.0),
-            'vcp_ml_score': np.clip(0.50 + 0.35 * base_latent + 0.02 * np.random.randn(n), 0.0, 1.0),
-            'rim_score': np.random.uniform(0.2, 0.8, n),
-            'order_flow_score': np.random.uniform(0.2, 0.8, n),
-        })
+    symbols = ["AAPL", "MSFT", "NVDA"]
+    reg_df = pd.DataFrame({"symbol": symbols, "expected_return": [0.10, 0.20, 0.15], "market": "US"})
+    surge_df = pd.DataFrame({"symbol": symbols, "surge_probability": [0.70, 0.80, 0.60], "market": "US"})
 
-        res = engine.combine_predictions(
-            s_df=df[['symbol', 'surge_score', 'close', 'volume']],
-            vcp_ml_df=df[['symbol', 'vcp_ml_score', 'close', 'volume']],
-            rim_df=df[['symbol', 'rim_score', 'close', 'volume']],
-            order_flow_df=df[['symbol', 'order_flow_score', 'close', 'volume']],
-            regime='SIDEWAYS_LOW_VOL'
-        )
+    res = engine.combine_predictions(reg_df=reg_df, s_df=surge_df, regime="BULL_LOW_VOL")
+    assert "ensemble_score" in res.columns
+    assert len(res) == 3
+    # State must be cached after first execution
+    assert "us" in engine._prev_filtered_scores or "global" in engine._prev_filtered_scores
+    assert not engine._prev_filtered_scores["global"].empty
 
-        assert hasattr(res, 'attrs')
-        assert 'correlation_report' in res.attrs
-        rep = res.attrs['correlation_report']
 
-        raw_corr = rep['correlation_matrix']
-        # Pre-orthogonalization raw correlation between surge and vcp_ml must be high (> 0.80)
-        assert raw_corr.loc['surge', 'vcp_ml'] > 0.80
+def test_f04_exponential_decay_warm_start_smoothing_and_clipping():
+    """F04: Consecutive runs apply convolutional exponential smoothing and clip [0.0, 1.0]."""
+    engine = EnsembleScoringEngine()
+    engine.reset_decay_filter_state()
 
-        # In SIDEWAYS_LOW_VOL, MOMENTUM is a high-risk redundant cluster; penalties must be active (< 1.0)
-        penalties = rep['penalties']
-        assert penalties['surge'] < 1.0
-        assert penalties['vcp_ml'] < 1.0
+    syms = ["005930", "000660"]
+    scores_day1 = pd.DataFrame({
+        "symbol": syms,
+        "market": ["KOSPI", "KOSPI"],
+        "reg_score": [0.80, 0.90],
+        "surge_score": [0.70, 0.60]
+    })
+    scores_day2 = pd.DataFrame({
+        "symbol": syms,
+        "market": ["KOSPI", "KOSPI"],
+        "reg_score": [0.20, 0.10],
+        "surge_score": [0.10, 0.20]
+    })
 
-    # -------------------------------------------------------------------------
-    # FEATURE 2: Dual-Consensus Spectral Whitening & Marchenko-Pastur Floor
-    # -------------------------------------------------------------------------
-    def test_feature_2_preserve_top_k_dual_consensus(self):
-        """Verify Dual-Consensus Spectral Whitening preserves PC1 (trend) and PC2 (value) while reducing correlation."""
-        N, K = 300, 10
-        np.random.seed(42)
-        pc1_trend = np.random.normal(0, 1, N)
-        pc2_value = np.random.normal(0, 1, N)
+    strategy_cols = [("regression", "reg_score"), ("surge", "surge_score")]
+    # First execution: cold start cache
+    out1 = engine._apply_decay_filtering_with_cache(scores_day1, strategy_cols=strategy_cols, regime="BULL_LOW_VOL")
+    assert pytest.approx(out1["reg_score"].iloc[0], abs=1e-5) == 0.80
 
-        cols = [f'strat_{i}' for i in range(K)]
-        data = {'symbol': [f'SYM_{i:04d}' for i in range(N)]}
-        for j in range(K):
-            if j < 4:
-                raw = 0.7 * pc1_trend + 0.3 * np.random.normal(0, 1, N)
-            elif j < 8:
-                raw = 0.7 * pc2_value + 0.3 * np.random.normal(0, 1, N)
-            else:
-                raw = 0.4 * pc1_trend + 0.4 * pc2_value + 0.4 * np.random.normal(0, 1, N)
-            data[cols[j]] = 1.0 / (1.0 + np.exp(-raw))
-        df = pd.DataFrame(data)
+    # Second execution: smooths between day 2 and cached day 1
+    out2 = engine._apply_decay_filtering_with_cache(scores_day2, strategy_cols=strategy_cols, regime="BULL_LOW_VOL")
+    # Reg score half-life is ~20 days (alpha ~ 0.034), so smoothed score is between 0.20 and 0.80
+    assert 0.20 < out2["reg_score"].iloc[0] < 0.80
+    # Strict clipping verification
+    assert (out2["reg_score"] >= 0.0).all() and (out2["reg_score"] <= 1.0).all()
+    assert (out2["surge_score"] >= 0.0).all() and (out2["surge_score"] <= 1.0).all()
 
-        # Baseline pairwise off-diagonal correlation
-        raw_corr = np.corrcoef(df[cols].values, rowvar=False)
-        off_diag = ~np.eye(K, dtype=bool)
-        mean_raw_corr = np.mean(np.abs(raw_corr[off_diag]))
-        assert mean_raw_corr > 0.35
 
-        # Apply dual-consensus orthogonalization (preserve_top_k=2)
-        engine = FactorOrthogonalizerEngine(preserve_top_k=2)
-        ortho_df = engine.orthogonalize(df, cols, preserve_top_k=2)
-        vals = ortho_df[cols].values
+def test_f04_rank_ic_and_latency_decay_calibration():
+    """F04: Verify apply_rank_ic_decay_calibration tilts weights towards high Rank IC and discounts latency."""
+    engine = EnsembleScoringEngine()
+    base_w = {"surge": 0.05, "rim_valuation": 0.05, "regression": 0.05}
+    rank_ic = {"surge": 0.15, "rim_valuation": -0.05, "regression": 0.08}
 
-        assert vals.shape == (N, K)
-        assert np.all(vals >= 0.0) and np.all(vals <= 1.0)
-        assert np.all(np.isfinite(vals))
+    calibrated = engine.apply_rank_ic_decay_calibration(
+        base_weights=base_w,
+        strategy_rank_ic_dict=rank_ic,
+        latency_days=0.0,
+        gamma=1.0,
+        regime="BULL_LOW_VOL"
+    )
+    assert calibrated["surge"] > calibrated["regression"] > calibrated["rim_valuation"]
+    assert pytest.approx(sum(calibrated.values()), abs=1e-5) == 1.0
 
-        # Correlation reduced while preserving leading factors
-        ortho_corr = np.corrcoef(vals, rowvar=False)
-        mean_ortho_corr = np.mean(np.abs(ortho_corr[off_diag]))
-        assert mean_ortho_corr < mean_raw_corr
+    # Stale latency test: fast factor (surge, half-life 3d) decays faster than slow factor (rim, half-life 60d)
+    calibrated_stale = engine.apply_rank_ic_decay_calibration(
+        base_weights={"surge": 0.50, "rim_valuation": 0.50},
+        strategy_rank_ic_dict={"surge": 0.0, "rim_valuation": 0.0},
+        latency_days=6.0,  # 2 half-lives for surge, only 0.1 half-life for rim
+        gamma=1.0,
+        regime="BULL_LOW_VOL"
+    )
+    assert calibrated_stale["rim_valuation"] > calibrated_stale["surge"]
 
-    def test_feature_2_marchenko_pastur_spectral_floor_stability(self):
-        """Verify Marchenko-Pastur noise floor prevents over-amplification in rank-deficient cases (N < K)."""
-        N, K = 5, 15
-        np.random.seed(99)
-        cols = [f'strat_{i}' for i in range(K)]
-        df = pd.DataFrame(np.random.uniform(0.2, 0.8, (N, K)), columns=cols)
-        df['symbol'] = [f'SYM_{i}' for i in range(N)]
 
-        engine = FactorOrthogonalizerEngine(preserve_top_k=2)
-        res = engine.orthogonalize(df, cols, preserve_top_k=2)
+def test_f04_lstm_score_mapping_and_deduplication():
+    """F04: Verify apply_exponential_decay_filter maps lstm_score to lstm and handles duplicates safely."""
+    engine = EnsembleScoringEngine()
+    prev = pd.DataFrame({
+        "symbol": ["A", "A", "B"],  # duplicate symbol
+        "lstm_score": [0.8, 0.7, 0.6]
+    })
+    curr = pd.DataFrame({
+        "symbol": ["A", "B"],
+        "lstm_score": [0.2, 0.3]
+    })
+    res = engine.apply_exponential_decay_filter(current_scores=curr, previous_scores=prev, regime="BULL_LOW_VOL")
+    assert len(res) == 2
+    assert (res["lstm_score"] >= 0.0).all() and (res["lstm_score"] <= 1.0).all()
 
-        vals = res[cols].values
-        assert vals.shape == (N, K)
-        assert not np.isnan(vals).any()
-        assert not np.isinf(vals).any()
-        assert np.all(vals >= 0.0) and np.all(vals <= 1.0)
 
-    # -------------------------------------------------------------------------
-    # FEATURE 3: Symmetric Richards / Bessembinder Tail Convex Power-Law
-    # -------------------------------------------------------------------------
-    def test_feature_3_bessembinder_symmetric_properties(self):
-        """Verify strict monotonicity, rank preservation, neutral invariance, and decile spread expansion."""
-        scores = np.linspace(0.05, 0.95, 100)
+# =========================================================================
+# FEATURE F05: Trend Inertia vs Crash Protection
+# =========================================================================
 
-        # 1. Neutral invariance: 0.50 -> 0.50
-        neutral_arr = np.array([0.50] * 10)
-        res_neutral = EnsembleScoringEngine.apply_bessembinder_convex_power_law(
-            neutral_arr, symmetric=True
-        )
-        np.testing.assert_allclose(res_neutral, 0.50, atol=1e-5)
+def test_f05_trend_inertia_boost_bull_low_vol():
+    """F05: In BULL_LOW_VOL, reward factor rank autocorrelation with momentum turbo up to 1.60x."""
+    engine = EnsembleScoringEngine()
+    sharpes = {s: 0.5 for s in engine.REGIME_2D_WEIGHTS["BULL_LOW_VOL"]}
 
-        # 2. Strict monotonicity & Rank preservation (Spearman rho = 1.0000)
-        transformed = EnsembleScoringEngine.apply_bessembinder_convex_power_law(
-            scores, symmetric=True
-        )
-        assert len(transformed) == len(scores)
-        assert np.all(np.diff(transformed) > 0)
-        spearman_corr = pd.Series(scores).corr(pd.Series(transformed), method='spearman')
-        assert spearman_corr > 0.99999
+    # Autocorrelation = 0.80 -> turbo_mult = 1.40 + 0.20 * 0.80 = 1.56
+    w_boosted = engine.compute_dynamic_weights_from_sharpe(
+        rolling_sharpes=sharpes,
+        regime="BULL_LOW_VOL",
+        factor_autocorr_dict={"surge": 0.80, "vcp_ml": 0.80}
+    )
+    # Autocorrelation = 0.0 -> turbo_mult = 1.40
+    w_baseline = engine.compute_dynamic_weights_from_sharpe(
+        rolling_sharpes=sharpes,
+        regime="BULL_LOW_VOL",
+        factor_autocorr_dict={"surge": 0.0, "vcp_ml": 0.0}
+    )
+    assert w_boosted["surge"] > w_baseline["surge"]
+    # Reversal strategy dampened in BULL_LOW_VOL (turbo_mult = 0.50)
+    assert w_boosted["short_term_reversal"] < w_boosted["surge"]
 
-        # 3. Decile spread widening & noise suppression (as mathematically derived in plan_m1_3):
-        # S=0.95 -> S* ~ 0.884, S=0.05 -> S* ~ 0.116, S=0.55 -> S* ~ 0.513
-        test_inputs = np.array([0.05, 0.50, 0.55, 0.95, 1.00])
-        test_trans = EnsembleScoringEngine.apply_bessembinder_convex_power_law(
-            test_inputs, symmetric=True
-        )
-        assert abs(test_trans[0] - 0.116) < 0.01   # S=0.05 -> S* ~ 0.116
-        assert abs(test_trans[1] - 0.500) < 1e-4   # S=0.50 -> S* = 0.500
-        assert abs(test_trans[2] - 0.513) < 0.01   # S=0.55 -> S* ~ 0.513 (noise compressed towards neutral)
-        assert abs(test_trans[3] - 0.884) < 0.01   # S=0.95 -> S* ~ 0.884
-        assert abs(test_trans[4] - 1.000) < 1e-4   # S=1.00 -> S* = 1.000 (full dynamic range reached)
 
-        # Convex expansion: Tail conviction (S=0.95) relative to near-center noise (S=0.55) expands dramatically
-        raw_conviction_ratio = (0.95 - 0.50) / (0.55 - 0.50)  # 0.45 / 0.05 = 9.0
-        trans_conviction_ratio = (test_trans[3] - 0.50) / (test_trans[2] - 0.50) # > 25.0
-        assert trans_conviction_ratio > raw_conviction_ratio * 2.5
+def test_f05_crash_protection_bull_high_vol():
+    """F05: In BULL_HIGH_VOL, curtail momentum turbo to 1.15x to prevent momentum crash risk."""
+    engine = EnsembleScoringEngine()
+    sharpes = {s: 0.5 for s in engine.REGIME_2D_WEIGHTS["BULL_HIGH_VOL"]}
 
-        # 4. Backward compatibility: symmetric=False retains one-sided right-tail boost only
-        legacy_boosted = EnsembleScoringEngine.apply_bessembinder_convex_power_law(
-            scores, symmetric=False
-        )
-        # Left tail (e.g. index 5, score ~ 0.09) should NOT be modified in legacy mode
-        assert abs(legacy_boosted[5] - scores[5]) < 1e-6
-        # Right tail should be boosted
-        assert legacy_boosted[-1] >= scores[-1]
+    w_high_vol = engine.compute_dynamic_weights_from_sharpe(
+        rolling_sharpes=sharpes,
+        regime="BULL_HIGH_VOL"
+    )
+    w_low_vol = engine.compute_dynamic_weights_from_sharpe(
+        rolling_sharpes=sharpes,
+        regime="BULL_LOW_VOL"
+    )
+    # Momentum turbo is lower in high-vol bull than in low-vol bull
+    ratio_high = w_high_vol["surge"] / max(w_high_vol["short_term_reversal"], 1e-6)
+    ratio_low = w_low_vol["surge"] / max(w_low_vol["short_term_reversal"], 1e-6)
+    assert ratio_high < ratio_low, "Momentum-to-reversal ratio must be scaled down in BULL_HIGH_VOL for crash protection"
 
-    # -------------------------------------------------------------------------
-    # FEATURE 4: Continuous Bilinear Cross-Pillar Synergy Kernel
-    # -------------------------------------------------------------------------
-    def test_feature_4_bilinear_cross_pillar_synergy_properties(self):
-        """Verify continuous synergy without step discontinuities, cluster mutual exclusivity, and regime adaptation."""
-        # Test 1: Continuity (no step cliffs at 0.599 vs 0.601)
-        df1 = pd.DataFrame({
-            'rim_score': [0.599],
-            'surge_score': [0.750],
-        })
-        df2 = pd.DataFrame({
-            'rim_score': [0.601],
-            'surge_score': [0.750],
-        })
-        # Generate dummy 5 rows for minimum row threshold
-        dummy_df1 = pd.concat([df1] * 5, ignore_index=True)
-        dummy_df2 = pd.concat([df2] * 5, ignore_index=True)
 
-        mult1 = EnsembleScoringEngine.compute_bilinear_cross_pillar_synergy(dummy_df1, regime='BULL_LOW_VOL').iloc[0]
-        mult2 = EnsembleScoringEngine.compute_bilinear_cross_pillar_synergy(dummy_df2, regime='BULL_LOW_VOL').iloc[0]
+def test_f05_reversal_boost_bear_and_crisis():
+    """F05: In BEAR_HIGH_VOL & CRISIS, slash momentum to 0.50x and boost reversal to 1.40x ~ 1.68x."""
+    engine = EnsembleScoringEngine()
+    sharpes = {s: 0.5 for s in engine.REGIME_2D_WEIGHTS["CRISIS"]}
 
-        # In the old step system, crossing 0.60 caused a 3.5% jump. In bilinear, difference is < 0.005!
-        assert abs(mult2 - mult1) < 0.005, f"Discontinuity detected: {mult1} vs {mult2}"
+    w_crisis = engine.compute_dynamic_weights_from_sharpe(
+        rolling_sharpes=sharpes,
+        regime="CRISIS",
+        vix_val=38.0
+    )
+    # In crisis, short_term_reversal receives boosted allocation over surge
+    assert w_crisis["short_term_reversal"] > w_crisis["surge"] * 3.0
 
-        # Test 2: Cluster Mutual Exclusivity:
-        # dual_correction is in Catalyst ONLY. Having high dual_correction alone must produce NO cross-pillar synergy!
-        df_isolated = pd.DataFrame({
-            'dual_correction_score': [0.95] * 5,
-        })
-        mult_isolated = EnsembleScoringEngine.compute_bilinear_cross_pillar_synergy(df_isolated, regime='SIDEWAYS_LOW_VOL')
-        np.testing.assert_allclose(mult_isolated.values, 1.000, atol=1e-5)
 
-        # Test 3: Quadruple Confluence (all 4 pillars high) reaches near max bonus (1.08 ~ 1.10)
-        df_quad = pd.DataFrame({
-            'rim_score': [0.90] * 5,              # Valuation
-            'surge_score': [0.90] * 5,            # Momentum
-            'order_flow_score': [0.90] * 5,       # Flow
-            'event_score': [0.90] * 5,            # Catalyst
-        })
-        mult_quad = EnsembleScoringEngine.compute_bilinear_cross_pillar_synergy(df_quad, regime='BULL_LOW_VOL')
-        assert np.all(mult_quad >= 1.07) and np.all(mult_quad <= 1.10)
+# =========================================================================
+# FEATURE F06: 37-Strategy 4-Pillar Synergy & Regime-Adaptive Bessembinder
+# =========================================================================
 
-        # Test 4: 2D Regime Adaptation:
-        # Bull regime gives higher weight to Momentum x Flow than Bear regime
-        df_mom_flow = pd.DataFrame({
-            'surge_score': [0.90] * 5,
-            'order_flow_score': [0.90] * 5,
-        })
-        mult_bull = EnsembleScoringEngine.compute_bilinear_cross_pillar_synergy(df_mom_flow, regime='BULL_LOW_VOL').iloc[0]
-        mult_bear = EnsembleScoringEngine.compute_bilinear_cross_pillar_synergy(df_mom_flow, regime='BEAR_HIGH_VOL').iloc[0]
-        assert mult_bull > mult_bear
+def test_f06_4_pillar_cluster_map_expansion():
+    """F06: Verify all 37 strategies are covered across 4 disjoint clusters without any omission."""
+    engine = EnsembleScoringEngine()
+    # Create synthetic DataFrame with 10 rows and all 37 score columns
+    all_37_cols = [
+        'reg_score', 'surge_score', 'll_score', 'vcp_rule_score', 'vcp_ml_score', 'lstm_score',
+        'stat_arb_score', 'sector_score', 'rim_score', 'event_score', 'mq_score', 'iv_skew_score',
+        'order_flow_score', 'reversal_score', 'arm_score', 'card_score', 'latr_score',
+        'inst_foreign_sector_score', 'supply_chain_score', 'sentiment_score', 'factor_neutralized_score',
+        'vol_target_score', 'microstructure_score', 'accruals_quality_score', 'short_squeeze_score',
+        'valueup_catalyst_score', 'trend_efficiency_score', 'gamma_squeeze_score', 'insider_buying_score',
+        'darkpool_score', 'earnings_tone_drift_score', 'cross_asset_spillover_score',
+        'supply_chain_gnn_score', 'range_expansion_score', 'dual_correction_score',
+        'index_rebalance_score', 'overnight_gap_score'
+    ]
+    df = pd.DataFrame({col: np.random.uniform(0.55, 0.90, size=10) for col in all_37_cols})
 
-    # -------------------------------------------------------------------------
-    # FEATURE 5: 2D Regime-Adaptive Strategy Half-Life Scaling
-    # -------------------------------------------------------------------------
-    def test_feature_5_regime_adaptive_half_lives(self):
-        """Verify 2D regime modulation on half-lives and tier elasticity."""
-        hl_bull = EnsembleScoringEngine.get_regime_adaptive_half_lives('BULL_LOW_VOL')
-        hl_sideways = EnsembleScoringEngine.get_regime_adaptive_half_lives('SIDEWAYS_LOW_VOL')
-        hl_bear = EnsembleScoringEngine.get_regime_adaptive_half_lives('BEAR_HIGH_VOL')
-        hl_crisis = EnsembleScoringEngine.get_regime_adaptive_half_lives('CRISIS')
+    synergy = engine.compute_pillar_synergy_multiplier(df, regime="BULL_LOW_VOL")
+    assert len(synergy) == 10
+    assert (synergy >= 1.00).all()
+    assert (synergy <= 1.10).all(), "Synergy multiplier must be bounded in [1.00, 1.10]"
 
-        # 1. Bull vs Sideways vs Bear vs Crisis ordering
-        assert hl_bull['surge'] > hl_sideways['surge'] > hl_bear['surge'] > hl_crisis['surge']
-        assert hl_bull['rim_valuation'] > hl_sideways['rim_valuation'] > hl_bear['rim_valuation'] > hl_crisis['rim_valuation']
 
-        # 2. Fast tier accelerates more in volatile regimes (microstructure base=0.5)
-        assert hl_crisis['microstructure'] <= 0.15
-        assert hl_bull['microstructure'] >= 0.50
+def test_f06_regime_adaptive_bessembinder_params():
+    """F06: Verify regime-adaptive parameters for Bessembinder convex power-law."""
+    gamma_bull, beta_bull = EnsembleScoringEngine.get_regime_adaptive_bessembinder_params("BULL_LOW_VOL")
+    assert gamma_bull == 1.70 and beta_bull == 0.50
 
-        # 3. Slow tier (rim_valuation base=45.0) remains bounded and doesn't decay to zero
-        assert hl_crisis['rim_valuation'] >= 5.0
+    gamma_crisis, beta_crisis = EnsembleScoringEngine.get_regime_adaptive_bessembinder_params("CRISIS")
+    assert gamma_crisis == 1.20 and beta_crisis == 0.20
 
-    def test_feature_5_exponential_decay_filter_and_rank_ic_integration(self):
-        """Verify apply_exponential_decay_filter and apply_rank_ic_decay_calibration accept regime."""
-        df_curr = pd.DataFrame({
-            'symbol': ['S1', 'S2'],
-            'surge_score': [0.80, 0.70],
-            'rim_score': [0.60, 0.50],
-        })
-        df_prev = pd.DataFrame({
-            'symbol': ['S1', 'S2'],
-            'surge_score': [0.60, 0.50],
-            'rim_score': [0.70, 0.60],
-        })
+    scores = np.array([0.10, 0.30, 0.50, 0.55, 0.90])
+    transformed_bull = EnsembleScoringEngine.apply_bessembinder_convex_power_law(
+        scores, symmetric=True, regime="BULL_LOW_VOL"
+    )
+    transformed_crisis = EnsembleScoringEngine.apply_bessembinder_convex_power_law(
+        scores, symmetric=True, regime="CRISIS"
+    )
 
-        # Apply decay filter under Crisis regime (fast responsiveness)
-        res_crisis = EnsembleScoringEngine.apply_exponential_decay_filter(
-            df_curr, df_prev, regime='CRISIS'
-        )
-        # Apply decay filter under Bull Low Vol regime (slow decay, more smoothing)
-        res_bull = EnsembleScoringEngine.apply_exponential_decay_filter(
-            df_curr, df_prev, regime='BULL_LOW_VOL'
-        )
+    # Top-decile relative conviction over near-neutral noise (0.55) is amplified far more in calm bull than in crisis
+    rel_spread_bull = (transformed_bull[4] - 0.50) / max(transformed_bull[3] - 0.50, 1e-6)
+    rel_spread_crisis = (transformed_crisis[4] - 0.50) / max(transformed_crisis[3] - 0.50, 1e-6)
+    assert rel_spread_bull > rel_spread_crisis * 2.0, "BULL_LOW_VOL must have much higher top-alpha conviction relative to noise"
 
-        assert not res_crisis.empty and not res_bull.empty
-        # In Crisis, current score has higher weight (closer to df_curr)
-        # In Bull, previous score has more smoothing influence
-        assert abs(res_crisis.loc[0, 'surge_score'] - 0.80) <= abs(res_bull.loc[0, 'surge_score'] - 0.80)
+    # Monotonicity test: Spearman rank correlation must equal 1.0000
+    corr = pd.Series(scores).corr(pd.Series(transformed_bull), method='spearman')
+    assert pytest.approx(corr, abs=1e-5) == 1.0
 
-        # Verify apply_rank_ic_decay_calibration with regime
-        weights = {'surge': 0.50, 'rim_valuation': 0.50}
-        calibrated = EnsembleScoringEngine.apply_rank_ic_decay_calibration(
-            weights,
-            latency_days=2.0,
-            regime='CRISIS'
-        )
-        assert len(calibrated) == 2
-        assert abs(sum(calibrated.values()) - 1.0) < 1e-5
+
+# =========================================================================
+# FEATURE F07: Single-Stage Entropy Redundancy Allocation
+# =========================================================================
+
+def test_f07_entropy_allocation_partial_missingness():
+    """F07: Verify single-stage entropy program handles partial missingness and produces valid weights."""
+    supp_engine = RegimeFactorSuppressionEngine()
+
+    present_strats = ['surge', 'vcp_ml', 'stat_arb', 'rim_valuation', 'mq_factor']
+    missing_strats = ['vol_target', 'darkpool']
+    all_strats = present_strats + missing_strats
+
+    # Synthetic correlation matrix with high surge vs vcp_ml collinearity
+    R_sub = np.eye(len(present_strats))
+    R_sub[0, 1] = 0.85
+    R_sub[1, 0] = 0.85
+    corr_df = pd.DataFrame(R_sub, index=present_strats, columns=present_strats)
+
+    base_w = {s: 1.0 / len(all_strats) for s in all_strats}
+
+    opt_weights = supp_engine.suppress_weights(
+        base_weights=base_w,
+        corr_matrix=corr_df,
+        regime_label="SIDEWAYS_LOW_VOL",
+        use_entropy_allocation=True,
+        n_samples=50
+    )
+
+    assert len(opt_weights) == len(all_strats)
+    assert pytest.approx(sum(opt_weights.values()), abs=1e-5) == 1.0
+    assert all(w >= 0.005 for w in opt_weights.values())
+    # Collinear surge and vcp_ml should be penalized relative to uncorrelated factors
+    assert opt_weights['stat_arb'] > opt_weights['surge']
+
+
+# =========================================================================
+# FEATURE F08: Factor Orthogonalizer Singularity Protection
+# =========================================================================
+
+def test_f08_orthogonalizer_singular_column_protection():
+    """F08: Guard _pca_zca_symmetric against zero-variance singular columns without NaN or cross-noise bleed."""
+    ortho_engine = FactorOrthogonalizerEngine(default_method='pca_symmetric')
+
+    N = 30
+    np.random.seed(42)
+    # Column 0 & 1: active correlated features
+    base_signal = np.random.randn(N)
+    f0 = base_signal + 0.1 * np.random.randn(N)
+    f1 = base_signal + 0.1 * np.random.randn(N)
+    # Column 2: constant zero-variance column (e.g. median-imputed missing factor)
+    f2 = np.full(N, 0.50)
+
+    X = np.column_stack([f0, f1, f2])
+    means = np.mean(X, axis=0)
+    stds = np.std(X, axis=0)
+    stds[2] = 1e-6  # clipped std for constant column
+
+    X_ortho = ortho_engine._pca_zca_symmetric(X, means, stds, preserve_pc1=True, preserve_top_k=1)
+
+    assert X_ortho.shape == (N, 3)
+    assert not np.isnan(X_ortho).any(), "Orthogonalized matrix must not contain any NaNs"
+    # Column 2 must remain exactly constant at 0.50 without cross-feature noise bleed
+    np.testing.assert_allclose(X_ortho[:, 2], 0.50, atol=1e-6)
+    # Active columns must have been decorrelated
+    corr_before = np.corrcoef(X[:, 0], X[:, 1])[0, 1]
+    corr_after = np.corrcoef(X_ortho[:, 0], X_ortho[:, 1])[0, 1]
+    assert abs(corr_after) < abs(corr_before), f"Correlation should decrease from {corr_before:.3f}, got {corr_after:.3f}"

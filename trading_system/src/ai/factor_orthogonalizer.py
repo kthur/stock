@@ -239,6 +239,42 @@ class FactorOrthogonalizerEngine:
         preserve_top_k: int = 0
     ) -> np.ndarray:
         N, K = X.shape
+        if K <= 1 or N < 2:
+            return np.copy(X)
+
+        # Detect zero-variance / singular columns (e.g. constant columns from missingness/imputation)
+        raw_stds = np.std(X, axis=0)
+        is_singular = (raw_stds < 1e-8) | (stds < 1e-8) | (~np.isfinite(raw_stds)) | (~np.isfinite(stds))
+
+        # If all columns are singular, return untouched
+        if np.all(is_singular):
+            return np.copy(X)
+
+        # If any columns are singular, isolate non-singular active columns for ZCA whitening
+        if np.any(is_singular):
+            active_idx = np.where(~is_singular)[0]
+            singular_idx = np.where(is_singular)[0]
+
+            X_ortho = np.copy(X)
+            if len(active_idx) > 1:
+                eff_top = min(preserve_top_k, len(active_idx) - 1) if preserve_top_k > 0 else 0
+                X_active_ortho = self._pca_zca_symmetric(
+                    X[:, active_idx],
+                    means[active_idx],
+                    stds[active_idx],
+                    preserve_pc1=preserve_pc1 if eff_top > 0 or preserve_pc1 else False,
+                    preserve_top_k=eff_top
+                )
+                X_ortho[:, active_idx] = X_active_ortho
+            else:
+                X_ortho[:, active_idx] = X[:, active_idx]
+
+            # Preserve singular/constant columns untouched without noise bleed
+            for s_col in singular_idx:
+                X_ortho[:, s_col] = X[:, s_col]
+
+            return np.asarray(X_ortho, dtype=np.float64)
+
         # Standardize matrix to zero mean, unit variance
         X_bar = (X - means) / stds
 

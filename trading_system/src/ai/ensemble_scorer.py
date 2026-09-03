@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional, Union, Set, List
+from typing import Dict, Any, Optional, Union, Set, List, Tuple
 
 try:
     from sklearn.isotonic import IsotonicRegression
@@ -468,6 +468,45 @@ class EnsembleScoringEngine:
             'dual_correction': 0.03,
             'index_rebalance': 0.03,
             'overnight_gap_reversal': 0.02,
+        },
+        'CRISIS': {  # sum = 1.0000 across all 37 strategies, all >= 0.005
+            'regression': 0.050,
+            'surge': 0.005,
+            'lead_lag': 0.015,
+            'vcp_rule': 0.005,
+            'vcp_ml': 0.005,
+            'lstm': 0.015,
+            'stat_arb': 0.070,
+            'sector_rotation': 0.020,
+            'rim_valuation': 0.065,
+            'event_driven': 0.020,
+            'mq_factor': 0.040,
+            'iv_skew': 0.035,
+            'order_flow': 0.025,
+            'short_term_reversal': 0.055,
+            'arm_factor': 0.015,
+            'card_factor': 0.050,
+            'latr_factor': 0.045,
+            'inst_foreign_sector': 0.020,
+            'supply_chain': 0.010,
+            'sentiment': 0.025,
+            'factor_neutralized': 0.050,
+            'vol_target': 0.080,
+            'microstructure': 0.015,
+            'accruals_quality': 0.060,
+            'short_squeeze': 0.005,
+            'valueup_catalyst': 0.035,
+            'trend_efficiency': 0.005,
+            'gamma_squeeze': 0.005,
+            'insider_buying': 0.025,
+            'darkpool': 0.015,
+            'earnings_tone_drift': 0.015,
+            'cross_asset_spillover': 0.020,
+            'supply_chain_gnn': 0.010,
+            'range_expansion_breakout': 0.005,
+            'dual_correction': 0.025,
+            'index_rebalance': 0.015,
+            'overnight_gap_reversal': 0.025,
         }
     }
 
@@ -547,6 +586,8 @@ class EnsembleScoringEngine:
         self._calibrators: Dict[str, Any] = {}
         self._prev_weights_dict: WeightsStateDict = WeightsStateDict()
         self._prev_regime_dict: RegimeStateDict = RegimeStateDict()
+        self._prev_regime_probs: Dict[str, Dict[str, float]] = {}
+        self.enable_tv_smoothing: bool = getattr(config, 'enable_tv_smoothing', False) if config is not None else False
         self._weight_evolution_history: list = []
 
         self.correlation_monitor = StrategyCorrelationMonitor()
@@ -556,6 +597,11 @@ class EnsembleScoringEngine:
         self.enable_coverage_shrinkage = getattr(config, 'enable_coverage_shrinkage', True)
         self.score_normalizer = CrossSectionalScoreNormalizer(method='winsorized_zscore')
         self._dsr_validator = DeflatedSharpeRatioValidator(n_strategies=34, n_horizons=8) if DeflatedSharpeRatioValidator is not None else None
+
+        # Feature F04: Multi-horizon exponential decay filtering prior scores state cache per market
+        self._prev_filtered_scores: Dict[str, pd.DataFrame] = {}
+        self.enable_decay_filter: bool = getattr(config, 'enable_decay_filter', True) if config is not None else True
+        self.strategy_rank_ic_dict: Optional[Dict[str, float]] = None
 
         # Milestone 4: Slippage execution feedback attributes
         self.slippage_metrics: Optional[Any] = None
@@ -679,6 +725,144 @@ class EnsembleScoringEngine:
                         logger.info("Loaded Optuna tuned 2D regime weights from tuned_params.json")
         except Exception as e:
             logger.warning(f"Could not load tuned_params.json: {e}")
+
+    def reset_decay_filter_state(self, market: Optional[str] = None) -> None:
+        """Reset cached previous filtered scores for a given market or all markets."""
+        if market is not None:
+            self._prev_filtered_scores.pop(str(market).lower(), None)
+        else:
+            self._prev_filtered_scores.clear()
+
+    def compute_factor_rank_autocorrelation(
+        self,
+        current_scores: pd.DataFrame,
+        market: str = "global"
+    ) -> Dict[str, float]:
+        """
+        Computes 1-day lag factor rank autocorrelation between current scores and cached previous scores:
+        rho_k = SpearmanRankCorr(s_k(t), s_tilde_k(t-1))
+        """
+        mkt_key = str(market).lower()
+        prev_scores = self._prev_filtered_scores.get(mkt_key)
+        if prev_scores is None or prev_scores.empty or current_scores is None or current_scores.empty:
+            return {}
+        if 'symbol' not in current_scores.columns or 'symbol' not in prev_scores.columns:
+            return {}
+
+        curr_idx = current_scores.drop_duplicates(subset=['symbol']).set_index('symbol')
+        prev_idx = prev_scores.drop_duplicates(subset=['symbol']).set_index('symbol')
+
+        common_syms = curr_idx.index.intersection(prev_idx.index)
+        if len(common_syms) < 5:
+            return {}
+
+        autocorr_map = {}
+        score_col_to_strat = {
+            'reg_score': 'regression', 'surge_score': 'surge', 'll_score': 'lead_lag',
+            'vcp_rule_score': 'vcp_rule', 'vcp_ml_score': 'vcp_ml', 'lstm_score': 'lstm',
+            'stat_arb_score': 'stat_arb', 'sector_score': 'sector_rotation', 'rim_score': 'rim_valuation',
+            'event_score': 'event_driven', 'mq_score': 'mq_factor', 'iv_skew_score': 'iv_skew',
+            'order_flow_score': 'order_flow', 'reversal_score': 'short_term_reversal', 'arm_score': 'arm_factor',
+            'card_score': 'card_factor', 'latr_score': 'latr_factor', 'inst_foreign_sector_score': 'inst_foreign_sector',
+            'supply_chain_score': 'supply_chain', 'sentiment_score': 'sentiment', 'factor_neutralized_score': 'factor_neutralized',
+            'vol_target_score': 'vol_target', 'microstructure_score': 'microstructure', 'accruals_quality_score': 'accruals_quality',
+            'short_squeeze_score': 'short_squeeze', 'valueup_catalyst_score': 'valueup_catalyst', 'trend_efficiency_score': 'trend_efficiency',
+            'gamma_squeeze_score': 'gamma_squeeze', 'insider_buying_score': 'insider_buying', 'darkpool_score': 'darkpool',
+            'earnings_tone_drift_score': 'earnings_tone_drift', 'cross_asset_spillover_score': 'cross_asset_spillover',
+            'supply_chain_gnn_score': 'supply_chain_gnn', 'range_expansion_score': 'range_expansion_breakout',
+            'dual_correction_score': 'dual_correction', 'index_rebalance_score': 'index_rebalance',
+            'overnight_gap_score': 'overnight_gap_reversal'
+        }
+
+        for col, strat in score_col_to_strat.items():
+            if col in curr_idx.columns and col in prev_idx.columns:
+                s_curr = pd.to_numeric(curr_idx.loc[common_syms, col], errors='coerce')
+                s_prev = pd.to_numeric(prev_idx.loc[common_syms, col], errors='coerce')
+                valid = s_curr.notna() & s_prev.notna()
+                if valid.sum() >= 5:
+                    corr = s_curr[valid].corr(s_prev[valid], method='spearman')
+                    if pd.notna(corr):
+                        autocorr_map[strat] = float(np.clip(corr, -1.0, 1.0))
+
+        return autocorr_map
+
+    def _apply_decay_filtering_with_cache(
+        self,
+        merged: pd.DataFrame,
+        strategy_cols: List[Tuple[str, str]],
+        regime: Union[int, str] = 'BULL_LOW_VOL',
+        us_regime: Optional[Union[int, str]] = None,
+        kr_regime: Optional[Union[int, str]] = None,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """
+        Executes market-segregated multi-horizon exponential decay filtering
+        with prior score state caching in self._prev_filtered_scores.
+        Provides clean fallback on cold start (None prior scores) and ensures
+        all strategy scores are strictly clipped in [0.0, 1.0].
+        """
+        if merged.empty or 'symbol' not in merged.columns:
+            return merged
+
+        active_score_cols = [col for _, col in strategy_cols if col in merged.columns]
+        if not active_score_cols:
+            return merged
+
+        df_out = merged.copy()
+        has_market_col = 'market' in df_out.columns and df_out['market'].notna().any()
+
+        if has_market_col:
+            unique_markets = df_out['market'].dropna().unique()
+            filtered_chunks = []
+            for mkt in unique_markets:
+                mkt_key = str(mkt).lower()
+                mkt_mask = (df_out['market'] == mkt)
+                sub_df = df_out.loc[mkt_mask].copy()
+
+                is_us = mkt_key in ['sp500', 'nasdaq', 'russell2000', 'us']
+                is_kr = mkt_key in ['kospi', 'kosdaq', 'kr']
+                mkt_regime = us_regime if (is_us and us_regime) else (kr_regime if (is_kr and kr_regime) else regime)
+
+                prev_scores = self._prev_filtered_scores.get(mkt_key)
+                sub_filtered = self.apply_exponential_decay_filter(
+                    current_scores=sub_df,
+                    previous_scores=prev_scores,
+                    regime=mkt_regime
+                )
+
+                for col in active_score_cols:
+                    if col in sub_filtered.columns and pd.api.types.is_numeric_dtype(sub_filtered[col]):
+                        sub_filtered[col] = sub_filtered[col].clip(0.0, 1.0)
+
+                cache_cols = ['symbol'] + [c for c in active_score_cols if c in sub_filtered.columns]
+                self._prev_filtered_scores[mkt_key] = sub_filtered[cache_cols].copy()
+                filtered_chunks.append(sub_filtered)
+
+            no_mkt_mask = df_out['market'].isna()
+            if no_mkt_mask.any():
+                filtered_chunks.append(df_out.loc[no_mkt_mask])
+
+            df_out = pd.concat(filtered_chunks, axis=0).reindex(df_out.index)
+        else:
+            mkt_key = str(kwargs.get('market', 'global')).lower()
+            prev_scores = self._prev_filtered_scores.get(mkt_key)
+
+            df_out = self.apply_exponential_decay_filter(
+                current_scores=df_out,
+                previous_scores=prev_scores,
+                regime=regime
+            )
+            for col in active_score_cols:
+                if col in df_out.columns and pd.api.types.is_numeric_dtype(df_out[col]):
+                    df_out[col] = df_out[col].clip(0.0, 1.0)
+
+            cache_cols = ['symbol'] + [c for c in active_score_cols if c in df_out.columns]
+            self._prev_filtered_scores[mkt_key] = df_out[cache_cols].copy()
+
+        cache_cols_all = ['symbol'] + [c for c in active_score_cols if c in df_out.columns]
+        self._prev_filtered_scores['global'] = df_out[cache_cols_all].copy()
+
+        return df_out
 
     # ------------------------------------------------------------------
     # Phase 4-A: Hybrid Probability Calibration (Isotonic + Platt Scaling)
@@ -876,17 +1060,113 @@ class EnsembleScoringEngine:
         tot = sum(v for v in w.values() if v > 0)
         return {k: v / tot for k, v in w.items()} if tot > 0 else weights
 
-    def get_base_weights(self, regime: Union[int, str], vix_val: Optional[float] = None,
-                         macro_label: Optional[str] = None) -> Dict[str, float]:
-        """Return baseline strategy weights according to 1D integer regime or 2D string regime."""
-        if isinstance(regime, str) and regime in self.REGIME_2D_WEIGHTS:
-            w = dict(self.REGIME_2D_WEIGHTS[regime])
-        elif str(regime).isdigit() and int(regime) in self.REGIME_WEIGHTS:
-            w = dict(self.REGIME_WEIGHTS[int(regime)])
-        elif isinstance(regime, int) and regime in self.REGIME_WEIGHTS:
-            w = dict(self.REGIME_WEIGHTS[regime])
+    @staticmethod
+    def _extract_regime_label(regime: Any) -> str:
+        """Safely extracts the regime label string from a string, integer, or regime dictionary."""
+        if isinstance(regime, dict) and regime:
+            if 'combo_2d_label' in regime:
+                return str(regime['combo_2d_label'])
+            elif 'combo_3d_label' in regime:
+                return str(regime['combo_3d_label'])
+            elif 'regime' in regime:
+                return str(regime['regime'])
+            else:
+                num_items = [item for item in regime.items() if isinstance(item[1], (int, float))]
+                if num_items:
+                    return str(max(num_items, key=lambda x: x[1])[0])
+                else:
+                    return str(next(iter(regime.values())))
+        return str(regime)
+
+    def get_base_weights(
+        self,
+        regime: Union[int, str, Dict[str, float], Dict[int, float]],
+        vix_val: Optional[float] = None,
+        macro_label: Optional[str] = None,
+        regime_probs: Optional[Dict[Union[str, int], float]] = None,
+    ) -> Dict[str, float]:
+        """Return baseline strategy weights according to 1D/2D regime or Markov posterior probability vector."""
+        probs_dict = regime_probs if regime_probs is not None else (regime if isinstance(regime, dict) else None)
+
+        if probs_dict and isinstance(probs_dict, dict) and len(probs_dict) > 0:
+            # F02: Continuous Markov regime soft-blending: w_base = sum_m pi_m * w^(m)
+            norm_probs = {}
+            has_2d = False
+            has_1d = False
+            for k, v in probs_dict.items():
+                if v is None:
+                    continue
+                try:
+                    vf = float(v)
+                    if np.isfinite(vf) and vf > 0:
+                        norm_probs[k] = vf
+                        k_upper = str(k).upper()
+                        if any(s in k_upper for s in ['LOW_VOL', 'HIGH_VOL', 'CRISIS']):
+                            has_2d = True
+                        elif any(s in k_upper for s in ['BEAR', 'SIDEWAYS', 'BULL', 'P_BEAR', 'P_SIDEWAYS', 'P_BULL']):
+                            has_1d = True
+                except (ValueError, TypeError):
+                    continue
+
+            total_p = sum(norm_probs.values())
+            if total_p > 1e-12:
+                norm_probs = {k: v / total_p for k, v in norm_probs.items()}
+                blended = {}
+
+                if has_2d:
+                    for rk, prob in norm_probs.items():
+                        rk_upper = str(rk).upper()
+                        if rk_upper in self.REGIME_2D_WEIGHTS:
+                            state_w = self.REGIME_2D_WEIGHTS[rk_upper]
+                        elif "CRISIS" in rk_upper:
+                            state_w = self.REGIME_2D_WEIGHTS["CRISIS"]
+                        else:
+                            state_w = self.REGIME_2D_WEIGHTS.get(rk_upper, self.REGIME_2D_WEIGHTS['SIDEWAYS_LOW_VOL'])
+
+                        for strat, sw in state_w.items():
+                            blended[strat] = blended.get(strat, 0.0) + prob * float(sw)
+
+                    w = blended
+                elif has_1d:
+                    # 1D regime soft blending
+                    for rk, prob in norm_probs.items():
+                        rk_str = str(rk).lower()
+                        if 'bear' in rk_str:
+                            code = 0
+                        elif 'bull' in rk_str:
+                            code = 2
+                        else:
+                            code = 1
+                        state_w = self.REGIME_WEIGHTS.get(code, self.REGIME_WEIGHTS[1])
+                        for strat, sw in state_w.items():
+                            blended[strat] = blended.get(strat, 0.0) + prob * float(sw)
+
+                    w = blended
+                else:
+                    w = dict(self.REGIME_2D_WEIGHTS['SIDEWAYS_LOW_VOL'])
+
+                b_sum = sum(w.values())
+                if b_sum > 1e-12:
+                    w = {k: v / b_sum for k, v in w.items()}
+                else:
+                    w = dict(self.REGIME_2D_WEIGHTS['SIDEWAYS_LOW_VOL'])
+            else:
+                w = dict(self.REGIME_2D_WEIGHTS['SIDEWAYS_LOW_VOL'])
         else:
-            w = dict(self.REGIME_2D_WEIGHTS.get(str(regime), self.REGIME_2D_WEIGHTS['SIDEWAYS_LOW_VOL']))
+            # F01: 1-hot regime resolution with strict CRISIS handling (never falls back to SIDEWAYS_LOW_VOL)
+            regime_str = str(regime).strip().upper() if regime is not None else ""
+            if isinstance(regime, str) and regime in self.REGIME_2D_WEIGHTS:
+                w = dict(self.REGIME_2D_WEIGHTS[regime])
+            elif regime_str in self.REGIME_2D_WEIGHTS:
+                w = dict(self.REGIME_2D_WEIGHTS[regime_str])
+            elif "CRISIS" in regime_str:
+                w = dict(self.REGIME_2D_WEIGHTS["CRISIS"])
+            elif str(regime).isdigit() and int(regime) in self.REGIME_WEIGHTS:
+                w = dict(self.REGIME_WEIGHTS[int(regime)])
+            elif isinstance(regime, int) and regime in self.REGIME_WEIGHTS:
+                w = dict(self.REGIME_WEIGHTS[regime])
+            else:
+                w = dict(self.REGIME_2D_WEIGHTS.get(regime_str, self.REGIME_2D_WEIGHTS['SIDEWAYS_LOW_VOL']))
 
         # Apply 3D Macro Modifier if applicable
         if macro_label and macro_label in self.MACRO_WEIGHT_MODIFIERS:
@@ -905,7 +1185,7 @@ class EnsembleScoringEngine:
         all_metas = registry_inst.get_all()
 
         res = dict(w)
-        regime_key = str(regime)
+        regime_key = self._extract_regime_label(regime)
         for sid, (_, meta) in all_metas.items():
             if meta.is_standalone:
                 res[sid] = 0.0
@@ -1002,14 +1282,17 @@ class EnsembleScoringEngine:
     def compute_dynamic_weights_from_sharpe(
         self,
         rolling_sharpes: Dict[str, float],
-        regime: Union[int, str],
+        regime: Union[int, str, Dict[str, float]],
         gamma: float = 1.0,
         vix_val: Optional[float] = None,
         factor_ic_dict: Optional[Dict[str, float]] = None,
         factor_crowding_penalties: Optional[Dict[str, float]] = None,
         pruning_threshold: Optional[float] = -0.50,
         smooth_downside_mode: bool = False,
-        market: str = "global"
+        market: str = "global",
+        regime_probs: Optional[Dict[str, float]] = None,
+        enable_tv_smoothing: Optional[bool] = None,
+        factor_autocorr_dict: Optional[Dict[str, float]] = None,
     ) -> Dict[str, float]:
         """
         Dynamically adjusts strategy weights using recent rolling Sharpe ratios per strategy,
@@ -1022,7 +1305,7 @@ class EnsembleScoringEngine:
         fabricated performance evidence as real — the dashboard must not claim dynamic
         weighting until real history exists.
         """
-        base_weights = self.get_base_weights(regime, vix_val=vix_val)
+        base_weights = self.get_base_weights(regime, vix_val=vix_val, regime_probs=regime_probs)
         if not base_weights:
             return {}
 
@@ -1041,20 +1324,22 @@ class EnsembleScoringEngine:
                 else:
                     clean_sharpes[k] = fv
 
+        regime_label_for_log = self._extract_regime_label(regime)
+
         # Check for cold start (all zeros or empty)
         all_zero = len(clean_sharpes) == 0 or all(abs(v) < 1e-4 for v in clean_sharpes.values())
         if all_zero:
             self._weight_evolution_history.append(
                 {
                     "timestamp": pd.Timestamp.now().isoformat(),
-                    "regime": str(regime),
+                    "regime": str(regime_label_for_log),
                     "market": market,
                     "weights": dict(base_weights),
                     "cold_start": True,
                 }
             )
             self._prev_weights[market] = dict(base_weights)
-            self._prev_regime[market] = str(regime)
+            self._prev_regime[market] = str(regime_label_for_log)
             return base_weights
 
         # Cap the dynamic multiplier range: exp(gamma*clip(sharpe, ±L)) with
@@ -1109,21 +1394,82 @@ class EnsembleScoringEngine:
             if factor_crowding_penalties and strategy in factor_crowding_penalties:
                 crowd_penalty = float(np.clip(factor_crowding_penalties[strategy], 0.0, 0.50))
 
-            # Regime-Adaptive Momentum Turbo (Bull Market Alpha Accelerator):
-            # In confirmed Bull regimes, accelerate high-beta catalyst & breakout strategies by 1.4x ~ 1.8x
-            # to capture the vast majority of annual market momentum alpha.
+            # Regime-Adaptive Momentum Turbo & Trend Inertia vs Crash Protection (Feature F05):
+            # In calm Bull regimes (BULL_LOW_VOL), reward factor rank autocorrelation and persist momentum alpha (1.4x ~ 1.6x).
+            # In volatile Bull regimes (BULL_HIGH_VOL), scale back momentum to 1.15x to prevent crash risk (Barroso & Santa-Clara 2015).
+            # In Bear & Crisis regimes, slash momentum to 0.50x and calibrate/boost reversal strategies to 1.40x ~ 1.68x.
             turbo_mult = 1.0
-            is_bull_regime = 'BULL' in str(regime).upper() or str(regime) == '2'
-            if is_bull_regime:
-                MOMENTUM_TURBO_STRATEGIES = {
-                    'surge', 'vcp_ml', 'mq_factor', 'order_flow', 'short_squeeze',
-                    'gamma_squeeze', 'trend_efficiency', 'supply_chain', 'event_driven'
-                }
-                DEFENSIVE_STRATEGIES = {'stat_arb', 'short_term_reversal', 'vol_target'}
+            regime_str = str(regime_label_for_log).upper()
+            is_bull_low_vol = ('BULL_LOW_VOL' in regime_str) or (
+                ('BULL' in regime_str or str(regime) == '2') and 'HIGH_VOL' not in regime_str
+            )
+            is_bull_high_vol = ('BULL_HIGH_VOL' in regime_str) or (
+                ('BULL' in regime_str) and ('HIGH_VOL' in regime_str)
+            )
+            is_crisis_or_bear_high_vol = (
+                'CRISIS' in regime_str or
+                'BEAR_HIGH_VOL' in regime_str or
+                ('BEAR' in regime_str and 'HIGH_VOL' in regime_str) or
+                (vix_val is not None and float(vix_val) >= 30.0)
+            )
+            is_bear_low_vol = ('BEAR_LOW_VOL' in regime_str) or (
+                ('BEAR' in regime_str or str(regime) == '0') and not is_crisis_or_bear_high_vol
+            )
+            is_sideways_high_vol = ('SIDEWAYS_HIGH_VOL' in regime_str)
+
+            MOMENTUM_TURBO_STRATEGIES = {
+                'surge', 'vcp_ml', 'mq_factor', 'order_flow', 'short_squeeze',
+                'gamma_squeeze', 'trend_efficiency', 'supply_chain', 'event_driven',
+                'range_expansion_breakout'
+            }
+            REVERSAL_STRATEGIES = {
+                'short_term_reversal', 'overnight_gap_reversal', 'dual_correction', 'stat_arb'
+            }
+            DEFENSIVE_STRATEGIES = {
+                'vol_target', 'factor_neutralized', 'rim_valuation', 'accruals_quality'
+            }
+
+            if is_bull_low_vol:
                 if strategy in MOMENTUM_TURBO_STRATEGIES:
-                    turbo_mult = 1.40
+                    # Reward factor rank autocorrelation / persistence in calm bull
+                    autocorr = float(np.clip(factor_autocorr_dict.get(strategy, 0.0), -1.0, 1.0)) if factor_autocorr_dict else 0.0
+                    turbo_mult = 1.40 + 0.20 * max(0.0, autocorr)
+                elif strategy in REVERSAL_STRATEGIES:
+                    turbo_mult = 0.50
                 elif strategy in DEFENSIVE_STRATEGIES:
                     turbo_mult = 0.70
+            elif is_bull_high_vol:
+                if strategy in MOMENTUM_TURBO_STRATEGIES:
+                    # Crash protection: scale back momentum turbo to prevent crash risk
+                    turbo_mult = 1.15
+                elif strategy in REVERSAL_STRATEGIES:
+                    turbo_mult = 1.10
+                elif strategy in DEFENSIVE_STRATEGIES:
+                    turbo_mult = 0.90
+            elif is_crisis_or_bear_high_vol:
+                if strategy in MOMENTUM_TURBO_STRATEGIES:
+                    # Crash protection: curtail momentum in market crashes
+                    turbo_mult = 0.50
+                elif strategy in REVERSAL_STRATEGIES:
+                    # Calibrate reversal strategies in crisis / bear regimes
+                    vix_stress = float(np.clip(((float(vix_val) if vix_val is not None else 25.0) - 20.0) / 20.0, 0.0, 1.0))
+                    turbo_mult = 1.40 * (1.0 + 0.20 * vix_stress)
+                elif strategy in DEFENSIVE_STRATEGIES:
+                    turbo_mult = 1.30
+            elif is_bear_low_vol:
+                if strategy in MOMENTUM_TURBO_STRATEGIES:
+                    turbo_mult = 0.70
+                elif strategy in REVERSAL_STRATEGIES:
+                    turbo_mult = 1.30
+                elif strategy in DEFENSIVE_STRATEGIES:
+                    turbo_mult = 1.20
+            elif is_sideways_high_vol:
+                if strategy in MOMENTUM_TURBO_STRATEGIES:
+                    turbo_mult = 0.85
+                elif strategy in REVERSAL_STRATEGIES:
+                    turbo_mult = 1.30
+                elif strategy in DEFENSIVE_STRATEGIES:
+                    turbo_mult = 1.10
 
             scores[strategy] = base_w * multiplier * ic_mult * dsr_mult * turbo_mult * (1.0 - crowd_penalty)
 
@@ -1154,28 +1500,67 @@ class EnsembleScoringEngine:
             if floor_total > 1e-12:
                 dynamic_weights = {k: float(v / floor_total) for k, v in dynamic_weights.items()}
 
-        # Detect regime transition or explicit factor tilting to accelerate EMA weight smoothing
-        current_regime_str = str(regime)
+        # F03: Continuous TV-distance & VIX entropy adaptive weight smoothing alpha_t
+        current_regime_str = str(regime_label_for_log)
         prev_w_mkt = self._prev_weights.get(market)
         prev_reg_mkt = self._prev_regime.get(market)
         is_regime_shift = (prev_reg_mkt is not None) and (str(prev_reg_mkt) != current_regime_str)
         has_explicit_tilting = bool(factor_ic_dict or factor_crowding_penalties)
         self._prev_regime[market] = current_regime_str
 
-        if is_regime_shift:
-            # Instant reset on regime transition to avoid carrying over obsolete regime dynamics
+        # Determine active probability vector for Total Variation distance
+        probs_dict = regime_probs if regime_probs is not None else (regime if isinstance(regime, dict) else None)
+        if probs_dict and isinstance(probs_dict, dict) and len(probs_dict) > 0:
+            tot_p = sum(float(v) for v in probs_dict.values() if v is not None and np.isfinite(float(v)) and float(v) > 0)
+            curr_probs = {str(k).upper(): float(v) / tot_p for k, v in probs_dict.items() if v is not None and np.isfinite(float(v)) and float(v) > 0} if tot_p > 1e-12 else {current_regime_str: 1.0}
+        else:
+            curr_probs = {current_regime_str: 1.0}
+
+        prev_probs = self._prev_regime_probs.get(market)
+        if prev_probs is not None:
+            all_states = set(curr_probs.keys()) | set(prev_probs.keys())
+            d_tv = 0.5 * sum(abs(curr_probs.get(s, 0.0) - prev_probs.get(s, 0.0)) for s in all_states)
+        elif is_regime_shift:
+            d_tv = 1.0
+        else:
+            d_tv = 0.0
+
+        self._prev_regime_probs[market] = dict(curr_probs)
+
+        # Compute continuous VIX stress and regime ambiguity entropy
+        if vix_val is not None:
+            vix_f = float(vix_val)
+            sigma_vix = float(np.clip((vix_f - 18.0) / 22.0, 0.0, 1.0))
+            p_stress = float(np.clip((vix_f - 12.0) / 28.0, 1e-4, 1.0 - 1e-4))
+            h_vix = float(-(p_stress * np.log(p_stress) + (1.0 - p_stress) * np.log(1.0 - p_stress)) / np.log(2.0))
+        else:
+            sigma_vix = 0.0
+            h_vix = 0.0
+
+        # Continuous adaptive smoothing parameter alpha_t
+        alpha_0 = float(getattr(self, 'alpha_smoothing', 0.20))
+        beta_trans = 0.35
+        beta_vix = 0.30
+        beta_ent = 0.05
+        beta_tilt = 0.15 if has_explicit_tilting else 0.0
+
+        eff_alpha = float(np.clip(
+            alpha_0 + beta_trans * d_tv + beta_vix * sigma_vix + beta_ent * h_vix + beta_tilt,
+            0.15,
+            0.85
+        ))
+
+        # Check if TV continuous smoothing is active (via argument, probabilistic regime, or config)
+        use_tv_smoothing = enable_tv_smoothing if enable_tv_smoothing is not None else (
+            (regime_probs is not None) or isinstance(regime, dict) or getattr(self, 'enable_tv_smoothing', False)
+        )
+
+        if is_regime_shift and not use_tv_smoothing:
+            # Backward-compatible instant reset on 1-hot discrete regime shift without TV smoothing
             self._prev_weights[market] = dict(dynamic_weights)
             return dynamic_weights
-        elif vix_val is not None and float(vix_val) >= 30.0:
-            eff_alpha = 0.60
-        elif has_explicit_tilting:
-            eff_alpha = 0.45
-        elif vix_val is not None and float(vix_val) > 22.0:
-            eff_alpha = 0.35
-        else:
-            eff_alpha = self.alpha_smoothing
 
-        # Apply EMA Weight Smoothing only when strategy spaces match to prevent cross-space dimension leakage
+        # Apply EMA Weight Smoothing
         if prev_w_mkt is not None and eff_alpha < 1.0:
             smoothed = {}
             all_keys = set(dynamic_weights.keys()) | set(prev_w_mkt.keys())
@@ -2393,6 +2778,20 @@ class EnsembleScoringEngine:
                         if q_high > q_low:
                             merged[score_col] = merged[score_col].clip(lower=q_low, upper=q_high)
 
+        # Phase 3-A.2: Multi-Horizon Exponential Convolutional Decay Filtering (Feature F04)
+        if getattr(self, 'enable_decay_filter', True) and not merged.empty and 'symbol' in merged.columns:
+            try:
+                merged = self._apply_decay_filtering_with_cache(
+                    merged=merged,
+                    strategy_cols=strategy_cols,
+                    regime=regime,
+                    us_regime=us_regime,
+                    kr_regime=kr_regime,
+                    **kwargs
+                )
+            except Exception as _dfe:
+                logger.warning(f"Decay filter application warning (clean fallback to unfiltered): {_dfe}")
+
         # Phase 3-B (Pre-Orthogonalization): Inter-Strategy Signal Correlation Monitoring & 2D Regime Noise Suppression
         # Feature 1: Move raw correlation monitoring and factor suppression BEFORE ZCA orthogonalization
         correlation_report_dict = None
@@ -2414,7 +2813,7 @@ class EnsembleScoringEngine:
                         penalty_factor=0.5,
                     )
 
-                # 4. Regime factor noise suppression with sample-size calibration
+                # 4. Regime factor noise suppression with sample-size calibration & single-stage entropy program
                 tuned_p = getattr(self, '_tuned_params', None)
                 base_w = weights if weights else self.get_base_weights(regime)
                 suppressed_w = self.factor_suppression.suppress_weights(
@@ -2422,6 +2821,8 @@ class EnsembleScoringEngine:
                     corr_matrix=corr_df,
                     regime_label=str(regime),
                     tuned_params=tuned_p,
+                    use_entropy_allocation=(n_cross_section >= 10),
+                    vif_dict=vif_dict,
                     n_samples=n_cross_section
                 )
                 n_eff = self.correlation_monitor.compute_effective_strategy_count(
@@ -2496,6 +2897,29 @@ class EnsembleScoringEngine:
         else:
             eff_us_weights = us_weights if us_weights is not None else self.get_base_weights(us_regime or regime or 'BULL_LOW_VOL')
             eff_kr_weights = kr_weights if kr_weights is not None else self.get_base_weights(kr_regime or regime or 'SIDEWAYS_LOW_VOL')
+
+        # Phase 3-B.2: Apply Rank IC and Latency Decay Calibration to Strategy Weights (Feature F04)
+        rank_ic_map = kwargs.get('strategy_rank_ic_dict') or kwargs.get('factor_ic_dict') or getattr(self, 'strategy_rank_ic_dict', None)
+        latency_days = float(kwargs.get('latency_days', 0.0))
+        gamma_rank_ic = float(kwargs.get('gamma_rank_ic', 1.0))
+        if rank_ic_map or latency_days > 0.0:
+            try:
+                eff_us_weights = self.apply_rank_ic_decay_calibration(
+                    base_weights=eff_us_weights,
+                    strategy_rank_ic_dict=rank_ic_map,
+                    latency_days=latency_days,
+                    gamma=gamma_rank_ic,
+                    regime=us_regime or regime
+                )
+                eff_kr_weights = self.apply_rank_ic_decay_calibration(
+                    base_weights=eff_kr_weights,
+                    strategy_rank_ic_dict=rank_ic_map,
+                    latency_days=latency_days,
+                    gamma=gamma_rank_ic,
+                    regime=kr_regime or regime
+                )
+            except Exception as _ice:
+                logger.warning(f"Rank IC decay calibration warning (fallback to uncalibrated): {_ice}")
 
         # Identify KR vs US symbols for dual-regime weights
         is_kr = pd.Series(False, index=merged.index)
@@ -2719,14 +3143,15 @@ class EnsembleScoringEngine:
                 lambda_boost=0.35
             )
 
-        # Phase 2-E: Bessembinder Symmetric Tail Convex Scaling (Top/Bottom Decile Tilt)
+        # Phase 2-E: Bessembinder Symmetric Tail Convex Scaling (Top/Bottom Decile Tilt with 2D Regime Adaptation)
         if len(merged) >= 5:
             blended_score = pd.Series(
                 self.apply_bessembinder_convex_power_law(
                     scores=blended_score.values,
                     symmetric=True,
                     power_gamma=1.60,
-                    max_boost=0.50
+                    max_boost=0.50,
+                    regime=regime
                 ),
                 index=merged.index
             )
@@ -3387,12 +3812,15 @@ class EnsembleScoringEngine:
 
         sym_col = 'symbol' if 'symbol' in df_filtered.columns else None
         if sym_col and sym_col in previous_scores.columns:
-            prev_indexed = previous_scores.set_index(sym_col)
+            prev_clean = previous_scores.drop_duplicates(subset=[sym_col])
+            if prev_clean.columns.has_duplicates:
+                prev_clean = prev_clean.loc[:, ~prev_clean.columns.duplicated(keep='first')]
+            prev_indexed = prev_clean.set_index(sym_col)
             curr_indexed = df_filtered.set_index(sym_col)
 
             score_col_to_strat = {
                 'reg_score': 'regression', 'surge_score': 'surge', 'll_score': 'lead_lag',
-                'vcp_rule_score': 'vcp_pattern', 'vcp_ml_score': 'vcp_ml', 'lstm_score': 'regression',
+                'vcp_rule_score': 'vcp_pattern', 'vcp_ml_score': 'vcp_ml', 'lstm_score': 'lstm',
                 'stat_arb_score': 'stat_arb', 'sector_score': 'sector_rotation', 'rim_score': 'rim_valuation',
                 'event_score': 'event_driven', 'mq_score': 'mq_factor', 'iv_skew_score': 'iv_skew',
                 'order_flow_score': 'order_flow', 'reversal_score': 'short_term_reversal', 'arm_score': 'arm_factor',
@@ -3418,7 +3846,7 @@ class EnsembleScoringEngine:
                     tau = half_lives.get(strat_key, 10.0)
                     alpha = 1.0 - float(np.exp(-np.log(2.0) / max(tau, 0.1)))
                     prev_s = prev_indexed[col].reindex(curr_indexed.index).fillna(curr_indexed[col])
-                    curr_indexed[col] = alpha * curr_indexed[col] + (1.0 - alpha) * prev_s
+                    curr_indexed[col] = (alpha * curr_indexed[col] + (1.0 - alpha) * prev_s).clip(0.0, 1.0)
 
             df_filtered = curr_indexed.reset_index()
         return df_filtered
@@ -3535,17 +3963,28 @@ class EnsembleScoringEngine:
         if n_rows < 5:
             return pd.Series(1.0, index=scores_df.index)
 
-        # Define 4 mutually exclusive strategy clusters
+        # Define 4 mutually exclusive strategy clusters (all 37 strategies covered without omission)
         clusters = {
-            'val': ['rim_score', 'valueup_catalyst_score', 'accruals_quality_score', 'arm_score'],
-            'mom': ['surge_score', 'vcp_ml_score', 'trend_efficiency_score', 'sector_score',
-                    'range_expansion_score', 'mq_score', 'll_score', 'vcp_rule_score'],
-            'flow': ['order_flow_score', 'inst_foreign_sector_score', 'darkpool_score',
-                     'microstructure_score', 'overnight_gap_score', 'stat_arb_score'],
-            'cat': ['event_score', 'sentiment_score', 'short_squeeze_score', 'gamma_squeeze_score',
-                    'supply_chain_score', 'supply_chain_gnn_score', 'cross_asset_spillover_score',
-                    'dual_correction_score', 'index_rebalance_score', 'insider_buying_score',
-                    'earnings_tone_drift_score']
+            'val': [
+                'rim_score', 'valueup_catalyst_score', 'accruals_quality_score', 'arm_score',
+                'factor_neutralized_score', 'reg_score'
+            ],
+            'mom': [
+                'surge_score', 'vcp_ml_score', 'trend_efficiency_score', 'sector_score',
+                'range_expansion_score', 'mq_score', 'll_score', 'vcp_rule_score',
+                'lstm_score'
+            ],
+            'flow': [
+                'order_flow_score', 'inst_foreign_sector_score', 'darkpool_score',
+                'microstructure_score', 'overnight_gap_score', 'stat_arb_score',
+                'iv_skew_score', 'reversal_score', 'vol_target_score'
+            ],
+            'cat': [
+                'event_score', 'sentiment_score', 'short_squeeze_score', 'gamma_squeeze_score',
+                'supply_chain_score', 'supply_chain_gnn_score', 'cross_asset_spillover_score',
+                'dual_correction_score', 'index_rebalance_score', 'insider_buying_score',
+                'earnings_tone_drift_score', 'card_score', 'latr_score'
+            ]
         }
 
         # Compute cluster aggregate conviction scores
@@ -3600,21 +4039,61 @@ class EnsembleScoringEngine:
         synergy_multiplier = 1.0 + synergy_sum.clip(0.0, 0.100)
         return synergy_multiplier
 
+    compute_pillar_synergy_multiplier = compute_bilinear_cross_pillar_synergy
+
     # =========================================================================
     # OBJECTIVE 14: BESSEMBINDER CONVEX POWER-LAW ALPHA SIZING (TOP-DECILE TILT)
     # =========================================================================
 
     @staticmethod
+    def get_regime_adaptive_bessembinder_params(
+        regime: Optional[Union[str, int]] = None,
+        default_gamma: float = 1.45,
+        default_beta: float = 0.40
+    ) -> Tuple[float, float]:
+        """
+        Returns regime-adaptive (gamma_tail, beta_tail) for Bessembinder convex power-law:
+        - BULL_LOW_VOL: (1.70, 0.50)  - High persistence, steep tail spread expansion
+        - BULL_HIGH_VOL: (1.55, 0.45) - Strong trend with moderate tail boost
+        - SIDEWAYS_LOW_VOL: (1.45, 0.40) - Balanced baseline
+        - SIDEWAYS_HIGH_VOL: (1.35, 0.30) - Choppy, compressed tail
+        - BEAR_LOW_VOL: (1.30, 0.30) - Defensives, moderate tail dampening
+        - BEAR_HIGH_VOL: (1.20, 0.20) - Panic selloff, conservative tail bounds
+        - CRISIS: (1.20, 0.20) - Extreme tail protection, prevents over-concentration
+        """
+        if regime is None:
+            return default_gamma, default_beta
+        reg_str = str(regime).upper()
+        if 'CRISIS' in reg_str:
+            return 1.20, 0.20
+        elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
+            return 1.20, 0.20
+        elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or reg_str == 'BEAR':
+            return 1.30, 0.30
+        elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+            return 1.35, 0.30
+        elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or reg_str == 'SIDEWAYS':
+            return 1.45, 0.40
+        elif 'BULL_HIGH_VOL' in reg_str:
+            return 1.55, 0.45
+        elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or reg_str == 'BULL':
+            return 1.70, 0.50
+        else:
+            return default_gamma, default_beta
+
+    @classmethod
     def apply_bessembinder_convex_power_law(
+        cls,
         scores: Union[pd.Series, np.ndarray, List[float]],
         top_percentile: float = 90.0,
         power_gamma: float = 1.60,
         max_boost: float = 0.50,
         symmetric: bool = False,
         u_thresh: float = 0.60,
-        gamma_tail: float = 1.45,
-        beta_tail: float = 0.40,
-        eta: float = 1.60
+        gamma_tail: Optional[float] = None,
+        beta_tail: Optional[float] = None,
+        eta: float = 1.60,
+        regime: Optional[Union[str, int]] = None
     ) -> np.ndarray:
         """
         Applies Bessembinder Right-Tail or Symmetric Richards Power-Law Convex Scaling:
@@ -3633,6 +4112,19 @@ class EnsembleScoringEngine:
         if len(arr) < 5:
             return arr
 
+        eff_gamma = gamma_tail
+        eff_beta = beta_tail
+        if regime is not None:
+            adapt_gamma, adapt_beta = cls.get_regime_adaptive_bessembinder_params(regime)
+            if eff_gamma is None:
+                eff_gamma = adapt_gamma
+            if eff_beta is None:
+                eff_beta = adapt_beta
+        if eff_gamma is None:
+            eff_gamma = 1.45
+        if eff_beta is None:
+            eff_beta = 0.40
+
         if not symmetric:
             p_low = np.percentile(arr, top_percentile)
             p_high = np.percentile(arr, 99.0)
@@ -3650,11 +4142,11 @@ class EnsembleScoringEngine:
         u = np.clip(2.0 * (arr - 0.50), -1.0, 1.0)
         abs_u = np.abs(u)
         excess = np.maximum(0.0, (abs_u - u_thresh) / max(1e-4, 1.0 - u_thresh))
-        tail_boost = 1.0 + beta_tail * np.power(excess, eta)
-        u_tilde = np.sign(u) * np.power(abs_u, gamma_tail) * tail_boost
+        tail_boost = 1.0 + eff_beta * np.power(excess, eta)
+        u_tilde = np.sign(u) * np.power(abs_u, eff_gamma) * tail_boost
 
         # Theoretical and cross-sectional bounding scale
-        scale = max(1.0 + beta_tail, float(np.max(np.abs(u_tilde)))) if len(u_tilde) > 0 else (1.0 + beta_tail)
+        scale = max(1.0 + eff_beta, float(np.max(np.abs(u_tilde)))) if len(u_tilde) > 0 else (1.0 + eff_beta)
         rescaled = 0.50 + 0.50 * (u_tilde / max(scale, 1e-4))
         return np.clip(rescaled, 0.0, 1.0)
 

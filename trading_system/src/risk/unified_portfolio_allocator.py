@@ -314,8 +314,23 @@ class UnifiedPortfolioAllocator:
         if n == 1:
             return np.array([1.0])
 
-        regime_key = str(regime).upper() if regime else "BULL_LOW_VOL"
-        blend_cfg = self.REGIME_OPTIMIZER_BLENDS.get(regime_key, self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
+        if isinstance(regime, dict):
+            regime_probs = regime
+            regime_key = max(regime_probs, key=regime_probs.get) if regime_probs else "BULL_LOW_VOL"
+            # Soft-blend the 4 optimization paradigms based on Markov posterior probabilities
+            blend_cfg = {"bl": 0.0, "herc": 0.0, "rp": 0.0, "cvar": 0.0}
+            tot_p = sum(float(v) for v in regime_probs.values())
+            if tot_p > 0:
+                for r_k, r_p in regime_probs.items():
+                    norm_p = float(r_p) / tot_p
+                    sub_cfg = self.REGIME_OPTIMIZER_BLENDS.get(str(r_k).upper(), self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
+                    for m_k in blend_cfg:
+                        blend_cfg[m_k] += norm_p * sub_cfg[m_k]
+            else:
+                blend_cfg = self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"]
+        else:
+            regime_key = str(regime).upper() if regime else "BULL_LOW_VOL"
+            blend_cfg = self.REGIME_OPTIMIZER_BLENDS.get(regime_key, self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
 
         # 1. Model A: Black-Litterman Conviction (with CAPM Equilibrium Market-Cap Priors)
         w_bl = np.full(n, 1.0 / n)

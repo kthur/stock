@@ -289,7 +289,7 @@ class RegimeFactorSuppressionEngine:
         theta: Optional[float] = None,
         lambda_penalty: Optional[float] = None,
         tuned_params: Optional[Dict[str, Any]] = None,
-        use_entropy_allocation: bool = False,
+        use_entropy_allocation: Optional[bool] = None,
         vif_dict: Optional[Dict[str, float]] = None,
         consensus_precision: Optional[Dict[str, float]] = None,
         cluster_sharpes: Optional[Dict[str, float]] = None,
@@ -315,11 +315,16 @@ class RegimeFactorSuppressionEngine:
         eff_theta = theta if theta is not None else default_t
         eff_lambda = lambda_penalty if lambda_penalty is not None else default_l
 
-        if use_entropy_allocation:
+        # Enable entropy allocation if explicitly True, or auto-enable when N >= 10 and not explicitly False
+        eff_use_entropy = use_entropy_allocation
+        if eff_use_entropy is None:
+            eff_use_entropy = (eff_n is not None and np.isfinite(eff_n) and eff_n >= 10)
+
+        if eff_use_entropy:
             try:
                 strats = [s for s in base_weights.keys() if s in corr_matrix.columns]
                 missing_strats = [s for s in base_weights.keys() if s not in corr_matrix.columns]
-                if len(strats) >= 2 and not missing_strats:
+                if len(strats) >= 2:
                     penalties = self.compute_penalties(
                         corr_matrix=corr_matrix,
                         regime_label=regime_label,
@@ -342,7 +347,25 @@ class RegimeFactorSuppressionEngine:
                         gamma_anchor=1.0 / max(0.1, eff_lambda),
                         w_min=0.005
                     )
-                    return {s: float(w) for s, w in zip(strats, opt_w)}
+                    if not missing_strats:
+                        return {s: float(w) for s, w in zip(strats, opt_w)}
+                    else:
+                        # Proportionately combine active entropy-optimized weights with missing strategies
+                        sum_present_base = sum(base_weights[s] for s in strats)
+                        sum_missing_base = sum(base_weights[s] for s in missing_strats)
+                        total_base = sum_present_base + sum_missing_base
+                        p_share = sum_present_base / total_base if total_base > 0 else 1.0
+                        m_share = sum_missing_base / total_base if total_base > 0 else 0.0
+
+                        res = {}
+                        for s, w in zip(strats, opt_w):
+                            res[s] = float(w * p_share)
+                        for s in missing_strats:
+                            m_w = base_weights[s] * penalties.get(s, 1.0)
+                            res[s] = float((m_w / max(sum_missing_base, 1e-8)) * m_share)
+
+                        tot_res = sum(res.values())
+                        return {k: float(v / tot_res) for k, v in res.items()} if tot_res > 0 else res
             except Exception as _ent_e:
                 logger.debug(f"[ENTROPY ALLOCATION] Fallback to standard penalty model: {_ent_e}")
 
