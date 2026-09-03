@@ -14,7 +14,7 @@
 | [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | V8 시스템 정밀 감사(43개 결함 해결) 및 고도화 내역 |
 | [IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md) | 시스템 아키텍처 및 성능 최적화 개선 계획 |
 | [OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md) | 실거래 운영 절차, 8대 주문 안전 게이트 (Gate 8 합성 인버스 헤지 포함), Almgren-Chriss 트랜치, 킬 스위치(Kill Switch) 및 장애 대응 런북 |
-| [TEST_GUIDE.md](docs/TEST_GUIDE.md) | 통합 테스트 스위트(`tests/`) 및 2,130+ pytest 실행 가이드 |
+| [TEST_GUIDE.md](docs/TEST_GUIDE.md) | 통합 테스트 스위트(`tests/`) 및 2,182+ pytest 실행 가이드 |
 
 ---
 
@@ -45,7 +45,7 @@ copy trading_system\.env.example trading_system\.env
 
 ### 1. 통합 예측 파이프라인 (핵심)
 
-37대 전략 모델을 기반으로 한국(KOSPI, KOSDAQ) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장의 예측 결과를 생성하고 2D 시장 레짐 기반 동적 앙상블, 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 미시구조 거래비용 차감을 수행합니다.
+37대 전략 모델을 기반으로 한국(KOSPI, KOSDAQ) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장의 예측 결과를 생성하고 2D 시장 레짐 기반 동적 앙상블, 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 30일 롤링 RankIC 동적 가중치, 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 미시구조 거래비용 차감을 수행합니다.
 
 #### CLI 옵션
 
@@ -70,9 +70,17 @@ copy trading_system\.env.example trading_system\.env
 .venv\Scripts\python trading_system/run_pipeline.py --target KRX --skip-training
 ```
 
-> **`--target KRX`** = KOSPI + KOSDAQ
+> **`--target KRX`** = KOSPI + KOSDAQ (증권거래세 0.15% 일원화 세제 적용)
 
-### 2. 파이프라인 출력 파일 (`result/` 또는 `trading_system/`)
+### 2. 기관급 초저지연 실행 및 브로커 엔진
+
+- **Fast LOB Engine (`src/core/fast_lob_engine.py`)**: 제로카피 고정 크기 링버퍼 기반 마이크로초 단위 Level 3 호가 매칭 및 Hawkes 오더 도착 강도 모델 구동.
+- **기관 DMA FIX 4.4 Engine (`src/broker/fix_protocol_engine.py`)**: 초고속 DMA 주문 전송 및 하트비트 세션 제어.
+- **Interactive Brokers Connector (`src/broker/interactive_brokers.py`)**: IBKR TWS/Gateway 소켓 연동을 통한 글로벌 멀티 마켓 자율 매매.
+- **Smart Order Router (`src/execution/smart_order_router.py`)**: `.KS`, `.KQ` 접미사 자동 파싱 및 KRX/US/Global 브로커 자동 분기 및 2차 베뉴 자동 페일오버.
+- **강화학습 주문 슬라이싱 에이전트 (`src/execution/rl_execution_agent.py`)**: Q-learning 기반 동적 최적 트랜치 분할 및 슬리피지 최소화.
+
+### 3. 파이프라인 출력 파일 (`result/` 또는 `trading_system/`)
 
 | 파일 | 설명 |
 |------|------|
@@ -116,7 +124,7 @@ copy trading_system\.env.example trading_system\.env
 | `index_rebalance_predictions.txt` | 40조 패시브 ETF 정기변경 15~30일 선반영 스코어 |
 | `overnight_gap_predictions.txt` | ATR 정규화 오버나이트 갭 통계적 갭필 반등 스코어 |
 
-### 3. GitHub Pages 대시보드 리포트 생성
+### 4. GitHub Pages 대시보드 리포트 생성
 
 ```powershell
 # HTML 대시보드 리포트 생성
@@ -125,13 +133,17 @@ copy trading_system\.env.example trading_system\.env
 # 브라우저에서 https://kthur.github.io/stock/ 또는 로컬 gh-pages/index.html 열기
 ```
 
-#### 대시보드 주요 기능
-- **📊 37개 전략 패널 & 탭 네비게이션**: 상단 고정(Sticky) 네비게이션과 부드러운 스크롤.
+#### 대시보드 혁신 기능: 3대 통합 메가 카드
+- **🎛️ Card 1 (Market Regime & Risk Gates Console)**: 2D 6대 레짐, CrisisDetector 4단계, VIX 속도 및 기간구조, 거시 지표 스트립 통합.
+- **🏥 Card 2 (Strategy Coverage & Missingness Center)**: 37대 전략 실시간 헬스 모니터링, 동적 상태 필터, 결측 사유 비율 분석.
+- **💼 Card 3 (Portfolio Optimization & Execution OMS)**: 4대 최적화 블렌딩 도넛 차트, 시장별 노출도, EVT-CVaR 꼬리위험, Leland 버퍼 밴드 및 실시간 슬리피지 피드백.
+- **🕸️ 37-Alpha Radar Chart & Column Presets**: 37개 알파 다차원 레이더 차트, 핵심/전체/기술적 지표 컬럼 프리셋 지원.
+- **⭐ 관심종목(Watchlist) & Stock Drawer**: 클라이언트 로컬 스토리지 관심종목 동기화 및 종목별 상세 팩터 분해 탭.
 - **⚡ 시나리오 시뮬레이터 (Regime & Shock Simulator)**: VIX 급등, 환율 변동, 금리 충격 시뮬레이션 및 포트폴리오 가중치 반응 즉시 확인.
 - **🎯 Decision Rationale & Macro Strip**: 6대 시장 레짐 및 실시간 거시지표 정상 범위 검증 배지.
 - **📱 모바일 완전 반응형**: 터치 스크롤, 사이드바 드로어, 콤팩트 테이블 뷰.
 
-### 4. 텔레그램 알림
+### 5. 텔레그램 알림
 
 `.env`에 아래 값을 설정하면 파이프라인 완료 시 KST 타임스탬프와 함께 Telegram 메시지가 전송됩니다:
 

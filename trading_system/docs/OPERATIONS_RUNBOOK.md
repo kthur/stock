@@ -104,6 +104,10 @@ Remove-Item trading_system\KILL_SWITCH
 - [ ] 통화 변환 분모(FX Denominator) 검증: US 주식 주문 시 USD 환산 단가 정상 여부
 - [ ] 주문수량: KRX 10주 단위 반올림, US 1주 단위. `quantity<=0`이면 계획 자체를 생성하지 않음
 - [ ] Gate 8 합성 인버스 헤지 상태 확인: 하락/위기 국면 진입 시 인버스 ETF 헤지 비중 적정 여부 확인
+- [ ] FIX 4.4 세션 점검: Heartbeat(30s) 정상 수신 및 TargetCompID/SenderCompID 일치 여부 확인
+- [ ] IBKR Gateway/TWS 상태 점검: API Port(7497/4002) 리스닝 및 클라이언트 ID 충돌 여부 확인
+- [ ] Fast LOB Ring Buffer 점검: 65,536 고정 버퍼 포인터 랩어라운드 및 Hawkes 점 과정 모니터링
+- [ ] SmartOrderRouter 페일오버 확인: 1차 브로커 타임아웃 시 2차 브로커 자동 라우팅 활성화 여부
 
 ---
 
@@ -113,6 +117,10 @@ Remove-Item trading_system\KILL_SWITCH
 |------|----------|----------|
 | 예상 외 매수 주문 발생 | **킬 스위치 즉시 활성화** (3.1) | order_plans/execution_logs 조회, 포지션 청산 |
 | 파이프라인 실패 (검증 raise) | 로그 확인 (`logs/pipeline.log*`) | 원인 수정 후 재실행. 실패한 날짜는 재발행하지 말 것 |
+| FIX 세션 연결 끊김 (MsgSeqNum 오류) | FIX 세션 재설정 (`ResetSeqNumFlag=Y`) | 방화벽 포트 및 FIX 엔진 로그 확인 |
+| IBKR API 연결 거부 | TWS/Gateway 재시작 및 API 설정 확인 | "Enable ActiveX and Socket Clients" 체크 및 Trusted IP 점검 |
+| SOR 베뉴 라우팅 실패 | 심볼 접미사(`.KS`, `.KQ`) 포맷 점검 | 단일 브로커 직접 지정 모드로 전환 |
+| Fast LOB 버퍼 오버플로우 | 메모리 링버퍼 크기 증설 | 틱 데이터 다운샘플링 또는 큐 드레인 스레드 점검 |
 | VIX가 갑자기 100 이상 | 지표 sanity 게이트가 저장 거부(VIX 5~150) | yfinance 데이터 확인, `market_indicators` 테이블 수동 점검 |
 | 추론 결과 0건 | 빈 결과 → 파이프라인 실패(의도된 동작) | 데이터 페치 실패 원인 확인 (유니버스/가격 캐시) |
 | 심볼이 `{...}` 형태 | OMS 게이트가 차단 + 검증 실패 | upstream 전략(앙상블) dict 변환 버그 점검 |

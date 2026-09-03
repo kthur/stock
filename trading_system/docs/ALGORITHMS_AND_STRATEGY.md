@@ -1,8 +1,8 @@
 # 🧠 37대 다변화 전략 및 퀀트 알고리즘 완전 명세서
 
-> **Version**: 8.0 (Production Standard)  
+> **Version**: 9.0 (Institutional Production Standard)  
 > **Last Updated**: 2026-09-03 (KST)  
-> **Source Modules**: `trading_system/src/core/*.py`, `src/ai/`, `src/risk/`, `src/execution/`  
+> **Source Modules**: `trading_system/src/core/*.py`, `src/ai/`, `src/risk/`, `src/execution/`, `src/broker/`  
 > **Target Universe**: 한국(KOSPI, KOSDAQ) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장
 
 ---
@@ -21,6 +21,7 @@
 10. [기관급 포트폴리오 최적화 & EVT-CVaR 꼬리위험 예산](#10-기관급-포트폴리오-최적화--evt-cvar-꼬리위험-예산)
 11. [실전 미시구조 거래비용 및 슬리피지 피드백](#11-실전-미시구조-거래비용-및-슬리피지-피드백)
 12. [Execution OMS 8대 주문 안전 게이트 & Almgren-Chriss](#12-execution-oms-8대-주문-안전-게이트--almgren-chriss)
+13. [기관급 초저지연 실행 엔진 및 고도화 퀀트 알고리즘](#13-기관급-초저지연-실행-엔진-및-고도화-퀀트-알고리즘)
 
 ---
 
@@ -234,7 +235,7 @@ $$\min_w \; -\mu^T w + \frac{\lambda}{2} w^T \Sigma w + \gamma_{\text{impact}} \
 
 ### 11.1 시장별 거래비용 모델
 - **KOSPI**: 증권거래세 0.15% + 브로커 수수료 0.03% + 동적 스프레드 $S_i$ + Kyle 시장 충격
-- **KOSDAQ**: 증권거래세 0.18% + 브로커 수수료 0.03% + 동적 스프레드 $S_i$ + Kyle 시장 충격
+- **KOSDAQ**: 증권거래세 0.15% (2026 세제 개편 동기화 완료, 3 bps 알파 마찰 제거) + 브로커 수수료 0.03% + 동적 스프레드 $S_i$ + Kyle 시장 충격
 - **S&P 500 / NASDAQ**: SEC Fee 0.003% + 브로커 수수료 0.005% + 동적 스프레드 + 시장 충격
 
 ### 11.2 슬리피지 피드백 루프
@@ -263,3 +264,38 @@ $$\min_w \; -\mu^T w + \frac{\lambda}{2} w^T \Sigma w + \gamma_{\text{impact}} \
 
 ### 12.2 Almgren-Chriss 최적 집행 스케줄러
 - 거래량과 변동성을 고려하여 시장 충격과 타이밍 위험을 최소화하는 비선형 트랜치 분할 스케줄링 적용.
+
+---
+
+## 13. 기관급 초저지연 실행 엔진 및 고도화 퀀트 알고리즘
+
+### 13.1 Fast LOB 제로카피 링버퍼 & Hawkes 프로세스 (`fast_lob_engine.py`)
+- **제로카피 고정 크기 링버퍼**: GC 오버헤드를 배제한 메모리 순환 구조로 마이크로초 단위 Level 3 호가 접수 및 틱 매칭 수행.
+- **Hawkes 자기여기(Self-Exciting) 점 과정 오더 도착 강도 모델**:
+  $$\lambda(t) = \mu + \sum_{t_i < t} \alpha e^{-\beta (t - t_i)}$$
+  - 연속 주문 폭주 및 유동성 증발 시점을 포착하여 슬리피지 방어.
+
+### 13.2 강화학습 기반 동적 주문 슬라이싱 에이전트 (`rl_execution_agent.py`)
+- **상태 공간 $S$**: 남은 수량 비율, 남은 실행 시간 비율, 스프레드, 단기 체결 강도, 오더북 불균형(OBI).
+- **행동 공간 $A$**: 주문 슬라이스 비율 (트랜치 크기) 및 가격 지정 오프셋 (Midpoint Peg, Passive, Aggressive).
+- **보상 함수 $R_t$**:
+  $$R_t = -(\text{ExecutedPrice} - \text{ArrivalPrice}) \cdot q_t - \gamma \cdot \operatorname{Var}(\text{ExecutionRisk})$$
+  - 시장충격과 기회비용을 실시간 학습하여 동적으로 최적 집행.
+
+### 13.3 글로벌 스마트 오더 라우터 (SOR) & FIX 4.4 DMA (`smart_order_router.py`, `fix_protocol_engine.py`)
+- **다중 거래소 자동 라우팅**: 국내 KOSPI/KOSDAQ(`.KS`, `.KQ` 접미사 자동 파싱) 및 미국(US), 일본(JP), 홍콩(HK), 유럽(EU), 캐나다(CA) 거래소 자동 분기.
+- **기관 직결 FIX 4.4 클라이언트**: 표준 태그(`35=D`, `54=Side`, `38=OrderQty`, `44=Price` 등) 기반 DMA 주문 전송 및 하트비트 세션 관리.
+- **Interactive Brokers (IBKR) 연동**: TWS/Gateway 소켓 통신을 통한 전 세계 주식 복합 주문 지원.
+
+### 13.4 30일 롤링 RankIC 동적 알파 가중치 & 패닉 역발상
+- **30일 롤링 RankIC**: 각 전략 $k$의 실제 실현수익률 순위 상관계수 $\operatorname{RankIC}_k(30\text{d})$에 비례하여 앙상블 가중치 동적 스케일링:
+  $$w_k^{\text{dynamic}} \propto w_k^{\text{base}} \times \max\left(0.2, \; 1.0 + \gamma_{\text{IC}} \cdot \operatorname{RankIC}_k\right)$$
+- **패닉 역발상 알파 (Contrarian Reversal)**: VIX 폭등 및 급락장 발생 시 단기 과매도 평균회귀 팩터의 가중치를 일시 증폭하여 반등 알파 선취.
+
+### 13.5 EWMA 공분산 행렬 & 연속 비례 Leland 버퍼 밴드
+- **EWMA 공분산 행렬 (RiskMetrics 표준)**:
+  $$\Sigma_t = \lambda \Sigma_{t-1} + (1 - \lambda) r_t r_t^T, \quad \lambda = 0.94$$
+- **연속 비례 Leland 버퍼 밴드**:
+  $$\delta_i = \operatorname{clip}\left(c \cdot \frac{\text{Cost}_i}{\sigma_i}, \; 0.005, \; 0.05\right)$$
+  - 종목별 마찰비용과 변동성에 정확히 비례하는 동적 불감대를 형성하여 턴오버 및 거래비용 최소화.
+

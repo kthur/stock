@@ -119,7 +119,7 @@ class UnifiedPortfolioAllocator:
             return pd.DataFrame(), []
 
         prices_df = pd.DataFrame(close_series).ffill()
-        returns_df = prices_df.pct_change().dropna(how='all')
+        returns_df = prices_df.pct_change().dropna(how='all').fillna(0.0)
         valid_symbols = [s for s in symbols if s in returns_df.columns]
         return returns_df, valid_symbols
 

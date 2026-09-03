@@ -146,10 +146,14 @@ flowchart TB
         PortfolioOpt["UnifiedPortfolioAllocator\n(BL + HERC + RP + CVaR, 3/2 Impact Penalty, Leland Bands)"]
     end
 
-    subgraph Execution ["Execution & Output Layer"]
+    subgraph Execution ["Execution & Institutional OMS Layer"]
         ReportGen["GitHub Pages Generator (index.html - 37 Strategies)"]
         TxtOutputs["Pipeline Text & Coverage Reports"]
         OMS["Execution OMS Engine\n(trade_logs.db, 8 Safety Gates, Gate 8 Inverse Hedge, Almgren-Chriss)"]
+        SOR["SmartOrderRouter & MultiBrokerManager\n(KRX/US/Global Multi-Venue Auto Routing)"]
+        RL["RL Execution Agent\n(Dynamic Optimal Order Slicing)"]
+        LOB["Fast LOB Engine\n(Zero-Copy Ring Buffer, L3 Matching, Hawkes)"]
+        DMA["FIX 4.4 DMA & IBKR Connector\n(Direct Market Access & Broker API)"]
     end
 
     Data --> Strategies
@@ -163,6 +167,10 @@ flowchart TB
     PortfolioOpt --> ReportGen
     PortfolioOpt --> TxtOutputs
     PortfolioOpt --> OMS
+    OMS --> SOR
+    SOR --> RL
+    RL --> LOB
+    SOR --> DMA
 ```
 
 ### Key Files
@@ -181,6 +189,11 @@ flowchart TB
 | `src/risk/portfolio_allocator.py` | PortfolioAllocator: EVT-CVaR 극단값 꼬리위험 예산 & Leland 동적 버퍼 밴드 |
 | `src/risk/risk_manager.py` | RiskManager & CrisisDetector: 거시 위기 단계 판정 및 VIX 속도/기간구조 기반 완충 제어 |
 | `src/execution/oms_engine.py` | ExecutionOMSEngine: 8대 주문 안전 게이트 (Gate 8 합성 인버스 헤지 포함), Almgren-Chriss 트랜치 분할 & 주문 생성 |
+| `src/execution/smart_order_router.py` | SmartOrderRouter: 글로벌 멀티 베뉴(KRX/US/JP/HK/EU/CA) 지능형 자동 라우팅 & 브로커 페일오버 |
+| `src/execution/rl_execution_agent.py` | RLExecutionAgent: 강화학습 기반 동적 최적 주문 슬라이싱 및 시장충격 최소화 에이전트 |
+| `src/core/fast_lob_engine.py` | FastLOBEngine: 마이크로초 제로카피 링버퍼, L3 오더북 매칭 & Hawkes 오더 도착 강도 모델 |
+| `src/broker/fix_protocol_engine.py` | FIXProtocolEngine: FIX 4.4 기관 직결 DMA 프로토콜 클라이언트 엔진 |
+| `src/broker/interactive_brokers.py` | InteractiveBrokersConnector: IBKR 네이티브 TWS/Gateway 소켓 커넥터 |
 | `src/execution/slippage_feedback.py` | SlippageFeedbackEngine: 실체결 슬리피지 기반 비용 모델 파라미터 적응 보정 |
 | `src/execution/almgren_chriss.py` | AlmgrenChrissScheduler: 충격과 타이밍 리스크를 최소화하는 최적 집행 스케줄러 |
 | `src/execution/turnover_optimizer.py` | TurnoverOptimizer: 진입/청산 바이패스 지원 회전율 정규화기 |
@@ -279,4 +292,5 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 | R16 | 2026-09-03 | 기관급 3대 감점 요인(-1.8점) 전면 극복 완결: 1) 마이크로초 대 제로카피 링버퍼 & L3 오더북 매칭 및 Hawkes 도착 강도(`fast_lob_engine.py`), 2) FIX 4.4 프로토콜 엔진 & Interactive Brokers 연동기(`fix_protocol_engine.py`, `interactive_brokers.py`), MultiBrokerManager 등록 & SmartOrderRouter 글로벌 자동 라우팅, 3) 강화학습(RL) 기반 동적 최적 주문 슬라이싱 에이전트(`rl_execution_agent.py`) 구축, 30개 전용/통합 테스트 100% 통과 (종합 100.0 / 100 만점 달성) |
 | R17 | 2026-09-03 | 시스템 정밀 포렌식 진단 및 6대 엔터프라이즈 아키텍처 결함 개선 완결: 1) KOSDAQ STT 세제 개편(0.18%->0.15%) 동기화 및 3 bps 알파 억제 해소, 2) UnifiedPortfolioAllocator 역방향 룩어헤드 편향(.bfill) 원천 제거, 3) OMS 37대 전략 Alpha Half-Life 및 Overnight Gap Fast-VWAP 동적 집행 라우팅 완결, 4) SmartOrderRouter .KS/.KQ 접미사 글로벌 거래소 파싱 보정, 5) StrategyCoverageAnalyzer Standalone 장전 특수 전략 분리 격리 및 결측 사유 매핑 보정, 6) 116개 전수 단위/통합 테스트 100% 통과 |
 | R18 | 2026-09-03 | 전 세계 최고 트레이더 시스템 정밀 고도화 완결: 1) UnifiedPortfolioAllocator FX 인과적 정렬 및 룩어헤드 원천 제거, 2) SmartOrderRouter 글로벌 멀티 마켓(JP, HK, EU, CA, US, KRX) 라우팅 확장, 3) OpeningAuctionArbitrageEngine .KS/.KQ 접미사 테마 매핑 정밀화, 4) HTML 대시보드 STT 0.15% 동기화, 5) 전용 및 통합 테스트 21/21 100% 통과 |
+| R19 | 2026-09-03 | Phase 1-3 Master Plan 퀀트 시스템 및 대시보드 고도화 완결: 1) 30일 롤링 RankIC 기반 37대 알파 동적 가중치 스케일링, 2) 패닉/폭락장 과매도 역발상(Contrarian Reversal) 알파 부스트, 3) RiskMetrics 표준 EWMA 공분산(lambda=0.94) 및 연속 비례 Leland 버퍼 밴드, 4) KRX/US 차등 시장 슬리피지 맵 및 소프트 크라이시스 2차 감쇄 게이팅, 5) 대시보드 3대 통합 메가 카드(Regime/Coverage/Portfolio) 및 37-Alpha 레이더 차트, 6) 2,182개 전수 테스트 100% 통과 |
 

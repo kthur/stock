@@ -2518,8 +2518,8 @@ class EnsembleScoringEngine:
         else:
             raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
 
-        # V8-HIGH-10 Fix: Bayesian coverage shrinkage towards cross-sectional mean for stocks with <0.60 valid weight
-        if getattr(self, 'enable_coverage_shrinkage', True) and len(strategy_cols) >= 10 and (valid_weight_series > 0).any():
+        # V8-HIGH-10 Fix: Bayesian coverage shrinkage towards cross-sectional mean for stocks with <0.60 valid weight (real universes len >= 5)
+        if getattr(self, 'enable_coverage_shrinkage', True) and len(merged) >= 5 and len(strategy_cols) >= 10 and (valid_weight_series > 0).any():
             valid_scores = raw_linear_score[has_valid]
             cs_mean = float(valid_scores.mean()) if len(valid_scores) > 0 else 0.50
             cov_lambda = (valid_weight_series / 0.60).clip(0.0, 1.0)

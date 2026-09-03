@@ -115,13 +115,33 @@ flowchart TD
 
 ---
 
-## 5. 관련 핵심 소스 코드 (Core Source Code Links)
+## 5. Alpha Half-Life 기반 동적 실행 라우팅 & RankIC 가중치
+
+시스템은 각 알파의 **반감기(Alpha Half-Life $t_{1/2}$)** 및 실시간 시장 미시구조 상태에 따라 최적 집행 알고리즘 및 라우터를 자동으로 분기합니다:
+
+| 알파 반감기 ($t_{1/2}$) | 목표 전략군 | 최적 집행 알고리즘 | 라우팅 엔진 |
+|---|---|---|---|
+| **초단기 ($t_{1/2} \le 1$일)** | `overnight_gap_reversal`, `microstructure`, `short_term_reversal` | **Fast-VWAP / Aggressive Limit** | Fast LOB Engine & Direct DMA |
+| **단기 ($1\text{일} < t_{1/2} \le 5$일)** | `surge`, `vcp_ml`, `range_expansion_breakout`, `dual_correction` | **Almgren-Chriss TWAP/VWAP Slicing** | SmartOrderRouter (SOR) |
+| **중장기 ($t_{1/2} > 5$일)** | `regression`, `rim_valuation`, `mq_factor`, `sector`, `index_rebalance` | **POV (Percentage of Volume) / Passive Peg** | RL Execution Agent & MultiBroker |
+
+### 30일 롤링 RankIC & 패닉 역발상 가중치
+- **동적 RankIC 스케일링**: 최근 30거래일 롤링 RankIC를 모니터링하여 예측력이 높은 알파의 가중치를 최대 1.3배 상향하고 저조한 알파는 감쇄.
+- **패닉 역발상 알파 (Contrarian Reversal)**: `CrisisLevel.ACTIVE` 또는 `SEVERE` 국면 진입 시 과매도 평균회귀 및 역발상 팩터(`short_term_reversal`, `card_factor`, `iv_skew`, `overnight_gap_reversal`) 가중치를 자동 부스트하여 낙폭과대 반등을 선취.
+
+---
+
+## 6. 관련 핵심 소스 코드 (Core Source Code Links)
 
 - **전략 레지스트리**: [`src/core/strategy_registry.py`](file:///d:/Finance/code/stock/trading_system/src/core/strategy_registry.py)
 - **횡단면 정규화 엔진**: [`src/ai/score_normalizer.py`](file:///d:/Finance/code/stock/trading_system/src/ai/score_normalizer.py)
 - **앙상블 스코어러**: [`src/ai/ensemble_scorer.py`](file:///d:/Finance/code/stock/trading_system/src/ai/ensemble_scorer.py)
 - **팩터 직교화 엔진**: [`src/ai/factor_orthogonalizer.py`](file:///d:/Finance/code/stock/trading_system/src/ai/factor_orthogonalizer.py)
 - **통합 기관급 포트폴리오 할당기**: [`src/risk/unified_portfolio_allocator.py`](file:///d:/Finance/code/stock/trading_system/src/risk/unified_portfolio_allocator.py)
-- **포트폴리오 할당기**: [`src/risk/portfolio_allocator.py`](file:///d:/Finance/code/stock/trading_system/src/risk/portfolio_allocator.py)
 - **실행 OMS 엔진**: [`src/execution/oms_engine.py`](file:///d:/Finance/code/stock/trading_system/src/execution/oms_engine.py)
+- **스마트 오더 라우터 (SOR)**: [`src/execution/smart_order_router.py`](file:///d:/Finance/code/stock/trading_system/src/execution/smart_order_router.py)
+- **강화학습 주문 슬라이싱 에이전트**: [`src/execution/rl_execution_agent.py`](file:///d:/Finance/code/stock/trading_system/src/execution/rl_execution_agent.py)
+- **Fast LOB 초저지연 오더북 엔진**: [`src/core/fast_lob_engine.py`](file:///d:/Finance/code/stock/trading_system/src/core/fast_lob_engine.py)
+- **FIX 4.4 프로토콜 클라이언트**: [`src/broker/fix_protocol_engine.py`](file:///d:/Finance/code/stock/trading_system/src/broker/fix_protocol_engine.py)
+- **Interactive Brokers 커넥터**: [`src/broker/interactive_brokers.py`](file:///d:/Finance/code/stock/trading_system/src/broker/interactive_brokers.py)
 - **Almgren-Chriss 집행기**: [`src/execution/almgren_chriss.py`](file:///d:/Finance/code/stock/trading_system/src/execution/almgren_chriss.py)

@@ -1,14 +1,14 @@
 # 주식 자동매매 시스템 전체 구조 및 알고리즘 명세서
 
-> **Version**: 8.0 (Production Standard)  
+> **Version**: 9.0 (Institutional Production Standard)  
 > **Last Updated**: 2026-09-03 (KST)  
 > **Python**: 3.10+  
 > **Database**: SQLite (WAL & Thread-safe Write Mutex)
 
 > [!IMPORTANT]
 > 이 문서는 현재 운영 중인 통합 프로덕션 아키텍처를 설명합니다:
-> - **37대 다변화 파이프라인 아키텍처** (`run_pipeline.py`): 37대 ML/시계열DL/규칙/수급/옵션/이벤트/공급망/FinBERT감성/Fama-French 5-Factor/변동성타겟팅/미시구조/매크로임펄스/가치사슬GNN/레인지확장돌파/듀얼코렉션/인덱스리밸런싱/오버나이트갭 팩터 전략 앙상블, 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 2D 시장 레짐 판정, 포트폴리오 최적화(`UnifiedPortfolioAllocator`: BL, HERC, RP, EVT-CVaR 4-Model Blending), 실전 미시구조 거래비용 모델 및 RiskManager 위기 제어 파이프라인
-> - **이벤트 기반 자율 매매 및 Execution OMS** (`src/execution/oms_engine.py`): 8대 주문 안전 게이트 (Gate 8: 합성 인버스 헤지 오버레이), Almgren-Chriss 최적 집행 트랜치 스케줄러, 실시간 오더북 및 체결 슬리피지 피드백 엔진 (`trade_logs.db`)
+> - **37대 다변화 파이프라인 아키텍처** (`run_pipeline.py`): 37대 ML/시계열DL/규칙/수급/옵션/이벤트/공급망/FinBERT감성/Fama-French 5-Factor/변동성타겟팅/미시구조/매크로임펄스/가치사슬GNN/레인지확장돌파/듀얼코렉션/인덱스리밸런싱/오버나이트갭 팩터 전략 앙상블, 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 30일 롤링 RankIC 동적 가중치, 2D 시장 레짐 판정, 포트폴리오 최적화(`UnifiedPortfolioAllocator`: BL, HERC, RP, EVT-CVaR 4-Model Blending & 3/2승 시장충격 페널티), 실전 미시구조 거래비용 모델(KRX 0.15% STT) 및 RiskManager 위기 제어 파이프라인
+> - **초저지연 기관급 실행 엔진 & Execution OMS** (`src/core/fast_lob_engine.py`, `src/broker/fix_protocol_engine.py`, `src/broker/interactive_brokers.py`, `src/execution/smart_order_router.py`, `src/execution/rl_execution_agent.py`, `src/execution/oms_engine.py`): Level 3 호가 매칭 제로카피 링버퍼, FIX 4.4 DMA, IBKR 네이티브 커넥터, 글로벌 스마트 오더 라우터, 강화학습 주문 슬라이싱 에이전트, 8대 주문 안전 게이트 (Gate 8: 합성 인버스 헤지 오버레이), Almgren-Chriss 트랜치 스케줄러, 실시간 오더북 및 체결 슬리피지 피드백 엔진 (`trade_logs.db`)
 
 ---
 
@@ -1018,6 +1018,38 @@ else → weak_bear
 - `kiwoom_server.py`: 32비트 프로세스, 키움 서버와 직접 통신
 - `kiwoom.py`: 64비트 메인 프로세스, ZMQ 소켓으로 서버와 통신
 
+### 13.4 FIX 4.4 DMA Engine (src/broker/fix_protocol_engine.py)
+
+기관 직결 DMA(Direct Market Access)를 지원하는 표준 금융 통신 프로토콜 엔진:
+- **FIX 4.4 사양 구현**: NewOrderSingle(`35=D`), ExecutionReport(`35=8`), OrderCancelRequest(`35=F`), Heartbeat(`35=0`) 완비.
+- **세션 상태 머신**: SeqNum 동기화, 자동 재접속, 하트비트 인터벌 관리.
+- **초고속 직렬화/역직렬화**: 태그-값 기반 바이너리 안전 문자열 파서.
+
+### 13.5 Interactive Brokers Native Connector (src/broker/interactive_brokers.py)
+
+미국 및 글로벌 다중 거래소 주문 집행을 위한 네이티브 소켓 커넥터:
+- **IBKR TWS / IB Gateway 연동**: EClient / EWrapper 소켓 인터페이스 기반 비동기 체결 이벤트 수신.
+- **스마트 라우팅 및 알고 주문 지원**: SMART 거래소 라우팅, VWAP, Adaptive Algo 주문 집행.
+
+### 13.6 Smart Order Router (src/execution/smart_order_router.py)
+
+국내외 멀티 베뉴 지능형 자동 라우터:
+- **글로벌 거래소 파싱**: `.KS`(KOSPI), `.KQ`(KOSDAQ) 접미사 자동 인식 및 국내 증권사(KIS/Kiwoom) 라우팅, 해외 종목(US/JP/HK/EU/CA) IBKR/FIX 라우팅.
+- **1차 베뉴 잔여분 2차 베뉴 자동 페일오버**: 유동성 고갈 또는 타임아웃 시 2차 브로커로 즉시 잔여 주문 재전송.
+
+### 13.7 Fast LOB Engine (src/core/fast_lob_engine.py)
+
+마이크로초 단위 초저지연 오더북 매칭 및 미시구조 강도 분석 엔진:
+- **제로카피 고정 크기 링버퍼 (Ring Buffer)**: GC 오버헤드 없는 틱 데이터 순환 처리.
+- **Level 3 오더북 매칭**: 개별 호가 주문(Limit Orders) 및 시장가 주문(Market Orders) 가격/시간 우선순위 체결.
+- **Hawkes 자기여기(Self-Exciting) 점 과정 강도 모델**: 주문 유입 가속도 및 연속 폭주 감지.
+
+### 13.8 강화학습(RL) 기반 동적 주문 슬라이싱 에이전트 (src/execution/rl_execution_agent.py)
+
+강화학습을 통한 비선형 최적 주문 분할 에이전트:
+- **알고리즘**: Q-learning 및 연속 정책 네트워크.
+- **동적 제어**: 오더북 불균형(OBI), 잔여 시간, 잔여 수량, 스프레드를 관측하여 최적 트랜치 분할 및 호가 지정(Midpoint Peg vs Passive vs Aggressive) 수행.
+
 ---
 
 ## 14. 텔레그램 봇 명령어
@@ -1163,10 +1195,14 @@ else → weak_bear
 ## 16. 테스트
 
 ### 16.1 테스트 프레임워크 및 계층 구조
-모든 테스트는 프로젝트 루트의 단일 `tests/` 디렉토리 아래로 통합 관리되며, 4단계(Tier 1 Happy, Tier 2 Boundary, Tier 3 Pairwise, Tier 4 Workload) 및 정밀 적대적 스트레스 테스트를 포괄합니다. **총 2,130개 이상의 테스트가 100% 통과(Pass)**하고 있습니다.
+모든 테스트는 프로젝트 루트의 단일 `tests/` 디렉토리 아래로 통합 관리되며, 4단계(Tier 1 Happy, Tier 2 Boundary, Tier 3 Pairwise, Tier 4 Workload) 및 정밀 적대적 스트레스 테스트를 포괄합니다. **총 2,182개 이상의 테스트가 100% 통과(Pass)**하고 있습니다.
 
 | 테스트 스위트 | 주요 검증 내용 |
 |--------------|----------------|
+| `tests/test_fast_lob_engine.py` | Fast LOB 제로카피 링버퍼, L3 호가 매칭, Hawkes 도착 강도 모델 검증 |
+| `tests/test_fix_and_ibkr_broker.py` | FIX 4.4 DMA 프로토콜 및 Interactive Brokers 커넥터 검증 |
+| `tests/test_rl_execution_agent.py` | 강화학습(RL) 기반 동적 최적 주문 슬라이싱 에이전트 검증 |
+| `tests/test_system_architecture_fixes.py` | KOSDAQ STT 0.15%, .bfill 룩어헤드 제거, OMS 알파 반감기 라우팅 등 검증 |
 | `tests/test_v8_remediation.py` | V8 시스템 정밀 감사 43개 결함(Critical 13, High 16, Medium 14) 완결 검증 |
 | `tests/test_world_class_quant_enhancements.py` | 연속 켈리, 팩터 중립화, 호가단위 그리드, 회전율 페널티 MVO |
 | `tests/test_world_class_trader_return_enhancements.py` | 미드포인트 페그, 장중 ATR 트레일링 스탑 래칫, 컨플루언스 알파 부스트, Top-K 압축 |
@@ -1186,7 +1222,7 @@ else → weak_bear
 ### 16.2 실행
 
 ```bash
-# 전체 테스트 실행 (2,130개 테스트 100% 통과)
+# 전체 테스트 실행 (2,182개 테스트 100% 통과)
 python -m pytest tests/ -v --tb=short
 
 # 빠른 요약 실행
@@ -1313,6 +1349,7 @@ mypy src/
 ---
 
 > **문서 이력**
+> - 2026-09-03: v9.0 — 기관급 초저지연 실행 레이어 완결 (Fast LOB 제로카피 링버퍼/L3 매칭/Hawkes, FIX 4.4 DMA 엔진, Interactive Brokers 커넥터, 글로벌 멀티마켓 SmartOrderRouter, 강화학습 주문 슬라이싱 에이전트), 30일 롤링 RankIC 동적 알파 가중치, 패닉 역발상 알파 부스트, EWMA 공분산 행렬(lambda=0.94), 연속 비례 Leland 버퍼 밴드, KOSDAQ STT 세제 개편(0.15%) 동기화, 대시보드 3대 통합 메가 카드 및 2,182+ 전수 테스트 100% 통과 반영
 > - 2026-09-03: v8.0 — 37대 다변화 전략 완결 (Cross-Asset Spillover, Supply Chain GNN, Range Expansion Breakout, Dual Correction, Index Rebalance, Overnight Gap Reversal), UnifiedPortfolioAllocator(BL+HERC+RP+CVaR 4-Model Blending & 3/2-power Market Impact Penalty), Execution OMS 8대 주문 안전 게이트 (Gate 8: 합성 인버스 헤지 오버레이), V8 정밀 감사(43개 결함 해결) 및 2,130+ 전수 테스트 100% 통과 반영
 > - 2026-08-22: v6.5 — 6차 고도화 완결 (V6-01~V6-35, F01~F10): 31대 전략 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 결측 전략 동적 제로 가중치 재정규화, 시장별 법정 Filing Lag(KRX 45d, US 40d), 층화 샘플링(Stratified Sampling), 적응형 타임아웃 & 지터 백오프, VIX 기간구조 완충 게이팅, Almgren-Chriss 최적 집행 스케줄러, 7대 주문 안전 게이트 및 1,569+ 전수 테스트 100% 통과 반영
 > - 2026-08-17: v5.0 — 31대 전략 다변화 확장 (Supply Chain, FinBERT Sentiment, Style Neutralizer, Vol Target, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Eff, Gamma Squeeze, Insider Buying, Tone Drift, Darkpool HFT), HRP 및 EVT-CVaR 포트폴리오 최적화, Leland No-Trade 버퍼 밴드, 단일 `tests/` 통합(1,124+ 테스트)

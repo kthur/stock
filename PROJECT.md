@@ -5,6 +5,7 @@
 - **Model Training & Inference Layer**: `src/ai/prediction_model.py`, `src/ai/vcp_ml_predictor.py`, `src/ai/vcp_detector.py`, `train_models.py`, `run_pipeline.py`.
 - **37-Strategy Factor Engine & Ensemble**: `src/core/*`, `src/ai/score_normalizer.py`, `src/ai/ensemble_scorer.py`, `src/ai/factor_orthogonalizer.py`, `src/core/strategy_registry.py`.
 - **Portfolio & Risk Management Layer**: `src/risk/unified_portfolio_allocator.py`, `src/risk/portfolio_allocator.py`, `src/risk/risk_manager.py`, `src/analysis/portfolio_optimizer.py`, `src/execution/oms_engine.py`, `src/execution/slippage_feedback.py`.
+- **Institutional Execution & Broker Layer**: `src/core/fast_lob_engine.py`, `src/broker/fix_protocol_engine.py`, `src/broker/interactive_brokers.py`, `src/execution/smart_order_router.py`, `src/execution/rl_execution_agent.py`.
 - **Reporting & Visualization Layer**: `src/pipeline/reporter.py`, `trading_system/generate_report.py`, `gh-pages/index.html`.
 - **CI/CD & Verification Layer**: `.github/workflows/pipeline.yml`, `preseed.yml`, `training.yml`, `trading_system/scripts/verify_gha_artifacts.py`, `merge_predictions.py`.
 
@@ -26,6 +27,11 @@
 | F13 | OMS Gate 8 Synthetic Beta Inverse Hedge | Add Gate 8 for automated inverse ETF hedging during Bear/Crisis regimes and fix currency denominator | M6 | Execution OMS R15 |
 | F14 | Comprehensive V8 System Integrity Remediation | Resolve 43 system defects (Critical 13, High 16, Medium 14) across data lag, causality, PSD flooring, and pooling | M7 | V8 Integrity Audit |
 | F15 | World-Class Quant & Trader Enhancements | Continuous Fractional Kelly, Midpoint Peg, Intraday ATR Trailing Ratchet, and Top-K concentration | M8 | World-Class Alpha Upgrade |
+| F16 | Fast LOB Engine & L3 Orderbook Matching | Zero-copy ring buffer, Level 3 orderbook matching, Hawkes arrival intensity modeling (`fast_lob_engine.py`) | M9 | Institutional Execution R16 |
+| F17 | FIX 4.4 Protocol Engine & IBKR Connector | Institutional DMA via FIX 4.4 protocol client and native Interactive Brokers TWS/Gateway socket connector | M9 | Institutional Execution R16 |
+| F18 | Global Smart Order Router & RL Execution Agent | Intelligent multi-venue routing (KRX/US/Global) and Q-learning dynamic optimal order slicing agent | M9 | Institutional Execution R16 |
+| F19 | Master Plan Phase 1-3 Systemic Quant Enhancements | 30-day rolling RankIC dynamic alpha weighting, contrarian reversal alpha in crash, EWMA covariance ($\lambda=0.94$), continuous Leland bands | M10 | Quant Master Plan R19 |
+| F20 | Consolidated 3 Mega Cards Dashboard & 37-Alpha Radar | 3 Mega Cards UX architecture, 37-Alpha radar chart, column presets, stock drawer factor breakdown, and watchlist | M10 | Dashboard Modernization R19 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -37,7 +43,9 @@
 | M5 | 37-Strategy Factor Engine Scaling | F11: Strategies 32~37 implementation, scoring pipeline, and output reports | M4 | DONE |
 | M6 | Institutional Portfolio & OMS Gate 8 | F12, F13: `UnifiedPortfolioAllocator` 4-model blending, OMS Gate 8 synthetic inverse hedge overlay | M5 | DONE |
 | M7 | V8 System Integrity Remediation | F14: 43 defects resolved across data pipeline, causality, covariance shrinkage, and DB connection pooling | M6 | DONE |
-| M8 | World-Class Trader Alpha Upgrade & 2,130+ Tests | F15: Top-K concentration, fractional Kelly, tick grid rounding, and 2,130 pytest suite 100% pass | M7 | DONE |
+| M8 | World-Class Trader Alpha Upgrade | F15: Top-K concentration, fractional Kelly, tick grid rounding, and test suite expansion | M7 | DONE |
+| M9 | Institutional Ultra-Low Latency Execution Layer | F16, F17, F18: Fast LOB Engine, FIX 4.4 DMA, IBKR Connector, Global SOR, and RL Execution Agent | M8 | DONE |
+| M10 | Master Plan Phase 1-3 Quant Upgrades & 2,182 Tests | F19, F20: 30-day RankIC, EWMA Cov, 3 Mega Cards Dashboard, and 2,182 pytest suite 100% pass | M9 | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -56,4 +64,9 @@
 - `trading_system/scripts/merge_predictions.py`: 37-strategy multi-market file merger
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
-- `tests/`: Automated unit, integration, and e2e test suite (2,130 items)
+- `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
+- `src/broker/fix_protocol_engine.py`: FIX 4.4 protocol DMA engine
+- `src/broker/interactive_brokers.py`: Native IBKR connector
+- `src/execution/smart_order_router.py`: Global multi-market Smart Order Router
+- `src/execution/rl_execution_agent.py`: Reinforcement learning order slicing agent
+- `tests/`: Automated unit, integration, and e2e test suite (2,182 items)

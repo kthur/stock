@@ -1,6 +1,10 @@
 # 📈 Stock Trading System — 통합 주식 자동매매 및 예측 파이프라인
 
-한국(KOSPI/KOSDAQ/KONEX) 및 미국(S&P 500/NASDAQ/RUSSELL 2000) 시장의 **3,379개 종목**을 대상으로 **37대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영하고 2D 시장 레짐 기반 동적 앙상블, 리스크 관리 및 포트폴리오 최적화를 구동하는 기관급 통합 정량적(Quantitative) 예측 및 자율 매매 파이프라인입니다.
+> **Version**: 9.0 (Institutional Production Standard)  
+> **Status**: Production Ready (2,182+ tests 100% PASS)  
+> **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
+
+한국 및 미국 시장을 대상으로 **37대 다변화 팩터 전략(Multi-Factor & Multi-Model Engine)**을 병행 운영하고, 2D 시장 레짐 기반 동적 앙상블, 30일 롤링 RankIC 알파 스케일링, EWMA 공분산, `UnifiedPortfolioAllocator`(4-Model Blending & 3/2승 시장충격 페널티), **초저지연 L3 LOB / FIX 4.4 DMA / IBKR / 글로벌 SOR / 강화학습(RL) 주문 슬라이싱 에이전트**를 구동하는 기관급 통합 정량적(Quantitative) 예측 및 자율 매매 시스템입니다.
 
 자동 업데이트되는 라이브 웹 대시보드: **[https://kthur.github.io/stock/](https://kthur.github.io/stock/)**
 
@@ -67,19 +71,21 @@ flowchart TD
 
     subgraph NormalizationRegime ["3. 횡단면 정규화 & 시장 레짐 (Normalization & Regime Layer)"]
         Norm["CrossSectionalScoreNormalizer\n(Percentile Rank & Winsorized Gaussian CDF [0, 1])"]
+        RankIC["30일 롤링 RankIC 엔진\n(전략별 실시간 예측력 추적 & 동적 가중치 스케일링)"]
         Regime["2D Market Regime Detector\n(수익률 & 변동성 6대 레짐: Bull/Sideways/Bear x Low/High Vol)"]
         Ortho["Factor Decorrelation & Whitening\n(PCA-ZCA Whitening & Gram-Schmidt Decorrelation)"]
-        Risk["RiskManager & CrisisDetector\n(거시 위기 4단계 / VIX 기간구조 & 속도 완충 게이팅)"]
+        Risk["RiskManager & CrisisDetector\n(거시 위기 4단계 / VIX 기간구조 & 소프트 감쇄 게이팅)"]
     end
 
     subgraph EnsembleOpt ["4. 동적 앙상블 & 포트폴리오 최적화 (Ensemble & Portfolio Allocation)"]
         Calib["Isotonic & Platt Calibration\n(확률 단조 보정 & Winsorization)"]
         Ensemble["EnsembleScoringEngine\n(37대 전략 동적 가중치 + 결측 적응형 제로가중 재정규화)"]
-        Cost["미시구조 거래비용 모델\n(STT 세금, SEC Fee, 동적 스프레드, Kyle/Almgren 시장충격)"]
-        Alloc["UnifiedPortfolioAllocator\n(Black-Litterman + HERC + Risk Parity + EVT-CVaR 4-Model Blending, 3/2승 충격 페널티, Leland Bands)"]
+        Cost["미시구조 거래비용 모델\n(KRX 0.15% STT, SEC Fee, 동적 스프레드, Kyle/Almgren 시장충격)"]
+        Alloc["UnifiedPortfolioAllocator\n(BL + HERC + Risk Parity + EVT-CVaR 4-Model Blending, 3/2승 충격 페널티, EWMA Cov, Leland Bands)"]
         
         Calib --> Ensemble
-        Norm --> Ensemble
+        Norm --> RankIC
+        RankIC --> Ensemble
         Regime --> Ensemble
         Ortho --> Ensemble
         Risk --> Ensemble
@@ -87,14 +93,26 @@ flowchart TD
         Cost --> Alloc
     end
 
-    subgraph OutputExecution ["5. 파이프라인 출력 & 실행 (Output & Execution OMS)"]
-        Files["TXT/CSV 예측 리포트 (KST)\n(ensemble_predictions.txt, coverage_report.txt 외 37개 리포트)"]
-        Dash["GitHub Pages HTML 대시보드\n(index.html - 37개 전략 탭, 시나리오 시뮬레이터)"]
-        OMS["Execution OMS Engine & Slippage Feedback\n(8 Safety Gates, Gate 8 합성 인버스 헤지, Almgren-Chriss Slicing, trade_logs.db)"]
+    subgraph ExecutionLayer ["5. 기관급 초저지연 실행 & OMS (Institutional Execution Layer)"]
+        OMS["Execution OMSEngine & 8 Safety Gates\n(Gate 8 합성 인버스 헤지, Alpha Half-Life 라우팅, trade_logs.db)"]
+        SOR["SmartOrderRouter & MultiBrokerManager\n(KRX / US / JP / HK / EU / CA 다중 거래소 자동 라우팅)"]
+        RL["RL Execution Agent\n(강화학습 기반 동적 최적 주문 슬라이싱)"]
+        LOB["Fast LOB Engine\n(마이크로초 제로카피 링버퍼, L3 매칭, Hawkes 도착 강도)"]
+        DMA["FIX 4.4 DMA & IBKR / KIS / Kiwoom Connectors\n(기관 직결 세션 및 증권사 연동)"]
+        
+        Alloc --> OMS
+        OMS --> SOR
+        SOR --> RL
+        RL --> LOB
+        SOR --> DMA
+    end
+
+    subgraph ReportingLayer ["6. 리포팅 & 대시보드 (Reporting & Visual Center)"]
+        Files["TXT/CSV 예측 리포트 (KST)\n(ensemble_predictions.txt 외 37개 전략 리포트)"]
+        Dash["GitHub Pages 라이브 웹 대시보드\n(3대 통합 메가 카드, 37-Alpha 레이더, 컬럼 프리셋)"]
         
         Alloc --> Files
         Alloc --> Dash
-        Alloc --> OMS
     end
 
     DB --> AlphaEngine
@@ -150,45 +168,33 @@ flowchart TD
 
 ## 🛡️ 시스템 아키텍처 및 퀀트 엔지니어링 핵심
 
-### 1. 횡단면 점수 정규화 & 통계적 위생 (Cross-Sectional Hygiene)
-- **`CrossSectionalScoreNormalizer`**: 37개 전략의 출력 점수(회귀 수익률, 분류 확률, 공적분 Z-Score, 가치평가 할인율 등) 간 스케일 불일치를 방지하기 위해 Percentile Rank 및 Winsorized Gaussian CDF 정규화를 적용하여 균일한 분산의 $[0.0, 1.0]$ 스케일로 투영합니다.
-- **결측 적응형 제로 가중치 (Missing Strategy Zero-Weighting)**: 산출 불가 전략에 임의의 기본값(0.50 등)을 채워넣지 않고, 해당 종목에서 해당 전략 가중치를 0으로 배제한 뒤 활성 전략 가중치를 정확히 재정규화($\sum_{k \in \text{Active}} \tilde{w}_{i,k} = 1.0$)합니다.
-- **2D 시장 레짐 매트릭스**: KOSPI/S&P500 20일 추세($\pm 1\%$)와 20일 변동성(15%/25%)을 결합한 6대 레짐(`BULL_LOW_VOL`, `BULL_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BEAR_LOW_VOL`, `BEAR_HIGH_VOL`)을 실시간 판정하여 37대 전략 가중치 합을 정확히 1.0000으로 동적 할당합니다.
-- **다중공선성 제거 & 팩터 직교화**: **PCA-ZCA 대칭 화이트닝(Symmetric Whitening)** 및 **Gram-Schmidt 직교화**를 적용하여 알파 신호의 중복 과적합을 방지합니다.
+### 1. 횡단면 점수 정규화 & RankIC 동적 가중치
+- **`CrossSectionalScoreNormalizer`**: 37개 전략의 상이한 출력 스케일을 Percentile Rank 및 Winsorized Gaussian CDF 정규화를 통해 $[0.0, 1.0]$ 스케일로 투영합니다.
+- **30일 롤링 RankIC 동적 가중치**: 최근 30거래일 동안의 정보계수(RankIC)를 실시간 추적하여 예측력이 뛰어난 알파 팩터에 가중치를 동적으로 우대 배분합니다.
+- **패닉 역발상 알파 (Contrarian Reversal)**: 극단적 폭락 국면에서 단기 과매도 알파 가중치를 일시적으로 상향하여 기술적 반등 수익률을 극대화합니다.
+- **결측 적응형 제로 가중치 (Missing Strategy Zero-Weighting)**: 산출 불가 전략에 기본값을 채우지 않고 해당 종목에서 해당 전략 가중치를 0으로 배제 후 정확히 재정규화합니다.
+- **PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화**: 알파 간 다중공선성을 제거하여 순수 독립 알파를 추출합니다.
 
-### 2. 데이터 파이프라인 무결성 (Data Integrity)
-- **동적 시장별 Filing Lag**: 일률적 60일 지연 대신 시장 규정(KRX 45일, US 40일)과 공시 확인 시점(`filing_date`, `rcept_dt`)을 우선 반영하여 룩어헤드 바이어스를 원천 차단하면서도 실적 모멘텀을 적시에 반영합니다.
-- **층화 샘플링 (Stratified Sampling)**: 학습 데이터 준비(`prepare_training_data`) 시 단순 무작위 추출 대신 Market × Sector × Market-Cap Quantile 다차원 층화 샘플링을 적용하여 대형주/주도주 누락을 방지합니다.
-- **적응형 네트워크 타임아웃**: 전역 소켓 락을 제거하고 데이터 소스(FRED, ECOS, DART, yfinance)별 개별 타임아웃 및 지터(Jitter) 지수 백오프 재시도를 적용합니다.
+### 2. 데이터 무결성 & 인과성 보장
+- **동적 시장별 Filing Lag**: 일률적 60일 지연 대신 시장 규정(KRX 45일, US 40일)과 공시 확인 시점(`filing_date`)을 우선 반영하여 룩어헤드를 차단합니다.
+- **역방향 편향 원천 제거**: 포트폴리오 수익률 및 팩터 시계열 계산 시 `.bfill()` 등 역방향 미래 참조를 원천 배제합니다.
+- **층화 샘플링 (Stratified Sampling)**: Market × Sector × Market-Cap Quantile 다차원 층화 샘플링으로 표본 대표성을 확보합니다.
 
 ### 3. 기관급 포트폴리오 최적화 & 미시구조 거래비용
-- **`UnifiedPortfolioAllocator` 4대 모델 블렌딩**: Black-Litterman (BL), HERC (Hierarchical Equal Risk Contribution), Risk Parity (RP), EVT-CVaR를 시장 레짐에 따라 최적으로 결합합니다.
-- **3/2승 비선형 시장충격 페널티**: Gatheral & Almgren-Chriss 모델에 기반한 대규모 자금 집행 비용 목적함수를 최적화합니다.
-- **EVT-CVaR 극단값 꼬리위험 예산**: Generalized Pareto Distribution (GPD) Peaks-Over-Threshold (POT) 3단계 계층 구조로 95% CVaR를 엄밀하게 계산합니다.
-- **Leland 동적 No-Trade 버퍼 밴드**: 종목별 거래비용과 변동성을 고려한 버퍼 밴드($\delta_i \in [0.5\%, 5.0\%]$)를 적용하여 리밸런싱 비용을 60% 이상 절감합니다. 신규 진입($w_{\text{curr}}=0$) 및 전량 청산($w_{\text{targ}}=0$) 시에는 즉시 바이패스 실행합니다.
-- **실전 미시구조 비용 차감**: KOSPI 0.15% / KOSDAQ 0.18% 증권거래세, US SEC 수수료, 동적 스프레드, Kyle/Almgren-Chriss 제곱근 시장 충격 모델을 차감하여 **순예상수익률(Net Expected Return)**을 산출합니다.
+- **`UnifiedPortfolioAllocator` 4대 모델 블렌딩**: Black-Litterman (BL), HERC, Risk Parity (RP), EVT-CVaR를 6대 시장 레짐에 따라 최적 결합합니다.
+- **EWMA 공분산 행렬**: RiskMetrics 표준 반감기 $\lambda=0.94$를 적용하여 급격한 시장 변동성 변화를 즉각 반영합니다.
+- **3/2승 비선형 시장충격 페널티**: Gatheral & Almgren-Chriss 모델에 기반한 대규모 자금 집행 충격 비용을 목적함수에 내재화합니다.
+- **연속 비례 Leland 버퍼 밴드**: 거래비용 및 변동성 비율에 비례하는 $\delta_i \in [0.5\%, 5.0\%]$ 밴드를 적용하여 불필요한 턴오버를 60% 이상 억제합니다.
+- **법정 세제 개편 동기화**: KRX 증권거래세 0.15% (KOSPI & KOSDAQ 일원화) 및 미국 SEC 수수료를 실체결 단가에 엄밀히 차감합니다.
 
-### 4. Execution OMS & 8대 안전 게이트
-- **Almgren-Chriss 최적 집행 트랜치**: 시장 충격과 타이밍 리스크를 최소화하는 비선형 TWAP/VWAP 주문 분할 스케줄링.
-- **8대 주문 안전 게이트**:
-  1. Gate 1: 거시 위기 SEVERE 단계 매수 차단
-  2. Gate 2: 킬 스위치(Kill Switch) 하드웨어 차단
-  3. Gate 3: 심볼 정규식 검증
-  4. Gate 4: 가격 이상치 & KRX/US 호가단위 정렬
-  5. Gate 5: 10주 단위/1주 단위 라운딩
-  6. Gate 6: 단일 포지션 상한(10%/20%) & 섹터 상한(35%)
-  7. Gate 7: 고급 미시구조 실행 서브게이트 (7.1 합성 숏, 7.2 상하한가 락, 7.3 순알파 허들, 7.4 오프닝 갭 쇼크 필터, 7.5 ADV 한도, 7.6 VPIN 독성, 7.7 갭 과열 눌림목 주문)
-  8. Gate 8: 약세장/위기 시 포트폴리오 베타 방어를 위한 **합성 인버스 ETF 헤지 오버레이 (KODEX 인버스, KODEX 200선물인버스2X, PSQ, SQQQ)**
-- **실시간 슬리피지 피드백**: `trade_logs.db`에 기록된 체결 오차를 분석하여 비용 승수($k_{\text{cost}}$) 및 충격 지수($\alpha$)를 자동 피드백 보정합니다.
-
----
-
-## 🌐 글로벌 표준 및 데이터 정합성
-
-- **KST (Asia/Seoul, UTC+9) 표준화**:
-  - GHA Workflow (`pipeline.yml`), 파이프라인 및 HTML 대시보드 타임스탬프가 **KST** 기준으로 통일 표기됩니다.
-- **Strategy Data Coverage & Missingness Analyzer**:
-  - `StrategyCoverageAnalyzer` 모듈이 37대 전략별 정상 스코어 산출 종목 수 및 최빈 결측 사유(`INSUFFICIENT_PRICE_HISTORY`, `NO_FUNDAMENTAL_DATA`, `LOW_EARNINGS_QUALITY`, `NO_OPTIONS_CHAIN`, `NO_COINTEGRATED_PAIR` 등)를 추적하여 `strategy_data_coverage_report.txt`로 생성합니다.
+### 4. 기관급 초저지연 실행 레이어 & Execution OMS
+- **Fast LOB Engine (`fast_lob_engine.py`)**: 마이크로초 단위 제로카피 링버퍼, Level 3 오더북 매칭 및 Hawkes 오더 도착 강도 모델링.
+- **기관 DMA FIX 4.4 Engine (`fix_protocol_engine.py`)**: 표준 FIX 4.4 세션, 하트비트, 태그 기반 초고속 주문 전송/체결 처리.
+- **Interactive Brokers Connector (`interactive_brokers.py`)**: IBKR TWS/Gateway 소켓 통신을 통한 글로벌 거래 집행.
+- **Smart Order Router (`smart_order_router.py`)**: KRX, US, JP, HK, EU, CA 다중 거래소 자동 라우팅 및 1차 베뉴 잔여분 2차 베뉴 자동 페일오버.
+- **강화학습 주문 슬라이싱 에이전트 (`rl_execution_agent.py`)**: Q-learning 기반 동적 최적 주문 분할로 시장충격 및 타이밍 리스크 최소화.
+- **Alpha Half-Life 동적 집행 라우팅**: 알파의 반감기에 따라 Fast-VWAP(초단기), Almgren-Chriss(중기), POV(장기) 주문 분할 알고리즘으로 자동 라우팅.
+- **8대 주문 안전 게이트 (Gate 8: 합성 인버스 ETF 헤지 오버레이 포함)**.
 
 ---
 
@@ -242,13 +248,13 @@ copy trading_system\.env.example trading_system\.env
 | `dual_correction_predictions.txt` | 텍스트 | 피보나치/AVWAP 및 거래량 고갈 정밀 눌림목 반등 종목 |
 | `index_rebalance_predictions.txt` | 텍스트 | 40조 패시브 ETF 정기변경 15~30일 선반영 종목 |
 | `overnight_gap_predictions.txt` | 텍스트 | ATR 정규화 오버나이트 갭 통계적 갭필 반등 종목 |
-| `trading_system/gh-pages/index.html`| HTML | **37대 전략 통합 라이브 웹 대시보드** |
+| `trading_system/gh-pages/index.html`| HTML | **37대 전략 통합 라이브 웹 대시보드 (3대 메가 카드 & 37-Alpha 레이더)** |
 
 ---
 
 ## 🧪 테스트 스위트 실행
 
 ```powershell
-# 통합 단일 tests/ 디렉토리 기준 2,130+ 전체 pytest 실행 (100% PASS)
+# 통합 단일 tests/ 디렉토리 기준 2,182+ 전체 pytest 실행 (100% PASS)
 .venv\Scripts\python -m pytest tests/ -v
 ```

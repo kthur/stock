@@ -128,14 +128,22 @@ TRAIN_SAMPLE_KRX=30%
 | `score_normalizer.py`| `percentile_rank` | `[0.0, 1.0]` | 37대 전략 출력 횡단면 균일 분산 점수 정규화 |
 | `ensemble_scorer.py` | 37대 전략 앙상블 | 37개 Factor/Model | 37대 전략 동적 가중치 결합 (1D/2D 레짐 가중치 합 strictly = 1.0000) |
 | `ensemble_scorer.py` | Missing Strategy Weight | `Dynamic Zero-Weight` | 미산출 전략 가중치 0 처리 및 활성 전략 가중치 재정규화 |
-| `ensemble_scorer.py` | Microstructure Cost | STT/SEC + Spread + Impact | KOSPI 0.15%, KOSDAQ 0.18%, US SEC 0.003%, 동적 스프레드, Kyle/Almgren 시장충격 |
+| `ensemble_scorer.py` | Microstructure Cost | STT/SEC + Spread + Impact | KOSPI 0.15%, KOSDAQ 0.15% (2026 증권거래세 개편 동기화 완료), US SEC 0.003%, 동적 스프레드, Kyle/Almgren 시장충격 |
+| `ensemble_scorer.py` | Dynamic RankIC Weighting | `30-Day Rolling RankIC` | 실현 예측력 기반 37대 알파 가중치 동적 스케일링 |
 | `unified_portfolio_allocator.py` | 4-Model Regime Blending | `BL+HERC+RP+CVaR` | 6대 레짐 기반 4개 최적화 모델 동적 혼합 가중치 |
 | `unified_portfolio_allocator.py` | Non-linear Impact Penalty | `1.5-power (3/2승)` | Gatheral & Almgren-Chriss 비선형 시장충격 비용 패널티 |
+| `unified_portfolio_allocator.py` | EWMA Covariance Matrix | `lambda = 0.94` | RiskMetrics 표준 지수이동평균 변동성/공분산 추정 |
 | `portfolio_allocator.py`| `HRP Ledoit-Wolf delta` | `0.15` | 공분산 행렬 수축 강도 |
-| `portfolio_allocator.py`| `Leland buffer bands` | `[0.5%, 5.0%]` | 동적 No-Trade 버퍼 밴드 (신규 진입/전량 청산 바이패스) |
+| `portfolio_allocator.py`| `Continuous Leland Bands` | `[0.5%, 5.0%]` | 연속 비례 No-Trade 버퍼 밴드 ($c \cdot \text{Cost}_i / \sigma_i$) |
 | `almgren_chriss.py` | `risk_aversion_lambda` | `1e-6` | 충격과 타이밍 리스크 절충 최적 집행 트랜치 파라미터 |
 | `oms_engine.py` | `8 Safety Gates` | `8대 안전 게이트` | SEVERE 위기 차단, 킬 스위치, 티커 정규식, 가격 이상치, 10주 라운딩, 포지션 캡, 순알파 허들, Gate 8 합성 인버스 헤지 |
+| `smart_order_router.py` | `Global Venue Routing` | `.KS/.KQ, US, JP, HK, EU, CA` | 종목 심볼 접미사 기반 국내외 거래소 자동 라우팅 및 2차 베뉴 자동 페일오버 |
+| `rl_execution_agent.py` | `Dynamic Order Slicing` | `Q-learning Policy` | 강화학습 기반 시장 충격 및 기회비용 최소화 최적 주문 분할 |
+| `fast_lob_engine.py` | `Zero-Copy Ring Buffer` | `65,536 entries` | GC 오버헤드 없는 마이크로초 단위 Level 3 호가 매칭 및 Hawkes 점 과정 강도 |
+| `fix_protocol_engine.py`| `FIX 4.4 DMA Protocol` | `Heartbeat 30s` | 기관 전용 초고속 Direct Market Access 주문 집행 세션 |
+| `interactive_brokers.py`| `IBKR TWS/Gateway Client` | `Port 7497/4002` | EClient/EWrapper 소켓 인터페이스 기반 글로벌 브로커 체결 연동 |
 | `trading_agent.py` | `ATR_LOOKBACK_DAYS` | `14` | ATR 계산 Lookback 기간 |
 | `trading_agent.py` | `ATR_MULTIPLIER` | `2.5` | ATR 손절 및 트레일링 스탑 승수 |
 | `trading_agent.py` | `CORRELATION_BLOCK_THRESHOLD` | `0.85` | 포트폴리오 상관관계 BLOCK(매수 차단) 임계치 |
 | `trading_agent.py` | `CRISIS_RISK_CAP` | `NONE: 2%, WATCH: 1.5%, ACTIVE: 1%, SEVERE: 0%` | 위기 레벨별 단일 종목 최대 리스크 캡 |
+

@@ -1,7 +1,7 @@
 # 🚀 시스템 아키텍처 및 성능 개선 계획 (IMPROVEMENT PLAN)
 
 > **작성일**: 2026-06-21  
-> **최종 갱신**: 2026-09-03 (KST) — 37대 전략 다변화, `UnifiedPortfolioAllocator`(BL/HERC/RP/CVaR 4-Model Blending & 3/2승 충격 페널티), Execution OMS 8대 안전 게이트 (Gate 8 합성 인버스 헤지), V8 정밀 감사(43개 결함 해결) 및 2,130+ 전수 테스트 완료
+> **최종 갱신**: 2026-09-03 (KST) — 37대 전략 다변화, 초저지연 L3 LOB / FIX 4.4 / IBKR / 글로벌 SOR / RL 주문 슬라이싱 에이전트, `UnifiedPortfolioAllocator`(4-Model Blending, EWMA Cov), 3대 메가 카드 대시보드 및 2,182+ 전수 테스트 완료
 
 본 문서는 코드베이스 정밀 검토 및 핵심 버그 픽스, 퀀트 시스템 전수 감사(Phase 1~8) 이후 수행된 개선 내역 및 운영 유지보수 계획입니다.
 
@@ -30,7 +30,7 @@
 ### 2.1 통합 단일 테스트 스위트 (`tests/`)
 - **개선 완료**:
   - 중복 실행되던 `trading_system/tests/`를 루트 `tests/`로 단일 통합.
-  - 37대 전략 엔진, `UnifiedPortfolioAllocator`, 앙상블 스코어러, 횡단면 정규화, DART 매퍼, 실체결 슬리피지 피드백, 적대적 스트레스 테스트 등 **2,130개 이상의 테스트**가 구성되어 100% 통과 검증 완료.
+  - 37대 전략 엔진, `UnifiedPortfolioAllocator`, 앙상블 스코어러, 횡단면 정규화, DART 매퍼, 실체결 슬리피지 피드백, 적대적 스트레스 테스트 등 **2,182개 이상의 테스트**가 구성되어 100% 통과 검증 완료.
 
 ### 2.2 CI/CD 파이프라인 도입 및 5-Matrix 최적화
 - **개선 완료**:
@@ -89,3 +89,28 @@
 - Critical 13건: Dynamic filing lag, lookahead bias, PSD covariance flooring, connection pool 누수, FX 환산 분모 버그 등 전수 해결.
 - High 16건: Top-K 켈리 폴백, Index Rebalance 3월/9월 정기변경 확장, Overnight Gap 장중 미해소 왜곡 보정 등 전수 해결.
 - Medium 14건: 로깅 표준화, KST 타임존 변환 일관성 등 전수 해결.
+
+---
+
+## 7. 초저지연 기관급 실행 레이어 & Master Plan 퀀트 시스템 고도화 - **완료**
+
+### 7.1 Fast LOB Engine (`fast_lob_engine.py`)
+- 마이크로초 단위 제로카피 65,536 링버퍼 및 Level 3 오더북 매칭.
+- Hawkes 자기여기 점 과정 도착 강도 모델을 통한 주문 폭주 및 유동성 증발 감지.
+
+### 7.2 기관 DMA FIX 4.4 & Interactive Brokers 커넥터
+- `fix_protocol_engine.py`: 기관 직결 FIX 4.4 프로토콜 클라이언트 세션 및 하트비트 제어.
+- `interactive_brokers.py`: IBKR TWS/Gateway 네이티브 소켓 API 연동.
+
+### 7.3 글로벌 Smart Order Router (SOR) & 강화학습 주문 슬라이싱
+- `smart_order_router.py`: `.KS`, `.KQ` 접미사 자동 파싱 및 글로벌 거래소 자동 분기, 베뉴 페일오버.
+- `rl_execution_agent.py`: Q-learning 기반 동적 최적 주문 분할 에이전트.
+
+### 7.4 Master Plan Phase 1-3 퀀트 시스템
+- **30일 롤링 RankIC 동적 가중치**: 실현 예측력 기반 37대 알파 가중치 스케일링.
+- **패닉 역발상 알파 부스트**: 위기 시 과매도 평균회귀 팩터 가중치 일시 증폭.
+- **EWMA 공분산 행렬**: RiskMetrics 표준 $\lambda=0.94$ 지수이동평균 추정.
+- **연속 비례 Leland 버퍼 밴드**: 거래비용 및 변동성에 비례하는 동적 밴드.
+- **KOSDAQ 증권거래세 0.15% 동기화**: 세제 개편안 반영 (3 bps 알파 마찰 제거).
+- **대시보드 3대 통합 메가 카드**: Regime Console, Coverage Center, Portfolio OMS 3대 카드 완비.
+

@@ -1,7 +1,7 @@
 # 🧪 테스트 가이드 (Testing Guide)
 
 > **Last Updated**: 2026-09-03 (KST)  
-> **Test Framework**: pytest (2,130+ tests 100% pass)  
+> **Test Framework**: pytest (2,182+ tests 100% pass)  
 > **Test Suite Root**: `tests/`
 
 ---
@@ -12,6 +12,10 @@
 
 ```
 tests/
+├── test_fast_lob_engine.py                         # Fast LOB 제로카피 링버퍼, L3 호가 매칭, Hawkes 강도 검증
+├── test_fix_and_ibkr_broker.py                     # FIX 4.4 DMA 프로토콜 세션 및 Interactive Brokers 커넥터 검증
+├── test_rl_execution_agent.py                     # 강화학습(RL) 기반 동적 최적 주문 슬라이싱 에이전트 검증
+├── test_system_architecture_fixes.py               # KOSDAQ STT 0.15%, .bfill 룩어헤드 제거, OMS 알파 반감기 라우팅 등 검증
 ├── test_v8_remediation.py                         # V8 시스템 정밀 감사 43개 결함 완결 검증
 ├── test_world_class_quant_enhancements.py         # 연속 켈리, 팩터 중립화, 호가단위 그리드, 회전율 MVO
 ├── test_world_class_trader_return_enhancements.py # 미드포인트 페그, 장중 ATR 트레일링 스탑 래칫, Top-K 압축
@@ -48,7 +52,7 @@ tests/
 ### 2.1 전체 테스트 스위트 실행
 
 ```powershell
-# 가상환경 활성화 후 전체 테스트 실행 (2,130개 테스트)
+# 가상환경 활성화 후 전체 테스트 실행 (2,182개 테스트)
 .venv\Scripts\python -m pytest tests/ -v --tb=short
 
 # 빠른 요약 실행
@@ -58,6 +62,12 @@ tests/
 ### 2.2 특정 영역별 단독 실행
 
 ```powershell
+# 초저지연 실행 엔진 & 브로커 연동 테스트
+.venv\Scripts\python -m pytest tests/test_fast_lob_engine.py tests/test_fix_and_ibkr_broker.py tests/test_rl_execution_agent.py -v
+
+# 엔터프라이즈 아키텍처 결함 해결 검증
+.venv\Scripts\python -m pytest tests/test_system_architecture_fixes.py -v
+
 # V8 시스템 결함 완결 검증 (43개 결함)
 .venv\Scripts\python -m pytest tests/test_v8_remediation.py -v
 
@@ -93,8 +103,8 @@ tests/
 
 ## 3. 핵심 테스트 검증 기준 (SLA Gates)
 
-1. **Pass Rate**: 2,130개 이상의 테스트가 **100% PASS** (0 failures, 0 errors).
-2. **Lookahead Bias 원천 차단**: 재무 데이터는 시장별 법정 시차(KRX 45일, US 40일) 및 실공시일(`filing_date`)이 우선 적용되며, 미국 매크로 ETF는 `+1일` 시차가 엄격히 적용됨.
+1. **Pass Rate**: 2,182개 이상의 테스트가 **100% PASS** (0 failures, 0 errors).
+2. **Lookahead Bias 원천 차단**: 재무 데이터는 시장별 법정 시차(KRX 45일, US 40일) 및 실공시일(`filing_date`)이 우선 적용되며, 포트폴리오 수익률 시계열에 `.bfill()` 역방향 참조가 원천 배제됨.
 3. **횡단면 정규화 보장**: 37개 전략 신호가 `CrossSectionalScoreNormalizer`를 통해 균일한 분산의 $[0.0, 1.0]$ 범위로 변환되며 결측 시 가중치 0 자동 재정규화.
 4. **직교화 SLA Gate**: 순수 알파 팩터와 Fama-French 5-Factor 간 최대 상관계수 $\|\rho\| < 0.15$ 통과.
 5. **동시성 무결성**: 멀티스레드 동시 읽기/쓰기 중 SQLite `database is locked` 예외 발생 0건.
