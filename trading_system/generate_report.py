@@ -5297,7 +5297,7 @@ function exportEnsembleTableToCSV() {{
       let text = c.innerText.replace(/"/g, '""').trim();
       return `"${{text}}"`;
     }}).join(',');
-    csvContent += rowData + '\r\n';
+    csvContent += rowData + String.fromCharCode(13, 10);
   }});
 
   const blob = new Blob([csvContent], {{ type: 'text/csv;charset=utf-8;' }});
@@ -5554,7 +5554,7 @@ function filterStockTables() {{
   const dropdown = document.getElementById('search-autocomplete-dropdown');
   const clearBtn = document.getElementById('search-clear-btn');
   if (!input) return;
-  const query = input.value.toLowerCase().trim();
+  const query = (input.value || '').toLowerCase().trim();
   currentFilterState.query = query;
   if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
 

@@ -386,5 +386,33 @@ def test_ux_enhancements_presence():
     assert 'filterDrawerFactors' in html_out
 
 
+def test_javascript_syntax_validity():
+    import subprocess
+    import tempfile
+    import shutil
+    import os
+    from bs4 import BeautifulSoup
+
+    if not shutil.which("node"):
+        return  # Node not installed, skip test
+
+    html_out = _call_build_html()
+    soup = BeautifulSoup(html_out, "html.parser")
+    scripts = soup.find_all("script")
+    for i, s in enumerate(scripts):
+        if not s.get("src"):
+            code = s.string or ""
+            with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tf:
+                tf.write(code)
+                tf_path = tf.name
+            try:
+                res = subprocess.run(["node", "--check", tf_path], capture_output=True, text=True)
+                assert res.returncode == 0, f"JS Syntax Error in script {i}:\n{res.stderr}"
+            finally:
+                if os.path.exists(tf_path):
+                    os.remove(tf_path)
+
+
+
 
 
