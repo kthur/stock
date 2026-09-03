@@ -4221,6 +4221,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             ("insider_buying", "Executive & Insider Buying Catalyst"),
             ("darkpool", "HFT Order Flow & Dark Pool"),
             ("earnings_tone_drift", "Earnings Tone Drift NLP Quant"),
+            ("cross_asset_spillover", "Cross-Asset Spillover Momentum"),
+            ("supply_chain_gnn", "Supply Chain GNN & Sector Flow"),
+            ("range_expansion_breakout", "Range Expansion Breakout"),
+            ("dual_correction", "Dual Price & Time Correction"),
+            ("index_rebalance", "Index Rebalance Structural Flow"),
+            ("overnight_gap_reversal", "Overnight Gap Reversal"),
         ]
         us_vals = [us_weights_map.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP]
         us_rounded = largest_remainder_round(us_vals, target_sum=100.0, decimals=1)
@@ -4253,8 +4259,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             _ens_header = f"[{market}] All Ensemble Picks ({len(m_df)} symbols) (Target Horizon: 20D Expected Return)\n" if is_all_pred else f"[{market}] Top {_TOP_N} Ensemble Picks (Target Horizon: 20D Expected Return)\n"
             f.write(_ens_header)
             f.write("=========================================\n")
-            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}{'Supply':<7}{'NLP':<5}{'Neutral':<8}{'Vol-T':<6}{'Micro':<6}{'Accrual':<8}{'S-Sq':<5}{'ValueUp':<8}{'TrendEff':<9}{'GammaSq':<8}{'Insider':<8}{'Darkpool':<9}{'ToneDrift':<10}\n")
-            f.write("-" * 280 + "\n")
+            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}{'Supply':<7}{'NLP':<5}{'Neutral':<8}{'Vol-T':<6}{'Micro':<6}{'Accrual':<8}{'S-Sq':<5}{'ValueUp':<8}{'TrendEff':<9}{'GammaSq':<8}{'Insider':<8}{'Darkpool':<9}{'ToneDrift':<10}{'Spillover':<10}{'SC-GNN':<8}{'RangeExp':<9}{'DualCorr':<9}{'IdxRebal':<9}{'OverGap':<8}\n")
+            f.write("-" * 333 + "\n")
             for rank, (_, row) in enumerate(_slice_top_df(m_df, pred_limit).iterrows(), 1):
                 name_val = row.get('name', 'Unknown')
                 name_str = str(name_val)[:16] if pd.notna(name_val) else "Unknown"
@@ -4290,12 +4296,18 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 _ib_s  = _format_strategy_pct(row.get('insider_buying_score', 0.0), 0.0, 7)
                 _dp_s  = _format_strategy_pct(row.get('darkpool_score', row.get('hft_score', 0.0)), 0.0, 8)
                 _et_s  = _format_strategy_pct(row.get('earnings_tone_drift_score', 0.0), 0.0, 9)
+                _cas_s = _format_strategy_pct(row.get('cross_asset_spillover_score', 0.0), 0.0, 9)
+                _scg_s = _format_strategy_pct(row.get('supply_chain_gnn_score', 0.0), 0.0, 7)
+                _reb_s = _format_strategy_pct(row.get('range_expansion_score', 0.0), 0.0, 8)
+                _dc_s  = _format_strategy_pct(row.get('dual_correction_score', 0.0), 0.0, 8)
+                _ir_s  = _format_strategy_pct(row.get('index_rebalance_score', 0.0), 0.0, 8)
+                _og_s  = _format_strategy_pct(row.get('overnight_gap_score', 0.0), 0.0, 7)
 
                 f.write(
                     f"{rank:<5}{row['symbol']:<10}{name_str:<18}"
                     f"{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%"
                     f"{_reg_s}{_srg_s}{_ll_s}{_vcpr_s}{_vcpm_s}{_lstm_s}{_sa_s}{_sec_s}{_rim_s}{_ev_s}{_mq_s}{_iv_s}{_of_s}{_rev_s}{_arm_s}{_crd_s}{_lat_s}{_ifs_s}"
-                    f"{_sc_s}{_nlp_s}{_fn_s}{_vt_s}{_mic_s}{_aq_s}{_sq_s}{_vu_s}{_te_s}{_gs_s}{_ib_s}{_dp_s}{_et_s}\n"
+                    f"{_sc_s}{_nlp_s}{_fn_s}{_vt_s}{_mic_s}{_aq_s}{_sq_s}{_vu_s}{_te_s}{_gs_s}{_ib_s}{_dp_s}{_et_s}{_cas_s}{_scg_s}{_reb_s}{_dc_s}{_ir_s}{_og_s}\n"
                 )
             f.write("\n")
         if macro_warnings:
@@ -4319,8 +4331,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             _m_ens_header = f"[{_m}] All Ensemble Picks ({len(_m_df)} symbols) (Target Horizon: 20D Expected Return)\n" if is_all_pred else f"[{_m}] Top {_TOP_N} Ensemble Picks (Target Horizon: 20D Expected Return)\n"
             _mf.write(_m_ens_header)
             _mf.write("=========================================\n")
-            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}{'Supply':<7}{'NLP':<5}{'Neutral':<8}{'Vol-T':<6}{'Micro':<6}{'Accrual':<8}{'S-Sq':<5}{'ValueUp':<8}{'TrendEff':<9}{'GammaSq':<8}{'Insider':<8}{'Darkpool':<9}{'ToneDrift':<10}\n")
-            _mf.write("-" * 280 + "\n")
+            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}{'Supply':<7}{'NLP':<5}{'Neutral':<8}{'Vol-T':<6}{'Micro':<6}{'Accrual':<8}{'S-Sq':<5}{'ValueUp':<8}{'TrendEff':<9}{'GammaSq':<8}{'Insider':<8}{'Darkpool':<9}{'ToneDrift':<10}{'Spillover':<10}{'SC-GNN':<8}{'RangeExp':<9}{'DualCorr':<9}{'IdxRebal':<9}{'OverGap':<8}\n")
+            _mf.write("-" * 333 + "\n")
             for _rank, (_, _row) in enumerate(_slice_top_df(_m_df, pred_limit).iterrows(), 1):
                 _name_str = str(_row['name'])[:16] if pd.notna(_row['name']) else "Unknown"
 
@@ -4355,12 +4367,18 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 _ib_s  = _format_strategy_pct(_row.get('insider_buying_score', 0.0), 0.0, 7)
                 _dp_s  = _format_strategy_pct(_row.get('darkpool_score', _row.get('hft_score', 0.0)), 0.0, 8)
                 _et_s  = _format_strategy_pct(_row.get('earnings_tone_drift_score', 0.0), 0.0, 9)
+                _cas_s = _format_strategy_pct(_row.get('cross_asset_spillover_score', 0.0), 0.0, 9)
+                _scg_s = _format_strategy_pct(_row.get('supply_chain_gnn_score', 0.0), 0.0, 7)
+                _reb_s = _format_strategy_pct(_row.get('range_expansion_score', 0.0), 0.0, 8)
+                _dc_s  = _format_strategy_pct(_row.get('dual_correction_score', 0.0), 0.0, 8)
+                _ir_s  = _format_strategy_pct(_row.get('index_rebalance_score', 0.0), 0.0, 8)
+                _og_s  = _format_strategy_pct(_row.get('overnight_gap_score', 0.0), 0.0, 7)
 
                 _mf.write(
                     f"{_rank:<5}{_row['symbol']:<10}{_name_str:<18}"
                     f"{_row['ensemble_score']*100:>10.1f}%{_row['ensemble_expected_return']:>12.2f}%"
                     f"{_reg_s}{_srg_s}{_ll_s}{_vcpr_s}{_vcpm_s}{_lstm_s}{_sa_s}{_sec_s}{_rim_s}{_ev_s}{_mq_s}{_iv_s}{_of_s}{_rev_s}{_arm_s}{_crd_s}{_lat_s}{_ifs_s}"
-                    f"{_sc_s}{_nlp_s}{_fn_s}{_vt_s}{_mic_s}{_aq_s}{_sq_s}{_vu_s}{_te_s}{_gs_s}{_ib_s}{_dp_s}{_et_s}\n"
+                    f"{_sc_s}{_nlp_s}{_fn_s}{_vt_s}{_mic_s}{_aq_s}{_sq_s}{_vu_s}{_te_s}{_gs_s}{_ib_s}{_dp_s}{_et_s}{_cas_s}{_scg_s}{_reb_s}{_dc_s}{_ir_s}{_og_s}\n"
                 )
         logger.info(f"Saved ensemble predictions for {_m} to {_mkt_ens_path}")
 
