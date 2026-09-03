@@ -9,7 +9,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-ALL_34_STRATEGIES = [
+ALL_37_STRATEGIES = [
     'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
     'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation',
     'event_driven', 'mq_factor', 'iv_skew', 'order_flow',
@@ -18,10 +18,12 @@ ALL_34_STRATEGIES = [
     'vol_target', 'microstructure', 'accruals_quality', 'short_squeeze',
     'valueup_catalyst', 'trend_efficiency', 'gamma_squeeze', 'insider_buying',
     'darkpool', 'earnings_tone_drift', 'cross_asset_spillover',
-    'supply_chain_gnn', 'range_expansion_breakout'
+    'supply_chain_gnn', 'range_expansion_breakout',
+    'dual_correction', 'index_rebalance', 'overnight_gap_reversal'
 ]
-ALL_31_STRATEGIES = ALL_34_STRATEGIES[:31]
-_STRATEGY_COUNT = len(ALL_34_STRATEGIES)
+ALL_34_STRATEGIES = ALL_37_STRATEGIES
+ALL_31_STRATEGIES = ALL_37_STRATEGIES[:31]
+_STRATEGY_COUNT = len(ALL_37_STRATEGIES)
 
 KNOWN_MARKETS = [
     "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "KONEX",
@@ -789,8 +791,9 @@ KNOWN_STRATEGY_PREFIXES = [
     "microstructure_predictions", "accruals_quality_predictions", "short_squeeze_predictions",
     "valueup_catalyst_predictions", "trend_efficiency_predictions", "gamma_squeeze_predictions",
     "insider_buying_predictions", "hft_order_flow_predictions", "darkpool_predictions",
-    "earnings_tone_drift_predictions", "dual_correction_predictions",
-    "index_rebalance_predictions", "overnight_gap_predictions"
+    "earnings_tone_drift_predictions", "cross_asset_spillover_predictions",
+    "supply_chain_gnn_predictions", "range_expansion_predictions",
+    "dual_correction_predictions", "index_rebalance_predictions", "overnight_gap_predictions"
 ]
 
 
