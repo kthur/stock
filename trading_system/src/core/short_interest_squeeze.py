@@ -143,7 +143,10 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'short_squeeze_score'] = 0.50
         else:
-            df_out['short_squeeze_score'] = np.nan
+            if len(df_out) == 1:
+                df_out['short_squeeze_score'] = 0.50
+            else:
+                df_out['short_squeeze_score'] = np.nan
 
         df_out['short_squeeze_score'] = df_out['short_squeeze_score'].astype(float)
 

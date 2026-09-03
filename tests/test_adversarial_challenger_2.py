@@ -172,7 +172,7 @@ class TestDynamicInverseETFHedgeSizing:
 
     def test_gate_8_krx_bear_regime_inverse_etf_precise_quantity(self, tmp_path):
         """Verify KRX 114800 inverse ETF at ~2,050 KRW generates exact ~12,190 shares (not 2,500)."""
-        oms = ExecutionOMSEngine(db_path=str(tmp_path / "trade_logs.db"))
+        oms = ExecutionOMSEngine(db_path=str(tmp_path / "trade_logs.db"), lot_size_krx=10)
         total_capital = 100000000.0  # 100M KRW
         portfolio_weights = {"005930": 0.30, "000660": 0.20} # 50% long exposure
         top_predictions = [

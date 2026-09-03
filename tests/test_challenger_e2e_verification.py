@@ -24,7 +24,9 @@ CANONICAL_31 = [
     "card_factor", "latr_factor", "inst_foreign_sector",
     "supply_chain", "sentiment", "factor_neutralized", "vol_target",
     "microstructure", "accruals_quality", "short_squeeze", "valueup_catalyst",
-    "trend_efficiency", "gamma_squeeze", "insider_buying", "darkpool", "earnings_tone_drift"
+    "trend_efficiency", "gamma_squeeze", "insider_buying", "darkpool", "earnings_tone_drift",
+    "cross_asset_spillover", "supply_chain_gnn", "range_expansion_breakout",
+    "dual_correction", "index_rebalance", "overnight_gap_reversal"
 ]
 
 STRATEGY_HTML_PANEL_IDS = [
@@ -114,6 +116,8 @@ def test_verify_gha_artifacts_clean_dataset_strict_pass():
         for s in CANONICAL_31:
             clean_s = s.replace("_", "")
             html_chunks.append(f'<div id="panel-{s}"><table><tbody>' + "".join(f"<tr><td>{i}</td><td>SYM</td></tr>" for i in range(10)) + '</tbody></table></div>')
+            if clean_s != s:
+                html_chunks.append(f'<div id="panel-{clean_s}"><table><tbody>' + "".join(f"<tr><td>{i}</td><td>SYM</td></tr>" for i in range(10)) + '</tbody></table></div>')
         html_chunks.append("</body></html>")
         (gh_dir / "index.html").write_text("".join(html_chunks), encoding="utf-8")
         

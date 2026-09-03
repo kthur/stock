@@ -34,7 +34,9 @@ os.environ["STOCK_PRICE_DB_PATH"] = TEST_PRICES_DB_PATH
 
 # Append project root to path
 from pathlib import Path
-project_root = Path(__file__).resolve().parent.parent.parent
+project_root = Path(__file__).resolve().parent.parent
+trading_system_dir = project_root / "trading_system"
+sys.path.insert(0, str(trading_system_dir))
 sys.path.insert(0, str(project_root))
 
 from src.persistence.database import StockPriceDB

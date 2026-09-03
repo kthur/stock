@@ -1249,7 +1249,12 @@ class OnDevicePredictionModel:
         rev = df['revenue'] if 'revenue' in df.columns else pd.Series(0.0, index=df.index)
         net_inc = df['net_income'] if 'net_income' in df.columns else pd.Series(0.0, index=df.index)
         eps_col = df['eps'] if 'eps' in df.columns else pd.Series(0.0, index=df.index)
-        m_cap = df['market_cap'] if 'market_cap' in df.columns else pd.Series(0.0, index=df.index)
+        if 'market_cap' in df.columns:
+            m_cap = df['market_cap']
+        elif 'shares_outstanding' in df.columns:
+            m_cap = df['shares_outstanding'] * df['Close']
+        else:
+            m_cap = pd.Series(0.0, index=df.index)
         div_ps = df['dividend_per_share'] if 'dividend_per_share' in df.columns else pd.Series(0.0, index=df.index)
         if 'eps_growth_1y' not in df.columns:
             df['eps_growth_1y'] = 0.0

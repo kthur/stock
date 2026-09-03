@@ -1964,13 +1964,13 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 if count % 500 == 0:
                     logger.info(f"Fetched inference data: {count}/{len(all_symbols)} ({len(infer_data_dict)} loaded)")
 
-    # Filter out symbols with insufficient data (< 200 days)
+    # Filter out symbols with insufficient data (< 30 days for minimum technical indicators)
     before = len(infer_data_dict)
     infer_data_dict = {s: df for s, df in infer_data_dict.items()
-                       if df is not None and len(df) >= 200}
+                       if df is not None and len(df) >= 30}
     dropped = before - len(infer_data_dict)
     if dropped:
-        logger.info(f"Excluded {dropped} symbols with insufficient inference data (< 200 days)")
+        logger.info(f"Excluded {dropped} symbols with insufficient inference data (< 30 days)")
 
     # If skip-inference is enabled, stop pipeline here (only fetch and cache data)
     if cfg.skip_inference:

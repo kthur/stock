@@ -42,7 +42,8 @@ class TestMilestone2EmpiricalStress(unittest.TestCase):
             'microstructure', 'accruals_quality', 'short_squeeze', 'valueup_catalyst',
             'trend_efficiency', 'gamma_squeeze', 'insider_buying', 'darkpool',
             'earnings_tone_drift', 'cross_asset_spillover', 'supply_chain_gnn',
-            'range_expansion_breakout'
+            'range_expansion_breakout', 'dual_correction', 'index_rebalance',
+            'overnight_gap_reversal'
         ]
         cls.ALL_34_SCORE_COLS = [
             'reg_score', 'surge_score', 'll_score', 'vcp_rule_score', 'vcp_ml_score',
@@ -53,7 +54,8 @@ class TestMilestone2EmpiricalStress(unittest.TestCase):
             'microstructure_score', 'accruals_quality_score', 'short_squeeze_score', 'valueup_catalyst_score',
             'trend_efficiency_score', 'gamma_squeeze_score', 'insider_buying_score', 'darkpool_score',
             'earnings_tone_drift_score', 'cross_asset_spillover_score', 'supply_chain_gnn_score',
-            'range_expansion_score'
+            'range_expansion_score', 'dual_correction_score', 'index_rebalance_score',
+            'overnight_gap_score'
         ]
 
     def setUp(self):
@@ -87,7 +89,7 @@ class TestMilestone2EmpiricalStress(unittest.TestCase):
         regimes_2d = ['BEAR_LOW_VOL', 'BEAR_HIGH_VOL', 'SIDEWAYS_LOW_VOL', 'SIDEWAYS_HIGH_VOL', 'BULL_LOW_VOL', 'BULL_HIGH_VOL']
         for r_name in regimes_2d:
             weights = EnsembleScoringEngine.REGIME_2D_WEIGHTS.get(r_name, {})
-            self.assertEqual(len(weights), 34, f'Regime {r_name} does not have exactly 34 strategy weights')
+            self.assertEqual(len(weights), 37, f'Regime {r_name} does not have exactly 37 strategy weights')
             w_sum = sum(weights.values())
             self.assertAlmostEqual(w_sum, 1.0, places=5, msg=f'Regime {r_name} weights sum to {w_sum}, expected 1.000')
             for strat, w in weights.items():
@@ -97,7 +99,7 @@ class TestMilestone2EmpiricalStress(unittest.TestCase):
     def test_1d_regime_weights_conservation_and_positivity(self):
         for r_code in [0, 1, 2]:
             weights = EnsembleScoringEngine.REGIME_WEIGHTS.get(r_code, {})
-            self.assertEqual(len(weights), 34, f'1D Regime {r_code} does not have exactly 34 strategy weights')
+            self.assertEqual(len(weights), 37, f'1D Regime {r_code} does not have exactly 37 strategy weights')
             w_sum = sum(weights.values())
             self.assertAlmostEqual(w_sum, 1.0, places=5, msg=f'1D Regime {r_code} weights sum to {w_sum}, expected 1.000')
             for strat, w in weights.items():
@@ -401,7 +403,7 @@ class TestMilestone2EmpiricalStress(unittest.TestCase):
 
     def test_singular_covariance_matrix_tikhonov_regularizer_pca_zca(self):
         N = 100
-        K = 34
+        K = len(self.ALL_34_SCORE_COLS)
         cols = self.ALL_34_SCORE_COLS
 
         base_signal = np.linspace(0.1, 0.9, N)
@@ -420,7 +422,7 @@ class TestMilestone2EmpiricalStress(unittest.TestCase):
 
     def test_n_less_than_k_high_dimensional_singularity(self):
         N = 5
-        K = 34
+        K = len(self.ALL_34_SCORE_COLS)
         cols = self.ALL_34_SCORE_COLS
 
         matrix_n_less_k = np.random.uniform(0.1, 0.9, (N, K))
@@ -536,7 +538,7 @@ class TestMilestone2EmpiricalStress(unittest.TestCase):
     def test_factor_suppression_with_34_strategies_and_momentum_cluster(self):
         suppression = RegimeFactorSuppressionEngine()
         corr_matrix = pd.DataFrame(
-            np.eye(34),
+            np.eye(len(self.ALL_34_STRATEGIES)),
             index=self.ALL_34_STRATEGIES,
             columns=self.ALL_34_STRATEGIES
         )
@@ -550,7 +552,7 @@ class TestMilestone2EmpiricalStress(unittest.TestCase):
             regime_label='BULL_LOW_VOL'
         )
 
-        self.assertEqual(len(suppressed), 34)
+        self.assertEqual(len(suppressed), len(self.ALL_34_STRATEGIES))
         w_sum = sum(suppressed.values())
         self.assertAlmostEqual(w_sum, 1.0, places=4)
         for st, w in suppressed.items():

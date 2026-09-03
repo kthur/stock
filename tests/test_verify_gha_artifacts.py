@@ -22,8 +22,8 @@ from trading_system.scripts.verify_gha_artifacts import (
 
 
 def test_canonical_strategies_count_and_order():
-    """Verify that STRATEGIES list has exactly 31 items in canonical order."""
-    assert len(STRATEGIES) == 31
+    """Verify that STRATEGIES list has exactly 37 items in canonical order."""
+    assert len(STRATEGIES) == 37
     expected_order = [
         "regression", "surge", "lead_lag", "vcp_rule", "vcp_ml", "lstm",
         "stat_arb", "sector_rotation", "rim_valuation", "event_driven", "mq_factor",
@@ -31,17 +31,19 @@ def test_canonical_strategies_count_and_order():
         "card_factor", "latr_factor", "inst_foreign_sector",
         "supply_chain", "sentiment", "factor_neutralized", "vol_target",
         "microstructure", "accruals_quality", "short_squeeze", "valueup_catalyst",
-        "trend_efficiency", "gamma_squeeze", "insider_buying", "darkpool", "earnings_tone_drift"
+        "trend_efficiency", "gamma_squeeze", "insider_buying", "darkpool", "earnings_tone_drift",
+        "cross_asset_spillover", "supply_chain_gnn", "range_expansion_breakout",
+        "dual_correction", "index_rebalance", "overnight_gap_reversal"
     ]
     assert STRATEGIES == expected_order
 
 
 def test_strategy_panel_aliases_coverage():
-    """Verify that STRATEGY_PANEL_ALIASES covers ensemble and all 31 strategies."""
+    """Verify that STRATEGY_PANEL_ALIASES covers ensemble and all 37 strategies."""
     assert "ensemble" in STRATEGY_PANEL_ALIASES
     for strat in STRATEGIES:
         assert strat in STRATEGY_PANEL_ALIASES, f"Strategy {strat} missing from STRATEGY_PANEL_ALIASES"
-    assert len(STRATEGY_PANEL_ALIASES) == 32  # 31 strategies + ensemble
+    assert len(STRATEGY_PANEL_ALIASES) == 38  # 37 strategies + ensemble
 
 
 def test_check_regression_valid_and_empty():
@@ -107,14 +109,14 @@ def test_verify_market_strategies_with_mock_dir():
             (tmp_path / fname).write_text(content, encoding="utf-8")
 
         m_res = verify_market_strategies(tmp_path, "SP500")
-        assert len(m_res.strategies) == 31
+        assert len(m_res.strategies) == 37
         assert m_res.all_strategies_valid is True
 
 
 def test_verify_gh_pages_mock():
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        # Generate minimal index.html containing all 31 panels
+        # Generate minimal index.html containing all 37 panels
         html_chunks = ["<html><body>SP500 NASDAQ RUSSELL2000 KOSPI KOSDAQ"]
         for p_id in STRATEGY_PANEL_ALIASES:
             rows = "".join(f"<tr><td>Item {i}</td><td>Value</td></tr>" for i in range(10))
@@ -124,4 +126,4 @@ def test_verify_gh_pages_mock():
 
         res = verify_gh_pages(tmp_path)
         assert res.valid is True
-        assert len(res.strategy_panels_valid) == 32
+        assert len(res.strategy_panels_valid) == 38

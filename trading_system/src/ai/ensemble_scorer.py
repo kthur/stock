@@ -1460,11 +1460,28 @@ class EnsembleScoringEngine:
                                  kr_regime: Optional[Union[int, str]] = None,
                                  decoupling_status: Optional[str] = None,
                                  dual_regimes: Optional[Dict[str, Any]] = None,
-                                 prices_dict: Optional[Dict[str, pd.DataFrame]] = None) -> pd.DataFrame:
+                                 prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+                                 **extra_kwargs: Any) -> pd.DataFrame:
         """
         Calculates 37-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
         Supports dual market regime weighting for US (SP500/NASDAQ/RUSSELL2000) and KR (KOSPI/KOSDAQ).
         """
+        # Map any alternative kwargs
+        if 'arm_factor_df' in extra_kwargs and arm_df is None:
+            arm_df = extra_kwargs['arm_factor_df']
+        if 'card_factor_df' in extra_kwargs and card_df is None:
+            card_df = extra_kwargs['card_factor_df']
+        if 'latr_factor_df' in extra_kwargs and latr_df is None:
+            latr_df = extra_kwargs['latr_factor_df']
+        if 'mq_factor_df' in extra_kwargs and mq_df is None:
+            mq_df = extra_kwargs['mq_factor_df']
+        if 'short_term_reversal_df' in extra_kwargs and reversal_df is None:
+            reversal_df = extra_kwargs['short_term_reversal_df']
+        if 'overnight_gap_reversal_df' in extra_kwargs and overnight_gap_df is None:
+            overnight_gap_df = extra_kwargs['overnight_gap_reversal_df']
+        if 'range_expansion_breakout_df' in extra_kwargs and range_expansion_df is None:
+            range_expansion_df = extra_kwargs['range_expansion_breakout_df']
+
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
 
         # Resolve dual market regimes
