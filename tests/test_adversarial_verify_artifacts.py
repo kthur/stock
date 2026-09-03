@@ -39,17 +39,25 @@ CANONICAL_31 = [
 # =========================================================================
 
 def test_canonical_31_exact_match():
-    assert len(STRATEGIES) == 31
-    assert STRATEGIES == CANONICAL_31
+    assert len(STRATEGIES) in (31, 37)
+    assert STRATEGIES[:31] == CANONICAL_31
     assert STRATEGIES[29] == "darkpool"
     assert STRATEGIES[30] == "earnings_tone_drift"
+    if len(STRATEGIES) == 37:
+        assert STRATEGIES[31:] == [
+            "cross_asset_spillover", "supply_chain_gnn", "range_expansion_breakout",
+            "dual_correction", "index_rebalance", "overnight_gap_reversal"
+        ]
 
 
 def test_strategy_panel_aliases_all_31_and_ensemble():
-    assert len(STRATEGY_PANEL_ALIASES) == 32
+    assert len(STRATEGY_PANEL_ALIASES) in (32, 38)
     assert "ensemble" in STRATEGY_PANEL_ALIASES
     for s in CANONICAL_31:
         assert s in STRATEGY_PANEL_ALIASES, f"Strategy {s} missing alias definition"
+    if len(STRATEGY_PANEL_ALIASES) == 38:
+        for s in ["cross_asset_spillover", "supply_chain_gnn", "range_expansion_breakout", "dual_correction", "index_rebalance", "overnight_gap_reversal"]:
+            assert s in STRATEGY_PANEL_ALIASES
 
 
 # =========================================================================
@@ -158,7 +166,7 @@ def test_verify_market_strategies_empty_dir():
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
         m_res = verify_market_strategies(tmp_path, "SP500")
-        assert len(m_res.strategies) == 31
+        assert len(m_res.strategies) in (31, 37)
         assert m_res.all_strategies_valid is False
         for s in CANONICAL_31:
             assert m_res.strategies[s].valid is False
@@ -287,7 +295,7 @@ def test_verify_gh_pages_adversarial():
         html_file.write_text("".join(html_chunks), encoding="utf-8")
         res6 = verify_gh_pages(tmp_path)
         assert res6.valid is True
-        assert len(res6.strategy_panels_valid) == 32
+        assert len(res6.strategy_panels_valid) in (32, 38)
         assert all(res6.strategy_panels_valid.values())
 
 

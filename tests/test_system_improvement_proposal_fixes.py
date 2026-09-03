@@ -193,7 +193,7 @@ class TestFactorOrthogonalizerFixes(unittest.TestCase):
 
 class TestOMSEngineFixes(unittest.TestCase):
     def test_krx_lot_sizing(self):
-        oms = ExecutionOMSEngine()
+        oms = ExecutionOMSEngine(lot_size_krx=10)
         # Target allocation of 15 shares -> 10 shares under KRX 10-lot sizing
         predictions = [{
             "symbol": "005930",

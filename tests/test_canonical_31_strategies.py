@@ -51,7 +51,12 @@ def test_canonical_list_length_and_uniqueness():
 
 
 def test_verifier_strategies_exact_match():
-    assert VERIFIER_STRATEGIES == CANONICAL_31_KEYS
+    assert VERIFIER_STRATEGIES[:31] == CANONICAL_31_KEYS
+    if len(VERIFIER_STRATEGIES) == 37:
+        assert VERIFIER_STRATEGIES[31:] == [
+            "cross_asset_spillover", "supply_chain_gnn", "range_expansion_breakout",
+            "dual_correction", "index_rebalance", "overnight_gap_reversal"
+        ]
 
 
 def test_generate_report_nav_tabs_sequence():

@@ -367,8 +367,8 @@ def test_dashboard_html_ux_fixes():
 
     # 5. Preloaded Backtest Returns Chart and multi-strategy walk-forward table check
     assert 'id="backtestReturnsChart"' in html
-    assert ("34대 동적 가중 앙상블 (Ensemble)" in html) or ("31대 동적 가중 앙상블 (Ensemble)" in html)
-    assert ("34대 전략 역사적 벤치마크 백테스트 성과" in html) or ("31대 전략 역사적 벤치마크 백테스트 성과" in html)
+    assert ("37대 동적 가중 앙상블 (Ensemble)" in html) or ("34대 동적 가중 앙상블 (Ensemble)" in html) or ("31대 동적 가중 앙상블 (Ensemble)" in html)
+    assert ("37대 전략 역사적 벤치마크 백테스트 성과" in html) or ("34대 전략 역사적 벤치마크 백테스트 성과" in html) or ("31대 전략 역사적 벤치마크 백테스트 성과" in html)
 
 
 

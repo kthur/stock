@@ -274,7 +274,7 @@ def calculate_black_litterman_weights(
         cons = {"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)}
         bounds = [(0.0, 1.0) for _ in range(n)]
 
-        res = minimize(objective, w0, method="SLSQP", jac=objective_grad, bounds=bounds, constraints=cons)
+        res = minimize(objective, w0, method="SLSQP", jac=objective_grad, bounds=bounds, constraints=cons, options={"ftol": 1e-12, "maxiter": 200})
         if res.success:
             weights = np.asarray(res.x)
             # Normalize to sum to exactly 1.0 and clip

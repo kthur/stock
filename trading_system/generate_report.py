@@ -2045,7 +2045,7 @@ def build_html(
         rows_html = ""
         cards_html = ""
         if mkt_data and mkt_data.rows:
-            for erow in mkt_data.rows:
+            for row_idx, erow in enumerate(mkt_data.rows):
                 rc = ret_class(erow.expected_return)
                 ret_disp = f"▲ {erow.expected_return}" if erow.expected_return.startswith('+') else (f"▼ {erow.expected_return}" if erow.expected_return.startswith('-') else erow.expected_return)
                 symbol_link = make_stock_link(erow.symbol, mkt)
@@ -2091,57 +2091,58 @@ def build_html(
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
                 clean_name = html.escape(erow.name).replace("'", "\\'").replace('"', '&quot;')
-                drawer_call = f"openStockDrawer('{erow.symbol}', '{clean_name}', '{mkt}', '{erow.score}', '{ret_disp}', '{factors_encoded}')"
+                drawer_call = f"openStockDrawer('{erow.symbol}', '{clean_name}', '{mkt}', '{erow.score}', '{ret_disp}', '{factors_encoded}', {row_idx})"
+                rank_badge_html = f'<span class="rank-badge rank-1">1</span>' if erow.rank == 1 else (f'<span class="rank-badge rank-2">2</span>' if erow.rank == 2 else (f'<span class="rank-badge rank-3">3</span>' if erow.rank == 3 else f'#{erow.rank}'))
                 rows_html += f"""
-            <tr class="clickable-row" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 37대 전략 상세 보기">
-              <td class="rank sticky-col sticky-rank">#{erow.rank}</td>
+            <tr class="clickable-row" data-symbol="{erow.symbol}" data-initial-rank="{erow.rank}" data-initial-order="{row_idx}" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 37대 전략 상세 보기">
+              <td class="rank sticky-col sticky-rank"><button class="btn-watchlist" data-sym="{erow.symbol}" onclick="toggleWatchlist('{erow.symbol}', event)" title="관심종목 등록/해제">⭐</button>{rank_badge_html}</td>
               <td class="symbol sticky-col sticky-symbol">{symbol_link}</td>
               <td class="name sticky-col sticky-name">{html.escape(erow.name)}<span class="row-chevron" aria-hidden="true">›</span></td>
               <td class="score">{format_metric_cell(erow.score, kind="score")}</td>
               <td class="{rc}">{format_metric_cell(ret_disp, kind="pct")}</td>
-              <td class="col-strat">{format_metric_cell(erow.reg, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.surge, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.lead_lag, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.vcp_rule, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.vcp_ml, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.lstm, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.stat_arb, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.sector_rotation, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.rim_valuation, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.event_driven, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.mq_factor, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.iv_skew, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.order_flow, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.short_term_reversal, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.arm_factor, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.card_factor, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.latr_factor, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.inst_foreign_sector, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.supply_chain, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.sentiment, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.factor_neutralized, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.vol_target, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.microstructure, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.accruals_quality, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.short_squeeze, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.valueup_catalyst, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.trend_efficiency, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.gamma_squeeze, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.insider_buying, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.darkpool, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.earnings_tone_drift, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.cross_asset_spillover, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.supply_chain_gnn, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.range_expansion, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.dual_correction, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.index_rebalance, kind="score")}</td>
-              <td class="col-strat">{format_metric_cell(erow.overnight_gap, kind="score")}</td>
+              <td class="col-strat col-cat-ai">{format_metric_cell(erow.reg, kind="score")}</td>
+              <td class="col-strat col-cat-ai">{format_metric_cell(erow.surge, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.lead_lag, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.vcp_rule, kind="score")}</td>
+              <td class="col-strat col-cat-ai">{format_metric_cell(erow.vcp_ml, kind="score")}</td>
+              <td class="col-strat col-cat-ai">{format_metric_cell(erow.lstm, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.stat_arb, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.sector_rotation, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.rim_valuation, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.event_driven, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.mq_factor, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.iv_skew, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.order_flow, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.short_term_reversal, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.arm_factor, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.card_factor, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.latr_factor, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.inst_foreign_sector, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.supply_chain, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.sentiment, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.factor_neutralized, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.vol_target, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.microstructure, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.accruals_quality, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.short_squeeze, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.valueup_catalyst, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.trend_efficiency, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.gamma_squeeze, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.insider_buying, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.darkpool, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.earnings_tone_drift, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.cross_asset_spillover, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.supply_chain_gnn, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.range_expansion, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.dual_correction, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.index_rebalance, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.overnight_gap, kind="score")}</td>
             </tr>"""
 
                 cards_html += f"""
-        <div class="stock-card" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 37대 전략 상세 보기">
+        <div class="stock-card" data-symbol="{erow.symbol}" data-initial-rank="{erow.rank}" data-initial-order="{row_idx}" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 37대 전략 상세 보기">
           <div class="stock-card-header">
-            <span class="stock-card-rank">#{erow.rank}</span>
+            <span class="stock-card-rank"><button class="btn-watchlist" data-sym="{erow.symbol}" onclick="toggleWatchlist('{erow.symbol}', event)" title="관심종목 등록/해제">⭐</button>{rank_badge_html}</span>
             <span class="badge" style="font-size:11px;">{flag} {mkt}</span>
           </div>
           <div class="stock-card-title">{html.escape(erow.name)}</div>
@@ -2176,43 +2177,43 @@ def build_html(
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 37대 전략 상세 분해)">종목명 ↕</th>
             <th title="37대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
             <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
-            <th class="col-strat" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
-            <th class="col-strat" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
-            <th class="col-strat" title="3. Lead-Lag 후행 반응 종목 시차 상관성">3. L-L ↕</th>
-            <th class="col-strat" title="4. VCP 변동성 수축 패턴 규칙 검출">4. VCP-R ↕</th>
-            <th class="col-strat" title="5. VCP 머신러닝 급등 예측">5. VCP-M ↕</th>
-            <th class="col-strat" title="6. Strict Causal 시계열 LSTM 딥러닝">6. LSTM ↕</th>
-            <th class="col-strat" title="7. Stat-Arb 공적분 잔차 평균회귀 Z-score">7. S-Arb ↕</th>
-            <th class="col-strat" title="8. Sector Rotation 상대모멘텀 & 순환매">8. Sec-R ↕</th>
-            <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
-            <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
-            <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
-            <th class="col-strat" title="12. Options Put/Call Implied Volatility Skew 역발상 점수">12. IV-Sk ↕</th>
-            <th class="col-strat" title="13. Order Flow Imbalance 외인/기관 순매수 수급 가속도">13. Flow ↕</th>
-            <th class="col-strat" title="14. Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">14. Rev ↕</th>
-            <th class="col-strat" title="15. Analyst Revision Momentum EPS/목표가 상향 조정">15. ARM ↕</th>
-            <th class="col-strat" title="16. Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">16. CARD ↕</th>
-            <th class="col-strat" title="17. Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">17. LATR ↕</th>
-            <th class="col-strat" title="18. Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">18. I&amp;F ↕</th>
-            <th class="col-strat" title="19. Supply Chain Momentum 전방 공급망 전이">19. Supply ↕</th>
-            <th class="col-strat" title="20. NLP Sentiment FinBERT 공시/뉴스 감성">20. NLP ↕</th>
-            <th class="col-strat" title="21. Fama-French Multi-Factor Style Neutralized 순수 알파">21. Neutral ↕</th>
-            <th class="col-strat" title="22. Dynamic Volatility Targeting 리스크 파리티">22. Vol-T ↕</th>
-            <th class="col-strat" title="23. Microstructure Imbalance 호가/동시호가 갭">23. Micro ↕</th>
-            <th class="col-strat" title="24. Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">24. Accrual ↕</th>
-            <th class="col-strat" title="25. Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">25. S-Sq ↕</th>
-            <th class="col-strat" title="26. Value-Up Catalyst 저PBR 및 총주주환원율">26. ValueUp ↕</th>
-            <th class="col-strat" title="27. Kaufman Trend Efficiency 고순도 추세 필터">27. TrendEff ↕</th>
-            <th class="col-strat" title="28. Gamma Squeeze 옵션 델타/감마 가속도">28. GammaSq ↕</th>
-            <th class="col-strat" title="29. Insider Buying 임원/대주주 내부자 매수">29. Insider ↕</th>
-            <th class="col-strat" title="30. High-Frequency Darkpool / Block Order Flow">30. Darkpool ↕</th>
-            <th class="col-strat" title="31. Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">31. ToneDrift ↕</th>
-            <th class="col-strat" title="32. Cross-Asset Spillover 거시 탄력도 벡터 임펄스">32. CAS ↕</th>
-            <th class="col-strat" title="33. Supply Chain GNN 2-hop 그래프 메시지 패싱">33. GNN ↕</th>
-            <th class="col-strat" title="34. Range Expansion Breakout 변동성 압축 돌파">34. REB ↕</th>
-            <th class="col-strat" title="35. Dual Correction 가격/기간 조정 눌림목">35. Dual ↕</th>
-            <th class="col-strat" title="36. Index Rebalance 패시브 수급 선반영">36. Idx ↕</th>
-            <th class="col-strat" title="37. Overnight Gap Reversal 갭 페이드 반전">37. Gap ↕</th>
+            <th class="col-strat col-cat-ai" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
+            <th class="col-strat col-cat-ai" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
+            <th class="col-strat col-cat-mom" title="3. Lead-Lag 후행 반응 종목 시차 상관성">3. L-L ↕</th>
+            <th class="col-strat col-cat-mom" title="4. VCP 변동성 수축 패턴 규칙 검출">4. VCP-R ↕</th>
+            <th class="col-strat col-cat-ai" title="5. VCP 머신러닝 급등 예측">5. VCP-M ↕</th>
+            <th class="col-strat col-cat-ai" title="6. Strict Causal 시계열 LSTM 딥러닝">6. LSTM ↕</th>
+            <th class="col-strat col-cat-macro" title="7. Stat-Arb 공적분 잔차 평균회귀 Z-score">7. S-Arb ↕</th>
+            <th class="col-strat col-cat-mom" title="8. Sector Rotation 상대모멘텀 & 순환매">8. Sec-R ↕</th>
+            <th class="col-strat col-cat-val" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
+            <th class="col-strat col-cat-val" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
+            <th class="col-strat col-cat-mom" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
+            <th class="col-strat col-cat-macro" title="12. Options Put/Call Implied Volatility Skew 역발상 점수">12. IV-Sk ↕</th>
+            <th class="col-strat col-cat-flow" title="13. Order Flow Imbalance 외인/기관 순매수 수급 가속도">13. Flow ↕</th>
+            <th class="col-strat col-cat-mom" title="14. Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">14. Rev ↕</th>
+            <th class="col-strat col-cat-val" title="15. Analyst Revision Momentum EPS/목표가 상향 조정">15. ARM ↕</th>
+            <th class="col-strat col-cat-macro" title="16. Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">16. CARD ↕</th>
+            <th class="col-strat col-cat-macro" title="17. Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">17. LATR ↕</th>
+            <th class="col-strat col-cat-flow" title="18. Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">18. I&amp;F ↕</th>
+            <th class="col-strat col-cat-macro" title="19. Supply Chain Momentum 전방 공급망 전이">19. Supply ↕</th>
+            <th class="col-strat col-cat-macro" title="20. NLP Sentiment FinBERT 공시/뉴스 감성">20. NLP ↕</th>
+            <th class="col-strat col-cat-macro" title="21. Fama-French Multi-Factor Style Neutralized 순수 알파">21. Neutral ↕</th>
+            <th class="col-strat col-cat-macro" title="22. Dynamic Volatility Targeting 리스크 파리티">22. Vol-T ↕</th>
+            <th class="col-strat col-cat-flow" title="23. Microstructure Imbalance 호가/동시호가 갭">23. Micro ↕</th>
+            <th class="col-strat col-cat-val" title="24. Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">24. Accrual ↕</th>
+            <th class="col-strat col-cat-flow" title="25. Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">25. S-Sq ↕</th>
+            <th class="col-strat col-cat-val" title="26. Value-Up Catalyst 저PBR 및 총주주환원율">26. ValueUp ↕</th>
+            <th class="col-strat col-cat-mom" title="27. Kaufman Trend Efficiency 고순도 추세 필터">27. TrendEff ↕</th>
+            <th class="col-strat col-cat-flow" title="28. Gamma Squeeze 옵션 델타/감마 가속도">28. GammaSq ↕</th>
+            <th class="col-strat col-cat-flow" title="29. Insider Buying 임원/대주주 내부자 매수">29. Insider ↕</th>
+            <th class="col-strat col-cat-flow" title="30. High-Frequency Darkpool / Block Order Flow">30. Darkpool ↕</th>
+            <th class="col-strat col-cat-val" title="31. Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">31. ToneDrift ↕</th>
+            <th class="col-strat col-cat-macro" title="32. Cross-Asset Spillover 거시 탄력도 벡터 임펄스">32. CAS ↕</th>
+            <th class="col-strat col-cat-macro" title="33. Supply Chain GNN 2-hop 그래프 메시지 패싱">33. GNN ↕</th>
+            <th class="col-strat col-cat-mom" title="34. Range Expansion Breakout 변동성 압축 돌파">34. REB ↕</th>
+            <th class="col-strat col-cat-mom" title="35. Dual Correction 가격/기간 조정 눌림목">35. Dual ↕</th>
+            <th class="col-strat col-cat-flow" title="36. Index Rebalance 패시브 수급 선반영">36. Idx ↕</th>
+            <th class="col-strat col-cat-mom" title="37. Overnight Gap Reversal 갭 페이드 반전">37. Gap ↕</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -3561,6 +3562,48 @@ def build_html(
   .ext-portal-btn {{ flex: 1; min-width: 100px; text-align: center; text-decoration: none; padding: 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); transition: all .15s; }}
   .ext-portal-btn:hover {{ border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }}
 
+  /* Watchlist Button */
+  .btn-watchlist {{ background: none; border: none; cursor: pointer; font-size: 13px; opacity: 0.35; transition: opacity .15s, transform .15s; padding: 0 4px 0 0; line-height: 1; vertical-align: middle; outline: none; }}
+  .btn-watchlist:hover {{ opacity: 0.85; transform: scale(1.2); }}
+  .btn-watchlist.active {{ opacity: 1; filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.85)); transform: scale(1.1); }}
+
+  /* Column Presets Filter Toolbar */
+  .column-presets-group {{ display: inline-flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 2px; gap: 2px; align-items: center; }}
+  .col-preset-label {{ font-size: 11px; color: var(--muted); font-weight: 600; padding: 0 4px; }}
+  .col-preset-btn {{ background: transparent; border: none; color: var(--muted); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all .15s; outline: none; }}
+  .col-preset-btn:hover {{ color: var(--text); }}
+  .col-preset-btn.active {{ background: var(--accent); color: #fff; box-shadow: 0 0 6px var(--accent-glow); }}
+
+  /* Dynamic Column Filter Rules */
+  body.preset-ai .col-strat:not(.col-cat-ai),
+  body.preset-mom .col-strat:not(.col-cat-mom),
+  body.preset-val .col-strat:not(.col-cat-val),
+  body.preset-flow .col-strat:not(.col-cat-flow),
+  body.preset-macro .col-strat:not(.col-cat-macro) {{
+    display: none !important;
+  }}
+
+  /* Font Scaling Controls */
+  .font-scale-group {{ display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 2px; }}
+  .font-scale-btn {{ background: transparent; border: none; color: var(--muted); font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 16px; cursor: pointer; transition: all .15s; outline: none; }}
+  .font-scale-btn.active {{ background: var(--surface3); color: var(--accent); }}
+  html.font-scale-small body {{ font-size: 12px; }}
+  html.font-scale-large body {{ font-size: 15px; }}
+
+  /* Table Sort Reset & Highlight */
+  .btn-reset-sort {{ background: var(--surface2); border: 1px solid var(--border); color: var(--muted); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: all .15s; outline: none; }}
+  .btn-reset-sort:hover {{ color: var(--text); border-color: var(--accent); }}
+  thead th.sorted-active {{ background: var(--surface3) !important; color: var(--accent) !important; box-shadow: inset 0 -2px 0 var(--accent); }}
+
+  /* Drawer Factor Category Tabs */
+  .drawer-factor-tabs {{ display: flex; gap: 4px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; }}
+  .drawer-factor-tab {{ background: var(--surface2); border: 1px solid var(--border); color: var(--muted); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 12px; cursor: pointer; transition: all .15s; white-space: nowrap; outline: none; }}
+  .drawer-factor-tab:hover {{ color: var(--text); }}
+  .drawer-factor-tab.active {{ background: var(--accent); color: #fff; border-color: var(--accent); }}
+
+  /* Autocomplete Keyboard Selected */
+  .search-result-item.selected {{ background: var(--surface3) !important; border-left: 3px solid var(--accent); }}
+
   /* Scrollbar */
   ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
   ::-webkit-scrollbar-track {{ background: var(--bg); }}
@@ -3573,9 +3616,14 @@ def build_html(
   <div class="header-top-row">
     <div>
       <h1>📈 Stock Prediction Dashboard <span class="badge badge-quant-edition">Institutional Quant v7.0</span></h1>
-      <p class="header-subtitle">한국(KRX 2,400+) &amp; 미국(US 500+) 3,379종목 34대 다변화 앙상블 &amp; 리스크 파리티 자동 트레이딩 대시보드</p>
+      <p class="header-subtitle">한국(KRX 2,400+) &amp; 미국(US 500+) 3,379종목 37대 다변화 앙상블 &amp; 리스크 파리티 자동 트레이딩 대시보드</p>
     </div>
-    <div class="header-actions">
+    <div class="header-actions" style="display:flex; gap:10px; align-items:center;">
+      <div class="font-scale-group">
+        <button class="font-scale-btn" id="font-scale-small" onclick="setFontScale('small')" title="글자 작게 (88%)">A-</button>
+        <button class="font-scale-btn active" id="font-scale-normal" onclick="setFontScale('normal')" title="글자 보통 (100%)">A</button>
+        <button class="font-scale-btn" id="font-scale-large" onclick="setFontScale('large')" title="글자 크게 (115%)">A+</button>
+      </div>
       <div class="theme-toggle-group">
         <button class="theme-btn active" id="theme-dark" onclick="switchTheme('dark')" title="Dark Pro 테마">🌌 Dark</button>
         <button class="theme-btn" id="theme-terminal" onclick="switchTheme('terminal')" title="블룸버그 터미널 고대비 테마">📟 Terminal</button>
@@ -3771,6 +3819,7 @@ def build_html(
     <button class="chip-btn" onclick="applyQuickFilter('rim', this)">💎 RIM 저평가</button>
     <button class="chip-btn" onclick="applyQuickFilter('vcp', this)">🎯 VCP 돌파</button>
     <button class="chip-btn" onclick="applyQuickFilter('positive', this)">📈 양수 수익률</button>
+    <button class="chip-btn" id="chip-watchlist" onclick="applyQuickFilter('watchlist', this)">⭐ 관심종목 (<span id="watchlist-count">0</span>)</button>
   </div>
 </div>
 
@@ -3817,6 +3866,16 @@ def build_html(
               <button class="density-btn" id="btn-density-compact" onclick="setTableDensity('compact')" title="컴팩트 밀도 보기">컴팩트</button>
               <button class="density-btn active" id="btn-density-comfortable" onclick="setTableDensity('comfortable')" title="표준 밀도 보기">표준</button>
             </div>
+            <div class="column-presets-group">
+              <span class="col-preset-label">📊 컬럼:</span>
+              <button class="col-preset-btn active" id="col-preset-all" onclick="setColumnPreset('all', this)" title="37대 모든 전략 컬럼 표시">전체 (37)</button>
+              <button class="col-preset-btn" id="col-preset-ai" onclick="setColumnPreset('ai', this)" title="AI/머신러닝 예측 모델 (1,2,5,6)">🤖 AI/ML</button>
+              <button class="col-preset-btn" id="col-preset-mom" onclick="setColumnPreset('mom', this)" title="모멘텀 및 기술적 돌파 (3,4,8,11,14,27,34,35,37)">📈 모멘텀</button>
+              <button class="col-preset-btn" id="col-preset-val" onclick="setColumnPreset('val', this)" title="가치평가 및 회계 퀄리티 (9,10,15,24,26,31)">💎 밸류</button>
+              <button class="col-preset-btn" id="col-preset-flow" onclick="setColumnPreset('flow', this)" title="수급 및 스마트머니 (13,18,23,25,28,29,30,36)">🌊 수급</button>
+              <button class="col-preset-btn" id="col-preset-macro" onclick="setColumnPreset('macro', this)" title="매크로 및 리스크 관리 (7,12,16,17,19,20,21,22,32,33)">🌐 매크로</button>
+            </div>
+            <button class="btn-reset-sort" onclick="resetTableSort()" title="원래 앙상블 순위로 정렬 초기화">🔄 정렬 리셋</button>
             <button class="btn-export-csv" onclick="exportEnsembleTableToCSV()" title="현재 앙상블 테이블을 CSV 파일로 다운로드">
               📥 CSV 다운로드
             </button>
@@ -5064,6 +5123,37 @@ document.addEventListener('DOMContentLoaded', function() {{
     }}
   }});
 
+  initFontScale();
+  initColumnPresets();
+  updateWatchlistUI();
+
+  // Autocomplete keyboard navigation
+  const searchInput = document.getElementById('stock-search-input');
+  const searchDropdown = document.getElementById('search-autocomplete-dropdown');
+  if (searchInput && searchDropdown) {{
+    searchInput.addEventListener('keydown', function(e) {{
+      const items = searchDropdown.querySelectorAll('.search-result-item');
+      if (!items || items.length === 0) return;
+      if (e.key === 'ArrowDown') {{
+        e.preventDefault();
+        selectedAutocompleteIndex = (selectedAutocompleteIndex + 1) % items.length;
+        items.forEach((it, i) => it.classList.toggle('selected', i === selectedAutocompleteIndex));
+        items[selectedAutocompleteIndex].scrollIntoView({{ block: 'nearest' }});
+      }} else if (e.key === 'ArrowUp') {{
+        e.preventDefault();
+        selectedAutocompleteIndex = (selectedAutocompleteIndex - 1 + items.length) % items.length;
+        items.forEach((it, i) => it.classList.toggle('selected', i === selectedAutocompleteIndex));
+        items[selectedAutocompleteIndex].scrollIntoView({{ block: 'nearest' }});
+      }} else if (e.key === 'Enter') {{
+        if (selectedAutocompleteIndex >= 0 && items[selectedAutocompleteIndex]) {{
+          e.preventDefault();
+          items[selectedAutocompleteIndex].click();
+          searchDropdown.style.display = 'none';
+        }}
+      }}
+    }});
+  }}
+
   // Back to Top Button Visibility
   const backToTopBtn = document.getElementById('btn-back-to-top');
   window.addEventListener('scroll', function() {{
@@ -5221,105 +5311,193 @@ function exportEnsembleTableToCSV() {{
   showToast('앙상블 테이블 CSV가 성공적으로 다운로드되었습니다.', '📥');
 }}
 
-function clearSearchInput() {{
-  const input = document.getElementById('stock-search-input');
-  if (!input) return;
-  input.value = '';
-  const clearBtn = document.getElementById('search-clear-btn');
-  if (clearBtn) clearBtn.style.display = 'none';
-  filterStockTables();
-  input.focus();
+// ── Watchlist / Bookmark Management ──
+function getWatchlist() {{
+  try {{
+    return JSON.parse(localStorage.getItem('quant_watchlist') || '[]');
+  }} catch(e) {{
+    return [];
+  }}
 }}
+
+function setWatchlist(list) {{
+  try {{
+    localStorage.setItem('quant_watchlist', JSON.stringify(list));
+  }} catch(e) {{}}
+  updateWatchlistUI();
+}}
+
+function toggleWatchlist(sym, event) {{
+  if (event) event.stopPropagation();
+  let list = getWatchlist();
+  const idx = list.indexOf(sym);
+  if (idx >= 0) {{
+    list.splice(idx, 1);
+    showToast(`[${{sym}}] 관심종목에서 해제되었습니다.`, '⭐');
+  }} else {{
+    list.push(sym);
+    showToast(`[${{sym}}] 관심종목에 등록되었습니다.`, '⭐');
+  }}
+  setWatchlist(list);
+  if (currentFilterState.quickFilter === 'watchlist') {{
+    applyUnifiedFilters();
+  }}
+}}
+
+function updateWatchlistUI() {{
+  const list = getWatchlist();
+  document.querySelectorAll('.btn-watchlist').forEach(btn => {{
+    const sym = btn.getAttribute('data-sym');
+    btn.classList.toggle('active', list.includes(sym));
+  }});
+  const countElem = document.getElementById('watchlist-count');
+  if (countElem) countElem.textContent = list.length;
+}}
+
+// ── Font Scaling Management ──
+function setFontScale(scale) {{
+  document.documentElement.classList.remove('font-scale-small', 'font-scale-normal', 'font-scale-large');
+  document.documentElement.classList.add(`font-scale-${{scale}}`);
+  try {{
+    localStorage.setItem('quant_font_scale', scale);
+  }} catch(e) {{}}
+  document.querySelectorAll('.font-scale-btn').forEach(btn => {{
+    btn.classList.toggle('active', btn.id === `font-scale-${{scale}}`);
+  }});
+  showToast(`폰트 크기가 '${{scale === 'small' ? '작게 (88%)' : (scale === 'large' ? '크게 (115%)' : '보통 (100%)')}}' 로 변경되었습니다.`, '🔍');
+}}
+
+function initFontScale() {{
+  const saved = localStorage.getItem('quant_font_scale') || 'normal';
+  document.documentElement.classList.add(`font-scale-${{saved}}`);
+  document.querySelectorAll('.font-scale-btn').forEach(btn => {{
+    btn.classList.toggle('active', btn.id === `font-scale-${{saved}}`);
+  }});
+}}
+
+// ── Column Presets Filter ──
+function setColumnPreset(preset, btn) {{
+  document.body.classList.remove('preset-ai', 'preset-mom', 'preset-val', 'preset-flow', 'preset-macro');
+  if (preset !== 'all') {{
+    document.body.classList.add(`preset-${{preset}}`);
+  }}
+  document.querySelectorAll('.col-preset-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  try {{
+    localStorage.setItem('quant_col_preset', preset);
+  }} catch(e) {{}}
+  showToast(`컬럼 필터: '${{btn ? btn.innerText : preset}}' 컬럼만 표시합니다.`, '📊');
+}}
+
+function initColumnPresets() {{
+  const saved = localStorage.getItem('quant_col_preset') || 'all';
+  if (saved !== 'all') {{
+    document.body.classList.add(`preset-${{saved}}`);
+  }}
+  const targetBtn = document.getElementById(`col-preset-${{saved}}`);
+  if (targetBtn) {{
+    document.querySelectorAll('.col-preset-btn').forEach(b => b.classList.remove('active'));
+    targetBtn.classList.add('active');
+  }}
+}}
+
+// ── Table Sort Reset ──
+function resetTableSort() {{
+  document.querySelectorAll('#ensemble-panels table').forEach(table => {{
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll('tr:not(.search-empty-row)'));
+    rows.sort((a, b) => {{
+      const idxA = parseInt(a.getAttribute('data-initial-order') || '0', 10);
+      const idxB = parseInt(b.getAttribute('data-initial-order') || '0', 10);
+      return idxA - idxB;
+    }});
+    rows.forEach(r => tbody.appendChild(r));
+    table.removeAttribute('data-sort-col');
+    table.removeAttribute('data-sort-order');
+    table.querySelectorAll('thead th').forEach(th => {{
+      th.classList.remove('sorted-active');
+      th.innerText = th.innerText.replace(/ [▲▼↕]/g, '') + ' ↕';
+      th.style.color = '';
+    }});
+  }});
+  showToast('테이블 정렬이 원래 앙상블 순위로 초기화되었습니다.', '🔄');
+}}
+
+// ── Unified Multi-Criteria Filter State ──
+let currentFilterState = {{
+  query: '',
+  quickFilter: 'all'
+}};
+
+let selectedAutocompleteIndex = -1;
 
 function applyQuickFilter(filterType, btn) {{
   document.querySelectorAll('.quick-filter-chips .chip-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
+  currentFilterState.quickFilter = filterType;
+  applyUnifiedFilters();
+  showToast(`'${{btn ? btn.innerText : filterType}}' 필터가 적용되었습니다.`, '⚡');
+}}
 
-  const input = document.getElementById('stock-search-input');
-  if (input) input.value = '';
-  const clearBtn = document.getElementById('search-clear-btn');
-  if (clearBtn) clearBtn.style.display = 'none';
+function applyUnifiedFilters() {{
+  const query = currentFilterState.query.toLowerCase().trim();
+  const qf = currentFilterState.quickFilter;
+  const watchlist = getWatchlist();
+  
+  let totalMatches = 0;
 
   document.querySelectorAll('#ensemble-panels table tbody').forEach(tbody => {{
     const rows = Array.from(tbody.querySelectorAll('tr:not(.search-empty-row)'));
-    let matched = 0;
+    let panelMatches = 0;
+    
     rows.forEach((row, idx) => {{
       if (row.querySelector('.empty')) return;
-      let show = true;
-      const scoreText = row.querySelector('.score')?.innerText || '0';
-      const scoreVal = parseFloat(scoreText.replace('%', '')) || 0;
-      const retText = row.querySelector('.pos, .neg')?.innerText || '0';
-      const retVal = parseFloat(retText.replace(/[%+▲▼ ]/g, '')) || 0;
-
-      if (filterType === 'top10') {{
-        show = (idx < 10);
-      }} else if (filterType === 'surge') {{
-        const surgeCell = row.children[5]?.innerText || '0';
+      const sym = row.getAttribute('data-symbol') || '';
+      const initialRank = parseInt(row.getAttribute('data-initial-rank') || `${{idx + 1}}`, 10);
+      const rowText = row.innerText.toLowerCase();
+      
+      // 1. Text Search Match
+      let textMatch = !query || rowText.includes(query) || sym.toLowerCase().includes(query);
+      
+      // 2. Quick Filter Match
+      let qfMatch = true;
+      if (qf === 'top10') {{
+        qfMatch = initialRank <= 10;
+      }} else if (qf === 'surge') {{
+        const surgeCell = row.children[6]?.innerText || '0';
         const surgeProb = parseFloat(surgeCell.replace('%', '')) || 0;
-        show = (surgeProb >= 30.0 || scoreVal >= 75.0);
-      }} else if (filterType === 'rim') {{
-        const rimCell = row.children[12]?.innerText || '0';
-        show = rimCell.includes('+') || parseFloat(rimCell.replace('%', '')) > 20.0;
-      }} else if (filterType === 'vcp') {{
-        const vcpCell = row.children[7]?.innerText || '';
-        show = vcpCell.includes('OK') || vcpCell.includes('1') || vcpCell.includes('돌파');
-      }} else if (filterType === 'positive') {{
-        show = retVal > 0 || retText.includes('+') || retText.includes('▲');
+        const scoreCell = row.querySelector('.score')?.innerText || '0';
+        const scoreVal = parseFloat(scoreCell.replace('%', '')) || 0;
+        qfMatch = (surgeProb >= 30.0 || scoreVal >= 75.0);
+      }} else if (qf === 'rim') {{
+        const rimCell = row.children[13]?.innerText || '0';
+        qfMatch = rimCell.includes('+') || parseFloat(rimCell.replace('%', '')) > 20.0;
+      }} else if (qf === 'vcp') {{
+        const vcpCell = row.children[8]?.innerText || '';
+        qfMatch = vcpCell.includes('OK') || vcpCell.includes('1') || vcpCell.includes('돌파');
+      }} else if (qf === 'positive') {{
+        const retText = row.querySelector('.pos, .neg')?.innerText || '0';
+        const retVal = parseFloat(retText.replace(/[%+▲▼ ]/g, '')) || 0;
+        qfMatch = retVal > 0 || retText.includes('+') || retText.includes('▲');
+      }} else if (qf === 'watchlist') {{
+        qfMatch = watchlist.includes(sym);
       }}
-
+      
+      const show = textMatch && qfMatch;
       row.style.display = show ? '' : 'none';
-      if (show) matched++;
-    }});
-
-    const status = document.getElementById('search-status');
-    if (status) {{
-      status.textContent = filterType === 'all' ? '' : `⚡ 필터 적용: ${{matched}}개 종목 표시 중`;
-    }}
-  }});
-
-  showToast(`'${{btn ? btn.innerText : filterType}}' 필터가 적용되었습니다.`, '🔍');
-}}
-
-function filterStockTables() {{
-  const input = document.getElementById('stock-search-input');
-  const dropdown = document.getElementById('search-autocomplete-dropdown');
-  const clearBtn = document.getElementById('search-clear-btn');
-  if (!input) return;
-  const query = input.value.toLowerCase().trim();
-  if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
-
-  let totalMatches = 0;
-
-  // Process all table bodies across all panels
-  document.querySelectorAll('table tbody').forEach(tbody => {{
-    const rows = Array.from(tbody.querySelectorAll('tr:not(.search-empty-row)'));
-    let panelMatches = 0;
-
-    rows.forEach(row => {{
-      if (row.querySelector('.empty')) return;
-      if (!query) {{
-        row.style.display = '';
+      if (show) {{
         panelMatches++;
         totalMatches++;
-      }} else {{
-        const text = row.innerText.toLowerCase();
-        if (text.includes(query)) {{
-          row.style.display = '';
-          panelMatches++;
-          totalMatches++;
-        }} else {{
-          row.style.display = 'none';
-        }}
       }}
     }});
-
-    // Manage Empty State message per table
+    
     let emptyRow = tbody.querySelector('.search-empty-row');
-    if (query && panelMatches === 0 && rows.length > 0 && !rows[0].querySelector('.empty')) {{
+    if (panelMatches === 0 && rows.length > 0 && !rows[0].querySelector('.empty')) {{
       if (!emptyRow) {{
         emptyRow = document.createElement('tr');
         emptyRow.className = 'search-empty-row';
-        emptyRow.innerHTML = '<td colspan="100" class="empty" style="padding:20px; color:var(--muted); font-size:12px;">🔍 일치하는 검색 결과가 없습니다.</td>';
+        emptyRow.innerHTML = '<td colspan="100" class="empty" style="padding:20px; color:var(--muted); font-size:12px;">🔍 일치하는 종목이 없습니다.</td>';
         tbody.appendChild(emptyRow);
       }}
       emptyRow.style.display = '';
@@ -5332,14 +5510,56 @@ function filterStockTables() {{
   document.querySelectorAll('.stock-cards-wrap').forEach(wrap => {{
     const cards = Array.from(wrap.querySelectorAll('.stock-card'));
     cards.forEach(card => {{
-      if (!query) {{
-        card.style.display = '';
-      }} else {{
-        const text = card.innerText.toLowerCase();
-        card.style.display = text.includes(query) ? '' : 'none';
+      const sym = card.getAttribute('data-symbol') || '';
+      const initialRank = parseInt(card.getAttribute('data-initial-rank') || '999', 10);
+      const cardText = card.innerText.toLowerCase();
+      let textMatch = !query || cardText.includes(query) || sym.toLowerCase().includes(query);
+      let qfMatch = true;
+      if (qf === 'top10') qfMatch = initialRank <= 10;
+      else if (qf === 'positive') {{
+        const retText = card.querySelector('.pos, .neg')?.innerText || '';
+        qfMatch = retText.includes('+') || retText.includes('▲');
+      }} else if (qf === 'watchlist') {{
+        qfMatch = watchlist.includes(sym);
       }}
+      card.style.display = (textMatch && qfMatch) ? '' : 'none';
     }});
   }});
+
+  const status = document.getElementById('search-status');
+  if (status) {{
+    if (query || qf !== 'all') {{
+      status.textContent = `🎯 ${{totalMatches}}개 종목 표시 중`;
+    }} else {{
+      status.textContent = '';
+    }}
+  }}
+}}
+
+function clearSearchInput() {{
+  const input = document.getElementById('stock-search-input');
+  if (!input) return;
+  input.value = '';
+  currentFilterState.query = '';
+  const clearBtn = document.getElementById('search-clear-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+  const dropdown = document.getElementById('search-autocomplete-dropdown');
+  if (dropdown) {{ dropdown.style.display = 'none'; dropdown.innerHTML = ''; }}
+  applyUnifiedFilters();
+  input.focus();
+}}
+
+function filterStockTables() {{
+  const input = document.getElementById('stock-search-input');
+  const dropdown = document.getElementById('search-autocomplete-dropdown');
+  const clearBtn = document.getElementById('search-clear-btn');
+  if (!input) return;
+  const query = input.value.toLowerCase().trim();
+  currentFilterState.query = query;
+  if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
+
+  selectedAutocompleteIndex = -1;
+  applyUnifiedFilters();
 
   // Universal Autocomplete Dropdown Search
   let universeMatchesCount = 0;
@@ -5354,10 +5574,10 @@ function filterStockTables() {{
         let dropHtml = '';
         allMatches.slice(0, 15).forEach((item, idx) => {{
           const retDisp = item.ret.startsWith('+') ? `▲ ${{item.ret}}` : (item.ret.startsWith('-') ? `▼ ${{item.ret}}` : item.ret);
-          const cleanName = item.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+          const cleanName = item.name.replace(/'/g, "\'").replace(/"/g, '&quot;');
           const drawerCall = `openStockDrawer('${{item.sym}}', '${{cleanName}}', '${{item.mkt}}', '${{item.score}}', '${{retDisp}}', '${{item.factors}}', ${{idx}})`;
           dropHtml += `
-            <div class="search-result-item" onclick="${{drawerCall}}">
+            <div class="search-result-item" data-idx="${{idx}}" onclick="${{drawerCall}}">
               <div style="display:flex; align-items:center;">
                 <span class="search-res-sym">${{item.sym}}</span>
                 <span class="search-res-name">${{item.name}}</span>
@@ -5425,9 +5645,11 @@ function sortTable(table, colIdx) {{
     let baseText = th.innerText.replace(/ [▲▼↕]/g, '');
     if (i === colIdx) {{
       th.innerText = baseText + (asc ? ' ▲' : ' ▼');
+      th.classList.add('sorted-active');
       th.style.color = 'var(--accent)';
     }} else {{
       th.innerText = baseText + ' ↕';
+      th.classList.remove('sorted-active');
       th.style.color = 'var(--muted)';
     }}
   }});
@@ -5446,11 +5668,36 @@ function renderDrawerRadarChart(factors) {{
     return isNaN(num) ? 50 : Math.min(100, Math.max(0, num));
   }};
 
-  const aiScore = (parseVal('1. XGBoost 회귀') + parseVal('2. Surge 분류기') + parseVal('5. VCP ML') + parseVal('6. Strict LSTM')) / 4;
-  const momScore = (parseVal('11. MQ Factor') + parseVal('27. Trend Efficiency') + parseVal('8. Sector Rotation') + parseVal('34. Range Expansion')) / 4;
-  const valScore = (parseVal('9. RIM Valuation') + parseVal('15. ARM Factor') + parseVal('26. Value-Up Yield') + parseVal('24. Accruals Quality')) / 4;
-  const flowScore = (parseVal('13. Order Flow') + parseVal('18. Inst & Foreign Sector') + parseVal('30. Darkpool & HFT') + parseVal('29. Insider Buying')) / 4;
-  const macroScore = (parseVal('16. CARD Factor') + parseVal('17. LATR Factor') + parseVal('32. Cross-Asset Spillover') + parseVal('33. Supply Chain GNN')) / 4;
+  // Full 37-Strategy Mapping across 5 Alpha Dimensions
+  const aiKeys = ['1. XGBoost 회귀', '2. Surge 분류기', '5. VCP ML', '6. Strict LSTM'];
+  const aiScore = aiKeys.reduce((acc, k) => acc + parseVal(k), 0) / aiKeys.length;
+
+  const momKeys = [
+    '3. Lead-Lag', '4. VCP 패턴 (Rule)', '8. Sector Rotation', '11. MQ Factor', 
+    '14. Short-Term Reversal', '27. Trend Efficiency', '34. Range Expansion', 
+    '35. Dual Correction', '37. Overnight Gap'
+  ];
+  const momScore = momKeys.reduce((acc, k) => acc + parseVal(k), 0) / momKeys.length;
+
+  const valKeys = [
+    '9. RIM Valuation', '10. Event-Driven', '15. ARM Factor', 
+    '24. Accruals Quality', '26. Value-Up Yield', '31. Tone Drift'
+  ];
+  const valScore = valKeys.reduce((acc, k) => acc + parseVal(k), 0) / valKeys.length;
+
+  const flowKeys = [
+    '13. Order Flow', '18. Inst & Foreign Sector', '23. Microstructure', 
+    '25. Short Squeeze', '28. Gamma Squeeze', '29. Insider Buying', 
+    '30. Darkpool & HFT', '36. Index Rebalance'
+  ];
+  const flowScore = flowKeys.reduce((acc, k) => acc + parseVal(k), 0) / flowKeys.length;
+
+  const macroKeys = [
+    '7. Stat-Arb', '12. Options IV Skew', '16. CARD Factor', '17. LATR Factor', 
+    '19. Supply Chain', '20. NLP Sentiment', '21. Factor Neutralized', 
+    '22. Vol Targeting', '32. Cross-Asset Spillover', '33. Supply Chain GNN'
+  ];
+  const macroScore = macroKeys.reduce((acc, k) => acc + parseVal(k), 0) / macroKeys.length;
 
   if (drawerRadarChartInstance) {{
     drawerRadarChartInstance.destroy();
@@ -5459,9 +5706,9 @@ function renderDrawerRadarChart(factors) {{
   drawerRadarChartInstance = new Chart(canvas, {{
     type: 'radar',
     data: {{
-      labels: ['AI/ML 예측', '모멘텀/추세', '밸류/퀄리티', '수급/스마트머니', '글로벌/GNN'],
+      labels: ['AI/ML 예측 (4)', '모멘텀/추세 (9)', '밸류/퀄리티 (6)', '수급/스마트 (8)', '매크로/GNN (10)'],
       datasets: [{{
-        label: '5-대 알파 레이더',
+        label: '37대 알파 레이더',
         data: [aiScore.toFixed(1), momScore.toFixed(1), valScore.toFixed(1), flowScore.toFixed(1), macroScore.toFixed(1)],
         backgroundColor: 'rgba(56, 189, 248, 0.25)',
         borderColor: '#38bdf8',
@@ -5565,8 +5812,14 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
           ? '<span class="badge-na">N/A</span>'
           : `<span style="color:${{numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e')}}; font-weight:700;">${{valStr}}</span>`;
         
+        let cat = 'macro';
+        if (key.startsWith('1.') || key.startsWith('2.') || key.startsWith('5.') || key.startsWith('6.')) cat = 'ai';
+        else if (key.startsWith('3.') || key.startsWith('4.') || key.startsWith('8.') || key.startsWith('11.') || key.startsWith('14.') || key.startsWith('27.') || key.startsWith('34.') || key.startsWith('35.') || key.startsWith('37.')) cat = 'mom';
+        else if (key.startsWith('9.') || key.startsWith('10.') || key.startsWith('15.') || key.startsWith('24.') || key.startsWith('26.') || key.startsWith('31.')) cat = 'val';
+        else if (key.startsWith('13.') || key.startsWith('18.') || key.startsWith('23.') || key.startsWith('25.') || key.startsWith('28.') || key.startsWith('29.') || key.startsWith('30.') || key.startsWith('36.')) cat = 'flow';
+
         html += `
-          <div style="background:var(--surface2); padding:8px 12px; border-radius:6px; border:1px solid var(--border);">
+          <div class="drawer-factor-item" data-factor-cat="${{cat}}" style="background:var(--surface2); padding:8px 12px; border-radius:6px; border:1px solid var(--border);">
             <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
               <span style="color:var(--text); font-weight:600;">${{key}}</span>
               ${{badgeHtml}}
@@ -5590,6 +5843,23 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
     drawer.style.right = '0px';
     overlay.style.opacity = '1';
   }}, 10);
+}}
+
+function filterDrawerFactors(cat, btn) {{
+  document.querySelectorAll('.drawer-factor-tabs .drawer-factor-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  
+  let visibleCount = 0;
+  document.querySelectorAll('#drawer-factors-grid .drawer-factor-item').forEach(item => {{
+    const itemCat = item.getAttribute('data-factor-cat');
+    const show = (cat === 'all' || itemCat === cat);
+    item.style.display = show ? 'block' : 'none';
+    if (show) visibleCount++;
+  }});
+  const countBadge = document.getElementById('drawer-factor-count-badge');
+  if (countBadge) {{
+    countBadge.textContent = cat === 'all' ? '37개 전수' : `${{visibleCount}}개 표시`;
+  }}
 }}
 
 function closeStockDrawer() {{
@@ -5649,7 +5919,7 @@ function initDrawerTouchSwipe() {{
   
   <div class="drawer-kpi-grid">
     <div class="drawer-kpi-card">
-      <div class="kpi-lbl">34대 앙상블 종합 점수</div>
+      <div class="kpi-lbl">37대 앙상블 종합 점수</div>
       <div id="drawer-score" class="kpi-val" style="color:var(--blue);">0.0%</div>
     </div>
     <div class="drawer-kpi-card">
@@ -5670,7 +5940,18 @@ function initDrawerTouchSwipe() {{
   </div>
 
   <div style="margin-bottom:20px;">
-    <h3 style="font-size:12.5px; font-weight:700; color:var(--muted); margin-bottom:10px;">📊 34-Factor 다변화 스코어 분해</h3>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <h3 style="font-size:12.5px; font-weight:700; color:var(--muted); margin:0;">📊 37-Factor 다변화 스코어 분해</h3>
+      <span id="drawer-factor-count-badge" class="badge" style="font-size:10.5px;">37개 전수</span>
+    </div>
+    <div class="drawer-factor-tabs">
+      <button class="drawer-factor-tab active" data-cat="all" onclick="filterDrawerFactors('all', this)">전체 (37)</button>
+      <button class="drawer-factor-tab" data-cat="ai" onclick="filterDrawerFactors('ai', this)">🤖 AI/ML (4)</button>
+      <button class="drawer-factor-tab" data-cat="mom" onclick="filterDrawerFactors('mom', this)">📈 모멘텀 (9)</button>
+      <button class="drawer-factor-tab" data-cat="val" onclick="filterDrawerFactors('val', this)">💎 밸류 (6)</button>
+      <button class="drawer-factor-tab" data-cat="flow" onclick="filterDrawerFactors('flow', this)">🌊 수급 (8)</button>
+      <button class="drawer-factor-tab" data-cat="macro" onclick="filterDrawerFactors('macro', this)">🌐 매크로 (10)</button>
+    </div>
     <div id="drawer-factors-grid" style="display:flex; flex-direction:column; gap:6px;"></div>
   </div>
 

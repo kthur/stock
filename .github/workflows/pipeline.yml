@@ -196,10 +196,10 @@ jobs:
           echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| SKIP_TRAINING | ${{ env.SKIP_TRAINING }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📁 31대 전략 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 37대 전략 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
           echo "| 전략 / 파일명 | 크기 | 줄 수 |" >> $GITHUB_STEP_SUMMARY
           echo "|----------------|------|-------|" >> $GITHUB_STEP_SUMMARY
-          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt stat_arb_predictions.txt sector_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt inst_foreign_sector_predictions.txt supply_chain_predictions.txt sentiment_predictions.txt factor_neutralized_predictions.txt vol_target_predictions.txt microstructure_predictions.txt accruals_quality_predictions.txt short_squeeze_predictions.txt valueup_catalyst_predictions.txt trend_efficiency_predictions.txt gamma_squeeze_predictions.txt insider_buying_predictions.txt earnings_tone_drift_predictions.txt hft_order_flow_predictions.txt darkpool_predictions.txt dual_correction_predictions.txt index_rebalance_predictions.txt overnight_gap_predictions.txt pipeline_result.csv; do
+          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt stat_arb_predictions.txt sector_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt inst_foreign_sector_predictions.txt supply_chain_predictions.txt sentiment_predictions.txt factor_neutralized_predictions.txt vol_target_predictions.txt microstructure_predictions.txt accruals_quality_predictions.txt short_squeeze_predictions.txt valueup_catalyst_predictions.txt trend_efficiency_predictions.txt gamma_squeeze_predictions.txt insider_buying_predictions.txt darkpool_predictions.txt earnings_tone_drift_predictions.txt cross_asset_spillover_predictions.txt supply_chain_gnn_predictions.txt range_expansion_predictions.txt dual_correction_predictions.txt index_rebalance_predictions.txt overnight_gap_predictions.txt hft_order_flow_predictions.txt pipeline_result.csv; do
             FPATH="trading_system/result/$f"
             if [ -f "$FPATH" ]; then
               SIZE=$(du -sh "$FPATH" 2>/dev/null | cut -f1)
@@ -212,7 +212,7 @@ jobs:
 
           if [ -f "trading_system/result/ensemble_predictions.txt" ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 📊 31대 전략 동적 앙상블 상세 추천 리스트" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 37대 전략 동적 앙상블 상세 추천 리스트" >> $GITHUB_STEP_SUMMARY
             echo '```text' >> $GITHUB_STEP_SUMMARY
             head -n 60 trading_system/result/ensemble_predictions.txt >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
@@ -247,7 +247,7 @@ jobs:
         if: always()
         run: |
           mkdir -p trading_system/result_split
-          for f in pipeline_result surge_predictions lead_lag_predictions vcp_patterns vcp_ml_predictions lstm_predictions stat_arb_predictions sector_predictions rim_predictions event_driven_predictions mq_factor_predictions iv_skew_predictions order_flow_predictions short_term_reversal_predictions ensemble_predictions strategy_data_coverage_report portfolio_allocation arm_factor_predictions card_factor_predictions latr_factor_predictions inst_foreign_sector_predictions supply_chain_predictions sentiment_predictions factor_neutralized_predictions vol_target_predictions microstructure_predictions accruals_quality_predictions short_squeeze_predictions valueup_catalyst_predictions trend_efficiency_predictions gamma_squeeze_predictions insider_buying_predictions hft_order_flow_predictions darkpool_predictions earnings_tone_drift_predictions dual_correction_predictions index_rebalance_predictions overnight_gap_predictions run_comparison; do
+          for f in pipeline_result surge_predictions lead_lag_predictions vcp_patterns vcp_ml_predictions lstm_predictions stat_arb_predictions sector_predictions rim_predictions event_driven_predictions mq_factor_predictions iv_skew_predictions order_flow_predictions short_term_reversal_predictions ensemble_predictions strategy_data_coverage_report portfolio_allocation arm_factor_predictions card_factor_predictions latr_factor_predictions inst_foreign_sector_predictions supply_chain_predictions sentiment_predictions factor_neutralized_predictions vol_target_predictions microstructure_predictions accruals_quality_predictions short_squeeze_predictions valueup_catalyst_predictions trend_efficiency_predictions gamma_squeeze_predictions insider_buying_predictions hft_order_flow_predictions darkpool_predictions earnings_tone_drift_predictions cross_asset_spillover_predictions supply_chain_gnn_predictions range_expansion_predictions dual_correction_predictions index_rebalance_predictions overnight_gap_predictions run_comparison; do
             src="trading_system/result/${f}.txt"
             if [ -f "$src" ]; then
               cp "$src" "trading_system/result_split/${f}_${{ matrix.target }}.txt"
@@ -350,6 +350,7 @@ jobs:
                       accruals_quality_predictions.txt short_squeeze_predictions.txt valueup_catalyst_predictions.txt \
                       trend_efficiency_predictions.txt gamma_squeeze_predictions.txt insider_buying_predictions.txt \
                       earnings_tone_drift_predictions.txt hft_order_flow_predictions.txt darkpool_predictions.txt \
+                      cross_asset_spillover_predictions.txt supply_chain_gnn_predictions.txt range_expansion_predictions.txt \
                       dual_correction_predictions.txt index_rebalance_predictions.txt overnight_gap_predictions.txt \
                       ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt run_comparison.txt; do
               fpath="trading_system/result/$f"

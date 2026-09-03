@@ -33,7 +33,9 @@ STRATEGIES = [
     "card_factor", "latr_factor", "inst_foreign_sector",
     "supply_chain", "sentiment", "factor_neutralized", "vol_target",
     "microstructure", "accruals_quality", "short_squeeze", "valueup_catalyst",
-    "trend_efficiency", "gamma_squeeze", "insider_buying", "darkpool", "earnings_tone_drift"
+    "trend_efficiency", "gamma_squeeze", "insider_buying", "darkpool", "earnings_tone_drift",
+    "cross_asset_spillover", "supply_chain_gnn", "range_expansion_breakout",
+    "dual_correction", "index_rebalance", "overnight_gap_reversal"
 ]
 
 
@@ -321,6 +323,12 @@ def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult
         "insider_buying": [f"insider_buying_predictions_{market}.txt", "insider_buying_predictions.txt", f"insider_buying_{market}.txt", "insider_buying.txt"],
         "darkpool": [f"darkpool_predictions_{market}.txt", "darkpool_predictions.txt", f"hft_order_flow_predictions_{market}.txt", "hft_order_flow_predictions.txt"],
         "earnings_tone_drift": [f"earnings_tone_drift_predictions_{market}.txt", "earnings_tone_drift_predictions.txt"],
+        "cross_asset_spillover": [f"cross_asset_spillover_predictions_{market}.txt", "cross_asset_spillover_predictions.txt"],
+        "supply_chain_gnn": [f"supply_chain_gnn_predictions_{market}.txt", "supply_chain_gnn_predictions.txt"],
+        "range_expansion_breakout": [f"range_expansion_predictions_{market}.txt", "range_expansion_predictions.txt", f"range_expansion_breakout_predictions_{market}.txt", "range_expansion_breakout_predictions.txt"],
+        "dual_correction": [f"dual_correction_predictions_{market}.txt", "dual_correction_predictions.txt"],
+        "index_rebalance": [f"index_rebalance_predictions_{market}.txt", "index_rebalance_predictions.txt"],
+        "overnight_gap_reversal": [f"overnight_gap_predictions_{market}.txt", "overnight_gap_predictions.txt", f"overnight_gap_reversal_predictions_{market}.txt", "overnight_gap_reversal_predictions.txt"],
     }
 
     check_funcs = {
@@ -355,6 +363,12 @@ def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult
         "insider_buying": lambda c, m: check_generic_strategy(c, m, "insider_buying"),
         "darkpool": lambda c, m: check_generic_strategy(c, m, "darkpool"),
         "earnings_tone_drift": lambda c, m: check_generic_strategy(c, m, "earnings_tone_drift"),
+        "cross_asset_spillover": lambda c, m: check_generic_strategy(c, m, "cross_asset_spillover"),
+        "supply_chain_gnn": lambda c, m: check_generic_strategy(c, m, "supply_chain_gnn"),
+        "range_expansion_breakout": lambda c, m: check_generic_strategy(c, m, "range_expansion_breakout"),
+        "dual_correction": lambda c, m: check_generic_strategy(c, m, "dual_correction"),
+        "index_rebalance": lambda c, m: check_generic_strategy(c, m, "index_rebalance"),
+        "overnight_gap_reversal": lambda c, m: check_generic_strategy(c, m, "overnight_gap_reversal"),
     }
 
     for strat in STRATEGIES:
@@ -442,6 +456,12 @@ STRATEGY_PANEL_ALIASES: Dict[str, List[str]] = {
     "insider_buying": ["insider", "insider_buying", "insiderbuying", "insider-buying"],
     "darkpool": ["darkpool", "hft", "darkpool_hft", "darkpool-hft"],
     "earnings_tone_drift": ["tonedrift", "earnings_tone_drift", "earningstonedrift", "earnings-tone-drift"],
+    "cross_asset_spillover": ["crossasset", "cross_asset_spillover", "cross-asset", "crossassetspillover"],
+    "supply_chain_gnn": ["gnn", "supply_chain_gnn", "supply-chain-gnn", "supplychaingnn"],
+    "range_expansion_breakout": ["rangeexpansion", "range_expansion", "range-expansion", "range_expansion_breakout", "rangeexpansionbreakout"],
+    "dual_correction": ["dualcorrection", "dual_correction", "dual-correction", "dualcorrectionregime"],
+    "index_rebalance": ["indexrebalance", "index_rebalance", "index-rebalance", "indexrebalancestructuralflow"],
+    "overnight_gap_reversal": ["overnightgap", "overnight_gap", "overnight-gap", "overnightgapreversal", "overnight_gap_reversal"],
 }
 
 
@@ -486,7 +506,7 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
 
     if all_panels_ok and has_min_mkts:
         res.valid = True
-        res.message = f"GitHub Pages HTML generated cleanly with {len(res.markets_in_html)} markets and all 31 strategy panels populated with data"
+        res.message = f"GitHub Pages HTML generated cleanly with {len(res.markets_in_html)} markets and all {len(STRATEGIES)} strategy panels populated with data"
     else:
         failed_panels = [p for p, valid in res.strategy_panels_valid.items() if not valid]
         res.valid = False
@@ -521,24 +541,25 @@ def run_verification(result_dir: Path, gh_pages_dir: Path) -> PipelineVerificati
 
 
 def print_report(report: PipelineVerificationReport) -> None:
-    print("\n" + "=" * 190)
-    print(" 🔍 Pipeline GHA Artifact Verification Report (All 31 Strategies & Dashboard)")
-    print("=" * 190)
+    print("\n" + "=" * 220)
+    print(f" 🔍 Pipeline GHA Artifact Verification Report (All {len(STRATEGIES)} Strategies & Dashboard)")
+    print("=" * 220)
     print(f"Result Directory   : {report.result_dir}")
     print(f"GitHub Pages Dir   : {report.gh_pages_dir}")
     print(f"Overall Status     : {'✅ PASSED' if report.overall_passed else '❌ FAILED'}")
-    print("-" * 190)
+    print("-" * 220)
 
-    print("\n📊 Strategy Verification by Market (Canonical 31 Strategies):")
+    print(f"\n📊 Strategy Verification by Market ({len(STRATEGIES)} Strategies):")
     headers = [
         "Market", "Reg", "Srg", "L-L", "VCP-R", "VCP-M", "LSTM", "S-Arb",
         "Sec", "RIM", "Event", "MQ", "IV-Sk", "Flow", "Rev", "ARM", "CARD",
         "LATR", "IFS", "SC", "Sent", "Neu", "VolT", "Micro", "Accr",
-        "Sqz", "ValUp", "TEff", "GSqz", "Insdr", "Dark", "Tone", "Status"
+        "Sqz", "ValUp", "TEff", "GSqz", "Insdr", "Dark", "Tone",
+        "CAS", "GNN", "REB", "DC", "IdxR", "GapR", "Status"
     ]
     header_str = f"{headers[0]:<12} | " + " | ".join(f"{h:<5}" for h in headers[1:-1]) + f" | {headers[-1]}"
     print(header_str)
-    print("-" * 190)
+    print("-" * 220)
 
     for market in MARKETS:
         m = report.markets.get(market)
@@ -560,7 +581,7 @@ def print_report(report: PipelineVerificationReport) -> None:
     print(f"  Total Recommendations: {report.ensemble.total_recommendations}")
     print(f"  Message        : {report.ensemble.message}")
 
-    print("\n🌐 GitHub Pages HTML Dashboard & 31 Strategy Panels:")
+    print(f"\n🌐 GitHub Pages HTML Dashboard & {len(STRATEGIES)} Strategy Panels:")
     print(f"  File Found     : {'Yes' if report.gh_pages.file_found else 'No'}")
     print(f"  Valid Status   : {'✅ Valid' if report.gh_pages.valid else '❌ Invalid'}")
     print(f"  Markets in HTML: {', '.join(report.gh_pages.markets_in_html)}")
@@ -571,7 +592,7 @@ def print_report(report: PipelineVerificationReport) -> None:
         print(f"    - {p_id:<20}: {status_icon} ({cnt} rows)")
     print(f"  Summary Message: {report.gh_pages.message}")
 
-    print("\n" + "=" * 190 + "\n")
+    print("\n" + "=" * 220 + "\n")
 
 
 def main():

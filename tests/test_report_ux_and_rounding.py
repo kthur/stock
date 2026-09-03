@@ -238,7 +238,7 @@ stat_arb                           0       948       0.0%   NO_COINTEGRATED_PAIR
 """
     tot, items = parse_strategy_coverage_report(sample_report)
     assert tot == 948
-    assert len(items) == 34
+    assert len(items) == 37
 
     reg_item = next(i for i in items if i.strategy_id == "regression")
     assert reg_item.status == "HEALTHY"
@@ -354,6 +354,37 @@ Date: 2026-08-30 01:29 KST
     assert len(reb_rows) == 1
     assert reb_rows[0].symbol == "NVDA"
     assert reb_rows[0].score == "91.2%"
+
+
+def test_ux_enhancements_presence():
+    html_out = _call_build_html()
+    # Check font scaling buttons
+    assert 'id="font-scale-small"' in html_out
+    assert 'id="font-scale-normal"' in html_out
+    assert 'id="font-scale-large"' in html_out
+
+    # Check watchlist quick chip & star buttons
+    assert 'id="chip-watchlist"' in html_out
+    assert 'btn-watchlist' in html_out
+    assert 'toggleWatchlist' in html_out
+
+    # Check column presets toolbar
+    assert 'class="column-presets-group"' in html_out
+    assert 'id="col-preset-all"' in html_out
+    assert 'id="col-preset-ai"' in html_out
+    assert 'id="col-preset-mom"' in html_out
+    assert 'id="col-preset-val"' in html_out
+    assert 'id="col-preset-flow"' in html_out
+    assert 'id="col-preset-macro"' in html_out
+
+    # Check table sort reset button
+    assert 'class="btn-reset-sort"' in html_out
+    assert 'resetTableSort()' in html_out
+
+    # Check drawer factor tabs
+    assert 'class="drawer-factor-tabs"' in html_out
+    assert 'filterDrawerFactors' in html_out
+
 
 
 
