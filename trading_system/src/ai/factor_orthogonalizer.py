@@ -244,8 +244,8 @@ class FactorOrthogonalizerEngine:
         if preserve_pc1 and len(whitening_filter) > 0:
             whitening_filter[-1] = 1.0
 
-        # Cap maximum amplification to prevent noise explosion on weak spectral dimensions (C-05 / optimal bound)
-        whitening_filter = np.minimum(whitening_filter, 5.0)
+        # Cap maximum amplification to prevent noise explosion on weak spectral dimensions (C-05 / optimal 3.5 bound)
+        whitening_filter = np.minimum(whitening_filter, 3.5)
 
         # Compute ZCA whitening operator: C^(-1/2) = V * diag(whitening_filter) * V^T
         inv_sqrt_lambda = np.diag(whitening_filter)
