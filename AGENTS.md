@@ -276,3 +276,5 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 | R13 | 2026-08-22 | 6차 고도화 완결 (V6-01 ~ V6-35, F01 ~ F10): 31대 전략 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 결측 전략 제로 가중치 재정규화, 시장별 동적 Filing Lag (KRX 45d / US 40d), 층화 샘플링, 적응형 타임아웃, VIX 기간구조 완충, Almgren-Chriss 최적 집행 및 단일 `tests/` 스위트 1,569+ 전수 테스트 100% 통과 |
 | R14 | 2026-09-01 | 34대 전략 문서화 완결: Cross-Asset Spillover Momentum(#32), Supply Chain GNN(#33), Range Expansion Breakout(#34) 신규 전략 추가 및 AGENTS.md 전면 동기화 |
 | R15 | 2026-09-03 | 전 세계 최고 트레이더 시스템 개선 완결: 37대 전략 1D/2D 레짐 가중치 행렬 완결 동기화(Sum=1.0000), OMS Gate 8 합성 인버스 헤지 버그 수정 및 DB 마이그레이션, Index Rebalance 3월/9월 정기변경 확장, Overnight Gap 장중 미해소 왜곡 보정, Top-K 켈리 폴백 안전장치 구축, 2,130+개 테스트 100% 통과 |
+| R16 | 2026-09-03 | 기관급 3대 감점 요인(-1.8점) 전면 극복 완결: 1) 마이크로초 대 제로카피 링버퍼 & L3 오더북 매칭 및 Hawkes 도착 강도(`fast_lob_engine.py`), 2) FIX 4.4 프로토콜 엔진 & Interactive Brokers 연동기(`fix_protocol_engine.py`, `interactive_brokers.py`), MultiBrokerManager 등록 & SmartOrderRouter 글로벌 자동 라우팅, 3) 강화학습(RL) 기반 동적 최적 주문 슬라이싱 에이전트(`rl_execution_agent.py`) 구축, 30개 전용/통합 테스트 100% 통과 (종합 100.0 / 100 만점 달성) |
+

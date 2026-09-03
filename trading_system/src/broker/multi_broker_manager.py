@@ -11,6 +11,8 @@ from .korea_investment import KoreaInvestmentConnector
 from .ls import LSConnector
 from .miraeasset import MiraeAssetConnector
 from .nh import NHConnector
+from .interactive_brokers import InteractiveBrokersConnector
+from .fix_protocol_engine import FIX44Engine
 from .protocol import BrokerProtocol
 
 logger = logging.getLogger(__name__)
@@ -26,6 +28,8 @@ class BrokerType(Enum):
     MIRAE_ASSET = "mirae_asset"
     NH = "nh"
     LS = "ls"
+    INTERACTIVE_BROKERS = "interactive_brokers"
+    FIX_PROTOCOL = "fix_protocol"
 
 
 class MultiBrokerManager:
@@ -49,8 +53,10 @@ class MultiBrokerManager:
         self.brokers[BrokerType.MIRAE_ASSET] = MiraeAssetConnector()
         self.brokers[BrokerType.NH] = NHConnector()
         self.brokers[BrokerType.LS] = LSConnector()
+        self.brokers[BrokerType.INTERACTIVE_BROKERS] = InteractiveBrokersConnector()
+        self.brokers[BrokerType.FIX_PROTOCOL] = FIX44Engine()
 
-        self.logger.info("MultiBrokerManager initialized with 7 brokers")
+        self.logger.info("MultiBrokerManager initialized with 9 brokers (including IBKR & FIX 4.4)")
 
     def connect(self, broker_type: BrokerType, account_number: str) -> bool:
         """

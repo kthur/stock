@@ -113,14 +113,44 @@ class SmartOrderRouter:
             if np.isfinite(rebate) and np.isfinite(w_leg):
                 tot_saving += w_leg * rebate
 
+        dest = self.determine_destination(symbol, order_plan.get("market"))
+
         return {
             "symbol": symbol,
             "action": action,
             "total_quantity": total_quantity,
             "target_price": target_price,
+            "destination": dest,
             "legs": legs,
             "expected_cost_saving_bps": round(float(tot_saving if np.isfinite(tot_saving) else 0.0), 2)
         }
+
+    def determine_destination(self, symbol: str, market: Optional[str] = None) -> Dict[str, str]:
+        """
+        Determines the institutional execution gateway (IBKR/FIX vs KRX Domestic) based on symbol/market.
+        """
+        sym = str(symbol).strip().upper()
+        mkt = str(market).strip().upper() if market else ""
+
+        is_krx = (
+            mkt in ["KOSPI", "KOSDAQ", "KRX"] or
+            (len(sym) == 6 and sym.isdigit())
+        )
+
+        if is_krx:
+            return {
+                "market_region": "KRX",
+                "primary_broker": "korea_investment",
+                "dma_gateway": "krx_open_api",
+                "venue": "KRX_ATS_NEXTRADE"
+            }
+        else:
+            return {
+                "market_region": "US",
+                "primary_broker": "interactive_brokers",
+                "dma_gateway": "fix_protocol",
+                "venue": "US_SMART_DMA"
+            }
 
     def route_batch(
         self,
@@ -135,3 +165,4 @@ class SmartOrderRouter:
             routed = self.route_order(plan, ats_available=ats_available)
             routed_batch.append(routed)
         return routed_batch
+
