@@ -1,6 +1,6 @@
 # 운영 런북 (Operations Runbook)
 
-실거래 및 31대 전략 예측 파이프라인 운영 시 반드시 지켜야 할 절차와 장애 대응 가이드입니다. **코드보다 운영 절차가 먼저다.**
+실거래 및 37대 전략 예측 파이프라인 운영 시 반드시 지켜야 할 절차와 장애 대응 가이드입니다. **코드보다 운영 절차가 먼저다.**
 
 ---
 
@@ -13,7 +13,7 @@
 | 주문 금액 상한 | `REALTIME_MAX_ORDER_VALUE_KRW` (기본 5,000만 원/건) |
 | 위기 게이트 | CrisisLevel.SEVERE → 신규 주문 계획 전체 차단 |
 | 킬 스위치 | `KILL_SWITCH` 파일 또는 `KILL_SWITCH=1` env |
-| 7대 안전 게이트 | SEVERE 위기 차단, 킬 스위치, 티커 정규식, 가격 이상치, 10주 라운딩, 포지션 캡, 순알파 허들 |
+| 8대 안전 게이트 | SEVERE 위기 차단, 킬 스위치, 티커 정규식, 가격 이상치, 10주 라운딩, 포지션 캡, 순알파 허들, **Gate 8 합성 인버스 헤지 오버레이** |
 
 실매매를 켜기 전에 아래 **체크리스트**를 통과해야 한다.
 
@@ -22,7 +22,7 @@
 ## 2. 파이프라인 실행
 
 ```bash
-# 정기 배치 (31대 전략 학습 + 추론 + 횡단면 정규화 + 2D 앙상블 + HRP 포트폴리오 최적화 + 리포트 생성)
+# 정기 배치 (37대 전략 학습 + 추론 + 횡단면 정규화 + 2D 앙상블 + UnifiedPortfolioAllocator + 리포트 생성)
 .venv/Scripts/python.exe trading_system/run_pipeline.py
 
 # 훈련 스킵 (기존 모델 재사용 — 빠른 재추론)
@@ -38,7 +38,7 @@
 
 | 검증 | 조건 |
 |------|------|
-| 핵심 출력 파일 | `pipeline_result.txt`, `surge_predictions.txt`, `ensemble_predictions.txt`, `strategy_data_coverage_report.txt` 존재 + 비어있지 않음 |
+| 핵심 출력 파일 | `pipeline_result.txt`, `surge_predictions.txt`, `ensemble_predictions.txt`, `strategy_data_coverage_report.txt` 등 37대 전략 출력 존재 + 비어있지 않음 |
 | 빈 추론 | `predict_all` 결과가 비면 런타임 오류 → 날짜 릴리즈 없음 |
 | 전 종목 수익률 0.0 | 모든 expected return이 0.0이면 실패 (모델 고장 시그니처) |
 | 심볼 손상 | order_plans에 `{`(dict 문자열) 심볼 또는 target_price<10 이면 실패 |
@@ -103,6 +103,7 @@ Remove-Item trading_system\KILL_SWITCH
 - [ ] VIX/USDKRW 지표가 최근(7일 이내)인가 — 크라이시스 게이트 입력이므로
 - [ ] 통화 변환 분모(FX Denominator) 검증: US 주식 주문 시 USD 환산 단가 정상 여부
 - [ ] 주문수량: KRX 10주 단위 반올림, US 1주 단위. `quantity<=0`이면 계획 자체를 생성하지 않음
+- [ ] Gate 8 합성 인버스 헤지 상태 확인: 하락/위기 국면 진입 시 인버스 ETF 헤지 비중 적정 여부 확인
 
 ---
 
@@ -129,6 +130,7 @@ Remove-Item trading_system\KILL_SWITCH
 | 펀더멘탈 분기 여부 | fundamentals 테이블 `fiscal_period` | `quarterly` 우선 (annual은 fallback), 동적 Filing Lag (KRX 45d, US 40d) 적용 |
 | 가격 조정 컨벤션 | Tier1(yfinance)=조정, Tier2~4=비조정 → 분할 역조정 적용됨 | 최근 가격 수준 보존 |
 | order_plans 수량 | `SELECT symbol, quantity, target_amount, target_price FROM order_plans` | KRX 10주 배수, US 1주 |
+| OMS Gate 8 헤지 주문 | `SELECT * FROM order_plans WHERE symbol IN ('114800', '252670', 'PSQ', 'SQQQ')` | Bear/Crisis 시 델타 헤지 정상 발주 여부 |
 
 ---
 

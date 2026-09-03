@@ -3695,12 +3695,12 @@ def build_html(
 </div>
 
 <!-- ══════════════════════════════════════════════════════ -->
-<!-- 34대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
+<!-- 37대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
 <!-- ══════════════════════════════════════════════════════ -->
 <div class="content" style="padding-bottom: 0;">
   <div class="strat-guide-card">
     <div class="strat-guide-header" onclick="toggleStratGuide()">
-      <div class="strat-guide-title">📖 34대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
+      <div class="strat-guide-title">📖 37대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
       <span id="strat-guide-icon" style="color:var(--accent); font-weight:bold; font-size:12px;">▶ 보기</span>
     </div>
     <div id="strat-guide-body" style="display: none;">
@@ -3739,6 +3739,9 @@ def build_html(
         <div class="strat-card-item"><div class="strat-card-name">32. Cross-Asset Spillover</div><div class="strat-card-desc">업종별 거시지표(SOX/FX/WTI/TNX/VIX/Gold/DXY/SP500) 탄력도 벡터 기반 매크로 임펄스 &amp; 미가격 리드-래그 파급</div></div>
         <div class="strat-card-item"><div class="strat-card-name">33. Supply Chain GNN</div><div class="strat-card-desc">글로벌 밸류체인 2-hop 그래프 메시지 패싱 + 불위그 쇼크 비선형 증폭 &amp; 업종 플로우 유동성 모멘텀</div></div>
         <div class="strat-card-item"><div class="strat-card-name">34. Range Expansion Breakout</div><div class="strat-card-desc">변동성 압축(NR7/볼린저 스퀴즈/Inside Day) 후 REF≥1.5 레인지 확장 + RVOL≥1.8 거래량 서지 + CLV≥0.65</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">35. Dual Correction</div><div class="strat-card-desc">피보나치(38.2%/50%/61.8%) 및 AVWAP 가격 조정 + 거래량 고갈 정밀 눌림목 반등</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">36. Index Rebalance Flow</div><div class="strat-card-desc">KOSPI200/MSCI/SP500 패시브 ETF 수급 리밸런싱 15~30일 선반영 차익</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">37. Overnight Gap Reversal</div><div class="strat-card-desc">개장가-전일종가 갭 정규화(ATR) 기반 통계적 갭 메우기 및 오버익스텐션 반전</div></div>
       </div>
     </div>
   </div>

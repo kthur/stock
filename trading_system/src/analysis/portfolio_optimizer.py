@@ -222,6 +222,9 @@ def calculate_black_litterman_weights(
             else:
                 Q_decimal = Q.copy()
 
+        # Clip extreme view returns to prevent numerical solver destabilization
+        Q_decimal = np.clip(np.nan_to_num(Q_decimal, nan=0.0), -0.90, 2.0)
+
         # Convert cumulative horizon return to daily equivalent to match daily cov_matrix
         eff_horizon = max(int(view_horizon), 1)
         Q_daily = Q_decimal / float(eff_horizon)

@@ -405,6 +405,10 @@ class ExecutionOMSEngine:
                     continue
 
                 raw_action = str(pred.get("action", "BUY") or "BUY").upper()
+                curr_holding_w = float(current_holdings.get(sym, 0.0)) if current_holdings is not None else 0.0
+                if weight <= 0.0 and curr_holding_w > 0.0:
+                    raw_action = "SELL"
+
                 if is_severe:
                     # V7-07: Capitulation Buy Override (15% Cap, 25% Fractional Kelly for high-conviction oversold turnaround)
                     is_capitulation_play = (
@@ -587,8 +591,8 @@ class ExecutionOMSEngine:
                     gap_ret = raw_gap / 100.0 if (is_explicit_percent or abs(raw_gap) >= 0.50) else raw_gap
                     # Short-term reversal strategy is specifically designed for oversold bounce; exempt it
                     is_oversold_play = any(k in pred for k in ["short_term_reversal", "oversold_bounce", "stat_arb"])
-                    if not is_oversold_play and gap_ret < -max(3.0 * vol_20d, 0.05):
-                        logger.info(f"[OMS GATE 7] {sym} adverse gap {gap_ret:.2%} < -3*vol ({vol_20d:.2%}), skipping open.")
+                    if action == "BUY" and not is_oversold_play and gap_ret < -max(3.0 * vol_20d, 0.05):
+                        logger.info(f"[OMS GATE 7] {sym} adverse gap {gap_ret:.2%} < -3*vol ({vol_20d:.2%}), skipping buy entry.")
                         continue
                 except Exception as _ge:
                     logger.debug(f"[OMS GATE 7] Gap filter exception for {sym}: {_ge}")

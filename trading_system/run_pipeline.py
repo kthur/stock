@@ -982,7 +982,7 @@ def _get_ecos_client() -> BOKECOSClient:
 
 
 def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = None,
-                            freshness_days: int = 7) -> pd.DataFrame:
+                            freshness_days: int = 1) -> pd.DataFrame:
     """Download 8 global indicator tickers in parallel, return single DataFrame.
 
     Returns: DataFrame with DatetimeIndex and columns = _INDICATOR_TICKERS.values()

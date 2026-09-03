@@ -81,7 +81,9 @@ class TurnoverOptimizer:
             # Full liquidation (raw_w == 0) and fresh entries (curr_w == 0) bypass hysteresis threshold
             is_full_exit = (raw_w == 0.0 and curr_w > 0.0)
             is_fresh_entry = (curr_w == 0.0 and raw_w > 0.0)
-            if not is_full_exit and not is_fresh_entry and (weight_delta < self.turnover_threshold_pct or amount_delta < min_rebalance_delta):
+            # C-07 fix: Allow rebalance if relative position change is large (>= 50%) and capital delta is non-trivial
+            is_large_relative_shift = (curr_w > 0.0 and (weight_delta / curr_w) >= 0.50 and amount_delta >= min_rebalance_delta * 2.0)
+            if not is_full_exit and not is_fresh_entry and not is_large_relative_shift and (weight_delta < self.turnover_threshold_pct or amount_delta < min_rebalance_delta):
                 final_w = curr_w
                 action = "HOLD"
                 total_turnover_reduced += amount_delta

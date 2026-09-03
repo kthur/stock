@@ -1,9 +1,9 @@
 # 🚀 시스템 아키텍처 및 성능 개선 계획 (IMPROVEMENT PLAN)
 
 > **작성일**: 2026-06-21  
-> **최종 갱신**: 2026-08-22 (KST) — 31대 전략 다변화, HRP/EVT-CVaR 포트폴리오 최적화, 횡단면 점수 정규화, 동적 Filing Lag, Almgren-Chriss OMS 및 1,569+ 전수 테스트 완료
+> **최종 갱신**: 2026-09-03 (KST) — 37대 전략 다변화, `UnifiedPortfolioAllocator`(BL/HERC/RP/CVaR 4-Model Blending & 3/2승 충격 페널티), Execution OMS 8대 안전 게이트 (Gate 8 합성 인버스 헤지), V8 정밀 감사(43개 결함 해결) 및 2,130+ 전수 테스트 완료
 
-본 문서는 코드베이스 정밀 검토 및 핵심 버그 픽스, 퀀트 시스템 전수 감사(Phase 1~6) 이후 수행된 개선 내역 및 운영 유지보수 계획입니다.
+본 문서는 코드베이스 정밀 검토 및 핵심 버그 픽스, 퀀트 시스템 전수 감사(Phase 1~8) 이후 수행된 개선 내역 및 운영 유지보수 계획입니다.
 
 ---
 
@@ -30,7 +30,7 @@
 ### 2.1 통합 단일 테스트 스위트 (`tests/`)
 - **개선 완료**:
   - 중복 실행되던 `trading_system/tests/`를 루트 `tests/`로 단일 통합.
-  - 31대 전략 엔진, HRP/EVT-CVaR/Black-Litterman 최적화, 앙상블 스코어러, 횡단면 정규화, DART 매퍼, 실체결 슬리피지 피드백, 적대적 스트레스 테스트 등 **1,569개 이상의 테스트**가 구성되어 100% 통과 검증 완료.
+  - 37대 전략 엔진, `UnifiedPortfolioAllocator`, 앙상블 스코어러, 횡단면 정규화, DART 매퍼, 실체결 슬리피지 피드백, 적대적 스트레스 테스트 등 **2,130개 이상의 테스트**가 구성되어 100% 통과 검증 완료.
 
 ### 2.2 CI/CD 파이프라인 도입 및 5-Matrix 최적화
 - **개선 완료**:
@@ -48,19 +48,21 @@
 
 ---
 
-## 4. 수익률 극대화 및 알파 창출 (31대 전략 확장) - **완료**
+## 4. 수익률 극대화 및 알파 창출 (37대 전략 확장) - **완료**
 
 ### 4.1 횡단면 점수 정규화 & 결측 가중치 재정규화
-- **CrossSectionalScoreNormalizer**: 31개 전략의 출력 점수를 Percentile Rank / Winsorized Gaussian CDF로 $[0.0, 1.0]$ 스케일에 균일 분산 매핑.
+- **CrossSectionalScoreNormalizer**: 37개 전략의 출력 점수를 Percentile Rank / Winsorized Gaussian CDF로 $[0.0, 1.0]$ 스케일에 균일 분산 매핑.
 - **Missing Strategy Zero-Weighting**: 미산출 전략에 0.50 기본값을 채우지 않고 해당 종목 가중치를 0으로 제외한 뒤 활성 전략 가중치를 정확히 재정규화($\sum \tilde{w} = 1.0$).
+- **1D/2D 레짐 가중치 행렬 전수 정규화**: 6대 시장 국면별 37대 전략 가중치 합 strictly = 1.0000 유지.
 
 ### 4.2 포트폴리오 최적화 및 자금 관리 고도화
-- **Hierarchical Risk Parity (HRP) & Black-Litterman**: Lopez de Prado의 계층적 트리 클러스터링과 Ledoit-Wolf 공분산 수축($\delta=0.15$), Black-Litterman $C^1$ 스무딩을 결합한 최적 위험 배분.
+- **UnifiedPortfolioAllocator (4-Model Regime Blending)**: Black-Litterman, HERC, Risk Parity, EVT-CVaR 4대 최적화 모델의 레짐 적응형 결합.
+- **3/2승 비선형 시장충격 목적함수**: Gatheral & Almgren-Chriss 모델 기반 비선형 대형 펀드 집행 충격 페널티 최적화.
 - **EVT-CVaR 극단값 꼬리위험 예산**: POT-GPD 3단계 계층 구조로 95% CVaR를 엄밀하게 산출하여 테일 리스크 방어.
 - **Leland 동적 No-Trade 버퍼 밴드**: 종목별 거래비용과 변동성을 고려한 버퍼 밴드($\delta_i \in [0.5\%, 5.0\%]$)를 적용하여 턴오버 마찰 비용 60% 이상 절감.
 
-### 4.3 31대 전략 다변화 및 직교화
-- 31대 전략(회귀, 서지, Lead-Lag, VCP, LSTM, Stat-Arb, Sector, RIM, Event, MQ, IV Skew, OF, Reversal, ARM, CARD, LATR, InstFor, Supply Chain, FinBERT Sentiment, Style Neutralizer, Vol Target, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Eff, Gamma Squeeze, Insider Buying, Tone Drift, Darkpool HFT) 완비.
+### 4.3 37대 전략 다변화 및 직교화
+- **37대 전략 완비**: 기존 31개 전략 + 전략 32~37(Cross-Asset Spillover, Supply Chain GNN, Range Expansion Breakout, Dual Correction, Index Rebalance, Overnight Gap Reversal) 완결.
 - **PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화**를 적용하여 팩터 간 상관관계 제거 및 순수 알파 추출.
 
 ---
@@ -68,6 +70,22 @@
 ## 5. 자율 주식 거래 에이전트 & Execution OMS - **완료**
 
 - `TradeJournal`(`trade_logs.db`) 실시간 체결 기록 및 통계 산출.
-- 7대 주문 안전 게이트(Severe 위기 차단, 킬 스위치, 심볼 정규식, 가격 경계, 10주 라운딩, 포지션 상한 캡, 순알파 허들) 완비.
+- **8대 주문 안전 게이트** 완비:
+  - Gate 1: Severe 위기 차단
+  - Gate 2: 하드웨어 킬 스위치
+  - Gate 3: 심볼 정규식 검증
+  - Gate 4: 가격 이상치 및 틱 그리드 정렬
+  - Gate 5: 10주/1주 단위 라운딩
+  - Gate 6: 포지션 및 섹터 캡
+  - Gate 7: 어드밴스드 실행 서브게이트 (단기 과열, 유동성, 순알파 허들)
+  - **Gate 8: 합성 베타 인버스 헤지 오버레이 (Bear/Crisis 국면 하락 방어)**
 - **Almgren-Chriss 최적 집행 스케줄러**를 통한 비선형 트랜치 주문 분할.
 - 실체결 슬리피지 피드백 루프(`SlippageFeedbackEngine`)를 통한 비용 파라미터 적응형 보정.
+
+---
+
+## 6. V8 시스템 정밀 감사 결함 전수 해결 (43개) - **완료**
+
+- Critical 13건: Dynamic filing lag, lookahead bias, PSD covariance flooring, connection pool 누수, FX 환산 분모 버그 등 전수 해결.
+- High 16건: Top-K 켈리 폴백, Index Rebalance 3월/9월 정기변경 확장, Overnight Gap 장중 미해소 왜곡 보정 등 전수 해결.
+- Medium 14건: 로깅 표준화, KST 타임존 변환 일관성 등 전수 해결.

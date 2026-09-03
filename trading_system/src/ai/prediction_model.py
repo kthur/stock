@@ -1544,6 +1544,7 @@ class OnDevicePredictionModel:
                 continue
             df = df.copy()
             df['symbol'] = sym
+            df = self.merge_fundamentals(sym, df, storage=storage)
             df_feat = self._create_features(df, indicator_df, storage, is_krx_symbol=self.is_krx_symbol(sym))
             df_feat = self._create_targets(df_feat)
             # Drop rows where non-fundamental features are missing (exclude targets & fundamentals)
@@ -2578,6 +2579,7 @@ class OnDevicePredictionModel:
             try:
                 df_copy = df.copy()
                 df_copy['symbol'] = sym
+                df_copy = self.merge_fundamentals(sym, df_copy, storage=storage, fundamentals_cache=fundamentals_cache)
                 df_feat = self._create_features(df_copy, indicator_df, storage, fundamentals_cache, is_krx_symbol=self.is_krx_symbol(sym))
                 if df_feat.empty:
                     return None

@@ -1,21 +1,21 @@
 # 주식 자동매매 시스템 전체 구조 및 알고리즘 명세서
 
-> **Version**: 6.5 (Production Standard)  
-> **Last Updated**: 2026-08-22 (KST)  
+> **Version**: 8.0 (Production Standard)  
+> **Last Updated**: 2026-09-03 (KST)  
 > **Python**: 3.10+  
 > **Database**: SQLite (WAL & Thread-safe Write Mutex)
 
 > [!IMPORTANT]
 > 이 문서는 현재 운영 중인 통합 프로덕션 아키텍처를 설명합니다:
-> - **31대 다변화 파이프라인 아키텍처** (`run_pipeline.py`): 31대 ML/시계열DL/규칙/수급/옵션/이벤트/공급망/FinBERT감성/Fama-French 5-Factor/변동성타겟팅/미시구조 팩터 전략 앙상블, 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 2D 시장 레짐 판정, 포트폴리오 최적화(HRP, Black-Litterman & EVT-CVaR), 실전 미시구조 거래비용 모델 및 RiskManager 위기 제어 파이프라인
-> - **이벤트 기반 자율 매매 및 Execution OMS** (`trading_system.py`, `src/execution/`): 7대 주문 안전 게이트, Almgren-Chriss 최적 집행 트랜치 스케줄러, 실시간 오더북 및 체결 슬리피지 피드백 엔진 (`trade_logs.db`)
+> - **37대 다변화 파이프라인 아키텍처** (`run_pipeline.py`): 37대 ML/시계열DL/규칙/수급/옵션/이벤트/공급망/FinBERT감성/Fama-French 5-Factor/변동성타겟팅/미시구조/매크로임펄스/가치사슬GNN/레인지확장돌파/듀얼코렉션/인덱스리밸런싱/오버나이트갭 팩터 전략 앙상블, 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 2D 시장 레짐 판정, 포트폴리오 최적화(`UnifiedPortfolioAllocator`: BL, HERC, RP, EVT-CVaR 4-Model Blending), 실전 미시구조 거래비용 모델 및 RiskManager 위기 제어 파이프라인
+> - **이벤트 기반 자율 매매 및 Execution OMS** (`src/execution/oms_engine.py`): 8대 주문 안전 게이트 (Gate 8: 합성 인버스 헤지 오버레이), Almgren-Chriss 최적 집행 트랜치 스케줄러, 실시간 오더북 및 체결 슬리피지 피드백 엔진 (`trade_logs.db`)
 
 ---
 
 ## 목차
 
 1. [프로젝트 개요](#1-프로젝트-개요)
-2. [31대 전략 파이프라인 아키텍처](#2-31대-전략-파이프라인-아키텍처)
+2. [37대 전략 파이프라인 아키텍처](#2-37대-전략-파이프라인-아키텍처)
 3. [이벤트 기반 자율 매매 아키텍처](#3-이벤트-기반-자율-매매-아키텍처)
 4. [설치 및 설정](#4-설치-및-설정)
 5. [실행 방법](#5-실행-방법)
@@ -40,25 +40,25 @@
 ### 1.1 목적
 
 한국 주식(KOSPI, KOSDAQ) 및 미국 주식(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장을 대상으로 하는 **기관급 통합 정량적(Quantitative) 트레이딩 및 AI 예측 시스템**입니다.
-실시간 매크로/펀더멘탈/시세 수집 → 31대 알파 팩터 산출 → 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`) → 통계적 직교화 및 2D 레짐 앙상블 → HRP/Black-Litterman/EVT-CVaR 포트폴리오 최적화 → 거래비용 차감 → 7대 안전 게이트 & Almgren-Chriss 주문 실행 → 슬리피지 피드백 루프의 전 과정을 완전 자동화합니다.
+실시간 매크로/펀더멘탈/시세 수집 → 37대 알파 팩터 산출 → 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`) → 통계적 직교화 및 2D 레짐 앙상블 → `UnifiedPortfolioAllocator`(BL/HERC/RP/CVaR 4-Model) 포트폴리오 최적화 → 거래비용 차감 → 8대 안전 게이트 & Almgren-Chriss 주문 실행 → 슬리피지 피드백 루프의 전 과정을 완전 자동화합니다.
 
 ### 1.2 핵심 특징
 
 | 특징 | 설명 |
 |------|------|
-| **31대 다변화 전략** | GBDT 회귀/분류, 시계열 LSTM, 공적분 차익거래, 펀더멘탈(RIM/발생액/밸류업), 수급/오더북, 옵션 IV/Gamma, 감성(FinBERT), Fama-French 중립화 등 다각화 |
+| **37대 다변화 전략** | GBDT 회귀/분류, 시계열 LSTM, 공적분 차익거래, 펀더멘탈(RIM/발생액/밸류업), 수급/오더북, 옵션 IV/Gamma, 감성(FinBERT), 스타일 중립화, 매크로 임펄스, 가치사슬 GNN, 레인지 돌파, 듀얼 코렉션, 인덱스 리밸런싱, 오버나이트 갭 등 다각화 |
 | **횡단면 점수 정규화** | `CrossSectionalScoreNormalizer` (Percentile Rank / Winsorized Gaussian CDF $[0, 1]$ 매핑) 및 결측 전략 동적 제로 가중치 재정규화 |
 | **통계적 위생 (Hygiene)** | PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화, VIF 팩터 노이즈 억제 |
-| **2D 시장 레짐 동적 앙상블** | 6대 국면(Bull/Sideways/Bear x Low/High Vol) 실시간 판정 및 전략 가중치 동적 재할당 |
-| **포트폴리오 최적화** | Hierarchical Risk Parity (HRP) + Ledoit-Wolf 공분산 축소 + Black-Litterman $C^1$ 스무딩 + EVT-CVaR 꼬리위험 예산 + Leland No-Trade 버퍼 밴드 |
+| **2D 시장 레짐 동적 앙상블** | 6대 국면(Bull/Sideways/Bear x Low/High Vol) 실시간 판정 및 37대 전략 가중치 합 strictly = 1.0000 동적 할당 |
+| **기관급 포트폴리오 최적화** | `UnifiedPortfolioAllocator`: Black-Litterman + HERC + Risk Parity + EVT-CVaR 4-Model Blending, 3/2승 비선형 시장충격 페널티, Leland No-Trade 버퍼 밴드 |
 | **실전 미시구조 거래비용** | 한국 STT(0.15%/0.18%), 미국 SEC 수수료, 동적 스프레드, Kyle/Almgren-Chriss 제곱근 시장충격 차감 |
-| **Execution OMS & 피드백** | 7대 안전 게이트(Severe 위기 차단, 킬 스위치 등) + Almgren-Chriss 트랜치 스케줄러 + `trade_logs.db` 실체결 슬리피지 파라미터 적응 루프 |
+| **Execution OMS & 피드백** | 8대 안전 게이트 (Gate 8: 합성 인버스 헤지 오버레이) + Almgren-Chriss 트랜치 스케줄러 + `trade_logs.db` 실체결 슬리피지 파라미터 적응 루프 |
 | **데이터 무결성** | 시장별 법정 Filing Lag(KRX 45일, US 40일/실공시일 우선), 층화 샘플링(Stratified Sampling), 적응형 타임아웃 & 지터 백오프 |
 | **SQLite WAL 동시성 보호** | WAL 저널 모드, busy_timeout 5,000ms, `threading.Lock()` 쓰기 뮤텍스 완비 |
 
 ---
 
-## 2. 31대 전략 파이프라인 아키텍처
+## 2. 37대 전략 파이프라인 아키텍처
 
 **Source**: `run_pipeline.py`
 
@@ -77,7 +77,7 @@
     ┌────────────────────▼───────────────────┐
     │  2. GlobalMarketClient                 │
     │     VIX, TNX, USDKRW, SP500, DXY,     │
-    │     WTI, Gold, KOSPI, KOSDAQ 수집       │
+    │     WTI, Gold, SOX, KOSPI, KOSDAQ 수집 │
     │     (적응형 타임아웃 8s/15s + 지터 백오프)│
     └────────────────────┬───────────────────┘
                          │
@@ -119,7 +119,7 @@
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
-    │  10. 31대 알파 전략 예측 및 스코어링     │
+    │  10. 37대 알파 전략 병렬 예측 및 스코어링│
     │      회귀 + Surge + VCP + LSTM + StatArb│
     │      + Sector + RIM + Event + MQ + IV   │
     │      + OF + Reversal + ARM + CARD + LATR│
@@ -127,6 +127,8 @@
     │      + Neutral + VolT + Micro + Accrual │
     │      + ShortSq + ValueUp + Trend + Gamma│
     │      + Insider + ToneDrift + Darkpool   │
+    │      + Spillover + GNN + Breakout       │
+    │      + DualCorrection + Rebalance + Gap │
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
@@ -135,13 +137,14 @@
     │      + 결측 전략 제로 가중치 재정규화   │
     │      + PCA-ZCA Whitening & Gram-Schmidt │
     │      + 미시구조 거래비용 차감           │
-    │      + HRP, Black-Litterman & EVT-CVaR  │
+    │      + UnifiedPortfolioAllocator        │
+    │        (BL + HERC + RP + CVaR 4-Model)  │
     │      + Leland No-Trade 버퍼 밴드 필터   │
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
     │  12. 결과 영속화 및 대시보드 리포트 생성 │
-    │   ai_predictions.db + TXT 리포트 생성  │
+    │   ai_predictions.db + 37개 TXT 리포트   │
     │   + gh-pages/index.html 생성 (KST)     │
     └─────────────────────────────────────────┘
 ```
@@ -153,7 +156,6 @@
 | 데이터 수집 | `ThreadPoolExecutor(max_workers=32)` | 네트워크 I/O 병렬 fetch, 소스별 적응형 타임아웃(8s/15s) |
 | 피처 계산 | `ThreadPoolExecutor(max_workers=CPU*2)` | CPU 바운드 기술적 지표 & 피처 추출 |
 | 펀더멘탈 수집 | `threading.Thread` (백그라운드) | 동적 Filing Lag 적용 비동기 배치 수집 |
-
 | 모델 학습 | `ProcessPoolExecutor` / `ThreadPoolExecutor` | 시장별 GBDT / ML 독립 훈련 |
 | DB 동시성 제어 | `threading.Lock()` 쓰기 뮤텍스 | SQLite WAL 모드 다중 스레드 충돌 원천 방지 |
 
@@ -161,20 +163,46 @@
 
 | 파일 | 전략 | 내용 |
 |------|------|------|
-| `ensemble_predictions.txt` | 31대 동적 앙상블 | 31대 전략 동적 앙상블 TOP 100 및 Decision Rationale (KST) |
-| `strategy_data_coverage_report.txt` | 데이터 결측 분석 | 31대 전략별 데이터 커버리지 및 6대 결측 사유 분석 |
+| `ensemble_predictions.txt` | 37대 동적 앙상블 | 37대 전략 동적 앙상블 TOP 100 및 Decision Rationale (KST) |
+| `strategy_data_coverage_report.txt` | 데이터 결측 분석 | 37대 전략별 데이터 커버리지 및 6대 결측 사유 분석 |
 | `pipeline_result.txt` | XGBoost 회귀 | 시장별 TOP 종목, 8개 horizon별 예상수익률 요약 |
 | `surge_predictions.txt` | Surge 분류기 | 4개 horizon별 20%↑ 급등 확률 TOP20 |
 | `lead_lag_predictions.txt` | Lead-Lag 시차 | Leader-Follower 상관 점수 (+1d US Lag Shift) |
 | `vcp_patterns.txt` | VCP 패턴 규칙 | Mark Minervini 변동성 수축 패턴 검출 종목 |
 | `vcp_ml_predictions.txt` | VCP ML | 시장별 VCP 기반 surge 확률 TOP10 |
 | `stat_arb_predictions.txt` | Stat-Arb | Log 주가 공적분 잔차 Z-score 차익거래 페어 |
-| `inst_foreign_sector_predictions.txt` | Inst & Foreign | 기관/외인 60일 누적 수급 가속도 & 주도주 상관성 |
-| `supply_chain_predictions.txt` | Supply Chain | 전방 대형주 시차 온기 전이 점수 |
-| `sentiment_predictions.txt` | Sentiment | FinBERT 텍스트 감성 촉매 스코어 |
-| `factor_neutralized_predictions.txt` | Factor Neutral | Fama-French 5-Factor 중립 순수 알파 |
-| `vol_target_predictions.txt` | Vol Targeting | 동적 변동성 타겟팅 리스크 파리티 점수 |
-| `microstructure_predictions.txt` | Microstructure | 호가 불균형 & 종가 오버나이트 갭 점수 |
+| `sector_predictions.txt` | Sector Rotation | 업종 1M/3M 상대모멘텀 및 순환매 수급 스코어 |
+| `rim_predictions.txt` | RIM Valuation | 잔여이익 모델 기반 정밀 본질가치 및 할인율 스코어 |
+| `event_driven_predictions.txt` | Event-Driven | DART 공시/실적 서프라이즈/자사주 촉매 스코어 |
+| `mq_factor_predictions.txt` | Momentum Quality | 12M-1M 모멘텀 - 1M 반전 노이즈 제거 + 펀더멘탈 퀄리티 |
+| `iv_skew_predictions.txt` | Options IV Skew | 풋/콜 IV Skew 및 공포 역발상 매수 스코어 |
+| `order_flow_predictions.txt` | Order Flow Imbalance | 외인/기관 순매수 수급 가속도 (MFI) |
+| `short_term_reversal_predictions.txt` | Short-Term Reversal | 과매도/볼린저 하단 이탈 평균회귀 반등 스코어 |
+| `arm_factor_predictions.txt` | Analyst Revision | 컨센서스 EPS/목표주가 추정치 상향 조정 스코어 |
+| `card_factor_predictions.txt` | Cross-Asset Divergence | 주식-원자재-환율-금리 이탈 괴리율 역발상 매수 스코어 |
+| `latr_factor_predictions.txt` | Liquidity Tail Risk | 52주 고점 낙폭 + 유동성 서지 - 하방 꼬리위험 페널티 |
+| `inst_foreign_sector_predictions.txt` | Inst & Foreign | 외인/투신 2개월 누적 수급 & 업종 상관성 스코어 |
+| `supply_chain_predictions.txt` | Supply Chain | 전방 대형주 수익률 기반 공급망 온기 전이 스코어 |
+| `sentiment_predictions.txt` | Sentiment | FinBERT 공시/뉴스 감성 퀀트 스코어 |
+| `factor_neutralized_predictions.txt` | Factor Neutral | Fama-French 5-Factor 노출 제거 순수 알파 |
+| `vol_target_predictions.txt` | Vol Targeting | 변동성 타겟팅 리스크 파리티 점수 |
+| `microstructure_predictions.txt` | Microstructure | 호가 불균형 & 종가 오버나이트 갭 스코어 |
+| `accruals_quality_predictions.txt` | Accruals Quality | 순이익 대비 영업현금흐름 괴리율 회계품질 스코어 |
+| `short_squeeze_predictions.txt` | Short Squeeze | 공매도 잔고 비율 및 Days-to-Cover 기반 숏스퀴즈 스코어 |
+| `valueup_catalyst_predictions.txt` | Value-Up | PBR 1배 미만 및 총주주환원율 밸류업 스코어 |
+| `trend_efficiency_predictions.txt` | Trend Efficiency | Kaufman KER 및 Hurst Exponent 고순도 추세 스코어 |
+| `gamma_squeeze_predictions.txt` | Gamma Squeeze | 옵션 미결제약정 및 콜옵션 델타 가속도 스코어 |
+| `insider_buying_predictions.txt` | Insider Buying | 임원/대주주 내부자 매수 공시 수급 스코어 |
+| `darkpool_predictions.txt` | Darkpool & HFT Flow | 다크풀 블록체결 및 틱 스프레드 마이크로구조 스코어 |
+| `earnings_tone_drift_predictions.txt` | Earnings Tone Drift | 콘퍼런스콜 어닝콜 텍스트 톤 변화 감성 퀀트 스코어 |
+| `cross_asset_spillover_predictions.txt` | Cross-Asset Spillover | 업종별 거시지표 탄력도 벡터 기반 매크로 임펄스 스코어 |
+| `supply_chain_gnn_predictions.txt` | Supply Chain GNN | 2-hop GNN 밸류체인 메시지 패싱 파급 스코어 |
+| `range_expansion_predictions.txt` | Range Expansion Breakout | NR7/볼린저 스퀴즈 압축 후 폭발적 레인지 확장 + 거래량 서지 스코어 |
+| `dual_correction_predictions.txt` | Dual Correction | 피보나치/AVWAP 및 거래량 고갈 정밀 눌림목 반등 스코어 |
+| `index_rebalance_predictions.txt` | Index Rebalance | 40조 패시브 ETF 정기변경 15~30일 선반영 스코어 |
+| `overnight_gap_predictions.txt` | Overnight Gap Reversal | ATR 정규화 오버나이트 갭 통계적 갭필 반등 스코어 |
+
+---
 
 
 ---
@@ -899,9 +927,23 @@ score = Sharpe_norm × 0.40
 | max_position_size_pct | [0.15, 0.20, 0.25, 0.30, 0.35] |
 | take_profit_tiers | 3개 variation |
 
-**OptimizationScheduler**:
-- 체크 간격: 7일
-- 트리거: regime_change, sharpe_decline > 20%, drawdown > 10%, VIX spike > 1.5x
+
+### 11.4 UnifiedPortfolioAllocator (src/risk/unified_portfolio_allocator.py)
+
+**기관급 통합 포트폴리오 최적화 엔진**. 헤지펀드 티어 1 수준의 4대 최적화 패러다임 결합 및 비선형 시장충격 통제를 수행합니다:
+1. **4대 모델 레짐 적응형 블렌딩**:
+   - `BULL_LOW_VOL`: Black-Litterman 65%, HERC 25%, Risk Parity 10%, CVaR 0%
+   - `BULL_HIGH_VOL`: Black-Litterman 45%, HERC 35%, Risk Parity 10%, CVaR 10%
+   - `SIDEWAYS_LOW_VOL`: Black-Litterman 25%, HERC 45%, Risk Parity 20%, CVaR 10%
+   - `SIDEWAYS_HIGH_VOL`: Black-Litterman 15%, HERC 40%, Risk Parity 20%, CVaR 25%
+   - `BEAR_LOW_VOL`: Black-Litterman 5%, HERC 35%, Risk Parity 20%, CVaR 40%
+   - `BEAR_HIGH_VOL`: Black-Litterman 0%, HERC 20%, Risk Parity 10%, CVaR 70%
+   - `CRISIS`: Black-Litterman 0%, HERC 15%, Risk Parity 5%, CVaR 80%
+2. **3/2승 비선형 시장충격 페널티 (Gatheral & Almgren-Chriss)**:
+   - 주문 실행 대금 대비 ADV 비율의 1.5제곱 페널티를 목적함수에 부과하여 대형 자금 집행 시 슬리피지 최소화.
+3. **Barra 멀티팩터 스타일 노출 및 섹터 제약**: 단일 종목 10% (집중 허용 시 20%), 단일 섹터 35% 상한 통제.
+4. **연 12% 목표 변동성 스케일링 & 캐시 드래그 제거**: 강세장에서 불필요한 현금 보유를 최소화하고 목표 변동성에 포트폴리오를 동적 정렬.
+5. **비대칭 Leland 동적 No-Trade 버퍼 밴드**: 종목별 거래비용 및 변동성 기반 $\delta_i \in [0.5\%, 5.0\%]$ 버퍼 적용. 신규 진입($w_{\text{curr}}=0$) 및 전량 청산($w_{\text{targ}}=0$) 시 즉시 바이패스.
 
 ---
 
@@ -1120,32 +1162,35 @@ else → weak_bear
 
 ## 16. 테스트
 
-### 16.1 테스트 파일
+### 16.1 테스트 프레임워크 및 계층 구조
+모든 테스트는 프로젝트 루트의 단일 `tests/` 디렉토리 아래로 통합 관리되며, 4단계(Tier 1 Happy, Tier 2 Boundary, Tier 3 Pairwise, Tier 4 Workload) 및 정밀 적대적 스트레스 테스트를 포괄합니다. **총 2,130개 이상의 테스트가 100% 통과(Pass)**하고 있습니다.
 
-| 파일 | 테스트 대상 |
-|------|------------|
-| `tests/test_system.py` | 통합 시스템 |
-| `tests/test_telegram_bot.py` | 텔레그램 봇 |
-| `tests/test_portfolio_risk.py` | 포트폴리오/리스크 |
-| `tests/test_database.py` | 데이터베이스 |
-| `tests/test_indicators.py` | 기술 지표 계산 |
-| `tests/test_async_helper.py` | 비동기 헬퍼 |
-| `tests/test_event_bus.py` | 이벤트 버스 |
-| `tests/test_ml_ensemble.py` | ML 앙상블 |
-| `tests/test_macro.py` | 거시경제 분석 |
-| `tests/test_macro_stress.py` | 거시경제 스트레스 테스트 |
-| `tests/test_risk_manager.py` | 리스크 매니저 단위 |
-| `tests/test_screener_dash_challenger.py` | 스크리너 |
-| `tests/test_trading_agent.py` | 오토 트레이딩 에이전트 & 4대 고도화 및 5대 규칙 |
+| 테스트 스위트 | 주요 검증 내용 |
+|--------------|----------------|
+| `tests/test_v8_remediation.py` | V8 시스템 정밀 감사 43개 결함(Critical 13, High 16, Medium 14) 완결 검증 |
+| `tests/test_world_class_quant_enhancements.py` | 연속 켈리, 팩터 중립화, 호가단위 그리드, 회전율 페널티 MVO |
+| `tests/test_world_class_trader_return_enhancements.py` | 미드포인트 페그, 장중 ATR 트레일링 스탑 래칫, 컨플루언스 알파 부스트, Top-K 압축 |
+| `tests/test_v7_returns_maximization.py` | 수익률 극대화 24개 항목 직교 검증 |
+| `tests/test_v6_improvements.py` | 4-Tier 통합 V6 회귀 테스트 (35개 항목 직교 검증) |
+| `tests/test_v6_adversarial_stress.py` | 적대적 극단값/단일종목 N=1/FX 폭등 스트레스 테스트 |
+| `tests/test_score_normalizer.py` | 37대 전략 횡단면 정규화(Percentile/CDF) 검증 |
+| `tests/test_network_hardening.py` | 소켓 타임아웃 락 제거 및 지터 백오프 재시도 검증 |
+| `tests/test_fast_cointegration.py` | Stat-Arb 고속 공적분 및 순수 유의 페어 선별 검증 |
+| `tests/test_portfolio_allocator.py` | EVT-CVaR & Leland 버퍼 밴드 (진입/청산 바이패스) |
+| `tests/test_hrp_optimizer.py` | HRP, Ledoit-Wolf 공분산 축소 & Black-Litterman |
+| `tests/test_risk_manager.py` | CrisisDetector VIX 속도/기간구조 완충 제어 |
+| `tests/test_slippage_feedback.py` | 실체결 슬리피지 피드백 루프 (`trade_logs.db`) |
+| `tests/test_merge_generic_strategies.py` | 37대 전략 다중 시장 파일 병합 및 헤더 정합성 검증 |
+| `tests/test_verify_gha_artifacts.py` | GHA 산출물 검증 및 37대 정규 전략 순서 검증 |
 
 ### 16.2 실행
 
 ```bash
-# 전체 테스트
-python -m pytest tests/ -v
+# 전체 테스트 실행 (2,130개 테스트 100% 통과)
+python -m pytest tests/ -v --tb=short
 
-# 특정 테스트
-python -m pytest tests/test_system.py -v
+# 빠른 요약 실행
+python -m pytest tests/ -q
 
 # 코드 품질
 ruff check src/
@@ -1268,6 +1313,7 @@ mypy src/
 ---
 
 > **문서 이력**
+> - 2026-09-03: v8.0 — 37대 다변화 전략 완결 (Cross-Asset Spillover, Supply Chain GNN, Range Expansion Breakout, Dual Correction, Index Rebalance, Overnight Gap Reversal), UnifiedPortfolioAllocator(BL+HERC+RP+CVaR 4-Model Blending & 3/2-power Market Impact Penalty), Execution OMS 8대 주문 안전 게이트 (Gate 8: 합성 인버스 헤지 오버레이), V8 정밀 감사(43개 결함 해결) 및 2,130+ 전수 테스트 100% 통과 반영
 > - 2026-08-22: v6.5 — 6차 고도화 완결 (V6-01~V6-35, F01~F10): 31대 전략 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 결측 전략 동적 제로 가중치 재정규화, 시장별 법정 Filing Lag(KRX 45d, US 40d), 층화 샘플링(Stratified Sampling), 적응형 타임아웃 & 지터 백오프, VIX 기간구조 완충 게이팅, Almgren-Chriss 최적 집행 스케줄러, 7대 주문 안전 게이트 및 1,569+ 전수 테스트 100% 통과 반영
 > - 2026-08-17: v5.0 — 31대 전략 다변화 확장 (Supply Chain, FinBERT Sentiment, Style Neutralizer, Vol Target, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Eff, Gamma Squeeze, Insider Buying, Tone Drift, Darkpool HFT), HRP 및 EVT-CVaR 포트폴리오 최적화, Leland No-Trade 버퍼 밴드, 단일 `tests/` 통합(1,124+ 테스트)
 > - 2026-06-27: v4.0 — 자율 주식 거래 에이전트(Autonomous Trading Agent) 도입, 5대 규칙 적용 및 4대 퀀트 고도화(ATR 트레일링 스탑, 상관관계 분산, 위기 리스크 캡, 실효 비용 내재화) 반영

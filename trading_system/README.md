@@ -1,6 +1,6 @@
 # 📈 주식 자동매매 및 예측 시스템 — 실행 가이드
 
-본 가이드는 통합 31대 다변화 예측 파이프라인(`run_pipeline.py`), 자율 매매 시스템, 대시보드 리포트 생성기(`generate_report.py`)의 설치, 설정, 실행, 트러블슈팅을 안내합니다.
+본 가이드는 통합 37대 다변화 예측 파이프라인(`run_pipeline.py`), 자율 매매 시스템, 대시보드 리포트 생성기(`generate_report.py`)의 설치, 설정, 실행, 트러블슈팅을 안내합니다.
 
 ---
 
@@ -8,13 +8,13 @@
 
 | 문서 | 설명 |
 |------|------|
-| [ALGORITHMS_AND_STRATEGY.md](docs/ALGORITHMS_AND_STRATEGY.md) | **31대 다변화 전략 완전 알고리즘 명세** (GBDT 회귀, Surge, Lead-Lag, VCP, Strict Causal LSTM, Stat-Arb, Sector, RIM, Event, MQ, IV Skew, Order Flow, Reversal, ARM, CARD, LATR, Inst & Foreign, Supply Chain, Sentiment, Style Neutralizer, Vol Target, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Efficiency, Gamma Squeeze, Insider Buying, Tone Drift, Darkpool HFT, 횡단면 정규화) |
-| [SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) | 시스템 아키텍처, 2D 시장 레짐, 통계적 직교화, 포트폴리오 최적화(HRP/EVT-CVaR/Black-Litterman), 미시구조 거래비용, DB 스키마 |
+| [ALGORITHMS_AND_STRATEGY.md](docs/ALGORITHMS_AND_STRATEGY.md) | **37대 다변화 전략 완전 알고리즘 명세** (GBDT 회귀, Surge, Lead-Lag, VCP, Strict Causal LSTM, Stat-Arb, Sector, RIM, Event, MQ, IV Skew, Order Flow, Reversal, ARM, CARD, LATR, Inst & Foreign, Supply Chain, Sentiment, Style Neutralizer, Vol Target, Microstructure, Accruals, Short Squeeze, Value-Up, Trend Efficiency, Gamma Squeeze, Insider Buying, Tone Drift, Darkpool HFT, Cross-Asset Spillover, SC GNN, Range Expansion, Dual Correction, Index Rebalance, Overnight Gap, 횡단면 정규화) |
+| [SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) | 시스템 아키텍처, 2D 시장 레짐, 통계적 직교화, `UnifiedPortfolioAllocator`(BL/HERC/RP/CVaR 4-Model), 미시구조 거래비용, DB 스키마 |
 | [CONFIGURATION_REFERENCE.md](docs/CONFIGURATION_REFERENCE.md) | `.env` 환경 변수 및 설정 파라미터 완전 참조 |
-| [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | 시스템 정밀 감사 해결 내역 및 개선 로드맵 |
+| [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | V8 시스템 정밀 감사(43개 결함 해결) 및 고도화 내역 |
 | [IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md) | 시스템 아키텍처 및 성능 최적화 개선 계획 |
-| [OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md) | 실거래 운영 절차, 7대 주문 안전 게이트, Almgren-Chriss 트랜치, 킬 스위치(Kill Switch) 및 장애 대응 런북 |
-| [TEST_GUIDE.md](docs/TEST_GUIDE.md) | 통합 테스트 스위트(`tests/`) 및 1,569+ pytest 실행 가이드 |
+| [OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md) | 실거래 운영 절차, 8대 주문 안전 게이트 (Gate 8 합성 인버스 헤지 포함), Almgren-Chriss 트랜치, 킬 스위치(Kill Switch) 및 장애 대응 런북 |
+| [TEST_GUIDE.md](docs/TEST_GUIDE.md) | 통합 테스트 스위트(`tests/`) 및 2,130+ pytest 실행 가이드 |
 
 ---
 
@@ -45,7 +45,7 @@ copy trading_system\.env.example trading_system\.env
 
 ### 1. 통합 예측 파이프라인 (핵심)
 
-31대 전략 모델을 기반으로 한국(KOSPI, KOSDAQ) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장의 예측 결과를 생성하고 2D 시장 레짐 기반 동적 앙상블, 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 포트폴리오 최적화(HRP, Black-Litterman & EVT-CVaR), 미시구조 거래비용 차감을 수행합니다.
+37대 전략 모델을 기반으로 한국(KOSPI, KOSDAQ) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장의 예측 결과를 생성하고 2D 시장 레짐 기반 동적 앙상블, 횡단면 점수 정규화(`CrossSectionalScoreNormalizer`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 미시구조 거래비용 차감을 수행합니다.
 
 #### CLI 옵션
 
@@ -76,8 +76,8 @@ copy trading_system\.env.example trading_system\.env
 
 | 파일 | 설명 |
 |------|------|
-| `ensemble_predictions.txt` | **31대 전략 동적 앙상블 TOP 100** 및 Decision Rationale (KST) |
-| `strategy_data_coverage_report.txt` | **31대 전략별 데이터 커버리지 & 최빈 결측 사유 비율 분석 보고서** |
+| `ensemble_predictions.txt` | **37대 전략 동적 앙상블 TOP 100** 및 Decision Rationale (KST) |
+| `strategy_data_coverage_report.txt` | **37대 전략별 데이터 커버리지 & 최빈 결측 사유 비율 분석 보고서** |
 | `pipeline_result.txt` | GBDT 회귀 모델 horizon별 예상수익률 TOP10 요약 |
 | `pipeline_result.csv` | 전체 종목 회귀 예측값 원본 (기계 가독) |
 | `surge_predictions.txt` | Surge 분류기 horizon별 20%↑ 급등 확률 TOP20 |
@@ -101,6 +101,20 @@ copy trading_system\.env.example trading_system\.env
 | `factor_neutralized_predictions.txt` | Fama-French 5-Factor 노출 제거 순수 알파 |
 | `vol_target_predictions.txt` | 변동성 타겟팅 리스크 파리티 점수 |
 | `microstructure_predictions.txt` | 호가 불균형 & 종가 오버나이트 수급 |
+| `accruals_quality_predictions.txt` | 순이익 대비 OCF 괴리율 회계품질 스코어 |
+| `short_squeeze_predictions.txt` | 공매도 잔고 및 Days-to-Cover 숏스퀴즈 스코어 |
+| `valueup_catalyst_predictions.txt` | 저PBR 및 총주주환원율 밸류업 스코어 |
+| `trend_efficiency_predictions.txt` | Kaufman KER 및 Hurst Exponent 고순도 추세 스코어 |
+| `gamma_squeeze_predictions.txt` | 옵션 OI 및 델타 가속도 감마 스퀴즈 스코어 |
+| `insider_buying_predictions.txt` | 임원/대주주 내부자 매수 수급 스코어 |
+| `darkpool_predictions.txt` | 다크풀 블록체결 및 틱 스프레드 마이크로스프레드 스코어 |
+| `earnings_tone_drift_predictions.txt` | 어닝콜 텍스트 톤 변화 감성 퀀트 스코어 |
+| `cross_asset_spillover_predictions.txt` | 글로벌 8대 매크로 임펄스 미가격 시차 파급 스코어 |
+| `supply_chain_gnn_predictions.txt` | 2-Hop 가치사슬 그래프 메시지 패싱 & 채찍효과 스코어 |
+| `range_expansion_predictions.txt` | NR7/볼린저 스퀴즈 압축 후 레인지 확장 돌파 스코어 |
+| `dual_correction_predictions.txt` | 피보나치/AVWAP 및 거래량 고갈 정밀 눌림목 반등 스코어 |
+| `index_rebalance_predictions.txt` | 40조 패시브 ETF 정기변경 15~30일 선반영 스코어 |
+| `overnight_gap_predictions.txt` | ATR 정규화 오버나이트 갭 통계적 갭필 반등 스코어 |
 
 ### 3. GitHub Pages 대시보드 리포트 생성
 
@@ -112,7 +126,7 @@ copy trading_system\.env.example trading_system\.env
 ```
 
 #### 대시보드 주요 기능
-- **📊 31개 전략 패널 & 탭 네비게이션**: 상단 고정(Sticky) 네비게이션과 부드러운 스크롤.
+- **📊 37개 전략 패널 & 탭 네비게이션**: 상단 고정(Sticky) 네비게이션과 부드러운 스크롤.
 - **⚡ 시나리오 시뮬레이터 (Regime & Shock Simulator)**: VIX 급등, 환율 변동, 금리 충격 시뮬레이션 및 포트폴리오 가중치 반응 즉시 확인.
 - **🎯 Decision Rationale & Macro Strip**: 6대 시장 레짐 및 실시간 거시지표 정상 범위 검증 배지.
 - **📱 모바일 완전 반응형**: 터치 스크롤, 사이드바 드로어, 콤팩트 테이블 뷰.

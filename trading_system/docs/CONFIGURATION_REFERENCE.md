@@ -36,7 +36,7 @@ STOCK_PRICE_FRESHNESS_DAYS=none
 | `INFERENCE_TARGET` | `ALL` | 콤마 구분 | 추론 대상 시장 (`SP500,NASDAQ,RUSSELL2000,KOSPI,KOSDAQ` 또는 `KRX`, `ALL`) |
 | `BACKTEST_YEARS` | `5` | 정수/`all` | 백테스트 기간 (년). `all` = 전체 데이터 |
 | `ENABLE_LIVE_OPTIONS_FETCH` | `False` | bool | 실시간 옵션 체인 API 호출 활성화 여부 |
-| `CROSS_SECTION_NORM_METHOD`| `percentile_rank` | 문자열 | 31대 전략 점수 횡단면 정규화 방식 (`percentile_rank`, `gaussian_cdf`) |
+| `CROSS_SECTION_NORM_METHOD`| `percentile_rank` | 문자열 | 37대 전략 점수 횡단면 정규화 방식 (`percentile_rank`, `gaussian_cdf`) |
 
 ---
 
@@ -79,6 +79,7 @@ TRAIN_SAMPLE_KRX=30%
 | `KIS_MOCK_APP_SECRET` | *(빈 문자열)* | 문자열 | KIS 모의투자 App Secret |
 | `KIS_MOCK_ACCOUNT` | *(빈 문자열)* | 문자열 | KIS 모의투자 계좌번호 |
 | `KILL_SWITCH` | `0` | `0`/`1` | 하드웨어 킬 스위치 (1 설정 시 신규 주문 100% 즉시 차단) |
+| `ENABLE_INVERSE_HEDGE` | `True` | bool | Gate 8 합성 인버스 헤지 활성화 여부 (Bear/Crisis 국면) |
 
 ---
 
@@ -94,7 +95,7 @@ TRAIN_SAMPLE_KRX=30%
 | `DEEPSEEK_API_KEY` | *(빈 문자열)* | 문자열 | DeepSeek API 키 |
 | `DEEPSEEK_MODEL` | `deepseek-chat` | 문자열 | DeepSeek 모델명 |
 
-> **참고**: LLM API 키가 미설정되어도 로컬 FinBERT 감성 엔진 및 31대 전략 파이프라인 정량 예측은 100% 정상 작동합니다.
+> **참고**: LLM API 키가 미설정되어도 로컬 FinBERT 감성 엔진 및 37대 전략 파이프라인 정량 예측은 100% 정상 작동합니다.
 
 ---
 
@@ -124,14 +125,16 @@ TRAIN_SAMPLE_KRX=30%
 | `prediction_model.py` | `surge_horizons` | `[1,3,5,20]` | Surge horizon |
 | `prediction_model.py` | `surge_threshold` | `0.20` | 급등 임계치 (20%) |
 | `prediction_model.py` | `us_etf_lag_shift` | `shift(1)` | Lead-Lag US 섹터 ETF 1일 시차 Shift |
-| `score_normalizer.py`| `percentile_rank` | `[0.0, 1.0]` | 31대 전략 출력 횡단면 균일 분산 점수 정규화 |
-| `ensemble_scorer.py` | 31대 전략 앙상블 | 31개 Factor/Model | Reg, Surge, LL, VCP Rule/ML, LSTM, Stat-Arb, Sector, RIM, Event, MQ, IV, OF, Rev, ARM, CARD, LATR, InstFor, SC, Sent, Neutral, VolT, Micro, Accrual, ShortSq, ValueUp, Trend, Gamma, Insider, Tone, HFT |
+| `score_normalizer.py`| `percentile_rank` | `[0.0, 1.0]` | 37대 전략 출력 횡단면 균일 분산 점수 정규화 |
+| `ensemble_scorer.py` | 37대 전략 앙상블 | 37개 Factor/Model | 37대 전략 동적 가중치 결합 (1D/2D 레짐 가중치 합 strictly = 1.0000) |
 | `ensemble_scorer.py` | Missing Strategy Weight | `Dynamic Zero-Weight` | 미산출 전략 가중치 0 처리 및 활성 전략 가중치 재정규화 |
 | `ensemble_scorer.py` | Microstructure Cost | STT/SEC + Spread + Impact | KOSPI 0.15%, KOSDAQ 0.18%, US SEC 0.003%, 동적 스프레드, Kyle/Almgren 시장충격 |
+| `unified_portfolio_allocator.py` | 4-Model Regime Blending | `BL+HERC+RP+CVaR` | 6대 레짐 기반 4개 최적화 모델 동적 혼합 가중치 |
+| `unified_portfolio_allocator.py` | Non-linear Impact Penalty | `1.5-power (3/2승)` | Gatheral & Almgren-Chriss 비선형 시장충격 비용 패널티 |
 | `portfolio_allocator.py`| `HRP Ledoit-Wolf delta` | `0.15` | 공분산 행렬 수축 강도 |
 | `portfolio_allocator.py`| `Leland buffer bands` | `[0.5%, 5.0%]` | 동적 No-Trade 버퍼 밴드 (신규 진입/전량 청산 바이패스) |
 | `almgren_chriss.py` | `risk_aversion_lambda` | `1e-6` | 충격과 타이밍 리스크 절충 최적 집행 트랜치 파라미터 |
-| `order_manager.py` | `7 Safety Gates` | `7대 안전 게이트` | SEVERE 위기 차단, 킬 스위치, 티커 정규식, 가격 이상치, 10주 라운딩, 포지션 캡, 순알파 허들 |
+| `oms_engine.py` | `8 Safety Gates` | `8대 안전 게이트` | SEVERE 위기 차단, 킬 스위치, 티커 정규식, 가격 이상치, 10주 라운딩, 포지션 캡, 순알파 허들, Gate 8 합성 인버스 헤지 |
 | `trading_agent.py` | `ATR_LOOKBACK_DAYS` | `14` | ATR 계산 Lookback 기간 |
 | `trading_agent.py` | `ATR_MULTIPLIER` | `2.5` | ATR 손절 및 트레일링 스탑 승수 |
 | `trading_agent.py` | `CORRELATION_BLOCK_THRESHOLD` | `0.85` | 포트폴리오 상관관계 BLOCK(매수 차단) 임계치 |

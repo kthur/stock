@@ -115,7 +115,7 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
     def __init__(self, config: Optional[Any] = None) -> None:
         super().__init__(name="CrossAssetSpilloverEngine", config=config)
 
-    def _extract_macro_vector(self, indicators_df: Optional[Any]) -> Dict[str, float]:
+    def _extract_macro_vector(self, indicators_df: Optional[Any], is_krx: bool = False) -> Dict[str, float]:
         """
         Extracts multi-horizon macro returns/changes for:
         ['sox', 'usdkrw', 'tnx', 'wti', 'gold', 'dxy', 'vix', 'sp500']
@@ -168,24 +168,54 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                 if matched_col is not None:
                     series = indicators_df[matched_col].dropna()
                     if not series.empty:
+                        # For KRX equities, apply a 1-day lag to US-origin macro series (SP500, SOX, VIX, etc.)
+                        # to eliminate the ~14.5 hour timezone lookahead bias.
+                        is_us_macro = k in ["sox", "sp500", "vix", "tnx", "wti", "gold", "dxy"]
+                        use_lag = is_krx and is_us_macro and len(series) >= 2
+                        
                         # If series is already a change / return column
                         if "change" in matched_col.lower() or "pct" in matched_col.lower():
-                            val = float(series.iloc[-1])
+                            val = float(series.iloc[-2] if use_lag else series.iloc[-1])
                             macro_ret[k] = val / 100.0 if abs(val) > 0.50 else val
                         else:
                             # Series of raw prices/levels -> compute 1d, 3d, 5d returns if sufficient history
-                            if len(series) >= 6:
-                                r1 = (float(series.iloc[-1]) / float(series.iloc[-2])) - 1.0 if float(series.iloc[-2]) > 0 else 0.0
-                                r3 = (float(series.iloc[-1]) / float(series.iloc[-4])) - 1.0 if float(series.iloc[-4]) > 0 else 0.0
-                                r5 = (float(series.iloc[-1]) / float(series.iloc[-6])) - 1.0 if float(series.iloc[-6]) > 0 else 0.0
+                            offset = 1 if use_lag else 0
+                            min_len = 6 + offset
+                            if len(series) >= min_len:
+                                idx_now = -1 - offset
+                                idx_1d = -2 - offset
+                                idx_3d = -4 - offset
+                                idx_5d = -6 - offset
+                                r1 = (float(series.iloc[idx_now]) / float(series.iloc[idx_1d])) - 1.0 if float(series.iloc[idx_1d]) > 0 else 0.0
+                                r3 = (float(series.iloc[idx_now]) / float(series.iloc[idx_3d])) - 1.0 if float(series.iloc[idx_3d]) > 0 else 0.0
+                                r5 = (float(series.iloc[idx_now]) / float(series.iloc[idx_5d])) - 1.0 if float(series.iloc[idx_5d]) > 0 else 0.0
                                 macro_ret[k] = 0.50 * r1 + 0.30 * r3 + 0.20 * r5
-                            elif len(series) >= 2:
-                                r1 = (float(series.iloc[-1]) / float(series.iloc[-2])) - 1.0 if float(series.iloc[-2]) > 0 else 0.0
+                            elif len(series) >= (2 + offset):
+                                idx_now = -1 - offset
+                                idx_1d = -2 - offset
+                                r1 = (float(series.iloc[idx_now]) / float(series.iloc[idx_1d])) - 1.0 if float(series.iloc[idx_1d]) > 0 else 0.0
                                 macro_ret[k] = r1
                             else:
                                 macro_ret[k] = 0.0
 
         return macro_ret
+
+    def calculate_scores(
+        self,
+        symbols: Optional[List[str]] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        macro_df: Optional[Any] = None,
+        indicators_df: Optional[Any] = None,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """Universal calculate_scores method compatible with all test suites and pipeline runners."""
+        if prices_dict is None and isinstance(symbols, dict):
+            prices_dict = symbols
+            symbols = None
+        if symbols is not None and prices_dict is not None:
+            prices_dict = {s: prices_dict[s] for s in symbols if s in prices_dict}
+        ind_df = indicators_df if indicators_df is not None else macro_df
+        return self.compute_scores(prices_dict=prices_dict, indicators_df=ind_df, **kwargs)
 
     def compute_scores(
         self,
@@ -214,8 +244,10 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
         if not prices_source:
             return make_score_dataframe({}, score_column="cross_asset_spillover_score")
 
-        macro_vector = self._extract_macro_vector(indicator_source)
-        macro_active = any(abs(v) > 1e-6 for v in macro_vector.values())
+        macro_vector_global = self._extract_macro_vector(indicator_source, is_krx=False)
+        macro_vector_krx = self._extract_macro_vector(indicator_source, is_krx=True)
+        macro_active_global = any(abs(v) > 1e-6 for v in macro_vector_global.values())
+        macro_active_krx = any(abs(v) > 1e-6 for v in macro_vector_krx.values())
 
         scores: Dict[str, float] = {}
 
@@ -231,6 +263,10 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
 
         for sym in symbols:
             sym_str = str(sym).strip()
+            is_krx_sym = sym_str.isdigit() or sym_str.endswith(('.KS', '.KQ'))
+            macro_vector = macro_vector_krx if is_krx_sym else macro_vector_global
+            macro_active = macro_active_krx if is_krx_sym else macro_active_global
+
             df_ohlcv = self.extract_ohlcv(sym_str, prices_source if isinstance(prices_source, dict) else {sym_str: prices_source}, min_bars=5)
 
             if df_ohlcv is None or df_ohlcv.empty or len(df_ohlcv) < 5:

@@ -223,7 +223,7 @@ class SupplyChainGNNEngine(BaseStrategyEngine):
             # and sharp downside inventory correction shocks (1.35x)
             return float(r * 1.35) if r < 0 else float(r * 1.25)
 
-        # Hop 1
+        # Hop 1 (Linear neighbor momentum aggregation followed by bullwhip operational leverage transform)
         hop1: Dict[str, float] = {}
         for target, in_edges in self.in_adj.items():
             w_sum = 0.0
@@ -232,12 +232,13 @@ class SupplyChainGNNEngine(BaseStrategyEngine):
                 s_ret = node_mom.get(src, 0.0)
                 if not np.isfinite(s_ret):
                     s_ret = 0.0
-                w_sum += bullwhip_transform(s_ret) * weight
+                w_sum += s_ret * weight
                 w_total += weight
             if w_total > 0:
-                hop1[target] = w_sum / w_total
+                raw_h1 = w_sum / w_total
+                hop1[target] = bullwhip_transform(raw_h1)
 
-        # Hop 2
+        # Hop 2 (Propagate 1-hop representations without compounding bullwhip multiplier exponentially)
         hop2: Dict[str, float] = {}
         for target, in_edges in self.in_adj.items():
             w_sum = 0.0
@@ -247,12 +248,26 @@ class SupplyChainGNNEngine(BaseStrategyEngine):
                 s_hop1 = hop1.get(src, node_mom.get(src, 0.0))
                 if not np.isfinite(s_hop1):
                     s_hop1 = 0.0
-                w_sum += bullwhip_transform(s_hop1) * weight
+                w_sum += s_hop1 * weight
                 w_total += weight
             if w_total > 0:
                 hop2[target] = w_sum / w_total
 
         return hop1, hop2
+
+    def calculate_scores(
+        self,
+        symbols: Optional[List[str]] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """Universal calculate_scores method compatible with all test suites and pipeline runners."""
+        if prices_dict is None and isinstance(symbols, dict):
+            prices_dict = symbols
+            symbols = None
+        if symbols is not None and prices_dict is not None:
+            prices_dict = {s: prices_dict[s] for s in symbols if s in prices_dict}
+        return self.compute_scores(prices_dict=prices_dict, **kwargs)
 
     def compute_scores(
         self,

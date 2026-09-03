@@ -63,14 +63,16 @@ def test_generate_report_nav_tabs_sequence():
     
     # Extract switchTab calls
     tab_calls = re.findall(r"switchTab\(this,\s*'([^']+)'\)", nav_html)
-    assert len(tab_calls) in (31, 34), f"Expected 31 or 34 tabs in Row 2 nav, found {len(tab_calls)}: {tab_calls}"
+    assert len(tab_calls) in (31, 34, 37), f"Expected 31, 34, or 37 tabs in Row 2 nav, found {len(tab_calls)}: {tab_calls}"
     assert tab_calls[:31] == CANONICAL_TAB_IDS, f"Mismatch in Row 2 nav tab sequence:\nActual: {tab_calls[:31]}\nExpected: {CANONICAL_TAB_IDS}"
     if len(tab_calls) == 34:
         assert tab_calls[31:] == ["crossasset", "gnn", "rangeexpansion"]
+    elif len(tab_calls) == 37:
+        assert tab_calls[31:] == ["crossasset", "gnn", "rangeexpansion", "dualcorrection", "indexrebalance", "overnightgap"]
 
-    # Extract numbered button labels (1..31 or 1..34)
+    # Extract numbered button labels (1..31, 1..34, or 1..37)
     labels = re.findall(r'<button[^>]*>(\d+)\.\s+([^<]+)</button>', nav_html)
-    assert len(labels) in (31, 34), f"Expected 31 or 34 numbered tab labels, found {len(labels)}"
+    assert len(labels) in (31, 34, 37), f"Expected 31, 34, or 37 numbered tab labels, found {len(labels)}"
     for idx, (num_str, name) in enumerate(labels, start=1):
         assert int(num_str) == idx, f"Tab index mismatch: got {num_str}, expected {idx}"
 
@@ -87,7 +89,7 @@ def test_generate_report_panel_sequence():
 def test_generate_report_strategy_guide_accordion_sequence():
     content = GENERATE_REPORT_PATH.read_text(encoding="utf-8")
     guide_items = re.findall(r'<div class="strat-card-name">(\d+)\.\s+([^<]+)</div>', content)
-    assert len(guide_items) in (31, 34), f"Expected 31 or 34 strategy guide items, found {len(guide_items)}"
+    assert len(guide_items) in (31, 34, 37), f"Expected 31, 34, or 37 strategy guide items, found {len(guide_items)}"
     for idx, (num_str, name) in enumerate(guide_items, start=1):
         assert int(num_str) == idx, f"Guide item number mismatch: got {num_str}, expected {idx}"
 
@@ -104,6 +106,8 @@ def test_index_html_tabs_and_panels_sequence():
     assert tab_calls[:31] == CANONICAL_TAB_IDS
     if len(tab_calls) == 34:
         assert tab_calls[31:] == ["crossasset", "gnn", "rangeexpansion"]
+    elif len(tab_calls) == 37:
+        assert tab_calls[31:] == ["crossasset", "gnn", "rangeexpansion", "dualcorrection", "indexrebalance", "overnightgap"]
 
     # Check panels sequence in index.html
     panel_ids = re.findall(r'<div class="tab-panel[^"]*" id="([^"]+)"', content)

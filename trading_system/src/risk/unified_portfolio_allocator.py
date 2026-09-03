@@ -210,6 +210,7 @@ class UnifiedPortfolioAllocator:
                     sectors=sectors,
                     max_single_stock_weight=self.max_single_weight,
                     max_sector_weight=self.max_sector_weight,
+                    returns_are_percentage=False,
                 )
             except Exception as e:
                 logger.debug(f"[BL] Failed, fallback to equal: {e}")
@@ -316,9 +317,9 @@ class UnifiedPortfolioAllocator:
             max_alloc_cap = 0.50  # Risk off
             min_alloc_floor = 0.20
 
-        # Scale factor = target_vol / realized_vol
+        # Scale factor = target_vol / realized_vol (C-06 fix: eliminate double-scaling cash drag)
         raw_scale = self.target_volatility / max(annualized_port_vol, 0.04)
-        effective_alloc = float(np.clip(raw_scale * self.default_max_total_allocation, min_alloc_floor, max_alloc_cap))
+        effective_alloc = float(np.clip(raw_scale, min_alloc_floor, max_alloc_cap))
 
         # Scale weights
         scaled_weights = weights * effective_alloc
@@ -417,9 +418,15 @@ class UnifiedPortfolioAllocator:
         sample_cov = np.cov(returns_df.values, rowvar=False)
         cov_matrix = shrink_covariance_matrix(sample_cov, n_samples=len(returns_df))
 
-        # Extract expected returns vector
+        # Extract expected returns vector (C-01 fix: scale alignment between percentage and decimal)
         if score_col:
             pred_rets = df_candidates[score_col].values.astype(float)
+            if score_col in ["raw_score", "score", "ensemble_score"] and np.all(pred_rets >= 0.0) and np.all(pred_rets <= 1.0):
+                # Convert normalized [0, 1] probability score to a reasonable 20D expected return proxy [-5%, +10%]
+                pred_rets = (pred_rets - 0.50) * 0.15
+            elif np.any(np.abs(pred_rets) >= 1.0):
+                # Values like 15.0 represent 15.0%, normalize to decimal 0.15
+                pred_rets = pred_rets / 100.0
         else:
             pred_rets = returns_df.mean().values * 20.0
 

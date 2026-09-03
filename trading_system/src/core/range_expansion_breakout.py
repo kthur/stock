@@ -242,6 +242,20 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
             logger.debug(f"[RangeExpansion] Calculation error: {e}")
             return 0.50
 
+    def calculate_scores(
+        self,
+        symbols: Optional[List[str]] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """Universal calculate_scores method compatible with all test suites and pipeline runners."""
+        if prices_dict is None and isinstance(symbols, dict):
+            prices_dict = symbols
+            symbols = None
+        if symbols is not None and prices_dict is not None:
+            prices_dict = {s: prices_dict[s] for s in symbols if s in prices_dict}
+        return self.compute_scores(prices_dict=prices_dict, **kwargs)
+
     def compute_scores(
         self,
         prices_dict: Any,

@@ -553,7 +553,7 @@ class EnsembleScoringEngine:
         self.factor_suppression = RegimeFactorSuppressionEngine()
         self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric')
         self.orthogonalizer_enabled = True
-        self.score_normalizer = CrossSectionalScoreNormalizer(method='percentile_rank')
+        self.score_normalizer = CrossSectionalScoreNormalizer(method='winsorized_zscore')
         self._dsr_validator = DeflatedSharpeRatioValidator(n_strategies=34, n_horizons=8) if DeflatedSharpeRatioValidator is not None else None
 
         # Milestone 4: Slippage execution feedback attributes
