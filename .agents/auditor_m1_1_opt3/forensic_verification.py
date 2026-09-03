@@ -87,7 +87,7 @@ print('--- CHECK 4: Multi-Horizon Exponential Convolutional Decay Filter ---')
 engine_dec = EnsembleScoringEngine()
 engine_dec.reset_decay_filter_state()
 assert len(engine_dec._prev_filtered_scores) == 0
-tau_lstm = engine_dec.STRATEGY_HALF_LIVES['lstm']
+tau_lstm = engine_dec.get_regime_adaptive_half_lives('BULL_LOW_VOL')['lstm']
 alpha_lstm = 1.0 - math.exp(-math.log(2.0) / tau_lstm)
 df_t1 = pd.DataFrame({'symbol': ['S1', 'S2'], 'lstm_score': [0.90, 0.80], 'market': ['US', 'US']})
 df_t2 = pd.DataFrame({'symbol': ['S1', 'S2'], 'lstm_score': [0.10, 0.20], 'market': ['US', 'US']})

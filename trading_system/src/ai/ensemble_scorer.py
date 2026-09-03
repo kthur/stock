@@ -2044,17 +2044,31 @@ class EnsembleScoringEngine:
 
         if reg_df is None:
             reg_df = pd.DataFrame()
+        elif isinstance(reg_df, pd.DataFrame) and reg_df.columns.has_duplicates:
+            reg_df = reg_df.loc[:, ~reg_df.columns.duplicated(keep='first')].copy()
+
         if s_df is None:
             s_df = pd.DataFrame()
+        elif isinstance(s_df, pd.DataFrame) and s_df.columns.has_duplicates:
+            s_df = s_df.loc[:, ~s_df.columns.duplicated(keep='first')].copy()
+
         if ll_df is None:
             ll_df = pd.DataFrame()
+        elif isinstance(ll_df, pd.DataFrame) and ll_df.columns.has_duplicates:
+            ll_df = ll_df.loc[:, ~ll_df.columns.duplicated(keep='first')].copy()
+
         if weights is None:
             weights = self.REGIME_2D_WEIGHTS['BULL_LOW_VOL']
 
         if vcp_ml_df is None:
             vcp_ml_df = pd.DataFrame()
+        elif isinstance(vcp_ml_df, pd.DataFrame) and vcp_ml_df.columns.has_duplicates:
+            vcp_ml_df = vcp_ml_df.loc[:, ~vcp_ml_df.columns.duplicated(keep='first')].copy()
+
         if lstm_df is None:
             lstm_df = pd.DataFrame()
+        elif isinstance(lstm_df, pd.DataFrame) and lstm_df.columns.has_duplicates:
+            lstm_df = lstm_df.loc[:, ~lstm_df.columns.duplicated(keep='first')].copy()
 
         # Extract strategy columns if consolidated DataFrame is provided in reg_df
         if not reg_df.empty and 'symbol' in reg_df.columns:
@@ -3803,6 +3817,9 @@ class EnsembleScoringEngine:
             return current_scores.copy()
 
         df_filtered = current_scores.copy()
+        if df_filtered.columns.has_duplicates:
+            df_filtered = df_filtered.loc[:, ~df_filtered.columns.duplicated(keep='first')]
+
         if custom_half_lives is not None:
             half_lives = custom_half_lives
         elif regime is not None:

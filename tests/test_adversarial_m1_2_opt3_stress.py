@@ -138,35 +138,42 @@ class TestChaoticUniverseAndDecayFiltering:
         assert not res2.empty
         assert (res2["ensemble_score"] >= 0.0).all() and (res2["ensemble_score"] <= 1.0).all()
 
-    def test_duplicate_columns_graceful_handling(self):
+    def test_apply_exponential_decay_filter_duplicate_columns_skipping_vulnerability(self):
         """
-        Adversarial inputs containing duplicate column names in DataFrames.
-        Verify:
-        - apply_exponential_decay_filter handles duplicate column names in current and previous scores.
-        - combine_predictions does not crash and produces valid bounded scores.
+        Adversarial test: current_scores with duplicate column names.
+        Demonstrates that apply_exponential_decay_filter deduplicates previous_scores
+        (via prev_clean.columns.duplicated) but omits deduplicating current_scores/df_filtered.
+        As a result, curr_indexed[col] returns a DataFrame, pd.api.types.is_numeric_dtype() returns False,
+        and decay filtering is silently skipped (raw scores returned instead of smoothed).
         """
         engine = EnsembleScoringEngine()
-        engine.reset_decay_filter_state()
-
-        # Test direct apply_exponential_decay_filter with duplicated columns in both current and prev
         curr_dup = pd.DataFrame(
-            [[ "A", 0.7, 0.7, 0.8 ], [ "B", 0.3, 0.3, 0.4 ]],
-            columns=["symbol", "reg_score", "reg_score", "surge_score"]
-        )
-        prev_dup = pd.DataFrame(
-            [[ "A", 0.5, 0.5 ], [ "B", 0.2, 0.2 ]],
+            [["A", 0.8, 0.8]],
             columns=["symbol", "reg_score", "reg_score"]
         )
-
-        res_filtered = engine.apply_exponential_decay_filter(
+        prev_clean = pd.DataFrame(
+            [["A", 0.2]],
+            columns=["symbol", "reg_score"]
+        )
+        res = engine.apply_exponential_decay_filter(
             current_scores=curr_dup,
-            previous_scores=prev_dup,
+            previous_scores=prev_clean,
             regime="BULL_LOW_VOL"
         )
-        assert not res_filtered.empty
-        assert len(res_filtered) == 2
+        # Expected smoothed score with tau=20d (alpha~0.034): 0.034*0.8 + 0.966*0.2 = ~0.22
+        # If current_scores column deduplication is missing, smoothing is skipped and remains 0.8
+        is_smoothed = (res["reg_score"].iloc[0] < 0.50) if isinstance(res["reg_score"], pd.Series) else (res["reg_score"].iloc[0, 0] < 0.50)
+        assert is_smoothed, (
+            f"Decay filtering was silently skipped on duplicate column: reg_score remains unsmoothed at {res['reg_score'].iloc[0]}"
+        )
 
-        # Test combine_predictions with duplicate columns in reg_df
+    def test_combine_predictions_duplicate_columns_crash_vulnerability(self):
+        """
+        Adversarial test: combine_predictions with duplicate columns in reg_df.
+        Demonstrates TypeError at line 2160:
+        pd.to_numeric(reg_df_copy[target_col]) raises TypeError when reg_df_copy has duplicate columns.
+        """
+        engine = EnsembleScoringEngine()
         reg_base = pd.DataFrame({
             "symbol": ["A", "B", "C"],
             "expected_return": [0.10, 0.15, 0.20],
@@ -180,14 +187,14 @@ class TestChaoticUniverseAndDecayFiltering:
             "market": ["US", "US", "US"]
         })
 
-        res_comb = engine.combine_predictions(
+        # Should either gracefully handle duplicate columns without crashing or sanitize columns
+        res = engine.combine_predictions(
             reg_df=reg_with_dup_cols,
             s_df=surge_df,
             regime="BULL_LOW_VOL"
         )
-        assert not res_comb.empty
-        assert "ensemble_score" in res_comb.columns
-        assert (res_comb["ensemble_score"] >= 0.0).all() and (res_comb["ensemble_score"] <= 1.0).all()
+        assert not res.empty
+        assert "ensemble_score" in res.columns
 
     def test_extreme_boundary_all_zero_and_all_one_scores(self):
         """

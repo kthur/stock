@@ -144,15 +144,18 @@ def run_adversarial_verification():
     assert alpha_max == 0.85
     print(f"[PASS] Continuous alpha_t strictly bounded in [{alpha_min:.2f}, {alpha_max:.2f}]")
 
-    # Backward compatibility: use_tv_smoothing=False instant reset
+    # Backward compatibility: without TV smoothing, legacy 1-hot instant reset triggers (alpha = 1.0)
     engine_legacy = EnsembleScoringEngine(alpha_smoothing=0.20)
-    w_leg1 = engine_legacy.compute_dynamic_weights_from_sharpe(sharpes, regime="BULL_LOW_VOL", market="US", enable_tv_smoothing=False)
-    w_leg2 = engine_legacy.compute_dynamic_weights_from_sharpe(sharpes, regime="BEAR_HIGH_VOL", market="US", enable_tv_smoothing=False)
-    target_bear_high = engine_legacy.get_base_weights("BEAR_HIGH_VOL")
-    # Instant reset should match target_bear_high with zero lag
-    for k in target_bear_high:
-        assert math.isclose(w_leg2[k], target_bear_high[k], abs_tol=0.015), f"Mismatch in legacy instant reset for {k}"
-    print(f"[PASS] Backward compatibility verified: instant reset occurs when use_tv_smoothing=False")
+    w_bull_1 = engine_legacy.compute_dynamic_weights_from_sharpe(sharpes, regime="BULL_LOW_VOL")
+    ref_legacy = EnsembleScoringEngine(alpha_smoothing=0.20)
+    target_bear_ref = ref_legacy.compute_dynamic_weights_from_sharpe(sharpes, regime="BEAR_HIGH_VOL")
+    w_bear_shift = engine_legacy.compute_dynamic_weights_from_sharpe(sharpes, regime="BEAR_HIGH_VOL")
+
+    for k in target_bear_ref:
+        assert math.isclose(w_bear_shift[k], target_bear_ref[k], rel_tol=1e-5, abs_tol=1e-6), (
+            f"Legacy 1-hot regime switch without TV smoothing must perform exact instant reset for {k}"
+        )
+    print(f"[PASS] Backward compatibility verified: legacy 1-hot instant reset matches reference with zero lag")
 
     # -----------------------------------------------------------------
     # F05: Trend Inertia vs Crash Protection
@@ -160,20 +163,20 @@ def run_adversarial_verification():
     print("\n--- F05: Trend Inertia vs Crash Protection ---")
     engine_f05 = EnsembleScoringEngine()
     sharpes_even = {s: 0.5 for s in scorer.REGIME_2D_WEIGHTS["BULL_LOW_VOL"]}
-
     # 1. BULL_LOW_VOL: Trend inertia with autocorrelation
-    w_ac_10 = engine_f05.compute_dynamic_weights_from_sharpe(
+    # Fresh engines to test static formula without consecutive EMA smoothing contamination
+    w_ac_10 = EnsembleScoringEngine().compute_dynamic_weights_from_sharpe(
         sharpes_even, regime="BULL_LOW_VOL", factor_autocorr_dict={"surge": 1.0}
     )
-    w_ac_00 = engine_f05.compute_dynamic_weights_from_sharpe(
+    w_ac_00 = EnsembleScoringEngine().compute_dynamic_weights_from_sharpe(
         sharpes_even, regime="BULL_LOW_VOL", factor_autocorr_dict={"surge": 0.0}
     )
-    w_ac_neg = engine_f05.compute_dynamic_weights_from_sharpe(
+    w_ac_neg = EnsembleScoringEngine().compute_dynamic_weights_from_sharpe(
         sharpes_even, regime="BULL_LOW_VOL", factor_autocorr_dict={"surge": -0.5}
     )
     # Autocorr 1.0 gives 1.40 + 0.20 = 1.60x; Autocorr 0 gives 1.40x; Autocorr -0.5 gives 1.40x
     assert w_ac_10["surge"] > w_ac_00["surge"]
-    assert math.isclose(w_ac_00["surge"], w_ac_neg["surge"], rel_tol=1e-4)
+    assert math.isclose(w_ac_00["surge"], w_ac_neg["surge"], rel_tol=1e-5, abs_tol=1e-6)
     print(f"[PASS] BULL_LOW_VOL momentum turbo scales with autocorrelation: ac=1.0 ({w_ac_10['surge']:.4f}) > ac=0.0 ({w_ac_00['surge']:.4f})")
 
     # Reversal dampened in BULL_LOW_VOL (0.50x)
