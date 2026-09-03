@@ -14,6 +14,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.12"]
 
@@ -46,25 +47,34 @@ jobs:
         uv pip install --system pytest ruff mypy coverage bandit pip-audit pytest-github-actions-annotate-failures
 
     - name: Run type checking
+      id: typecheck
+      if: success() || failure()
       working-directory: trading_system
       run: |
         python -m mypy src --explicit-package-bases --ignore-missing-imports --warn-unused-configs --warn-redundant-casts --warn-return-any
 
     - name: Lint (ruff)
+      id: lint
+      if: success() || failure()
       run: |
         ruff check trading_system/src
 
     - name: Security audit (bandit)
+      id: security
+      if: success() || failure()
       run: |
         bandit -r trading_system/src -ll
 
     - name: Dependency vulnerability audit (pip-audit)
+      id: audit
+      if: success() || failure()
       continue-on-error: true
       run: |
         pip-audit -r trading_system/requirements.lock --desc on || true
 
-
     - name: Run unit tests
+      id: test
+      if: success() || failure()
       env:
         STOCK_PRICE_FRESHNESS_DAYS: none
         PYTHONPATH: trading_system:trading_system/src:.
@@ -88,3 +98,35 @@ jobs:
         name: coverage-report
         path: coverage.xml
         if-no-files-found: ignore
+
+    - name: Write CI Step Summary
+      if: always()
+      env:
+        TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
+        LINT_OUTCOME: ${{ steps.lint.outcome }}
+        SECURITY_OUTCOME: ${{ steps.security.outcome }}
+        AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+        TEST_OUTCOME: ${{ steps.test.outcome }}
+      run: |
+        echo "## 📋 CI 검증 및 테스트 결과 요약" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| 검증 항목 | 상태 | 결과 |" >> $GITHUB_STEP_SUMMARY
+        echo "|---|:---:|:---:|" >> $GITHUB_STEP_SUMMARY
+        for item in "타입 검사 (mypy):$TYPECHECK_OUTCOME" "린트 검사 (ruff):$LINT_OUTCOME" "보안 감사 (bandit):$SECURITY_OUTCOME" "의존성 감사 (pip-audit):$AUDIT_OUTCOME" "단위 테스트 (pytest):$TEST_OUTCOME"; do
+          NAME="${item%%:*}"
+          STATUS="${item##*:}"
+          if [ "$STATUS" = "success" ]; then
+            ICON="✅"
+            LABEL="통과"
+          elif [ "$STATUS" = "failure" ]; then
+            ICON="❌"
+            LABEL="실패"
+          elif [ "$STATUS" = "skipped" ]; then
+            ICON="⚠️"
+            LABEL="건너뜀"
+          else
+            ICON="ℹ️"
+            LABEL="$STATUS"
+          fi
+          echo "| $NAME | $ICON | $LABEL |" >> $GITHUB_STEP_SUMMARY
+        done
