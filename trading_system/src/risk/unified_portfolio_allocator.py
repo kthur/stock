@@ -201,17 +201,118 @@ class UnifiedPortfolioAllocator:
             hybrid_cov += (abs(min_diag) + 1e-6) * np.eye(n)
         return cast(np.ndarray, hybrid_cov)
 
+    def compute_dynamic_regime_blend_weights(
+        self,
+        regime: Optional[Union[str, int, Dict[str, float]]] = "BULL_LOW_VOL",
+        vix_val: Optional[float] = None,
+        crisis_severity: float = 0.0,
+        apply_ema: bool = False,
+        ema_halflife: float = 5.0,
+    ) -> Dict[str, float]:
+        """
+        Continuous 4-Model Markov Blending:
+        Computes blended confidence weights across 4 paradigms:
+            c(t) = sum_m pi_{t, m} * c^(m)
+        where c^(m) = [w_bl, w_herc, w_rp, w_cvar]^T from REGIME_OPTIMIZER_BLENDS.
+        Ensures normalized sum = 1.0000 and backward compatibility with string/int regimes.
+        Dynamically tilts towards EVT-CVaR and Risk Parity in high volatility / crisis regimes.
+        """
+        blend_cfg = {"bl": 0.0, "herc": 0.0, "rp": 0.0, "cvar": 0.0}
+        v_vol = 0.0
+        c_crisis = max(0.0, min(1.0, float(crisis_severity)))
+
+        if isinstance(regime, dict):
+            regime_probs = regime
+            tot_p = sum(max(0.0, float(v)) for v in regime_probs.values())
+            if tot_p > 0:
+                for r_k, r_p in regime_probs.items():
+                    norm_p = max(0.0, float(r_p)) / tot_p
+                    r_str = str(r_k).upper()
+                    sub_cfg = self.REGIME_OPTIMIZER_BLENDS.get(r_str, self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
+                    for m_k in blend_cfg:
+                        blend_cfg[m_k] += norm_p * sub_cfg[m_k]
+                    if "CRISIS" in r_str:
+                        c_crisis = max(c_crisis, norm_p)
+                    if "HIGH_VOL" in r_str:
+                        v_vol = max(v_vol, norm_p)
+            else:
+                blend_cfg = dict(self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
+        else:
+            if isinstance(regime, int):
+                int_map = {
+                    0: "BULL_LOW_VOL", 1: "BULL_HIGH_VOL",
+                    2: "SIDEWAYS_LOW_VOL", 3: "SIDEWAYS_HIGH_VOL",
+                    4: "BEAR_LOW_VOL", 5: "BEAR_HIGH_VOL",
+                    6: "CRISIS"
+                }
+                reg_str = int_map.get(regime, "SIDEWAYS_LOW_VOL")
+            else:
+                reg_str = str(regime).upper() if regime else "BULL_LOW_VOL"
+
+            if "CRISIS" in reg_str:
+                c_crisis = max(c_crisis, 1.0)
+                sub_cfg = self.REGIME_OPTIMIZER_BLENDS["CRISIS"]
+            elif reg_str in self.REGIME_OPTIMIZER_BLENDS:
+                sub_cfg = self.REGIME_OPTIMIZER_BLENDS[reg_str]
+            elif "BEAR" in reg_str:
+                sub_cfg = self.REGIME_OPTIMIZER_BLENDS["BEAR_HIGH_VOL" if "HIGH" in reg_str else "BEAR_LOW_VOL"]
+            elif "BULL" in reg_str:
+                sub_cfg = self.REGIME_OPTIMIZER_BLENDS["BULL_HIGH_VOL" if "HIGH" in reg_str else "BULL_LOW_VOL"]
+            else:
+                sub_cfg = self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"]
+
+            if "HIGH_VOL" in reg_str:
+                v_vol = max(v_vol, 1.0)
+            blend_cfg = dict(sub_cfg)
+
+        # Dynamic VIX shock volatility indicator
+        if vix_val is not None and math.isfinite(float(vix_val)):
+            vix_f = float(vix_val)
+            v_vol = max(v_vol, 1.0 / (1.0 + math.exp(-max(-10.0, min(10.0, (vix_f - 20.0) / 3.0)))))
+
+        # Dynamic tilt towards EVT-CVaR and Risk Parity in high volatility / crisis regimes
+        if v_vol > 0.10 or c_crisis > 0.05:
+            cvar_boost = 0.20 * v_vol + 0.40 * c_crisis
+            rp_boost = 0.10 * v_vol * (1.0 - c_crisis)
+            bl_suppress = max(0.0, 1.0 - 0.70 * v_vol - 0.90 * c_crisis)
+
+            blend_cfg["bl"] *= bl_suppress
+            blend_cfg["cvar"] += cvar_boost
+            blend_cfg["rp"] += rp_boost
+
+        # Ensure normalized sum = 1.0000
+        tot_b = sum(blend_cfg.values())
+        if tot_b > 0:
+            blend_cfg = {k: float(v / tot_b) for k, v in blend_cfg.items()}
+        else:
+            blend_cfg = dict(self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
+
+        # Optional Temporal EMA smoothing with 5-day half-life
+        if apply_ema and hasattr(self, "_last_blend_weights") and self._last_blend_weights:
+            alpha_blend = 1.0 - math.exp(-math.log(2.0) / max(1.0, float(ema_halflife)))
+            smooth_cfg = {}
+            for k in blend_cfg:
+                smooth_cfg[k] = alpha_blend * blend_cfg[k] + (1.0 - alpha_blend) * self._last_blend_weights.get(k, blend_cfg[k])
+            tot_s = sum(smooth_cfg.values())
+            blend_cfg = {k: float(v / tot_s) for k, v in smooth_cfg.items()}
+
+        self._last_blend_weights = dict(blend_cfg)
+        return blend_cfg
+
     def calculate_cvar_weights(
         self,
         returns_df: pd.DataFrame,
         confidence_level: float = 0.95,
         predicted_returns: Optional[np.ndarray] = None,
-        lambda_alpha: float = 0.50
+        lambda_alpha: float = 0.50,
+        cov_matrix: Optional[np.ndarray] = None,
+        regime: Optional[Union[str, int, Dict[str, float]]] = None,
     ) -> np.ndarray:
         """
         Rockafellar & Uryasev (2000) Convex Conditional Value-at-Risk (CVaR) Minimization
-        with Alpha-Tilt (Mean-CVaR Optimization).
-        Minimizes expected tail loss beyond VaR_alpha while tilting towards positive alpha.
+        with Alpha-Tilt (Mean-CVaR Optimization) and Parametric EVT-CVaR Tail-Stressed Integration.
+        When tail-stressed covariance is available, utilizes parametric Student-t EVT tail modeling
+        to prevent extreme small-sample estimation variance under short lookback windows (T <= 60).
         """
         n = returns_df.shape[1]
         T = returns_df.shape[0]
@@ -220,14 +321,32 @@ class UnifiedPortfolioAllocator:
         if n == 1:
             return np.array([1.0])
 
-        R = returns_df.values  # T x n
         alpha = float(np.clip(confidence_level, 0.90, 0.99))
+
+        # Dynamic alpha-tilt modulation in high volatility / crisis regimes
+        v_vol = 0.0
+        c_crisis = 0.0
+        if isinstance(regime, dict):
+            for r_k, r_p in regime.items():
+                r_str = str(r_k).upper()
+                if "CRISIS" in r_str:
+                    c_crisis = max(c_crisis, float(r_p))
+                if "HIGH_VOL" in r_str:
+                    v_vol = max(v_vol, float(r_p))
+        elif regime:
+            reg_str = str(regime).upper()
+            if "CRISIS" in reg_str:
+                c_crisis = 1.0
+            if "HIGH_VOL" in reg_str:
+                v_vol = 1.0
+
+        eff_lambda_alpha = float(lambda_alpha) * max(0.05, 1.0 - 0.85 * v_vol - 0.90 * c_crisis)
 
         has_alpha = (
             predicted_returns is not None
             and len(predicted_returns) == n
             and np.all(np.isfinite(predicted_returns))
-            and lambda_alpha > 0
+            and eff_lambda_alpha > 0
         )
         if has_alpha:
             p_rets = np.asarray(predicted_returns, dtype=float)
@@ -236,23 +355,61 @@ class UnifiedPortfolioAllocator:
         else:
             p_rets = np.zeros(n)
 
+        max_w = min(1.0, max(self.max_single_weight, 1.0 / max(n - 1, 1)))
+
+        # Feature 10: Parametric EVT-CVaR using Tail-Stressed Covariance Matrix
+        # Prevents extreme sample underestimation when lookback window T is short (T <= 60)
+        if cov_matrix is not None and cov_matrix.shape == (n, n) and np.all(np.isfinite(cov_matrix)):
+            try:
+                # Student-t EVT heavy-tail Cornish-Fisher CVaR expansion multiplier
+                # For nu=5 degrees of freedom at alpha=0.95, k_alpha approx 2.40 (vs Gaussian 2.06)
+                k_alpha = 2.40 if alpha >= 0.95 else 2.10
+
+                def obj_evt_cvar(w):
+                    port_var = float(w @ cov_matrix @ w)
+                    port_std = math.sqrt(max(1e-8, port_var))
+                    cvar_est = k_alpha * port_std
+                    if has_alpha:
+                        return cvar_est - float(eff_lambda_alpha * np.dot(w, p_rets))
+                    return cvar_est
+
+                def constr_sum(w):
+                    return float(np.sum(w) - 1.0)
+
+                w0 = np.full(n, 1.0 / n)
+                bounds = [(0.0, max_w) for _ in range(n)]
+
+                res = minimize(
+                    obj_evt_cvar,
+                    w0,
+                    method="SLSQP",
+                    bounds=bounds,
+                    constraints=[{"type": "eq", "fun": constr_sum}],
+                    options={"maxiter": 150, "ftol": 1e-5}
+                )
+
+                if res.success and np.all(np.isfinite(res.x)):
+                    w = np.clip(res.x, 0.0, max_w)
+                    tot = np.sum(w)
+                    return w / tot if tot > 0 else np.full(n, 1.0 / n)
+            except Exception as e:
+                logger.debug(f"[EVT-CVaR Parametric] Solver fallback to empirical: {e}")
+
+        # Empirical Sample Rockafellar & Uryasev Optimization
+        R = returns_df.values  # T x n
         try:
-            # Decision vector: x = [w_1...w_n, gamma (VaR), u_1...u_T]
-            # Mean-CVaR Objective: gamma + 1 / ((1 - alpha) * T) * sum(u_t) - lambda_alpha * (w @ p_rets)
             def obj_cvar(var):
                 w = var[:n]
                 cvar_part = float(var[n] + (1.0 / ((1.0 - alpha) * T)) * np.sum(var[n + 1:]))
                 if has_alpha:
-                    return cvar_part - float(lambda_alpha * np.dot(w, p_rets))
+                    return cvar_part - float(eff_lambda_alpha * np.dot(w, p_rets))
                 return cvar_part
 
             def constr_sum_w(var):
                 return float(np.sum(var[:n]) - 1.0)
 
-            max_w = min(1.0, max(self.max_single_weight, 1.0 / max(n - 1, 1)))
             bounds = [(0.0, max_w) for _ in range(n)] + [(None, None)] + [(0.0, None) for _ in range(T)]
 
-            # Linear constraint for tail loss: u_t + R_t @ w + gamma >= 0
             def constr_tail_losses(var):
                 w = var[:n]
                 gamma = var[n]
@@ -295,18 +452,19 @@ class UnifiedPortfolioAllocator:
         cov_matrix: np.ndarray,
         symbols: List[str],
         sectors: Optional[List[str]] = None,
-        regime: Optional[str] = "BULL_LOW_VOL",
+        regime: Optional[Union[str, int, Dict[str, float]]] = "BULL_LOW_VOL",
         current_weights: Optional[np.ndarray] = None,
         advs: Optional[np.ndarray] = None,
         total_capital: float = 100_000_000.0,
         market_caps: Optional[np.ndarray] = None,
         factor_loadings: Optional[Any] = None,
         alpha_half_lives: Optional[Union[np.ndarray, Dict[str, float], float]] = None,
+        darkpool_scores: Optional[Union[np.ndarray, Dict[str, float]]] = None,
     ) -> np.ndarray:
         """
-        3-Model Regime-Adaptive Multi-Model Blending:
+        Continuous 4-Model Regime-Adaptive Multi-Model Blending:
         Blends Black-Litterman, HERC, Risk Parity, and EVT-CVaR based on the current regime,
-        then applies non-linear market impact penalty and Barra factor constraints.
+        then applies non-linear dark-pool-adjusted market impact penalty and Barra factor constraints.
         """
         n = len(symbols)
         if n == 0:
@@ -314,23 +472,8 @@ class UnifiedPortfolioAllocator:
         if n == 1:
             return np.array([1.0])
 
-        if isinstance(regime, dict):
-            regime_probs = regime
-            regime_key = max(regime_probs, key=regime_probs.get) if regime_probs else "BULL_LOW_VOL"
-            # Soft-blend the 4 optimization paradigms based on Markov posterior probabilities
-            blend_cfg = {"bl": 0.0, "herc": 0.0, "rp": 0.0, "cvar": 0.0}
-            tot_p = sum(float(v) for v in regime_probs.values())
-            if tot_p > 0:
-                for r_k, r_p in regime_probs.items():
-                    norm_p = float(r_p) / tot_p
-                    sub_cfg = self.REGIME_OPTIMIZER_BLENDS.get(str(r_k).upper(), self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
-                    for m_k in blend_cfg:
-                        blend_cfg[m_k] += norm_p * sub_cfg[m_k]
-            else:
-                blend_cfg = self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"]
-        else:
-            regime_key = str(regime).upper() if regime else "BULL_LOW_VOL"
-            blend_cfg = self.REGIME_OPTIMIZER_BLENDS.get(regime_key, self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
+        # Feature 9: Continuous Markov 4-Model Dynamic Blending
+        blend_cfg = self.compute_dynamic_regime_blend_weights(regime)
 
         # 1. Model A: Black-Litterman Conviction (with CAPM Equilibrium Market-Cap Priors)
         w_bl = np.full(n, 1.0 / n)
@@ -384,15 +527,31 @@ class UnifiedPortfolioAllocator:
                 logger.debug(f"[RP] Failed, fallback: {e}")
                 w_rp = np.full(n, 1.0 / n)
 
-        # 4. Model D: Tail-Risk CVaR Minimizer with Alpha Tilt (Rockafellar & Uryasev 2002)
+        # 4. Model D: Tail-Risk CVaR Minimizer with Alpha Tilt & Clayton Copula Tail Covariance
         w_cvar = np.full(n, 1.0 / n)
         if blend_cfg["cvar"] > 0:
             try:
+                tail_cov = None
+                if cov_matrix is not None:
+                    try:
+                        from src.risk.portfolio_allocator import PortfolioAllocator
+                        tail_cov = PortfolioAllocator.compute_tail_stress_cov(
+                            returns_df.values,
+                            cov_matrix,
+                            tail_quantile=0.10,
+                            stress_weight=0.35,
+                            use_clayton_copula=True
+                        )
+                    except Exception:
+                        tail_cov = cov_matrix
+
                 w_cvar = self.calculate_cvar_weights(
                     returns_df,
                     confidence_level=0.95,
                     predicted_returns=predicted_returns,
-                    lambda_alpha=0.50
+                    lambda_alpha=0.50,
+                    cov_matrix=tail_cov if tail_cov is not None else cov_matrix,
+                    regime=regime
                 )
             except Exception as e:
                 logger.debug(f"[CVaR] Failed, fallback: {e}")
@@ -429,7 +588,7 @@ class UnifiedPortfolioAllocator:
             factor_loadings=factor_loadings
         )
 
-        # 6. Dynamic Alpha Half-Life Convergence Speed (theta_i*) & Gatheral 3/2-Power Liquidity Impact
+        # 6. Dynamic Alpha Half-Life Convergence Speed (theta_i*) & Dark-Pool Adjusted Gatheral 3/2-Power Liquidity Impact
         if advs is not None and len(advs) == n and total_capital > 0:
             w_curr = current_weights if (current_weights is not None and len(current_weights) == n) else np.zeros(n)
             w_curr = np.nan_to_num(np.asarray(w_curr, dtype=float), nan=0.0)
@@ -478,16 +637,32 @@ class UnifiedPortfolioAllocator:
             # Sizing participation ratio for the entire gap: delta_trades / daily_advs
             gap_adv_ratios = delta_trades / daily_advs
 
-            # Gatheral impact parameter (kappa = 1.0)
-            kappa = 1.0
+            # Feature 11: Dark-Pool Adjusted Gatheral 3/2-Power Market Impact
+            # kappa_eff = kappa_0 * (1.0 - phi_dark)
+            # phi_dark = min(0.60, 1.2 * darkpool_score)
+            kappa_0 = 1.0
+            if darkpool_scores is not None:
+                if isinstance(darkpool_scores, dict):
+                    dp_arr = np.array([float(darkpool_scores.get(s, 0.0) or 0.0) for s in symbols], dtype=float)
+                elif len(darkpool_scores) == n:
+                    dp_arr = np.asarray(darkpool_scores, dtype=float)
+                else:
+                    dp_arr = np.zeros(n, dtype=float)
+                dp_arr = np.nan_to_num(dp_arr, nan=0.0)
+                phi_dark = np.minimum(0.60, 1.2 * np.maximum(0.0, dp_arr))
+                kappa_eff = kappa_0 * (1.0 - phi_dark)
+            else:
+                kappa_eff = np.full(n, kappa_0, dtype=float)
+
+            kappa_eff = np.maximum(kappa_eff, 0.20)
 
             # Closed-Form Optimal Convergence Velocity:
-            # theta_impact* = ((daily_alpha + lambda_alpha) / (1.5 * kappa * vols))^2 * (ADV / delta_trades)
+            # theta_impact* = ((daily_alpha + lambda_alpha) / (1.5 * kappa_eff * vols))^2 * (ADV / delta_trades)
             theta_impact = np.ones(n, dtype=float)
             active_mask = (delta_trades > 1e-6) & (gap_adv_ratios > 1e-6)
             if np.any(active_mask):
                 numerator = daily_alpha[active_mask] + lambda_alpha[active_mask]
-                denominator = 1.5 * kappa * vols[active_mask]
+                denominator = 1.5 * kappa_eff[active_mask] * vols[active_mask]
                 trade_scaling = 1.0 / gap_adv_ratios[active_mask]
                 theta_impact[active_mask] = ((numerator / denominator) ** 2) * trade_scaling
 
@@ -537,7 +712,11 @@ class UnifiedPortfolioAllocator:
         port_var = float(weights.T @ cov_matrix @ weights)
         annualized_port_vol = float(np.sqrt(max(1e-8, port_var * 252.0)))
 
-        regime_str = str(regime).upper() if regime else ""
+        if isinstance(regime, dict):
+            regime_key = max(regime, key=regime.get) if regime else "BULL_LOW_VOL"
+            regime_str = str(regime_key).upper()
+        else:
+            regime_str = str(regime).upper() if regime else ""
         if "BULL" in regime_str:
             max_alloc_cap = 0.98  # Cash drag eliminator
             min_alloc_floor = 0.80
@@ -780,6 +959,13 @@ class UnifiedPortfolioAllocator:
             eff_hl = float(np.min(hl_list)) if hl_list else (15.0 if "BULL" in str(regime).upper() else 10.0)
             symbol_half_lives.append(eff_hl)
 
+        # Extract dark pool scores for Gatheral liquidity impact modulation (F11)
+        darkpool_scores = None
+        for dp_col in ["darkpool_score", "dark_pool_score", "darkpool_ratio"]:
+            if dp_col in df_candidates.columns:
+                darkpool_scores = df_candidates[dp_col].values.astype(float)
+                break
+
         # Step 1: Multi-Model Regime-Adaptive Blending
         w_opt = self.optimize_multi_model_blend(
             predicted_returns=pred_rets,
@@ -793,6 +979,7 @@ class UnifiedPortfolioAllocator:
             total_capital=total_portfolio_value,
             market_caps=market_caps,
             alpha_half_lives=symbol_half_lives,
+            darkpool_scores=darkpool_scores,
         )
 
         # Step 2: Target Volatility Scaling & Cash Drag Eliminator

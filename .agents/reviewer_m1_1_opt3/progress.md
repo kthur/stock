@@ -1,14 +1,10 @@
-﻿# Progress — Reviewer M1-1
+# Progress — Reviewer M1-1
 
-Last visited: 2026-09-04T06:42:20+09:00
+Last visited: 2026-09-04T06:54:10+09:00
 
 ## Status
-- Finished initial reading of MANDATORY INPUTS (ORIGINAL_REQUEST.md, PROJECT.md, Worker M1 handoff.md).
-- Code inspection of 	rading_system/src/ai/ensemble_scorer.py:
-  - Verified F01: REGIME_2D_WEIGHTS['CRISIS'] lines 472-510 contains exactly 37 strategies, sum = 1.0000, all weights >= 0.005, defensive dominance (ol_target 0.080, stat_arb 0.070, im_valuation 0.065, ccruals_quality 0.060), high-beta strategies throttled to 0.005.
-  - Verified F01 fallback logic: get_base_weights string resolution matches CRISIS in egime_str preventing fallback to SIDEWAYS_LOW_VOL.
-  - Verified F02: Markov posterior probability soft-blending (
-orm_probs convex combination over 2D and 1D regimes, fallback to SIDEWAYS_LOW_VOL only on total_p <= 1e-12).
-  - Verified F03: Continuous TV-distance ({TV}$) and VIX entropy ({vix}$) smoothing parameter $\alpha_t \in [0.15, 0.85]$, with backward compatibility instant reset when use_tv_smoothing is False.
-  - Verified F05: Multi-regime multipliers (BULL_LOW_VOL turbo .40 \sim 1.60\times$ based on factor autocorrelation, BULL_HIGH_VOL crash protection .15\times$, CRISIS/BEAR reversal boost .40 \sim 1.68\times$).
-- Pytest test execution launched in background (task-33). Waiting for completion notification.
+- Finished code inspection of `trading_system/src/ai/ensemble_scorer.py` for Features F01, F02, F03, F05.
+- Executed full test suite (`test_m1_quant_enhancements.py`, `test_hpo_and_2d_ensemble.py`, `test_system_wide_world_class_improvements.py`, `test_adversarial_regime_sharpe_m2.py`): 48 passed, 0 failed (100% pass rate).
+- Created and executed adversarial stress test suite (`verify_m1_adversarial.py`): 100% passed.
+- No integrity violations or cheating detected.
+- Drafting final handoff report (`handoff.md`) with verdict APPROVE.

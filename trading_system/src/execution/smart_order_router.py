@@ -57,10 +57,23 @@ class SmartOrderRouter:
 
         legs: List[Dict[str, Any]] = []
 
+        dp_score = float(order_plan.get("darkpool_score", order_plan.get("dark_pool_score", 0.0)) or 0.0)
+        is_accum = bool(order_plan.get("is_accumulation", False) or dp_score >= 0.60)
+
+        # Dynamic Dark Probing Ratio (Feature 12):
+        # Dynamically scales dark pool allocation from base 40% up to 70% when institutional block accumulation is detected
+        if is_accum:
+            eff_dark_ratio = float(np.clip(max(self.dark_probe_ratio, 0.55 + 0.15 * dp_score), self.dark_probe_ratio, 0.70))
+        elif dp_score > 0.0:
+            eff_dark_ratio = float(np.clip(self.dark_probe_ratio + 0.30 * dp_score, self.dark_probe_ratio, 0.70))
+        else:
+            eff_dark_ratio = float(self.dark_probe_ratio)
+
         # 1. Tier 1: ATS / Dark Pool Midpoint Probe Leg
         is_patient_strategy = exec_strategy in ["MIDPOINT_PEG", "PATIENT_TWAP", "DYNAMIC_VWAP"]
-        if ats_available and is_patient_strategy:
-            dark_qty = int(total_quantity * self.dark_probe_ratio)
+        is_probe_eligible = is_patient_strategy or dp_score >= 0.30 or is_accum
+        if ats_available and is_probe_eligible:
+            dark_qty = int(total_quantity * eff_dark_ratio)
             if dark_qty > 0:
                 legs.append({
                     "venue_type": "DARK_ATS_MIDPOINT",
@@ -76,9 +89,9 @@ class SmartOrderRouter:
         else:
             rem_qty = total_quantity
 
-        # 2. Tier 2: Primary Peg / Maker Leg
-        if is_patient_strategy and rem_qty > 0:
-            maker_qty = int(rem_qty * 0.70)
+        # 2. Tier 2: Primary Peg / Maker Leg (70% of residual quantity)
+        if rem_qty > 0:
+            maker_qty = int(rem_qty * 0.70) if (is_patient_strategy or is_probe_eligible) else 0
             if maker_qty > 0:
                 legs.append({
                     "venue_type": "PRIMARY_EXCHANGE_MAKER",
@@ -92,7 +105,7 @@ class SmartOrderRouter:
             else:
                 lit_qty = rem_qty
         else:
-            lit_qty = rem_qty
+            lit_qty = 0
 
         # 3. Tier 3: Lit Exchange Residual Sweeper Leg
         if lit_qty > 0:
@@ -122,6 +135,10 @@ class SmartOrderRouter:
             "target_price": target_price,
             "destination": dest,
             "legs": legs,
+            "dark_ats_midpoint": next((leg for leg in legs if leg["venue_type"] == "DARK_ATS_MIDPOINT"), None),
+            "primary_exchange_maker": next((leg for leg in legs if leg["venue_type"] == "PRIMARY_EXCHANGE_MAKER"), None),
+            "lit_exchange_sweeper": next((leg for leg in legs if leg["venue_type"] == "LIT_EXCHANGE_SWEEPER"), None),
+            "effective_dark_ratio": round(float(eff_dark_ratio), 4),
             "expected_cost_saving_bps": round(float(tot_saving if np.isfinite(tot_saving) else 0.0), 2)
         }
 

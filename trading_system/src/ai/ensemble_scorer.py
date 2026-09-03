@@ -610,6 +610,7 @@ class EnsembleScoringEngine:
         self.market_slippage_bps_map: Dict[str, float] = {}
 
         # Load Optuna-tuned 2D regime weights from tuned_params.json (if available)
+        self.REGIME_2D_WEIGHTS = {k: dict(v) for k, v in self.__class__.REGIME_2D_WEIGHTS.items()}
         self._load_tuned_regime_weights()
 
         # Restore EMA weight continuity across pipeline runs (persisted below)
@@ -818,6 +819,7 @@ class EnsembleScoringEngine:
                 mkt_key = str(mkt).lower()
                 mkt_mask = (df_out['market'] == mkt)
                 sub_df = df_out.loc[mkt_mask].copy()
+                orig_sub_idx = sub_df.index
 
                 is_us = mkt_key in ['sp500', 'nasdaq', 'russell2000', 'us']
                 is_kr = mkt_key in ['kospi', 'kosdaq', 'kr']
@@ -829,6 +831,7 @@ class EnsembleScoringEngine:
                     previous_scores=prev_scores,
                     regime=mkt_regime
                 )
+                sub_filtered.index = orig_sub_idx
 
                 for col in active_score_cols:
                     if col in sub_filtered.columns and pd.api.types.is_numeric_dtype(sub_filtered[col]):
@@ -2154,6 +2157,8 @@ class EnsembleScoringEngine:
 
         # 1. Regression Strategy
         reg_df_copy = reg_df.copy()
+        if not reg_df_copy.empty and reg_df_copy.columns.has_duplicates:
+            reg_df_copy = reg_df_copy.loc[:, ~reg_df_copy.columns.duplicated(keep='first')]
         if not reg_df_copy.empty and 'reg_score' not in reg_df_copy.columns:
             target_col: Any = None
             if f'expected_return_{target_horizon}d' in reg_df_copy.columns:
@@ -3829,6 +3834,7 @@ class EnsembleScoringEngine:
 
         sym_col = 'symbol' if 'symbol' in df_filtered.columns else None
         if sym_col and sym_col in previous_scores.columns:
+            orig_idx = df_filtered.index
             prev_clean = previous_scores.drop_duplicates(subset=[sym_col])
             if prev_clean.columns.has_duplicates:
                 prev_clean = prev_clean.loc[:, ~prev_clean.columns.duplicated(keep='first')]
@@ -3866,6 +3872,7 @@ class EnsembleScoringEngine:
                     curr_indexed[col] = (alpha * curr_indexed[col] + (1.0 - alpha) * prev_s).clip(0.0, 1.0)
 
             df_filtered = curr_indexed.reset_index()
+            df_filtered.index = orig_idx
         return df_filtered
 
     @staticmethod

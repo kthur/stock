@@ -81,28 +81,40 @@ class PortfolioAllocator:
             tail_cov = np.cov(tail_returns, rowvar=False)
             if tail_cov.shape == base_cov.shape and np.all(np.isfinite(tail_cov)):
                 k_eff = float(np.clip(stress_weight, 0.0, 0.70))
-                stressed_cov = (1.0 - k_eff) * base_cov + k_eff * tail_cov
+                sigma_shrink = (1.0 - k_eff) * base_cov + k_eff * tail_cov
 
                 # Asymmetric Downside Clayton Copula adjustment (dynamically estimated lower tail dependence)
                 if use_clayton_copula:
-                    stds = np.sqrt(np.maximum(np.diag(stressed_cov), 1e-8))
+                    stds = np.sqrt(np.maximum(np.diag(sigma_shrink), 1e-8))
                     outer_std = np.outer(stds, stds)
                     outer_std = np.where(outer_std > 0, outer_std, 1e-8)
-                    corr = np.clip(stressed_cov / outer_std, -1.0, 1.0)
+                    corr = np.clip(sigma_shrink / outer_std, -1.0, 1.0)
 
-                    # Dynamic empirical Clayton lower-tail dependence coefficient lambda_L estimation
-                    # Derived from joint lower quantile co-exceedance rate across assets
+                    # Dynamic empirical Clayton lower-tail dependence coefficient lambda_L estimation:
+                    # In Clayton copula: Kendall's tau = theta / (theta + 2) => theta = 2 * tau / (1 - tau)
+                    # Lower tail dependence: lambda_L = 2^(-1 / theta) in [0.10, 0.70]
                     try:
                         tail_rets_std = (tail_returns - np.mean(tail_returns, axis=0)) / np.maximum(np.std(tail_returns, axis=0), 1e-6)
-                        # Fraction of assets crashing per day (cross-sectional)
                         joint_tail_prob = np.mean(tail_rets_std < -1.0, axis=1)
-                        # Frequency of days where >50% of assets crash simultaneously
                         mean_tail_coincidence = float(np.mean(joint_tail_prob > 0.5))
-                        # Non-linear mapping to Clayton lambda_L in [0.10, 0.70]
-                        lambda_l = float(np.clip(0.10 + mean_tail_coincidence * 1.5, 0.10, 0.70))
+
+                        # Average pairwise off-diagonal tail correlation mapping to Kendall's tau
+                        if K >= 2 and len(tail_returns) >= 2:
+                            t_corr = np.corrcoef(tail_returns, rowvar=False)
+                            np.fill_diagonal(t_corr, 0.0)
+                            off_diag = t_corr[np.triu_indices(K, k=1)]
+                            avg_off_diag = float(np.nanmean(off_diag)) if len(off_diag) > 0 and np.any(np.isfinite(off_diag)) else 0.25
+                            tau_est = float(np.clip((2.0 / np.pi) * np.arcsin(np.clip(avg_off_diag, -0.99, 0.99)), 0.05, 0.85))
+                        else:
+                            tau_est = 0.25
+
+                        tau_eff = float(np.clip(0.60 * tau_est + 0.40 * mean_tail_coincidence, 0.05, 0.80))
+                        theta = max(0.01, 2.0 * tau_eff / max(1.0 - tau_eff, 1e-4))
+                        lambda_l = float(np.clip(2.0 ** (-1.0 / theta), 0.10, 0.70))
                     except Exception:
                         lambda_l = 0.25
 
+                    # Clayton equicorrelation target under asymptotic lower-tail dependence
                     asym_corr = (1.0 - lambda_l) * corr + lambda_l * np.ones_like(corr)
                     np.fill_diagonal(asym_corr, 1.0)
                     # Higham / Eigendecomposition spectral projection to guarantee PSD
@@ -111,7 +123,12 @@ class PortfolioAllocator:
                     asym_corr = c_evecs @ np.diag(c_evals) @ c_evecs.T
                     d_inv = 1.0 / np.sqrt(np.diag(asym_corr))
                     asym_corr = asym_corr * np.outer(d_inv, d_inv)
-                    stressed_cov = asym_corr * outer_std
+                    sigma_clayton = asym_corr * outer_std
+
+                    # Blended stress covariance: Sigma_tail = (1 - lambda_L) * Sigma_shrink + lambda_L * Sigma_clayton
+                    stressed_cov = (1.0 - lambda_l) * sigma_shrink + lambda_l * sigma_clayton
+                else:
+                    stressed_cov = sigma_shrink
 
                 res: np.ndarray = np.asarray(stressed_cov + 1e-5 * np.eye(K))
                 return res

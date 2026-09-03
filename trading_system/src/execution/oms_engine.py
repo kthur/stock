@@ -76,6 +76,11 @@ class ExecutionOMSEngine:
         self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
         self.config = config
         self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 1
+        try:
+            from src.execution.smart_order_router import SmartOrderRouter
+            self.sor = SmartOrderRouter()
+        except Exception:
+            self.sor = None
         self._mem_conn = sqlite3.connect(":memory:") if self.db_path == ":memory:" else None
         self._init_db()
 
@@ -110,7 +115,9 @@ class ExecutionOMSEngine:
                     target_stop_loss REAL,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
-                    tranches TEXT
+                    tranches TEXT,
+                    sor_routing TEXT,
+                    expected_cost_saving_bps REAL DEFAULT 0.0
                 )
             """)
             # Migration: legacy DBs created before the quantity/execution columns
@@ -130,6 +137,10 @@ class ExecutionOMSEngine:
                     cursor.execute("ALTER TABLE order_plans ADD COLUMN target_stop_loss REAL")
                 if cols and "tranches" not in cols:
                     cursor.execute("ALTER TABLE order_plans ADD COLUMN tranches TEXT")
+                if cols and "sor_routing" not in cols:
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN sor_routing TEXT")
+                if cols and "expected_cost_saving_bps" not in cols:
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN expected_cost_saving_bps REAL DEFAULT 0.0")
             except Exception:
                 pass
             cursor.execute("""
@@ -438,15 +449,21 @@ class ExecutionOMSEngine:
         try:
             cursor = conn.cursor()
 
-            # Ensure tranches column exists for legacy databases
+            # Ensure tranches and sor_routing columns exist for legacy databases
             try:
                 db_cols = [r[1] for r in cursor.execute("PRAGMA table_info(order_plans)").fetchall()]
                 has_tranches_col = "tranches" in db_cols
                 if not has_tranches_col:
                     cursor.execute("ALTER TABLE order_plans ADD COLUMN tranches TEXT")
                     has_tranches_col = True
+                has_sor_col = "sor_routing" in db_cols
+                if not has_sor_col:
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN sor_routing TEXT")
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN expected_cost_saving_bps REAL DEFAULT 0.0")
+                    has_sor_col = True
             except Exception:
                 has_tranches_col = False
+                has_sor_col = False
 
             # Collect all predictions to process
             predictions_to_process = list(top_predictions) if top_predictions else []
@@ -876,6 +893,25 @@ class ExecutionOMSEngine:
                     exec_strategy = "DIP_LIMIT"
                     target_price = target_price * 0.985  # Enter at 1.5% pullback discount
 
+                # Feature 13: Orderbook Imbalance (OBI) Midpoint Peg Pricing
+                obi_val = float(pred.get("obi", pred.get("orderbook_imbalance", pred.get("microstructure_imbalance", 0.0))) or 0.0)
+                bid_px = pred.get("bid_price")
+                ask_px = pred.get("ask_price")
+                spr_px = pred.get("bid_ask_spread", pred.get("spread"))
+                if spr_px is None and bid_px is not None and ask_px is not None and ask_px > bid_px:
+                    spr_px = ask_px - bid_px
+
+                if exec_strategy == "MIDPOINT_PEG" or (obi_val != 0.0 and (bid_px is not None or ask_px is not None)):
+                    target_price = ExecutionOMSEngine.calculate_peg_limit_price(
+                        target_price=target_price,
+                        bid_price=bid_px,
+                        ask_price=ask_px,
+                        spread=spr_px,
+                        alpha_urgency=0.50,
+                        action=action,
+                        obi=obi_val if obi_val != 0.0 else None
+                    )
+
                 sleeve_type = "FAST_MOMENTUM" if effective_half_life <= 3.0 else "CORE_FUNDAMENTAL"
                 regime_params = self.get_regime_timing_parameters(pred.get("market_regime", getattr(self, "current_regime", None)))
                 sl_mult = regime_params.get('sl_atr_mult', 1.5 if sleeve_type == "FAST_MOMENTUM" else 2.0)
@@ -893,7 +929,7 @@ class ExecutionOMSEngine:
 
                 order_amount = round(float(quantity * target_price), 2)
 
-                # ── Feature 11: Almgren-Chriss Slicing & Tranche Tagging ──
+                # ── Feature 11 & 13: Almgren-Chriss Slicing & Tranche Tagging with OBI Peg Pricing ──
                 tranches = []
                 if quantity > 0:
                     if slice_count > 1 and quantity >= slice_count:
@@ -936,12 +972,26 @@ class ExecutionOMSEngine:
                             else:
                                 t_tag = "AGGRESSIVE_TAKER" if is_final else "MIDPOINT_PEG"
                             t_offset = int(j * (180.0 / max(n_act, 1)))
+
+                            slice_px = target_price
+                            if t_tag == "MIDPOINT_PEG" and (bid_px or ask_px or obi_val != 0.0):
+                                slice_px = ExecutionOMSEngine.calculate_peg_limit_price(
+                                    target_price=target_price,
+                                    bid_price=bid_px,
+                                    ask_price=ask_px,
+                                    spread=spr_px,
+                                    alpha_urgency=0.50,
+                                    action=action,
+                                    obi=obi_val if obi_val != 0.0 else None
+                                )
+
                             tranches.append({
                                 "slice": j + 1,
                                 "quantity": int(q_slice),
                                 "action": action,
                                 "exec_type": t_tag,
-                                "time_offset_min": t_offset
+                                "time_offset_min": t_offset,
+                                "limit_price": round(float(slice_px), 2)
                             })
                     else:
                         s_tag = "PASSIVE_LIMIT" if exec_strategy == "PASSIVE_LIMIT" else ("MIDPOINT_PEG" if exec_strategy == "MIDPOINT_PEG" else ("DIP_LIMIT" if exec_strategy == "DIP_LIMIT" else "AGGRESSIVE_TAKER"))
@@ -950,8 +1000,48 @@ class ExecutionOMSEngine:
                             "quantity": int(quantity),
                             "action": action,
                             "exec_type": s_tag,
-                            "time_offset_min": 0
+                            "time_offset_min": 0,
+                            "limit_price": round(float(target_price), 2)
                         })
+
+                # Feature 12: Dynamic Dark Probing & 3-Tier Multi-Leg SOR Routing
+                dp_score = float(pred.get("darkpool_score", pred.get("dark_pool_score", 0.0)) or 0.0)
+                is_accum = bool(pred.get("is_accumulation", False))
+                order_dict = {
+                    "symbol": sym,
+                    "name": name,
+                    "market": market,
+                    "action": action,
+                    "quantity": quantity,
+                    "target_price": target_price,
+                    "execution_strategy": exec_strategy,
+                    "darkpool_score": dp_score,
+                    "is_accumulation": is_accum,
+                }
+                sor_routing = {}
+                expected_saving_bps = 0.0
+                if self.sor is not None and quantity > 0:
+                    try:
+                        spr_bps = float(pred.get("market_spread_bps", 15.0) or 15.0)
+                        sor_res = self.sor.route_order(order_dict, ats_available=True, market_spread_bps=spr_bps)
+                        sor_routing = sor_res
+                        expected_saving_bps = float(sor_res.get("expected_cost_saving_bps", 0.0))
+                    except Exception as _sor_err:
+                        logger.debug(f"[OMS] Error routing with SOR: {_sor_err}")
+
+                # Attach SOR routing to individual tranches
+                if self.sor is not None and tranches:
+                    for tr in tranches:
+                        try:
+                            t_dict = dict(order_dict)
+                            t_dict["quantity"] = tr["quantity"]
+                            t_dict["execution_strategy"] = tr["exec_type"]
+                            t_dict["target_price"] = tr.get("limit_price", target_price)
+                            t_res = self.sor.route_order(t_dict, ats_available=True)
+                            tr["sor_routing"] = t_res.get("legs", [])
+                            tr["expected_cost_saving_bps"] = t_res.get("expected_cost_saving_bps", 0.0)
+                        except Exception:
+                            pass
 
                 plan_entry = {
                     "order_id": order_id,
@@ -973,12 +1063,21 @@ class ExecutionOMSEngine:
                     "target_stop_loss": target_stop_loss,
                     "status": status,
                     "created_at": now_str,
-                    "tranches": tranches
+                    "tranches": tranches,
+                    "sor_routing": sor_routing,
+                    "expected_cost_saving_bps": round(expected_saving_bps, 2)
                 }
                 order_plans.append(plan_entry)
 
                 tranches_json = json.dumps(tranches) if tranches else "[]"
-                if has_tranches_col:
+                sor_routing_json = json.dumps(sor_routing) if sor_routing else "{}"
+                if has_sor_col and has_tranches_col:
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO order_plans
+                        (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at, tranches, sor_routing, expected_cost_saving_bps)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, exec_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, now_str, tranches_json, sor_routing_json, round(expected_saving_bps, 2)))
+                elif has_tranches_col:
                     cursor.execute("""
                         INSERT OR REPLACE INTO order_plans
                         (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at, tranches)
@@ -1263,22 +1362,35 @@ class ExecutionOMSEngine:
         ask_price: Optional[float] = None,
         spread: Optional[float] = None,
         alpha_urgency: float = 0.50,
-        action: str = "BUY"
+        action: str = "BUY",
+        obi: Optional[float] = None,
+        kappa: float = 1.5,
     ) -> float:
         """
         Calculates optimal limit price for Midpoint Pegged passive maker order routing.
         Saves half-spread and captures maker rebates when alpha urgency is low/medium.
+        Feature 13: Orderbook Imbalance (OBI) Midpoint Peg Pricing:
+            P_peg = P_mid + 0.5 * spread * tanh(kappa * OBI)
+        where OBI in [-1.0, 1.0]. Positive OBI shifts peg towards ask for buy orders to ensure fill;
+        negative OBI shifts peg towards bid to capture spread.
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
         if tp <= 0:
             return tp
 
-        spr = spread if (spread is not None and spread > 0) else max(tp * 0.002, 1.0)
-        p_bid = bid_price if (bid_price is not None and bid_price > 0) else (tp - spr / 2.0)
-        p_ask = ask_price if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
+        spr = float(spread) if (spread is not None and spread > 0) else max(tp * 0.002, 1.0)
+        p_bid = float(bid_price) if (bid_price is not None and bid_price > 0) else (tp - spr / 2.0)
+        p_ask = float(ask_price) if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
         p_mid = (p_bid + p_ask) / 2.0
 
-        is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE"]
+        is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE", "BID"]
+
+        if obi is not None and math.isfinite(float(obi)) and float(obi) != 0.0:
+            obi_val = float(np.clip(float(obi), -1.0, 1.0))
+            peg_shift = 0.5 * spr * math.tanh(kappa * obi_val)
+            peg_price = p_mid + peg_shift
+            return float(np.clip(peg_price, p_bid, p_ask))
+
         if alpha_urgency <= 0.40:
             peg_price = p_bid if is_buy else p_ask
         elif alpha_urgency <= 0.75:
@@ -1683,23 +1795,36 @@ class AlmgrenChrissScheduler:
         ask_price: Optional[float] = None,
         spread: Optional[float] = None,
         alpha_urgency: float = 0.50,
-        action: str = "BUY"
+        action: str = "BUY",
+        obi: Optional[float] = None,
+        kappa: float = 1.5,
     ) -> float:
         """
         Calculates optimal limit price for Midpoint Pegged passive maker order routing.
         Saves half-spread and captures maker rebates when alpha urgency is low/medium.
+        Feature 13: Orderbook Imbalance (OBI) Midpoint Peg Pricing:
+            P_peg = P_mid + 0.5 * spread * tanh(kappa * OBI)
+        where OBI in [-1.0, 1.0]. Positive OBI shifts peg towards ask for buy orders to ensure fill;
+        negative OBI shifts peg towards bid to capture spread.
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
         if tp <= 0:
             return tp
 
-        spr = spread if (spread is not None and spread > 0) else max(tp * 0.002, 1.0)
-        p_bid = bid_price if (bid_price is not None and bid_price > 0) else (tp - spr / 2.0)
-        p_ask = ask_price if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
+        spr = float(spread) if (spread is not None and spread > 0) else max(tp * 0.002, 1.0)
+        p_bid = float(bid_price) if (bid_price is not None and bid_price > 0) else (tp - spr / 2.0)
+        p_ask = float(ask_price) if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
+        p_mid = (p_bid + p_ask) / 2.0
+
+        if obi is not None and math.isfinite(float(obi)) and float(obi) != 0.0:
+            obi_val = float(np.clip(float(obi), -1.0, 1.0))
+            peg_shift = 0.5 * spr * math.tanh(kappa * obi_val)
+            peg_price = p_mid + peg_shift
+            return float(np.clip(peg_price, p_bid, p_ask))
 
         urgency = max(0.0, min(1.0, float(alpha_urgency)))
         act = str(action).upper().strip()
-        if act in ("BUY", "BID"):
+        if act in ("BUY", "BID", "LONG", "BUY_HEDGE"):
             peg_price = p_bid + urgency * (p_ask - p_bid)
             return float(min(peg_price, p_ask))
         else:

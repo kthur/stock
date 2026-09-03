@@ -144,6 +144,20 @@ def test_adversarial_rapid_regime_oscillations_continuous():
     assert max_weight_delta < 0.15
 
 
+def test_adversarial_instance_isolation_weight_decay():
+    """Adversarial stress test: Ensure repeated instantiations of EnsembleScoringEngine
+    do not progressively decay base weights of strategies 32-37 (e.g. overnight_gap_reversal)
+    below the 0.005 floor due to in-place mutation of class-level REGIME_2D_WEIGHTS."""
+    for i in range(10):
+        engine = EnsembleScoringEngine()
+        w = engine.get_base_weights("BULL_LOW_VOL")
+        og_weight = w.get("overnight_gap_reversal", 0.0)
+        assert og_weight >= 0.005, (
+            f"Instance {i+1}: overnight_gap_reversal decayed to {og_weight:.6f} (< 0.005 floor) "
+            f"due to class-level REGIME_2D_WEIGHTS mutation in _load_tuned_regime_weights!"
+        )
+
+
 # =========================================================================
 # 3. FALLBACK INTEGRITY FOR CRISIS STRINGS
 # =========================================================================

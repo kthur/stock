@@ -186,6 +186,60 @@ def test_f04_exponential_decay_warm_start_smoothing_and_clipping():
     assert (out2["surge_score"] >= 0.0).all() and (out2["surge_score"] <= 1.0).all()
 
 
+def test_f04_multi_market_warm_start_preserves_unique_indices_and_smooths():
+    """F04: Multi-market (KOSPI, KOSDAQ, SP500) warm-start preserves unique slice indices
+    and avoids ValueError: cannot reindex on an axis with duplicate labels upon pd.concat."""
+    engine = EnsembleScoringEngine()
+    engine.reset_decay_filter_state()
+
+    df_day1 = pd.DataFrame({
+        "symbol": ["005930", "035420", "AAPL"],
+        "market": ["KOSPI", "KOSDAQ", "SP500"],
+        "reg_score": [0.80, 0.70, 0.90],
+        "surge_score": [0.60, 0.50, 0.70]
+    }, index=[10, 20, 30])  # Non-default arbitrary indices
+
+    df_day2 = pd.DataFrame({
+        "symbol": ["005930", "035420", "AAPL"],
+        "market": ["KOSPI", "KOSDAQ", "SP500"],
+        "reg_score": [0.20, 0.30, 0.10],
+        "surge_score": [0.10, 0.20, 0.30]
+    }, index=[10, 20, 30])
+
+    strategy_cols = [("regression", "reg_score"), ("surge", "surge_score")]
+
+    # Day 1: cold start initializes multi-market caches
+    out1 = engine._apply_decay_filtering_with_cache(df_day1, strategy_cols=strategy_cols, regime="BULL_LOW_VOL")
+    assert list(out1.index) == [10, 20, 30]
+    assert pytest.approx(out1.loc[10, "reg_score"], abs=1e-5) == 0.80
+    assert "kospi" in engine._prev_filtered_scores
+    assert "kosdaq" in engine._prev_filtered_scores
+    assert "sp500" in engine._prev_filtered_scores
+
+    # Day 2: warm start must preserve indices and not throw duplicate label error
+    out2 = engine._apply_decay_filtering_with_cache(df_day2, strategy_cols=strategy_cols, regime="BULL_LOW_VOL")
+    assert list(out2.index) == [10, 20, 30]
+    # Regression score must be properly smoothed between Day 2 and Day 1
+    assert 0.20 < out2.loc[10, "reg_score"] < 0.80
+    assert 0.30 < out2.loc[20, "reg_score"] < 0.70
+    assert 0.10 < out2.loc[30, "reg_score"] < 0.90
+    assert (out2["reg_score"] >= 0.0).all() and (out2["reg_score"] <= 1.0).all()
+
+    # End-to-end combine_predictions multi-market test
+    comb_day1 = engine.combine_predictions(
+        reg_df=pd.DataFrame({"symbol": ["005930", "035420"], "expected_return": [0.10, 0.20], "market": ["KOSPI", "KOSDAQ"]}),
+        regime="BULL_LOW_VOL"
+    )
+    assert not comb_day1.empty
+
+    comb_day2 = engine.combine_predictions(
+        reg_df=pd.DataFrame({"symbol": ["005930", "035420"], "expected_return": [0.30, 0.05], "market": ["KOSPI", "KOSDAQ"]}),
+        regime="BULL_LOW_VOL"
+    )
+    assert not comb_day2.empty
+    assert "ensemble_score" in comb_day2.columns
+
+
 def test_f04_rank_ic_and_latency_decay_calibration():
     """F04: Verify apply_rank_ic_decay_calibration tilts weights towards high Rank IC and discounts latency."""
     engine = EnsembleScoringEngine()
