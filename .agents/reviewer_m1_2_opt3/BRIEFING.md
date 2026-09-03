@@ -1,4 +1,4 @@
-# BRIEFING — 2026-09-04T06:40:18+09:00
+# BRIEFING — 2026-09-04T06:45:15+09:00
 
 ## Mission
 Independent review and adversarial challenge for Milestone 1 of 3rd Deep Quantitative Enhancement (Features F04, F06, F07, F08).
@@ -34,20 +34,30 @@ Independent review and adversarial challenge for Milestone 1 of 3rd Deep Quantit
 - **Review criteria**: Correctness, Logical Completeness, Code Quality, Risk & Adversarial Attack Surface, Integrity
 
 ## Key Decisions Made
-- Initialized review environment and briefing
+- Confirmed F06, F07, F08 implementations are mathematically sound, genuine, and resilient against edge cases.
+- Discovered Critical Defect in F04: index clobbering in `apply_exponential_decay_filter` (`curr_indexed.reset_index()`) causes `ValueError: cannot reindex on an axis with duplicate labels` during multi-market warm starts in `_apply_decay_filtering_with_cache`.
+- Issued verdict: REQUEST_CHANGES due to functional failure of F04 in multi-market production operations.
 
 ## Artifact Index
 - DISPATCH.md — incoming instructions log
 - BRIEFING.md — persistent state and identity
 - progress.md — liveness heartbeat
+- stress_test_m1.py — adversarial challenge reproduction script
 - handoff.md — final review and adversarial challenge report
 
 ## Review Checklist
-- **Items reviewed**: pending
-- **Verdict**: PENDING
-- **Unverified claims**: pending
+- **Items reviewed**: F04, F06, F07, F08 across source code and test files
+- **Verdict**: REQUEST_CHANGES
+- **Unverified claims**: None (all tested independently)
 
 ## Attack Surface
-- **Hypotheses tested**: pending
-- **Vulnerabilities found**: pending
-- **Untested angles**: pending
+- **Hypotheses tested**:
+  - H1: F04 multi-market warm-start caching and index integrity -> FAILED (reproduced ValueError on duplicate labels)
+  - H2: F04 Rank IC with NaNs, Infs, extreme latency -> PASSED
+  - H3: F06 37-strategy 4-pillar clustering disjoint partition and synergy under NaNs -> PASSED
+  - H4: F06 Bessembinder S-curve under constant inputs and 7 regimes -> PASSED
+  - H5: F07 entropy allocation under all missing strategies and near-singular correlation -> PASSED
+  - H6: F08 PCA-ZCA orthogonalizer under all-constant columns and preserve_top_k > active columns -> PASSED
+- **Vulnerabilities found**:
+  - F04 Multi-Market Reindex Crash on Warm Start: `apply_exponential_decay_filter` resets DataFrame index to `RangeIndex`, causing duplicate index labels across concatenated market chunks in `_apply_decay_filtering_with_cache`, which throws `ValueError` in `.reindex(df_out.index)` and silently disables decay filtering in `combine_predictions`.
+- **Untested angles**: Cross-asset macro regime transition speed in production GHA runner environment.
