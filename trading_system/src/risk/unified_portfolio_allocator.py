@@ -11,7 +11,7 @@ Tier-1 Hedge Fund Portfolio Construction Framework:
 
 import logging
 import math
-from typing import Dict, List, Optional, Tuple, Any, cast
+from typing import Dict, List, Optional, Tuple, Any, cast, Union
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
@@ -56,6 +56,7 @@ class UnifiedPortfolioAllocator:
         risk_aversion: float = 1.0,
         leland_cost_bps: float = 20.0,
         target_horizon: int = 20,
+        rebalance_mode: str = "boundary",
     ):
         self.target_volatility = float(target_volatility)
         self.max_single_weight = float(max_single_weight)
@@ -64,6 +65,39 @@ class UnifiedPortfolioAllocator:
         self.risk_aversion = float(risk_aversion)
         self.leland_cost_bps = float(leland_cost_bps)
         self.target_horizon = int(target_horizon)
+        self.rebalance_mode = str(rebalance_mode).lower() if rebalance_mode is not None else "boundary"
+
+    @staticmethod
+    def calculate_asymmetric_leland_multipliers(
+        unrealized_return: float,
+        volatility_20d: float,
+    ) -> Tuple[float, float]:
+        """
+        Computes continuous volatility-normalized asymmetric Leland buffer multipliers:
+            z_unrealized = u_ret / (volatility_20d * sqrt(5))
+        - Runners (z > 0): smoothly expands upper band (1.0 -> 1.8x) to let winners run.
+        - Laggards (z < 0): smoothly tightens lower band (1.0 -> 0.6x) for swift de-risking.
+        Returns:
+            Tuple of (upper_mult, lower_mult)
+        """
+        u_ret = float(unrealized_return) if (unrealized_return is not None and math.isfinite(float(unrealized_return))) else 0.0
+        vol_clean = max(0.005, float(volatility_20d)) if (volatility_20d is not None and math.isfinite(float(volatility_20d))) else 0.02
+        vol_5d = vol_clean * math.sqrt(5.0)
+        z_unrealized = u_ret / vol_5d if vol_5d > 0.0 else 0.0
+
+        if z_unrealized > 0.0:
+            z_clamped = min(max((z_unrealized - 1.0) / 2.0, 0.0), 1.0)
+            upper_mult = 1.0 + 0.8 * z_clamped
+            lower_mult = 1.0
+        elif z_unrealized < 0.0:
+            z_clamped = min(max((-1.0 - z_unrealized) / 2.0, 0.0), 1.0)
+            upper_mult = 1.0
+            lower_mult = 1.0 - 0.4 * z_clamped
+        else:
+            upper_mult = 1.0
+            lower_mult = 1.0
+
+        return float(upper_mult), float(lower_mult)
 
     @staticmethod
     def compute_returns_matrix(
@@ -267,6 +301,7 @@ class UnifiedPortfolioAllocator:
         total_capital: float = 100_000_000.0,
         market_caps: Optional[np.ndarray] = None,
         factor_loadings: Optional[Any] = None,
+        alpha_half_lives: Optional[Union[np.ndarray, Dict[str, float], float]] = None,
     ) -> np.ndarray:
         """
         3-Model Regime-Adaptive Multi-Model Blending:
@@ -369,34 +404,8 @@ class UnifiedPortfolioAllocator:
         tot_w = np.sum(w_composite)
         w_blended = w_composite / tot_w if tot_w > 0 else np.full(n, 1.0 / n)
 
-        # 5. Non-Linear 3/2-Power Market Impact Adjustment (Gatheral & Almgren-Chriss)
-        if advs is not None and len(advs) == n and total_capital > 0:
-            w_curr = current_weights if (current_weights is not None and len(current_weights) == n) else np.zeros(n)
-            vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-6))
-            daily_advs = np.maximum(advs, 1000.0)
-
-            # Sizing penalty: ( |w_i - w_curr_i| * Total_Cap / ADV_i )^1.5
-            delta_trades = np.abs(w_blended - w_curr) * total_capital
-            participation_ratios = delta_trades / daily_advs
-            # If participation is non-trivial, penalize expected return and shave weight
-            impact_penalties = 1.0 * vols * (participation_ratios ** 1.5)
-
-            # Dampen weight of illiquid assets where impact penalty exceeds alpha
-            damp_factors = np.exp(-2.0 * np.minimum(impact_penalties, 20.0))
-            w_damped = w_blended * damp_factors
-            s_damp = np.sum(w_damped)
-            if s_damp > 0:
-                w_blended = w_damped / s_damp
-
-            # V8-HIGH-16: 5% ADV hard liquidity participation constraint: abs(w_i - w_curr_i) <= (0.05 * ADV_i) / V_port
-            max_delta_w = (0.05 * daily_advs) / float(total_capital)
-            w_bounded = np.clip(w_blended, np.maximum(0.0, w_curr - max_delta_w), w_curr + max_delta_w)
-            s_bound = np.sum(w_bounded)
-            if s_bound > 0:
-                w_blended = w_bounded / s_bound
-
-        # 6. Apply Portfolio Constraints & Sector Neutralization
-        final_w = apply_portfolio_constraints(
+        # 5. Apply Portfolio Constraints & Sector Neutralization on Equilibrium Target Portfolio w*
+        w_target = apply_portfolio_constraints(
             w_blended,
             symbols=symbols,
             sectors=sectors,
@@ -404,6 +413,92 @@ class UnifiedPortfolioAllocator:
             max_sector_weight=self.max_sector_weight,
             factor_loadings=factor_loadings
         )
+
+        # 6. Dynamic Alpha Half-Life Convergence Speed (theta_i*) & Gatheral 3/2-Power Liquidity Impact
+        if advs is not None and len(advs) == n and total_capital > 0:
+            w_curr = current_weights if (current_weights is not None and len(current_weights) == n) else np.zeros(n)
+            w_curr = np.nan_to_num(np.asarray(w_curr, dtype=float), nan=0.0)
+            vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-6))
+            daily_advs = np.maximum(np.asarray(advs, dtype=float), 1000.0)
+
+            # Resolve effective alpha half-life tau_{1/2, i}
+            if alpha_half_lives is not None:
+                if isinstance(alpha_half_lives, (int, float)):
+                    half_lives = np.full(n, float(alpha_half_lives))
+                elif isinstance(alpha_half_lives, dict):
+                    half_lives = np.array([float(alpha_half_lives.get(s, 10.0)) for s in symbols], dtype=float)
+                elif len(alpha_half_lives) == n:
+                    half_lives = np.asarray(alpha_half_lives, dtype=float)
+                else:
+                    half_lives = np.full(n, 10.0)
+            else:
+                # Default regime-informed alpha half-life
+                base_hl = 10.0
+                reg_str = str(regime).upper() if regime else ""
+                if "CRISIS" in reg_str:
+                    base_hl = 3.0
+                elif "HIGH_VOL" in reg_str:
+                    base_hl = 5.0
+                elif "BULL_LOW_VOL" in reg_str:
+                    base_hl = 15.0
+                half_lives = np.full(n, base_hl)
+
+            half_lives = np.maximum(half_lives, 0.5)
+            # Continuous daily alpha decay intensity: lambda_alpha = ln(2) / tau_{1/2}
+            lambda_alpha = np.log(2.0) / half_lives
+
+            # Daily expected return proxy (alpha_daily)
+            if predicted_returns is not None and len(predicted_returns) == n:
+                p_rets = np.asarray(predicted_returns, dtype=float)
+                if np.any(np.abs(p_rets) >= 1.0):
+                    p_rets = p_rets / 100.0
+                daily_alpha = np.maximum(0.0, p_rets) / max(1.0, float(self.target_horizon))
+            else:
+                daily_alpha = np.full(n, 0.002)
+
+            # Trade delta in portfolio weight and currency
+            weight_gaps = w_target - w_curr
+            delta_trades = np.abs(weight_gaps) * total_capital
+
+            # Sizing participation ratio for the entire gap: delta_trades / daily_advs
+            gap_adv_ratios = delta_trades / daily_advs
+
+            # Gatheral impact parameter (kappa = 1.0)
+            kappa = 1.0
+
+            # Closed-Form Optimal Convergence Velocity:
+            # theta_impact* = ((daily_alpha + lambda_alpha) / (1.5 * kappa * vols))^2 * (ADV / delta_trades)
+            theta_impact = np.ones(n, dtype=float)
+            active_mask = (delta_trades > 1e-6) & (gap_adv_ratios > 1e-6)
+            if np.any(active_mask):
+                numerator = daily_alpha[active_mask] + lambda_alpha[active_mask]
+                denominator = 1.5 * kappa * vols[active_mask]
+                trade_scaling = 1.0 / gap_adv_ratios[active_mask]
+                theta_impact[active_mask] = ((numerator / denominator) ** 2) * trade_scaling
+
+            # Dynamic maximum ADV liquidity participation cap (5% for slow alpha, up to 15% for urgent fast alpha)
+            # max_adv_frac_i = 0.05 + 0.10 * exp(-tau_{1/2, i} / 3.0)
+            max_adv_fracs = 0.05 + 0.10 * np.exp(-half_lives / 3.0)
+            max_delta_w = (max_adv_fracs * daily_advs) / float(total_capital)
+
+            # Bounded desired weight step
+            theta_bounded = np.clip(theta_impact, 0.15, 1.0)
+            theta_bounded[~active_mask] = 1.0
+            delta_w_desired = theta_bounded * weight_gaps
+
+            # Bound executed step by maximum liquidity capacity: |delta_w| <= max_delta_w
+            delta_w_exec = np.sign(delta_w_desired) * np.minimum(np.abs(delta_w_desired), max_delta_w)
+
+            # Execute partial convergence step: w_{t+1, i} = w_{t, i} + delta_w_exec
+            w_next = w_curr + delta_w_exec
+            w_next = np.clip(w_next, 0.0, self.max_single_weight)
+
+            # Feature 8: Route unallocated liquidity-constrained capital to cash buffer!
+            # DO NOT re-normalize or divide by sum(w_next)
+            final_w = w_next
+        else:
+            final_w = w_target
+
         return final_w
 
     def apply_target_volatility_scaling(
@@ -463,20 +558,27 @@ class UnifiedPortfolioAllocator:
         current_weights: np.ndarray,
         volatilities: np.ndarray,
         unrealized_returns: Optional[np.ndarray] = None,
+        rebalance_mode: Optional[str] = None,
+        use_asymmetric_bands: bool = True,
     ) -> np.ndarray:
         """
-        Asymmetric Leland Dynamic No-Trade Buffer Bands:
+        Volatility-Normalized Asymmetric Leland Dynamic No-Trade Buffer Bands:
         Suppresses unnecessary churn and transaction taxes (STT) when drift is within noise band.
-        - Winning runners (unrealized_return >= +8%): Upper band expanded 1.8x to prevent premature rebalance sales.
-        - Laggards (unrealized_return <= -3%): Lower band tightened 0.6x for prompt de-risking.
+        Uses continuous volatility-normalized Z-scores:
+            z_unrealized = u_ret / (sigma_20d * sqrt(5))
+        - Winning runners (z > 0): upper band smoothly expands up to 1.8x to prevent premature rebalance sales.
+        - Laggards (z < 0): lower band smoothly tightens down to 0.6x for prompt de-risking.
+        - Boundary Rebalancing: when weight breaches band, rebalances to boundary (L_i or U_i) rather
+          than full target, minimizing unnecessary turnover and market impact while controlling tracking error.
         Delta_i = ( 3/4 * Cost_i * w_i * (1 - w_i) * sigma_ann^2 / gamma )^(1/3)
         """
         n = len(target_weights)
         if current_weights is None or len(current_weights) != n or np.all(current_weights <= 0):
             return target_weights
 
+        mode = (rebalance_mode or getattr(self, "rebalance_mode", "boundary")).lower()
         cost_fraction = self.leland_cost_bps / 10_000.0  # e.g. 20 bps = 0.0020
-        vols = np.maximum(volatilities, 0.01)
+        vols = np.maximum(volatilities, 0.005)
         ann_variance = 252.0 * (vols ** 2)
         gamma = max(1e-4, float(self.risk_aversion))
         w_factor = np.maximum(1e-4, target_weights * (1.0 - np.minimum(0.99, target_weights)))
@@ -494,19 +596,16 @@ class UnifiedPortfolioAllocator:
             tgt_w = target_weights[i]
             delta = leland_deltas[i]
 
-            # Bypass buffer for new entries (curr == 0) or full liquidations (tgt == 0)
+            # Bypass buffer for new entries (curr <= 1e-4) or full liquidations (tgt <= 1e-4)
             if curr_w <= 1e-4 or tgt_w <= 1e-4:
                 realized_w[i] = tgt_w
                 continue
 
-            # Asymmetric band adjustments based on unrealized performance
-            u_ret = float(unrealized_returns[i]) if (unrealized_returns is not None and len(unrealized_returns) > i and np.isfinite(unrealized_returns[i])) else 0.0
-            if u_ret >= 0.08:
-                upper_mult = 1.8
-                lower_mult = 1.0
-            elif u_ret <= -0.03:
-                upper_mult = 1.0
-                lower_mult = 0.6
+            # Continuous volatility-normalized asymmetric multipliers
+            if use_asymmetric_bands and unrealized_returns is not None:
+                u_ret = float(unrealized_returns[i]) if (len(unrealized_returns) > i and np.isfinite(unrealized_returns[i])) else 0.0
+                vol_i = float(vols[i]) if (len(vols) > i and np.isfinite(vols[i])) else 0.02
+                upper_mult, lower_mult = self.calculate_asymmetric_leland_multipliers(u_ret, vol_i)
             else:
                 upper_mult = 1.0
                 lower_mult = 1.0
@@ -517,12 +616,12 @@ class UnifiedPortfolioAllocator:
             if lower_band <= curr_w <= upper_band:
                 # Within asymmetric no-trade band: hold current weight to save turnover and tax
                 realized_w[i] = curr_w
-            elif tgt_w > curr_w:
-                # Buy only to lower boundary of band
-                realized_w[i] = tgt_w - lower_mult * delta
+            elif curr_w < lower_band:
+                # Breached below lower band: rebalance to lower boundary L_i in boundary mode, or target
+                realized_w[i] = lower_band if mode == "boundary" else tgt_w
             else:
-                # Sell only to upper boundary of band
-                realized_w[i] = tgt_w + upper_mult * delta
+                # Breached above upper band: rebalance to upper boundary U_i in boundary mode, or target
+                realized_w[i] = upper_band if mode == "boundary" else tgt_w
 
         return realized_w
 
@@ -537,6 +636,7 @@ class UnifiedPortfolioAllocator:
         top_n: int = 20,
         base_currency: str = "KRW",
         usd_krw: float = 1350.0,
+        rebalance_mode: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Master Pipeline Allocation Method:
@@ -642,6 +742,29 @@ class UnifiedPortfolioAllocator:
                         p_val = float(cp)
                         current_weights[i] = (qty * p_val) / total_portfolio_value
 
+        # Extract per-symbol alpha half-lives based on active strategies and 2D regime
+        symbol_half_lives = []
+        regime_strats = {}
+        try:
+            from src.ai.ensemble_scorer import EnsembleScoringEngine
+            regime_strats = EnsembleScoringEngine.get_regime_adaptive_half_lives(regime or "BULL_LOW_VOL")
+        except Exception:
+            pass
+
+        for sym in valid_symbols:
+            sub = df_candidates[df_candidates["symbol"].astype(str) == str(sym)]
+            hl_list = []
+            if not sub.empty:
+                r_dict = sub.iloc[0].to_dict()
+                for strat, hl in regime_strats.items():
+                    val = r_dict.get(strat)
+                    if val is None:
+                        val = r_dict.get(f"{strat}_score") or r_dict.get(f"{strat}_prob")
+                    if val is not None and isinstance(val, (int, float)) and val > 0.5:
+                        hl_list.append(hl)
+            eff_hl = float(np.min(hl_list)) if hl_list else (15.0 if "BULL" in str(regime).upper() else 10.0)
+            symbol_half_lives.append(eff_hl)
+
         # Step 1: Multi-Model Regime-Adaptive Blending
         w_opt = self.optimize_multi_model_blend(
             predicted_returns=pred_rets,
@@ -654,6 +777,7 @@ class UnifiedPortfolioAllocator:
             advs=advs,
             total_capital=total_portfolio_value,
             market_caps=market_caps,
+            alpha_half_lives=symbol_half_lives,
         )
 
         # Step 2: Target Volatility Scaling & Cash Drag Eliminator
@@ -685,7 +809,8 @@ class UnifiedPortfolioAllocator:
                         unrealized_rets[i] = float(ret_val)
 
         w_final = self.apply_leland_no_trade_buffers(
-            w_scaled, current_weights, volatilities=vols, unrealized_returns=unrealized_rets
+            w_scaled, current_weights, volatilities=vols, unrealized_returns=unrealized_rets,
+            rebalance_mode=rebalance_mode
         )
 
         # Step 4: Compute shares, lot sizes, and allocation amounts
@@ -722,6 +847,9 @@ class UnifiedPortfolioAllocator:
             latest_prices.append(max(float(p if p is not None else 1.0), 1.0))
 
         df_candidates["weight"] = w_final
+        df_candidates["target_weight"] = w_scaled
+        df_candidates["current_weight"] = current_weights
+        df_candidates["delta_weight"] = w_final - current_weights
         df_candidates["volatility"] = vols
         df_candidates["predicted_return"] = pred_rets
         df_candidates["allocation_amount"] = w_final * total_portfolio_value
@@ -755,11 +883,20 @@ class UnifiedPortfolioAllocator:
             lot_list.append(lot)
 
         df_candidates["shares"] = shares_list
+        df_candidates["target_shares"] = shares_list
         df_candidates["lot_size"] = lot_list
+
+        tot_invested = float(df_candidates['weight'].sum())
+        cash_buffer_weight = max(0.0, 1.0 - tot_invested)
+        cash_buffer_amount = cash_buffer_weight * total_portfolio_value
+        df_candidates.attrs["cash_buffer_weight"] = cash_buffer_weight
+        df_candidates.attrs["cash_buffer_amount"] = cash_buffer_amount
+        df_candidates.attrs["total_invested_weight"] = tot_invested
 
         logger.info(
             f"[UnifiedPortfolioAllocator] Allocated {len(df_candidates)} assets. "
-            f"Total Invested: {df_candidates['weight'].sum():.1%} (Effective Alloc: {effective_alloc:.1%})"
+            f"Total Invested: {tot_invested:.1%}, Cash Buffer: {cash_buffer_weight:.1%} "
+            f"({cash_buffer_amount:,.0f} {base_currency}) (Effective Alloc: {effective_alloc:.1%})"
         )
 
         return df_candidates

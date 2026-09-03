@@ -4138,7 +4138,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             _crisis_lvl_str = getattr(crisis_lvl, 'value', str(crisis_lvl))
         p_weights = ensemble_df_merged['portfolio_weight'] if 'portfolio_weight' in ensemble_df_merged.columns else pd.Series(0.05, index=ensemble_df_merged.index)
         weight_dict = dict(zip(ensemble_df_merged['symbol'], p_weights))
-        curr_holdings = oms_engine.get_current_holdings_from_db()
+        curr_holdings = oms_engine.get_current_holdings_details_from_db() if hasattr(oms_engine, "get_current_holdings_details_from_db") else oms_engine.get_current_holdings_from_db()
+        if not curr_holdings:
+            curr_holdings = oms_engine.get_current_holdings_from_db()
 
         # UnifiedPortfolioAllocator already performed Leland dynamic buffer bands on target weights.
         # If unified allocator succeeded, use_leland_buffer=False prevents redundant double-buffering.

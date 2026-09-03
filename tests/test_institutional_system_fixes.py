@@ -102,7 +102,7 @@ def test_unified_allocator_current_holdings_float_and_dict_handling():
 
 def test_market_impact_volume_to_turnover_conversion():
     """Verify that when only 'volume' is provided, ADV is correctly scaled by price into currency."""
-    allocator = UnifiedPortfolioAllocator()
+    allocator = UnifiedPortfolioAllocator(max_single_weight=0.50)
     dates = pd.date_range("2026-01-01", periods=60)
     prices_dict = {
         "005930": pd.DataFrame({"Close": np.linspace(70000, 75000, 60)}, index=dates),

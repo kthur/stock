@@ -9,6 +9,7 @@ import math
 import sqlite3
 import datetime
 import logging
+import json
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Any, Optional, Tuple
@@ -108,7 +109,8 @@ class ExecutionOMSEngine:
                     target_take_profit REAL,
                     target_stop_loss REAL,
                     status TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    tranches TEXT
                 )
             """)
             # Migration: legacy DBs created before the quantity/execution columns
@@ -126,6 +128,8 @@ class ExecutionOMSEngine:
                     cursor.execute("ALTER TABLE order_plans ADD COLUMN target_take_profit REAL")
                 if cols and "target_stop_loss" not in cols:
                     cursor.execute("ALTER TABLE order_plans ADD COLUMN target_stop_loss REAL")
+                if cols and "tranches" not in cols:
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN tranches TEXT")
             except Exception:
                 pass
             cursor.execute("""
@@ -408,9 +412,41 @@ class ExecutionOMSEngine:
                     return 0.0
             return 0.0
 
+        def _get_holding_shares(h_item: Any, price: float, eff_cap: float, lot: int = 1) -> int:
+            if h_item is None:
+                return 0
+            if isinstance(h_item, dict):
+                if "quantity" in h_item and h_item["quantity"] is not None:
+                    try:
+                        return max(0, int(h_item["quantity"]))
+                    except (ValueError, TypeError):
+                        pass
+                hw = _get_holding_weight(h_item)
+                if hw > 0 and price > 0:
+                    raw_sh = int((eff_cap * hw) // price)
+                    return max(0, (raw_sh // lot) * lot)
+            elif isinstance(h_item, int) and h_item > 1:
+                return max(0, (h_item // lot) * lot)
+            elif isinstance(h_item, (int, float)):
+                hw = _get_holding_weight(h_item)
+                if hw > 0 and price > 0:
+                    raw_sh = int((eff_cap * hw) // price)
+                    return max(0, (raw_sh // lot) * lot)
+            return 0
+
         conn = self._get_conn()
         try:
             cursor = conn.cursor()
+
+            # Ensure tranches column exists for legacy databases
+            try:
+                db_cols = [r[1] for r in cursor.execute("PRAGMA table_info(order_plans)").fetchall()]
+                has_tranches_col = "tranches" in db_cols
+                if not has_tranches_col:
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN tranches TEXT")
+                    has_tranches_col = True
+            except Exception:
+                has_tranches_col = False
 
             # Collect all predictions to process
             predictions_to_process = list(top_predictions) if top_predictions else []
@@ -460,7 +496,8 @@ class ExecutionOMSEngine:
 
                 raw_action = str(pred.get("action", "BUY") or "BUY").upper()
                 curr_holding_w = _get_holding_weight(current_holdings.get(sym)) if current_holdings is not None else 0.0
-                if weight <= 0.0 and curr_holding_w > 0.0:
+                is_full_liquidation = (weight <= 0.0 and curr_holding_w > 0.0) or (raw_action == "SELL" and weight <= 0.0)
+                if is_full_liquidation:
                     raw_action = "SELL"
 
                 if is_severe:
@@ -484,7 +521,7 @@ class ExecutionOMSEngine:
                 # Gate: Leland Dynamic Buffer Band (No-Trade Zone) Gating
                 if use_leland_buffer and current_holdings is not None:
                     curr_w = _get_holding_weight(current_holdings.get(sym))
-                    is_full_exit = (weight <= 0.0 or raw_action == "SELL")
+                    is_full_exit = is_full_liquidation
                     is_new_entry = (curr_w <= 0.0 and weight > 0.0)
                     if not is_full_exit and not is_new_entry:
                         try:
@@ -509,7 +546,7 @@ class ExecutionOMSEngine:
                             logger.debug(f"[OMS LELAND BUFFER] Leland buffer check skipped for {sym}: {_leland_e}")
 
                 curr_holding_w = _get_holding_weight(current_holdings.get(sym)) if current_holdings is not None else 0.0
-                if (raw_action == "SELL" or is_severe) and weight == 0.0 and curr_holding_w > 0.0:
+                if is_full_liquidation:
                     target_amount = base_portfolio_cap * curr_holding_w
                 else:
                     target_amount = tot_cap * weight
@@ -713,18 +750,54 @@ class ExecutionOMSEngine:
                     lot_size = 1
                 min_order_qty = lot_size
 
-                raw_quantity = int(effective_target_amount // target_price) if (target_price > 0 and np.isfinite(target_price) and np.isfinite(effective_target_amount)) else 0
-                quantity = (raw_quantity // lot_size) * lot_size
+                # ── Feature 10: Delta Rebalancing (ΔQ = Q_target - Q_current) ──
+                raw_target_qty = int(effective_target_amount // target_price) if (target_price > 0 and np.isfinite(target_price) and np.isfinite(effective_target_amount)) else 0
+                target_shares = (raw_target_qty // lot_size) * lot_size
 
-                # V8-REGRESSION Fix: In liquidation SELL orders for existing positions, use holding quantity directly
-                is_held_liquidation = False
-                if raw_action == "SELL" and current_holdings and isinstance(current_holdings, dict):
-                    h_held_item: Any = current_holdings.get(sym) or current_holdings.get(str(sym))
-                    if isinstance(h_held_item, dict):
-                        h_qty = int(h_held_item.get("quantity", 0))
-                        if h_qty > 0 and weight <= 0.0:
-                            quantity = h_qty
-                            is_held_liquidation = True
+                held_item: Any = None
+                if current_holdings and isinstance(current_holdings, dict):
+                    held_item = current_holdings.get(sym) or current_holdings.get(str(sym))
+                    if held_item is None:
+                        base_s = sym.split('.')[0]
+                        for alt_k in [base_s, f"{base_s}.KS", f"{base_s}.KQ"]:
+                            if alt_k in current_holdings:
+                                held_item = current_holdings[alt_k]
+                                break
+
+                eff_local_cap = base_portfolio_cap if (curr_iso == "KRW" or curr_iso == "UNK") else (base_portfolio_cap / max(fx_rate_item, 1e-4))
+                curr_shares = _get_holding_shares(held_item, price=target_price, eff_cap=eff_local_cap, lot=lot_size) if held_item is not None else 0
+
+                if current_holdings is not None:
+                    if is_full_liquidation:
+                        delta_shares = -curr_shares
+                    else:
+                        delta_shares = target_shares - curr_shares
+                else:
+                    delta_shares = target_shares
+
+                # Leland Buffer Hold / Zero-Delta Rebalance Gating
+                if current_holdings is not None and delta_shares == 0:
+                    logger.info(f"[OMS DELTA REBALANCE] {sym}: Target shares ({target_shares}) == current shares ({curr_shares}) -> ΔQ=0, skipping order (HOLD)")
+                    continue
+
+                # Determine Action and Trade Quantity from ΔQ
+                if action == "CASH_OVERLAY":
+                    quantity = int(abs(delta_shares))
+                elif delta_shares > 0:
+                    action = "BUY"
+                    quantity = int(delta_shares)
+                elif delta_shares < 0:
+                    action = "SELL"
+                    quantity = int(abs(delta_shares))
+                else:
+                    continue
+
+                is_held_liquidation = is_full_liquidation and (action == "SELL")
+
+                # Sub-lot noise filter for existing holdings
+                if curr_shares > 0 and not is_held_liquidation and quantity < min_order_qty:
+                    logger.info(f"[OMS DELTA REBALANCE] {sym}: Rebalance delta {quantity} < min lot {min_order_qty}, skipping minor drift adjustment.")
+                    continue
 
                 if not is_held_liquidation and quantity < min_order_qty:
                     min_order_cost = float(min_order_qty * target_price)
@@ -819,6 +892,67 @@ class ExecutionOMSEngine:
                 target_stop_loss = round(target_price * (1.0 - dynamic_sl_pct), 2)
 
                 order_amount = round(float(quantity * target_price), 2)
+
+                # ── Feature 11: Almgren-Chriss Slicing & Tranche Tagging ──
+                tranches = []
+                if quantity > 0:
+                    if slice_count > 1 and quantity >= slice_count:
+                        tier = "fast" if effective_half_life <= 2.0 else ("slow" if effective_half_life >= 25.0 else "medium")
+                        adv_ac = float(adv_eff) if adv_eff > 0 else 1_000_000.0
+                        vol_ac = float(vol_sigma) if vol_sigma > 0 else 0.02
+                        raw_slices = AlmgrenChrissScheduler.compute_trajectory(
+                            total_quantity=quantity,
+                            adv=adv_ac,
+                            daily_volatility=vol_ac,
+                            strategy_tier=tier,
+                            n_slices=slice_count
+                        )
+                        if lot_size > 1:
+                            alloc_lots = [q // lot_size for q in raw_slices]
+                            diff_lots = (quantity // lot_size) - sum(alloc_lots)
+                            if diff_lots > 0:
+                                for k in range(diff_lots):
+                                    alloc_lots[k % len(alloc_lots)] += 1
+                            elif diff_lots < 0:
+                                rem_lots = abs(diff_lots)
+                                for k in range(len(alloc_lots) - 1, -1, -1):
+                                    sub = min(alloc_lots[k], rem_lots)
+                                    alloc_lots[k] -= sub
+                                    rem_lots -= sub
+                                    if rem_lots == 0:
+                                        break
+                            raw_slices = [l * lot_size for l in alloc_lots]
+
+                        active_slices = [q for q in raw_slices if q > 0]
+                        if not active_slices:
+                            active_slices = [quantity]
+                        n_act = len(active_slices)
+                        for j, q_slice in enumerate(active_slices):
+                            is_final = (j == n_act - 1)
+                            if exec_strategy == "PASSIVE_LIMIT":
+                                t_tag = "PASSIVE_LIMIT"
+                            elif exec_strategy == "DIP_LIMIT":
+                                t_tag = "DIP_LIMIT" if not is_final else "AGGRESSIVE_TAKER"
+                            else:
+                                t_tag = "AGGRESSIVE_TAKER" if is_final else "MIDPOINT_PEG"
+                            t_offset = int(j * (180.0 / max(n_act, 1)))
+                            tranches.append({
+                                "slice": j + 1,
+                                "quantity": int(q_slice),
+                                "action": action,
+                                "exec_type": t_tag,
+                                "time_offset_min": t_offset
+                            })
+                    else:
+                        s_tag = "PASSIVE_LIMIT" if exec_strategy == "PASSIVE_LIMIT" else ("MIDPOINT_PEG" if exec_strategy == "MIDPOINT_PEG" else ("DIP_LIMIT" if exec_strategy == "DIP_LIMIT" else "AGGRESSIVE_TAKER"))
+                        tranches.append({
+                            "slice": 1,
+                            "quantity": int(quantity),
+                            "action": action,
+                            "exec_type": s_tag,
+                            "time_offset_min": 0
+                        })
+
                 plan_entry = {
                     "order_id": order_id,
                     "symbol": sym,
@@ -838,15 +972,24 @@ class ExecutionOMSEngine:
                     "target_take_profit": target_take_profit,
                     "target_stop_loss": target_stop_loss,
                     "status": status,
-                    "created_at": now_str
+                    "created_at": now_str,
+                    "tranches": tranches
                 }
                 order_plans.append(plan_entry)
 
-                cursor.execute("""
-                    INSERT OR REPLACE INTO order_plans
-                    (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, exec_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, now_str))
+                tranches_json = json.dumps(tranches) if tranches else "[]"
+                if has_tranches_col:
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO order_plans
+                        (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at, tranches)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, exec_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, now_str, tranches_json))
+                else:
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO order_plans
+                        (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, exec_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, now_str))
 
             # Gate 8: Synthetic Beta Inverse Hedge Overlay (Bear / Crisis regime)
             # V8-HIGH-03 Fix: Multi-market decomposed inverse hedging (KRX vs US independent hedges)
@@ -920,14 +1063,29 @@ class ExecutionOMSEngine:
                             "target_take_profit": None,
                             "target_stop_loss": None,
                             "status": "HEDGE_ACTIVE",
-                            "created_at": now_str
+                            "created_at": now_str,
+                            "tranches": [{
+                                "slice": 1,
+                                "quantity": int(h_quantity),
+                                "action": "BUY_HEDGE",
+                                "exec_type": "AGGRESSIVE_TAKER",
+                                "time_offset_min": 0
+                            }]
                         }
                         order_plans.append(h_entry)
-                        cursor.execute("""
-                            INSERT OR REPLACE INTO order_plans
-                            (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", target_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount_local, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "FAST", None, None, "HEDGE_ACTIVE", now_str))
+                        h_tranches_json = json.dumps(h_entry["tranches"])
+                        if has_tranches_col:
+                            cursor.execute("""
+                                INSERT OR REPLACE INTO order_plans
+                                (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at, tranches)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", target_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount_local, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "FAST", None, None, "HEDGE_ACTIVE", now_str, h_tranches_json))
+                        else:
+                            cursor.execute("""
+                                INSERT OR REPLACE INTO order_plans
+                                (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", target_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount_local, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "FAST", None, None, "HEDGE_ACTIVE", now_str))
                 except Exception as _hedge_e:
                     logger.warning(f"[OMS HEDGE OVERLAY] Hedge order plan generation skipped: {_hedge_e}")
 

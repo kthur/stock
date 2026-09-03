@@ -551,7 +551,7 @@ class EnsembleScoringEngine:
 
         self.correlation_monitor = StrategyCorrelationMonitor()
         self.factor_suppression = RegimeFactorSuppressionEngine()
-        self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric', preserve_consensus_pc1=True)
+        self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric', preserve_consensus_pc1=True, preserve_top_k=2)
         self.orthogonalizer_enabled = True
         self.enable_coverage_shrinkage = getattr(config, 'enable_coverage_shrinkage', True)
         self.score_normalizer = CrossSectionalScoreNormalizer(method='winsorized_zscore')
@@ -1211,13 +1211,15 @@ class EnsembleScoringEngine:
         logger.info(f"Dynamically adjusted Sharpe weights for Regime '{regime}' [{market}] (gamma={gamma}): {dynamic_weights}")
         return dynamic_weights
 
-    @staticmethod
+    @classmethod
     def apply_rank_ic_decay_calibration(
+        cls,
         base_weights: Dict[str, float],
         strategy_rank_ic_dict: Optional[Dict[str, float]] = None,
         strategy_half_lives: Optional[Dict[str, float]] = None,
         latency_days: float = 0.0,
-        gamma: float = 1.0
+        gamma: float = 1.0,
+        regime: Optional[Union[int, str]] = None
     ) -> Dict[str, float]:
         """
         Calibrates strategy ensemble weights based on Rank Information Coefficient (IC)
@@ -1228,7 +1230,12 @@ class EnsembleScoringEngine:
             return {}
 
         calibrated = {}
-        half_lives = strategy_half_lives or {}
+        if strategy_half_lives is not None:
+            half_lives = strategy_half_lives
+        elif regime is not None:
+            half_lives = cls.get_regime_adaptive_half_lives(regime)
+        else:
+            half_lives = {}
         rank_ics = strategy_rank_ic_dict or {}
 
         for strat, w in base_weights.items():
@@ -2386,7 +2393,66 @@ class EnsembleScoringEngine:
                         if q_high > q_low:
                             merged[score_col] = merged[score_col].clip(lower=q_low, upper=q_high)
 
-        # Phase 3-B: Factor Orthogonalization (PCA ZCA / Gram-Schmidt)
+        # Phase 3-B (Pre-Orthogonalization): Inter-Strategy Signal Correlation Monitoring & 2D Regime Noise Suppression
+        # Feature 1: Move raw correlation monitoring and factor suppression BEFORE ZCA orthogonalization
+        correlation_report_dict = None
+        if len(merged) >= 5:
+            try:
+                # 1. Update correlation matrix on raw cross-sectional factor signals
+                corr_df = self.correlation_monitor.update_correlation(merged)
+                vif_dict = self.correlation_monitor.compute_vif(corr_df)
+
+                # 2. Extract cross-sectional sample size N for statistically calibrated suppression
+                n_cross_section = len(merged)
+
+                # 3. Apply correlation orthogonalization penalty on raw signals if custom weights provided
+                if weights is not None and isinstance(weights, dict) and len(weights) > 1:
+                    weights = self.apply_correlation_orthogonalization_penalty(
+                        weights,
+                        scores_df=merged,
+                        correlation_threshold=0.65,
+                        penalty_factor=0.5,
+                    )
+
+                # 4. Regime factor noise suppression with sample-size calibration
+                tuned_p = getattr(self, '_tuned_params', None)
+                base_w = weights if weights else self.get_base_weights(regime)
+                suppressed_w = self.factor_suppression.suppress_weights(
+                    base_weights=base_w,
+                    corr_matrix=corr_df,
+                    regime_label=str(regime),
+                    tuned_params=tuned_p,
+                    n_samples=n_cross_section
+                )
+                n_eff = self.correlation_monitor.compute_effective_strategy_count(
+                    weights=suppressed_w,
+                    corr_matrix=corr_df
+                )
+                top_pairs = self.correlation_monitor.get_top_collinear_pairs(threshold=0.50, corr_matrix=corr_df)
+                raw_penalties = self.factor_suppression.compute_penalties(
+                    corr_matrix=corr_df,
+                    regime_label=str(regime),
+                    n_samples=n_cross_section
+                )
+
+                weights = suppressed_w
+
+                correlation_report_dict = {
+                    'correlation_matrix': corr_df,
+                    'vif': vif_dict,
+                    'n_eff': n_eff,
+                    'suppressed_weights': suppressed_w,
+                    'penalties': raw_penalties,
+                    'top_collinear_pairs': top_pairs
+                }
+                if not hasattr(merged, 'attrs') or merged.attrs is None:
+                    merged.attrs = {}
+                merged.attrs['correlation_report'] = correlation_report_dict
+            except Exception as _ce:
+                logger.warning(f"Correlation suppression calculation warning: {_ce}")
+
+        # Phase 3-C: Factor Orthogonalization (PCA ZCA / Gram-Schmidt)
+        # Executed AFTER raw factor suppression so orthogonalization receives suppressed strategy weights
         if getattr(self, 'orthogonalizer_enabled', True):
             try:
                 strategy_score_cols = [col for _, col in strategy_cols if col in merged.columns]
@@ -2395,53 +2461,17 @@ class EnsembleScoringEngine:
                     score_df=merged,
                     strategy_cols=strategy_score_cols,
                     weights=strat_weights,
-                    method='pca_symmetric'
+                    method='pca_symmetric',
+                    preserve_top_k=2
                 )
+                # Ensure attrs dictionary is strictly preserved after orthogonalization copy
+                if correlation_report_dict is not None:
+                    if not hasattr(merged, 'attrs') or merged.attrs is None:
+                        merged.attrs = {}
+                    merged.attrs['correlation_report'] = correlation_report_dict
             except Exception as _oe:
                 logger.warning(f"Factor orthogonalization warning: {_oe}")
 
-        # Phase 3-B.1: Strategy Correlation Orthogonalization Penalty
-        if weights is not None and isinstance(weights, dict) and len(weights) > 1:
-            weights = self.apply_correlation_orthogonalization_penalty(
-                weights,
-                scores_df=merged,
-                correlation_threshold=0.65,
-                penalty_factor=0.5,
-            )
-
-        # Phase 3-C: Inter-Strategy Signal Correlation Monitoring & 2D Regime Noise Suppression
-        if len(merged) >= 5:
-            try:
-                corr_df = self.correlation_monitor.update_correlation(merged)
-                vif_dict = self.correlation_monitor.compute_vif(corr_df)
-
-                tuned_p = getattr(self, '_tuned_params', None)
-                suppressed_w = self.factor_suppression.suppress_weights(
-                    base_weights=weights if weights else self.get_base_weights(regime),
-                    corr_matrix=corr_df,
-                    regime_label=str(regime),
-                    tuned_params=tuned_p
-                )
-                n_eff = self.correlation_monitor.compute_effective_strategy_count(
-                    weights=suppressed_w,
-                    corr_matrix=corr_df
-                )
-                top_pairs = self.correlation_monitor.get_top_collinear_pairs(threshold=0.50, corr_matrix=corr_df)
-
-                weights = suppressed_w
-
-                if not hasattr(merged, 'attrs') or merged.attrs is None:
-                    merged.attrs = {}
-                merged.attrs['correlation_report'] = {
-                    'correlation_matrix': corr_df,
-                    'vif': vif_dict,
-                    'n_eff': n_eff,
-                    'suppressed_weights': suppressed_w,
-                    'penalties': self.factor_suppression.compute_penalties(corr_df, str(regime)),
-                    'top_collinear_pairs': top_pairs
-                }
-            except Exception as _ce:
-                logger.warning(f"Correlation suppression calculation warning: {_ce}")
 
         # Dynamic Weight Renormalization & Missingness-Aware Coverage Penalization (Market-Specific Dual Weights)
         total_score_series = pd.Series(0.0, index=merged.index)
@@ -2633,85 +2663,13 @@ class EnsembleScoringEngine:
                 synergy_multiplier = np.where(strong_signal_counts >= 3, 1.0 + 0.03 * (strong_signal_counts - 2), 1.0)
                 blended_score = pd.Series((blended_score * synergy_multiplier), index=merged.index).clip(0.0, 1.0)
 
-                # Phase 2-B: Quadruple / Triple Confirmation Alpha Booster (Valuation + Momentum + Flow + Catalyst)
-                has_val = pd.Series(False, index=merged.index)
-                if 'rim_score' in merged.columns:
-                    has_val = has_val | merged['rim_score'].ge(0.60)
-                if 'valueup_catalyst_score' in merged.columns:
-                    has_val = has_val | merged['valueup_catalyst_score'].ge(0.60)
-                if 'arm_score' in merged.columns:
-                    has_val = has_val | merged['arm_score'].ge(0.60)
-                if 'dual_correction_score' in merged.columns:
-                    has_val = has_val | merged['dual_correction_score'].ge(0.60)
-
-                has_mom = pd.Series(False, index=merged.index)
-                if 'mq_score' in merged.columns:
-                    has_mom = has_mom | merged['mq_score'].ge(0.60)
-                if 'trend_efficiency_score' in merged.columns:
-                    has_mom = has_mom | merged['trend_efficiency_score'].ge(0.60)
-                if 'surge_score' in merged.columns:
-                    has_mom = has_mom | merged['surge_score'].ge(0.60)
-                if 'vcp_ml_score' in merged.columns:
-                    has_mom = has_mom | merged['vcp_ml_score'].ge(0.60)
-                if 'range_expansion_score' in merged.columns:
-                    has_mom = has_mom | merged['range_expansion_score'].ge(0.60)
-                if 'cross_asset_spillover_score' in merged.columns:
-                    has_mom = has_mom | merged['cross_asset_spillover_score'].ge(0.60)
-                if 'dual_correction_score' in merged.columns:
-                    has_mom = has_mom | merged['dual_correction_score'].ge(0.60)
-
-                has_flow = pd.Series(False, index=merged.index)
-                if 'order_flow_score' in merged.columns:
-                    has_flow = has_flow | merged['order_flow_score'].ge(0.60)
-                if 'inst_foreign_sector_score' in merged.columns:
-                    has_flow = has_flow | merged['inst_foreign_sector_score'].ge(0.60)
-                if 'darkpool_score' in merged.columns:
-                    has_flow = has_flow | merged['darkpool_score'].ge(0.60)
-                if 'cross_asset_spillover_score' in merged.columns:
-                    has_flow = has_flow | merged['cross_asset_spillover_score'].ge(0.60)
-                if 'index_rebalance_score' in merged.columns:
-                    has_flow = has_flow | merged['index_rebalance_score'].ge(0.60)
-                if 'overnight_gap_score' in merged.columns:
-                    has_flow = has_flow | merged['overnight_gap_score'].ge(0.60)
-
-                has_cat = pd.Series(False, index=merged.index)
-                if 'supply_chain_score' in merged.columns:
-                    has_cat = has_cat | merged['supply_chain_score'].ge(0.60)
-                if 'supply_chain_gnn_score' in merged.columns:
-                    has_cat = has_cat | merged['supply_chain_gnn_score'].ge(0.60)
-                if 'event_score' in merged.columns:
-                    has_cat = has_cat | merged['event_score'].ge(0.60)
-                if 'sentiment_score' in merged.columns:
-                    has_cat = has_cat | merged['sentiment_score'].ge(0.60)
-                if 'short_squeeze_score' in merged.columns:
-                    has_cat = has_cat | merged['short_squeeze_score'].ge(0.60)
-                if 'gamma_squeeze_score' in merged.columns:
-                    has_cat = has_cat | merged['gamma_squeeze_score'].ge(0.60)
-                if 'index_rebalance_score' in merged.columns:
-                    has_cat = has_cat | merged['index_rebalance_score'].ge(0.60)
-
-                # Quadruple Confluence (All 4 pillars confirmed) -> 10.0% super-linear alpha boost
-                quadruple_confluence_mask = (has_val & has_mom & has_flow & has_cat)
-                if quadruple_confluence_mask.any():
-                    blended_score.loc[quadruple_confluence_mask] = (blended_score.loc[quadruple_confluence_mask] * 1.100).clip(0.0, 1.0)
-                    logger.info(f"[QUADRUPLE CONFLUENCE] Applied 1.100x boost to {quadruple_confluence_mask.sum()} highest-conviction symbols.")
-
-                # Triple Confluence (3 pillars confirmed, not quadruple) -> 6.5% super-linear alpha boost
-                triple_confluence_mask = (
-                    ((has_val & has_mom & has_flow) | (has_val & has_mom & has_cat) | (has_val & has_flow & has_cat) | (has_mom & has_flow & has_cat))
-                    & ~quadruple_confluence_mask
+                # Phase 2-B: Continuous Bilinear Cross-Pillar Synergy Kernel
+                synergy_mult = self.compute_bilinear_cross_pillar_synergy(
+                    scores_df=merged,
+                    regime=regime,
+                    kappa=8.0
                 )
-                if triple_confluence_mask.any():
-                    blended_score.loc[triple_confluence_mask] = (blended_score.loc[triple_confluence_mask] * 1.065).clip(0.0, 1.0)
-                    logger.info(f"[TRIPLE CONFLUENCE] Applied 1.065x boost to {triple_confluence_mask.sum()} high-conviction symbols.")
-
-                # Dual Confluence (2 pillars confirmed, not triple/quadruple) -> 3.5% synergy boost
-                dual_confluence_mask = (
-                    ((has_mom & has_flow) | (has_val & has_mom) | (has_val & has_flow) | (has_mom & has_cat) | (has_flow & has_cat) | (has_val & has_cat))
-                    & ~triple_confluence_mask & ~quadruple_confluence_mask
-                )
-                if dual_confluence_mask.any():
-                    blended_score.loc[dual_confluence_mask] = (blended_score.loc[dual_confluence_mask] * 1.035).clip(0.0, 1.0)
+                blended_score = pd.Series((blended_score * synergy_mult), index=merged.index).clip(0.0, 1.0)
 
                 # Phase 2-C: Fundamental Distress Gatekeeper vs High-Quality Compounder Dual Gate
                 if 'operating_margin' in merged.columns or 'roe' in merged.columns:
@@ -2759,6 +2717,18 @@ class EnsembleScoringEngine:
                 base_scores=blended_score,
                 top_k=3,
                 lambda_boost=0.35
+            )
+
+        # Phase 2-E: Bessembinder Symmetric Tail Convex Scaling (Top/Bottom Decile Tilt)
+        if len(merged) >= 5:
+            blended_score = pd.Series(
+                self.apply_bessembinder_convex_power_law(
+                    scores=blended_score.values,
+                    symmetric=True,
+                    power_gamma=1.60,
+                    max_boost=0.50
+                ),
+                index=merged.index
             )
 
         merged['ensemble_score'] = blended_score
@@ -3337,11 +3307,64 @@ class EnsembleScoringEngine:
     }
 
     @classmethod
+    def get_regime_adaptive_half_lives(
+        cls,
+        regime: Union[int, str] = 'SIDEWAYS_LOW_VOL'
+    ) -> Dict[str, float]:
+        """
+        Computes 2D regime-adaptive strategy half-lives:
+        tau_k(R) = tau_k^(0) * kappa_regime(R) * kappa_tier(k, R)
+        where information velocity accelerates in high-volatility/crisis regimes
+        and alpha persists longer in calm bull regimes.
+        """
+        reg_str = str(regime).upper()
+        if 'CRISIS' in reg_str:
+            kappa_regime = 0.30
+        elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
+            kappa_regime = 0.50
+        elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+            kappa_regime = 0.70
+        elif 'BULL_HIGH_VOL' in reg_str:
+            kappa_regime = 0.75
+        elif 'BEAR_LOW_VOL' in reg_str or 'BEAR' in reg_str:
+            kappa_regime = 0.85
+        elif 'BULL_LOW_VOL' in reg_str or 'BULL' in reg_str:
+            kappa_regime = 1.30
+        else:
+            kappa_regime = 1.00
+
+        fast_strats = {
+            'microstructure', 'hft', 'darkpool', 'darkpool_hft',
+            'short_term_reversal', 'order_flow', 'range_expansion_breakout',
+            'range_expansion', 'intraday_breakout', 'overnight_gap_reversal', 'overnight_gap'
+        }
+        slow_strats = {
+            'rim_valuation', 'accruals_quality', 'value_up', 'valueup_catalyst',
+            'tone_drift', 'earnings_tone_drift', 'latr_factor', 'mq_factor',
+            'vol_target', 'factor_neutralized', 'arm_factor', 'regression'
+        }
+
+        adaptive_half_lives = {}
+        for strat, base_tau in cls.STRATEGY_HALF_LIVES.items():
+            if strat in fast_strats:
+                kappa_tier = min(1.0, float(np.power(kappa_regime, 1.2)))
+            elif strat in slow_strats:
+                kappa_tier = max(0.60, float(np.sqrt(kappa_regime)))
+            else:
+                kappa_tier = 1.00
+
+            tau_scaled = float(base_tau * kappa_regime * kappa_tier)
+            adaptive_half_lives[strat] = max(0.10, round(tau_scaled, 2))
+
+        return adaptive_half_lives
+
+    @classmethod
     def apply_exponential_decay_filter(
         cls,
         current_scores: pd.DataFrame,
         previous_scores: Optional[pd.DataFrame] = None,
-        custom_half_lives: Optional[Dict[str, float]] = None
+        custom_half_lives: Optional[Dict[str, float]] = None,
+        regime: Optional[Union[int, str]] = None
     ) -> pd.DataFrame:
         """
         Applies multi-horizon continuous exponential convolutional decay filtering:
@@ -3355,7 +3378,12 @@ class EnsembleScoringEngine:
             return current_scores.copy()
 
         df_filtered = current_scores.copy()
-        half_lives = custom_half_lives or cls.STRATEGY_HALF_LIVES
+        if custom_half_lives is not None:
+            half_lives = custom_half_lives
+        elif regime is not None:
+            half_lives = cls.get_regime_adaptive_half_lives(regime)
+        else:
+            half_lives = cls.STRATEGY_HALF_LIVES
 
         sym_col = 'symbol' if 'symbol' in df_filtered.columns else None
         if sym_col and sym_col in previous_scores.columns:
@@ -3477,6 +3505,102 @@ class EnsembleScoringEngine:
         return adjusted_weights
 
     # =========================================================================
+    # OBJECTIVE 13: CONTINUOUS BILINEAR CROSS-PILLAR SYNERGY KERNEL (FEATURE 4)
+    # =========================================================================
+
+    @staticmethod
+    def compute_bilinear_cross_pillar_synergy(
+        scores_df: pd.DataFrame,
+        regime: Union[int, str] = 'SIDEWAYS_LOW_VOL',
+        kappa: float = 8.0
+    ) -> pd.Series:
+        """
+        Computes continuous bilinear cross-pillar synergy multiplier over 4 mutually exclusive clusters:
+        1. Valuation: {rim_score, valueup_catalyst_score, accruals_quality_score, arm_score}
+        2. Momentum:  {surge_score, vcp_ml_score, trend_efficiency_score, sector_score,
+                       range_expansion_score, mq_score, ll_score, vcp_rule_score}
+        3. Flow:      {order_flow_score, inst_foreign_sector_score, darkpool_score,
+                       microstructure_score, overnight_gap_score, stat_arb_score}
+        4. Catalyst:  {event_score, sentiment_score, short_squeeze_score, gamma_squeeze_score,
+                       supply_chain_score, supply_chain_gnn_score, cross_asset_spillover_score,
+                       dual_correction_score, index_rebalance_score, insider_buying_score,
+                       earnings_tone_drift_score}
+        Xi(i) = 1.0 + min(0.10, sum_{p < q} Omega_pq(R) * psi_p(s_ip) * psi_q(s_iq))
+        Eliminates step discontinuities and duplicate strategy double-counting.
+        """
+        if scores_df is None or scores_df.empty:
+            return pd.Series(1.0, index=scores_df.index if scores_df is not None else [0])
+
+        n_rows = len(scores_df)
+        if n_rows < 5:
+            return pd.Series(1.0, index=scores_df.index)
+
+        # Define 4 mutually exclusive strategy clusters
+        clusters = {
+            'val': ['rim_score', 'valueup_catalyst_score', 'accruals_quality_score', 'arm_score'],
+            'mom': ['surge_score', 'vcp_ml_score', 'trend_efficiency_score', 'sector_score',
+                    'range_expansion_score', 'mq_score', 'll_score', 'vcp_rule_score'],
+            'flow': ['order_flow_score', 'inst_foreign_sector_score', 'darkpool_score',
+                     'microstructure_score', 'overnight_gap_score', 'stat_arb_score'],
+            'cat': ['event_score', 'sentiment_score', 'short_squeeze_score', 'gamma_squeeze_score',
+                    'supply_chain_score', 'supply_chain_gnn_score', 'cross_asset_spillover_score',
+                    'dual_correction_score', 'index_rebalance_score', 'insider_buying_score',
+                    'earnings_tone_drift_score']
+        }
+
+        # Compute cluster aggregate conviction scores
+        pillar_convictions = {}
+        denom = float(np.log(1.0 + np.exp(kappa * 0.50)) - np.log(2.0))
+        denom = max(1e-4, denom)
+
+        for pillar_name, cols in clusters.items():
+            valid_cols = [c for c in cols if c in scores_df.columns]
+            if not valid_cols:
+                pillar_convictions[pillar_name] = pd.Series(0.0, index=scores_df.index)
+                continue
+
+            sub = scores_df[valid_cols].apply(pd.to_numeric, errors='coerce')
+            sub_max = sub.max(axis=1).fillna(0.50)
+            sub_mean = sub.mean(axis=1).fillna(0.50)
+            agg_s = (0.70 * sub_max + 0.30 * sub_mean).clip(0.0, 1.0)
+
+            # Softplus excess conviction
+            excess_arg = kappa * (agg_s - 0.50)
+            raw_softplus = np.log1p(np.exp(np.clip(excess_arg, -20.0, 20.0))) - np.log(2.0)
+            psi = np.where(agg_s > 0.50, raw_softplus / denom, 0.0)
+            pillar_convictions[pillar_name] = pd.Series(np.clip(psi, 0.0, 1.0), index=scores_df.index)
+
+        # 2D Regime Coupling Matrix Omega(R)
+        reg_str = str(regime).upper()
+        if 'BULL' in reg_str:
+            # Bull: Momentum x Flow, Momentum x Catalyst leading
+            omega = {
+                ('val', 'mom'): 0.025, ('val', 'flow'): 0.020, ('val', 'cat'): 0.015,
+                ('mom', 'flow'): 0.035, ('mom', 'cat'): 0.030, ('flow', 'cat'): 0.025
+            }
+        elif 'BEAR' in reg_str or 'CRISIS' in reg_str:
+            # Bear/Crisis: Valuation x Flow, Valuation x Catalyst leading
+            omega = {
+                ('val', 'mom'): 0.020, ('val', 'flow'): 0.035, ('val', 'cat'): 0.030,
+                ('mom', 'flow'): 0.015, ('mom', 'cat'): 0.015, ('flow', 'cat'): 0.025
+            }
+        else:
+            # Sideways/Normal: Balanced coupling
+            omega = {
+                ('val', 'mom'): 0.022, ('val', 'flow'): 0.025, ('val', 'cat'): 0.022,
+                ('mom', 'flow'): 0.022, ('mom', 'cat'): 0.022, ('flow', 'cat'): 0.022
+            }
+
+        # Bilinear cross-pillar synergy sum
+        synergy_sum = pd.Series(0.0, index=scores_df.index)
+        for (p1, p2), w_omega in omega.items():
+            synergy_sum += w_omega * (pillar_convictions[p1] * pillar_convictions[p2])
+
+        # Maximum synergy capped at 10.0% (1.100x multiplier)
+        synergy_multiplier = 1.0 + synergy_sum.clip(0.0, 0.100)
+        return synergy_multiplier
+
+    # =========================================================================
     # OBJECTIVE 14: BESSEMBINDER CONVEX POWER-LAW ALPHA SIZING (TOP-DECILE TILT)
     # =========================================================================
 
@@ -3485,29 +3609,52 @@ class EnsembleScoringEngine:
         scores: Union[pd.Series, np.ndarray, List[float]],
         top_percentile: float = 90.0,
         power_gamma: float = 1.60,
-        max_boost: float = 0.50
+        max_boost: float = 0.50,
+        symmetric: bool = False,
+        u_thresh: float = 0.60,
+        gamma_tail: float = 1.45,
+        beta_tail: float = 0.40,
+        eta: float = 1.60
     ) -> np.ndarray:
         """
-        Applies Bessembinder Right-Tail Convex Power-Law Scaling to top-decile composite scores:
-        s_tilde_i = s_i * [ 1 + max_boost * ((s_i - P90) / (P99 - P90))^gamma ] for s_i > P90
-
-        Concentrates risk budget onto genuine 99th-percentile multi-strategy consensus winners,
-        generating convex upside payoff while keeping low-conviction allocations conservative.
+        Applies Bessembinder Right-Tail or Symmetric Richards Power-Law Convex Scaling:
+        - When symmetric=False:
+            s_tilde_i = s_i * [ 1 + max_boost * ((s_i - P90) / (P99 - P90))^gamma ] for s_i > P90
+        - When symmetric=True:
+            Applies Generalized Symmetric Richards / Bessembinder Power-Law S-Curve:
+            u_i = 2 * (s_i - 0.50) in [-1.0, 1.0]
+            excess_i = max(0, (|u_i| - u_thresh) / (1 - u_thresh))
+            u_tilde_i = sgn(u_i) * |u_i|^gamma_tail * [ 1 + beta_tail * excess_i^eta ]
+            s_tilde_i = 0.50 + 0.50 * (u_tilde_i / scale)
+        Concentrates risk budget onto top-decile consensus winners while simultaneously
+        steepening bottom-decile penalties without rank inversion (rho_s = 1.0000).
         """
         arr = np.nan_to_num(np.asarray(scores, dtype=np.float64), nan=0.0)
         if len(arr) < 5:
             return arr
 
-        p_low = np.percentile(arr, top_percentile)
-        p_high = np.percentile(arr, 99.0)
-        denom = max(1e-4, p_high - p_low)
+        if not symmetric:
+            p_low = np.percentile(arr, top_percentile)
+            p_high = np.percentile(arr, 99.0)
+            denom = max(1e-4, p_high - p_low)
 
-        boosted = arr.copy()
-        mask_top = arr > p_low
-        if np.any(mask_top):
-            norm_excess = np.clip((arr[mask_top] - p_low) / denom, 0.0, 1.0)
-            convex_mult = 1.0 + max_boost * np.power(norm_excess, power_gamma)
-            boosted[mask_top] = arr[mask_top] * convex_mult
+            boosted = arr.copy()
+            mask_top = arr > p_low
+            if np.any(mask_top):
+                norm_excess = np.clip((arr[mask_top] - p_low) / denom, 0.0, 1.0)
+                convex_mult = 1.0 + max_boost * np.power(norm_excess, power_gamma)
+                boosted[mask_top] = arr[mask_top] * convex_mult
+            return np.clip(boosted, 0.0, 1.0)
 
-        # Clip output to [0.0, 1.0]
-        return np.clip(boosted, 0.0, 1.0)
+        # Generalized Symmetric Richards / Bessembinder Power-Law S-Curve
+        u = np.clip(2.0 * (arr - 0.50), -1.0, 1.0)
+        abs_u = np.abs(u)
+        excess = np.maximum(0.0, (abs_u - u_thresh) / max(1e-4, 1.0 - u_thresh))
+        tail_boost = 1.0 + beta_tail * np.power(excess, eta)
+        u_tilde = np.sign(u) * np.power(abs_u, gamma_tail) * tail_boost
+
+        # Theoretical and cross-sectional bounding scale
+        scale = max(1.0 + beta_tail, float(np.max(np.abs(u_tilde)))) if len(u_tilde) > 0 else (1.0 + beta_tail)
+        rescaled = 0.50 + 0.50 * (u_tilde / max(scale, 1e-4))
+        return np.clip(rescaled, 0.0, 1.0)
+

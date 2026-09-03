@@ -42,12 +42,14 @@ class FactorOrthogonalizerEngine:
         default_method: str = 'pca_symmetric',
         ridge_epsilon: float = 1e-6,
         shrinkage_alpha: float = 0.01,
-        preserve_consensus_pc1: bool = False
+        preserve_consensus_pc1: bool = False,
+        preserve_top_k: int = 0
     ):
         self.default_method = default_method
         self.ridge_epsilon = ridge_epsilon
         self.shrinkage_alpha = shrinkage_alpha
         self.preserve_consensus_pc1 = preserve_consensus_pc1
+        self.preserve_top_k = preserve_top_k
 
     def orthogonalize(
         self,
@@ -57,6 +59,7 @@ class FactorOrthogonalizerEngine:
         method: Optional[str] = None,
         scaling_method: Optional[str] = None,
         preserve_consensus_pc1: Optional[bool] = None,
+        preserve_top_k: Optional[int] = None,
     ) -> pd.DataFrame:
         eff_method = method or self.default_method
         valid_cols = [c for c in strategy_cols if c in score_df.columns]
@@ -114,8 +117,23 @@ class FactorOrthogonalizerEngine:
             X_decorr = self._esrw_whitening(X_bar, C_shrunk)
             X_ortho = col_means + X_decorr * col_stds
         else:
-            eff_preserve_pc1 = self.preserve_consensus_pc1 if preserve_consensus_pc1 is None else preserve_consensus_pc1
-            X_ortho = self._pca_zca_symmetric(X_clean, col_means, col_stds, preserve_pc1=eff_preserve_pc1)
+            # Resolve effective top_k leading eigenvalues to preserve (Feature 2 / R1)
+            if preserve_top_k is not None:
+                eff_top_k = int(preserve_top_k)
+            elif getattr(self, 'preserve_top_k', 0) > 0:
+                eff_top_k = int(self.preserve_top_k)
+            else:
+                eff_pc1 = self.preserve_consensus_pc1 if preserve_consensus_pc1 is None else preserve_consensus_pc1
+                eff_top_k = 1 if eff_pc1 else 0
+
+            X_ortho = self._pca_zca_symmetric(
+                X_clean,
+                col_means,
+                col_stds,
+                preserve_pc1=(eff_top_k >= 1),
+                preserve_top_k=eff_top_k
+            )
+
 
         if has_nans:
             X_ortho[nan_mask] = np.nan
@@ -217,7 +235,8 @@ class FactorOrthogonalizerEngine:
         X: np.ndarray,
         means: np.ndarray,
         stds: np.ndarray,
-        preserve_pc1: bool = False
+        preserve_pc1: bool = False,
+        preserve_top_k: int = 0
     ) -> np.ndarray:
         N, K = X.shape
         # Standardize matrix to zero mean, unit variance
@@ -233,16 +252,40 @@ class FactorOrthogonalizerEngine:
         # Eigen-decomposition of symmetric correlation matrix
         eigenvalues, eigenvectors = np.linalg.eigh(C_sym.astype(np.float64))
 
-        # Smooth Spectral Tikhonov / ESRW Whitening Operator:
-        # Multi-model consensus preservation (V7-03 / CRIT-11):
-        # When preserve_pc1 is enabled, do not compress the leading principal component (PC1).
-        lambdas_clean = np.maximum(eigenvalues, 0.0)
+        # Determine effective top components to preserve (Feature 2 / R1)
+        eff_top_k = preserve_top_k
+        if eff_top_k <= 0 and preserve_pc1:
+            eff_top_k = 1
+
+        # Estimate noise subspace variance sigma2 for Marchenko-Pastur lower spectral edge
+        # In Random Matrix Theory (RMT), noise bulk eigenvalues are distributed around sigma2.
+        if eff_top_k > 0 and K > eff_top_k:
+            noise_evals = eigenvalues[:-eff_top_k]
+        elif K > 1:
+            noise_evals = eigenvalues[:-1]
+        else:
+            noise_evals = eigenvalues
+
+        sigma2 = float(np.mean(noise_evals)) if len(noise_evals) > 0 else 1.0
+        sigma2 = max(sigma2, 1e-4)
+
+        # Marchenko-Pastur spectral floor for weak noise eigenvalues (Feature 2 / R1)
+        # Prevents over-amplification of collinear/null-space dimensions
+        q = min(K, N) / max(max(K, N), 1)
+        mp_lower = sigma2 * ((1.0 - np.sqrt(q)) ** 2) if N >= K else 0.0
+        lambda_floor = float(np.clip(max(mp_lower, 0.01 * sigma2), 1e-4, 1.0))
+
+        # Apply Marchenko-Pastur spectral floor and ridge regularization
+        lambdas_clean = np.maximum(eigenvalues, lambda_floor)
         ridge_eps = float(np.clip(self.ridge_epsilon, 1e-6, 1e-3))
         whitening_filter = 1.0 / np.sqrt(lambdas_clean + ridge_eps)
 
-        # Preserve leading consensus alpha (PC1 filter = 1.0)
-        if preserve_pc1 and len(whitening_filter) > 0:
-            whitening_filter[-1] = 1.0
+        # Dual-Consensus Spectral Preservation (Feature 2 / R1):
+        # Preserve top_k leading eigenvalues (PC1 Trend, PC2 Value/Quality) uncompressed (filter = 1.0)
+        if eff_top_k > 0 and K > 1:
+            num_to_preserve = min(eff_top_k, max(K - 1, 0))
+            for i in range(1, num_to_preserve + 1):
+                whitening_filter[-i] = 1.0
 
         # Cap maximum amplification to prevent noise explosion on weak spectral dimensions (C-05 / optimal bound)
         whitening_filter = np.minimum(whitening_filter, 10.0)

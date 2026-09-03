@@ -120,28 +120,58 @@ class RegimeFactorSuppressionEngine:
         self.default_theta = default_theta
         self.default_lambda = default_lambda
 
+    @staticmethod
+    def calibrate_cutoff(
+        theta_0: float,
+        n_samples: Optional[int],
+        z_score: float = 1.645,
+        min_theta: float = 0.35,
+        max_theta: float = 0.85
+    ) -> float:
+        """
+        Statistically calibrated correlation suppression cutoff:
+            theta(R, N) = clip( theta_0(R) + z_{0.95} / sqrt(max(N - 3, 1)), min_theta, max_theta )
+        Under Fisher's z-transformation, asymptotic standard error SE(r) ~ 1/sqrt(N-3).
+        Guarantees that collinearity suppression operates only when empirical correlation
+        statistically significantly exceeds the base threshold at the 95% one-sided confidence level.
+        """
+        if n_samples is None or n_samples <= 3:
+            return float(theta_0)
+        calibrated = float(theta_0) + float(z_score) / np.sqrt(float(max(n_samples - 3, 1)))
+        return float(np.clip(calibrated, min_theta, max_theta))
+
     def _get_regime_params(
         self,
         regime_label: str,
-        tuned_params: Optional[Dict[str, Any]] = None
+        tuned_params: Optional[Dict[str, Any]] = None,
+        n_samples: Optional[int] = None
     ) -> Tuple[float, float]:
-        """Retrieves theta and lambda_penalty parameters for given regime label."""
+        """Retrieves theta and lambda_penalty parameters for given regime label,
+        applying sample-size statistical calibration theta(R, N) = theta_0(R) + 1.645 / sqrt(N-3)."""
         reg_str = str(regime_label).upper()
+
+        theta_0 = self.default_theta
+        lam = self.default_lambda
 
         # Check tuned_params override first
         if tuned_params and 'correlation_suppression' in tuned_params:
             supp_params = tuned_params['correlation_suppression']
             if reg_str in supp_params:
-                theta = supp_params[reg_str].get('theta', self.default_theta)
-                lam = supp_params[reg_str].get('lambda', self.default_lambda)
-                return float(theta), float(lam)
+                theta_0 = float(supp_params[reg_str].get('theta', self.default_theta))
+                lam = float(supp_params[reg_str].get('lambda', self.default_lambda))
+                eff_theta = self.calibrate_cutoff(theta_0, n_samples)
+                return float(eff_theta), float(lam)
 
         # Fallback to default regime map
         if reg_str in self.DEFAULT_REGIME_PARAMS:
             p = self.DEFAULT_REGIME_PARAMS[reg_str]
-            return float(p['theta']), float(p['lambda'])
+            theta_0 = float(p['theta'])
+            lam = float(p['lambda'])
+            eff_theta = self.calibrate_cutoff(theta_0, n_samples)
+            return float(eff_theta), float(lam)
 
-        return self.default_theta, self.default_lambda
+        eff_theta = self.calibrate_cutoff(theta_0, n_samples)
+        return float(eff_theta), float(lam)
 
     def _get_high_risk_clusters(
         self,
@@ -174,13 +204,18 @@ class RegimeFactorSuppressionEngine:
         lambda_penalty: Optional[float] = None,
         consensus_precision: Optional[Dict[str, float]] = None,
         vif_dict: Optional[Dict[str, float]] = None,
-        cluster_sharpes: Optional[Dict[str, float]] = None
+        cluster_sharpes: Optional[Dict[str, float]] = None,
+        n_samples: Optional[int] = None,
     ) -> Dict[str, float]:
         """
         Computes dynamic suppression penalty multiplier p_i for each strategy.
         p_i = min( 1 / sqrt(1 + lambda * sum(c_ij * excess_ij^2)), vif_damping )
         """
-        eff_theta, eff_lambda = self._get_regime_params(regime_label)
+        eff_n = n_samples
+        if eff_n is None and hasattr(corr_matrix, 'attrs') and 'n_samples' in corr_matrix.attrs:
+            eff_n = corr_matrix.attrs.get('n_samples')
+
+        eff_theta, eff_lambda = self._get_regime_params(regime_label, n_samples=eff_n)
         theta_val = theta if theta is not None else eff_theta
         lambda_val = lambda_penalty if lambda_penalty is not None else eff_lambda
 
@@ -257,7 +292,8 @@ class RegimeFactorSuppressionEngine:
         use_entropy_allocation: bool = False,
         vif_dict: Optional[Dict[str, float]] = None,
         consensus_precision: Optional[Dict[str, float]] = None,
-        cluster_sharpes: Optional[Dict[str, float]] = None
+        cluster_sharpes: Optional[Dict[str, float]] = None,
+        n_samples: Optional[int] = None,
     ) -> Dict[str, float]:
         """
         Applies regime-specific correlation factor noise dampening penalties to base strategy weights.
@@ -270,8 +306,12 @@ class RegimeFactorSuppressionEngine:
             tot = sum(base_weights.values())
             return {k: v / tot for k, v in base_weights.items()} if tot > 0 else {}
 
+        eff_n = n_samples
+        if eff_n is None and hasattr(corr_matrix, 'attrs') and 'n_samples' in corr_matrix.attrs:
+            eff_n = corr_matrix.attrs.get('n_samples')
+
         # Determine theta and lambda
-        default_t, default_l = self._get_regime_params(regime_label, tuned_params=tuned_params)
+        default_t, default_l = self._get_regime_params(regime_label, tuned_params=tuned_params, n_samples=eff_n)
         eff_theta = theta if theta is not None else default_t
         eff_lambda = lambda_penalty if lambda_penalty is not None else default_l
 
@@ -287,7 +327,8 @@ class RegimeFactorSuppressionEngine:
                         lambda_penalty=eff_lambda,
                         consensus_precision=consensus_precision,
                         vif_dict=vif_dict,
-                        cluster_sharpes=cluster_sharpes
+                        cluster_sharpes=cluster_sharpes,
+                        n_samples=eff_n,
                     )
                     w0_vec = np.array([float(base_weights[s] * penalties.get(s, 1.0)) for s in strats], dtype=np.float64)
                     w0_sum = float(np.sum(w0_vec))
@@ -312,7 +353,8 @@ class RegimeFactorSuppressionEngine:
             lambda_penalty=eff_lambda,
             consensus_precision=consensus_precision,
             vif_dict=vif_dict,
-            cluster_sharpes=cluster_sharpes
+            cluster_sharpes=cluster_sharpes,
+            n_samples=eff_n,
         )
 
         # Apply penalties to base weights
@@ -337,13 +379,18 @@ class RegimeFactorSuppressionEngine:
         regime_label: str,
         theta: Optional[float] = None,
         lambda_penalty: Optional[float] = None,
-        tuned_params: Optional[Dict[str, Any]] = None
+        tuned_params: Optional[Dict[str, Any]] = None,
+        n_samples: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Returns diagnostic dictionary detailing initial vs suppressed weights,
         dampening penalties P_i, active high-risk clusters, and cutoff settings.
         """
-        eff_t, eff_l = self._get_regime_params(regime_label, tuned_params=tuned_params)
+        eff_n = n_samples
+        if eff_n is None and hasattr(corr_matrix, 'attrs') and 'n_samples' in corr_matrix.attrs:
+            eff_n = corr_matrix.attrs.get('n_samples')
+
+        eff_t, eff_l = self._get_regime_params(regime_label, tuned_params=tuned_params, n_samples=eff_n)
         if theta is not None:
             eff_t = theta
         if lambda_penalty is not None:
@@ -353,7 +400,8 @@ class RegimeFactorSuppressionEngine:
             corr_matrix=corr_matrix,
             regime_label=regime_label,
             theta=eff_t,
-            lambda_penalty=eff_l
+            lambda_penalty=eff_l,
+            n_samples=eff_n,
         )
         suppressed_w = self.suppress_weights(
             base_weights=base_weights,
@@ -361,7 +409,8 @@ class RegimeFactorSuppressionEngine:
             regime_label=regime_label,
             theta=eff_t,
             lambda_penalty=eff_l,
-            tuned_params=tuned_params
+            tuned_params=tuned_params,
+            n_samples=eff_n,
         )
 
         high_risk = self._get_high_risk_clusters(regime_label)
@@ -370,8 +419,10 @@ class RegimeFactorSuppressionEngine:
             'regime': str(regime_label),
             'theta': eff_t,
             'lambda_penalty': eff_l,
+            'n_samples': eff_n,
             'high_risk_clusters': high_risk,
             'base_weights': base_weights,
             'penalties': penalties,
             'suppressed_weights': suppressed_w
         }
+

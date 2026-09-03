@@ -1208,6 +1208,38 @@ class PortfolioAllocator:
         total_cost_rate = total_cost_rate if np.isfinite(total_cost_rate) else 0.0030
         return float(total_cost_rate)
 
+    @staticmethod
+    def calculate_asymmetric_leland_multipliers(
+        unrealized_return: float,
+        volatility_20d: float,
+    ) -> Tuple[float, float]:
+        """
+        Computes continuous volatility-normalized asymmetric Leland buffer multipliers:
+            z_unrealized = u_ret / (volatility_20d * sqrt(5))
+        - Runners (z > 0): smoothly expands upper band (1.0 -> 1.8x) to let winners run.
+        - Laggards (z < 0): smoothly tightens lower band (1.0 -> 0.6x) for swift de-risking.
+        Returns:
+            Tuple of (upper_mult, lower_mult)
+        """
+        u_ret = float(unrealized_return) if (unrealized_return is not None and math.isfinite(float(unrealized_return))) else 0.0
+        vol_clean = max(0.005, float(volatility_20d)) if (volatility_20d is not None and math.isfinite(float(volatility_20d))) else 0.02
+        vol_5d = vol_clean * math.sqrt(5.0)
+        z_unrealized = u_ret / vol_5d if vol_5d > 0.0 else 0.0
+
+        if z_unrealized > 0.0:
+            z_clamped = min(max((z_unrealized - 1.0) / 2.0, 0.0), 1.0)
+            upper_mult = 1.0 + 0.8 * z_clamped
+            lower_mult = 1.0
+        elif z_unrealized < 0.0:
+            z_clamped = min(max((-1.0 - z_unrealized) / 2.0, 0.0), 1.0)
+            upper_mult = 1.0
+            lower_mult = 1.0 - 0.4 * z_clamped
+        else:
+            upper_mult = 1.0
+            lower_mult = 1.0
+
+        return float(upper_mult), float(lower_mult)
+
     def calculate_dynamic_buffer_band(
         self,
         symbol: str,
@@ -1313,18 +1345,11 @@ class PortfolioAllocator:
             if w_targ > 0.0:
                 delta_i = min(delta_i, max(w_targ * 0.40, min_weight_delta))
 
-            # Asymmetric Leland No-Trade Buffer Bands:
+            # Continuous Volatility-Normalized Asymmetric Leland No-Trade Buffer Bands:
             unrealized_ret = float(unrealized_returns.get(sym, 0.0)) if (unrealized_returns and sym in unrealized_returns and np.isfinite(unrealized_returns[sym])) else 0.0
             if use_asymmetric_bands and unrealized_returns is not None:
-                if unrealized_ret >= 0.08:
-                    upper_mult = 1.8
-                    lower_mult = 1.0
-                elif unrealized_ret <= -0.03:
-                    upper_mult = 1.0
-                    lower_mult = 0.6
-                else:
-                    upper_mult = 1.0
-                    lower_mult = 1.0
+                vol_clean = max(0.005, float(vol)) if (vol is not None and math.isfinite(float(vol))) else 0.02
+                upper_mult, lower_mult = self.calculate_asymmetric_leland_multipliers(unrealized_ret, vol_clean)
                 L_i = max(0.0, w_targ - lower_mult * delta_i)
                 U_i = w_targ + upper_mult * delta_i
             else:
