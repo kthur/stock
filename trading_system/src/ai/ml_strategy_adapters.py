@@ -370,15 +370,11 @@ class DarkPoolStrategyAdapter(BaseStrategyEngine):
     ) -> pd.DataFrame:
         if self.model_instance is not None and hasattr(self.model_instance, "compute_scores"):
             return self.model_instance.compute_scores(prices_dict=prices_dict, **kwargs)
-        from src.core.hft_engine import MicrostructureImbalanceEngine
-        engine = MicrostructureImbalanceEngine()
-        res = engine.compute_scores(prices_dict=prices_dict, **kwargs)
-        if isinstance(res, pd.DataFrame):
-            if 'darkpool_score' not in res.columns and 'microstructure_score' in res.columns:
-                res = res.rename(columns={'microstructure_score': 'darkpool_score'})
-            elif 'darkpool_score' not in res.columns and 'hft_score' in res.columns:
-                res = res.rename(columns={'hft_score': 'darkpool_score'})
-            if 'darkpool_score' in res.columns:
-                res['darkpool_score'] = pd.to_numeric(res['darkpool_score'], errors='coerce').fillna(0.50)
+        from src.data_layer.darkpool_tracker import DarkPoolTrackerEngine
+        engine = DarkPoolTrackerEngine()
+        symbols = list(prices_dict.keys()) if prices_dict else []
+        res = engine.compute_scores(prices_dict=prices_dict, symbols=symbols, **kwargs)
+        if isinstance(res, pd.DataFrame) and 'darkpool_score' in res.columns:
+            res['darkpool_score'] = pd.to_numeric(res['darkpool_score'], errors='coerce').fillna(0.50)
             return res
         return pd.DataFrame([{'symbol': str(s), 'darkpool_score': 0.50} for s in prices_dict.keys()])
