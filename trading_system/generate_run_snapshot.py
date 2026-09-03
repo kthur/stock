@@ -87,7 +87,10 @@ def generate_snapshot(result_dir: Path, db_path: Path, output_file: Path) -> Dic
                     'vol_target_score', 'microstructure_score', 'accruals_quality_score',
                     'short_squeeze_score', 'valueup_catalyst_score', 'trend_efficiency_score',
                     'gamma_squeeze_score', 'insider_buying_score', 'darkpool_score',
-                    'earnings_tone_drift_score'
+                    'earnings_tone_drift_score',
+                    'cross_asset_spillover_score', 'supply_chain_gnn_score',
+                    'range_expansion_score', 'dual_correction_score',
+                    'index_rebalance_score', 'overnight_gap_score'
                 ]
                 cols_sql = ", ".join(score_cols)
                 p_rows = conn.execute(f"""
@@ -132,7 +135,10 @@ def generate_snapshot(result_dir: Path, db_path: Path, output_file: Path) -> Dic
                     'vol_target_score', 'microstructure_score', 'accruals_quality_score',
                     'short_squeeze_score', 'valueup_catalyst_score', 'trend_efficiency_score',
                     'gamma_squeeze_score', 'insider_buying_score', 'darkpool_score',
-                    'earnings_tone_drift_score'
+                    'earnings_tone_drift_score',
+                    'cross_asset_spillover_score', 'supply_chain_gnn_score',
+                    'range_expansion_score', 'dual_correction_score',
+                    'index_rebalance_score', 'overnight_gap_score'
                 ]
                 m_reg = re.search(r"Current Market Regime Detected:\s*([^\n\r]+)", content)
                 if m_reg:

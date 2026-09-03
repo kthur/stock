@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Test all 31 trading strategies across all 16 global markets.
 """
@@ -35,6 +35,12 @@ from src.core.trend_efficiency import TrendEfficiencyEngine
 from src.core.gamma_squeeze import OptionsGammaSqueezeEngine
 from src.core.insider_buying import InsiderBuyingEngine
 from src.core.earnings_tone_drift import EarningsToneDriftEngine
+from src.core.cross_asset_spillover import CrossAssetSpilloverEngine
+from src.core.supply_chain_gnn import SupplyChainGNNEngine
+from src.core.range_expansion_breakout import RangeExpansionBreakoutEngine
+from src.core.dual_correction import DualCorrectionEngine
+from src.core.index_rebalance import IndexRebalanceEngine
+from src.core.overnight_gap_reversal import OvernightGapReversalEngine
 
 
 ALL_16_MARKET_SYMBOLS = {
@@ -299,8 +305,48 @@ class TestAll16Markets31Strategies:
         assert isinstance(tone_scores, pd.DataFrame)
         assert 'earnings_tone_drift_score' in tone_scores.columns
 
+    def test_strategies_32_to_37_cross_asset_to_overnight_gap(self, global_test_fixture):
+        """Test strategies 32 through 37 operate on all 16 markets."""
+        cfg, symbols, prices_dict, universe, macro_df = global_test_fixture
+
+        # 32. Cross-Asset Spillover
+        cas_engine = CrossAssetSpilloverEngine(cfg)
+        cas_scores = cas_engine.calculate_scores(symbols, prices_dict=prices_dict, macro_df=macro_df)
+        assert isinstance(cas_scores, pd.DataFrame)
+        assert 'cross_asset_spillover_score' in cas_scores.columns
+
+        # 33. Supply Chain GNN
+        gnn_engine = SupplyChainGNNEngine(cfg)
+        gnn_scores = gnn_engine.calculate_scores(symbols, prices_dict=prices_dict)
+        assert isinstance(gnn_scores, pd.DataFrame)
+        assert 'supply_chain_gnn_score' in gnn_scores.columns
+
+        # 34. Range Expansion Breakout
+        reb_engine = RangeExpansionBreakoutEngine(cfg)
+        reb_scores = reb_engine.calculate_scores(symbols, prices_dict=prices_dict)
+        assert isinstance(reb_scores, pd.DataFrame)
+        assert 'range_expansion_score' in reb_scores.columns
+
+        # 35. Dual Correction
+        dc_engine = DualCorrectionEngine(cfg)
+        dc_scores = dc_engine.calculate_scores(symbols, prices_dict=prices_dict)
+        assert isinstance(dc_scores, pd.DataFrame)
+        assert 'dual_correction_score' in dc_scores.columns
+
+        # 36. Index Rebalance
+        ir_engine = IndexRebalanceEngine(cfg)
+        ir_scores = ir_engine.calculate_scores(symbols, prices_dict=prices_dict)
+        assert isinstance(ir_scores, pd.DataFrame)
+        assert 'index_rebalance_score' in ir_scores.columns
+
+        # 37. Overnight Gap Reversal
+        og_engine = OvernightGapReversalEngine(cfg)
+        og_scores = og_engine.calculate_scores(symbols, prices_dict=prices_dict)
+        assert isinstance(og_scores, pd.DataFrame)
+        assert 'overnight_gap_score' in og_scores.columns
+
     def test_ensemble_scoring_all_16_markets_and_friction_deductions(self, global_test_fixture):
-        """Test that EnsembleScoringEngine successfully aggregates all 31 strategy scores across all 16 markets."""
+        """Test that EnsembleScoringEngine successfully aggregates all 37 strategy scores across all 16 markets."""
         cfg, symbols, prices_dict, universe, macro_df = global_test_fixture
         scorer = EnsembleScoringEngine(config=cfg)
 
@@ -347,6 +393,12 @@ class TestAll16Markets31Strategies:
             vcp_rule_df=pd.DataFrame({'symbol': symbols, 'vcp_score': [70.0]*len(symbols)}),
             vcp_ml_df=vcp_ml_df,
             lstm_df=lstm_df,
+            cross_asset_spillover_df=pd.DataFrame({'symbol': symbols, 'cross_asset_spillover_score': [0.65]*len(symbols)}),
+            supply_chain_gnn_df=pd.DataFrame({'symbol': symbols, 'supply_chain_gnn_score': [0.55]*len(symbols)}),
+            range_expansion_df=pd.DataFrame({'symbol': symbols, 'range_expansion_score': [0.72]*len(symbols)}),
+            dual_correction_df=pd.DataFrame({'symbol': symbols, 'dual_correction_score': [0.60]*len(symbols)}),
+            index_rebalance_df=pd.DataFrame({'symbol': symbols, 'index_rebalance_score': [0.58]*len(symbols)}),
+            overnight_gap_df=pd.DataFrame({'symbol': symbols, 'overnight_gap_score': [0.62]*len(symbols)}),
             target_horizon=20,
             prices_dict=prices_dict,
         )
@@ -357,7 +409,7 @@ class TestAll16Markets31Strategies:
         assert 'ensemble_expected_return' in ensemble_df.columns
         assert 'portfolio_weight' in ensemble_df.columns
 
-        # Verify all 31 strategy columns are integrated and all symbols scored
+        # Verify all 37 strategy columns are integrated and all symbols scored
         for sym in symbols:
             assert sym in ensemble_df['symbol'].values
             sym_row = ensemble_df[ensemble_df['symbol'] == sym].iloc[0]

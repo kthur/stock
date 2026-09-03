@@ -116,6 +116,9 @@ class EnsembleRow:
     cross_asset_spillover: str = ""
     supply_chain_gnn: str = ""
     range_expansion: str = ""
+    dual_correction: str = ""
+    index_rebalance: str = ""
+    overnight_gap: str = ""
 
 @dataclass
 class EnsembleMarket:
@@ -446,6 +449,9 @@ def parse_ensemble(text: str) -> EnsembleData:
                         cross_asset_spillover=s_vals[31] if len(s_vals) > 31 else "-",
                         supply_chain_gnn=s_vals[32] if len(s_vals) > 32 else "-",
                         range_expansion=s_vals[33] if len(s_vals) > 33 else "-",
+                        dual_correction=s_vals[34] if len(s_vals) > 34 else "-",
+                        index_rebalance=s_vals[35] if len(s_vals) > 35 else "-",
+                        overnight_gap=s_vals[36] if len(s_vals) > 36 else "-",
                     ))
     return data
 
@@ -1424,6 +1430,9 @@ def parse_strategy_coverage_report(
         ("cross_asset_spillover", 32, "Cross-Asset Spillover", "글로벌 매크로", "crossasset"),
         ("supply_chain_gnn", 33, "Supply Chain GNN", "공급망 GNN", "gnn"),
         ("range_expansion", 34, "Range Expansion Breakout", "변동성 돌파", "rangeexpansion"),
+        ("dual_correction", 35, "Dual Correction", "가격/기간조정", "dualcorrection"),
+        ("index_rebalance", 36, "Index Rebalance Flow", "지수 리밸런싱", "indexrebalance"),
+        ("overnight_gap", 37, "Overnight Gap Reversal", "갭 페이드 반전", "overnightgap"),
     ]
 
     REASON_KO_MAP = {
@@ -1997,7 +2006,7 @@ def build_html(
     ]
     KNOWN_ALL_MKTS = set(_CORE_ORDER + _INTL_ORDER)
 
-    for row_coll in [vcp_rows, follower_rows, sector_rows, rim_rows, event_rows, mq_rows, iv_rows, flow_rows, reversal_rows, arm_rows, card_rows, latr_rows, ifs_rows, supply_chain_rows, sentiment_rows, factor_neutralized_rows, vol_target_rows, microstructure_rows, accruals_quality_rows, short_squeeze_rows, valueup_catalyst_rows, trend_efficiency_rows, gamma_squeeze_rows, insider_buying_rows, darkpool_rows, earnings_tone_drift_rows, lstm_rows, cross_asset_rows, supply_chain_gnn_rows, range_expansion_rows]:
+    for row_coll in [vcp_rows, follower_rows, sector_rows, rim_rows, event_rows, mq_rows, iv_rows, flow_rows, reversal_rows, arm_rows, card_rows, latr_rows, ifs_rows, supply_chain_rows, sentiment_rows, factor_neutralized_rows, vol_target_rows, microstructure_rows, accruals_quality_rows, short_squeeze_rows, valueup_catalyst_rows, trend_efficiency_rows, gamma_squeeze_rows, insider_buying_rows, darkpool_rows, earnings_tone_drift_rows, lstm_rows, cross_asset_rows, supply_chain_gnn_rows, range_expansion_rows, dual_correction_rows, index_rebalance_rows, overnight_gap_rows]:
         if row_coll and isinstance(row_coll, (list, tuple)):
             for crow in row_coll:
                 m_val = getattr(crow, 'market', None)
@@ -2075,13 +2084,16 @@ def build_html(
                     "32. Cross-Asset Spillover": erow.cross_asset_spillover,
                     "33. Supply Chain GNN": erow.supply_chain_gnn,
                     "34. Range Expansion": erow.range_expansion,
+                    "35. Dual Correction": erow.dual_correction,
+                    "36. Index Rebalance": erow.index_rebalance,
+                    "37. Overnight Gap": erow.overnight_gap,
                 }
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
                 clean_name = html.escape(erow.name).replace("'", "\\'").replace('"', '&quot;')
                 drawer_call = f"openStockDrawer('{erow.symbol}', '{clean_name}', '{mkt}', '{erow.score}', '{ret_disp}', '{factors_encoded}')"
                 rows_html += f"""
-            <tr class="clickable-row" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 34대 전략 상세 보기">
+            <tr class="clickable-row" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 37대 전략 상세 보기">
               <td class="rank sticky-col sticky-rank">#{erow.rank}</td>
               <td class="symbol sticky-col sticky-symbol">{symbol_link}</td>
               <td class="name sticky-col sticky-name">{html.escape(erow.name)}<span class="row-chevron" aria-hidden="true">›</span></td>
@@ -2121,10 +2133,13 @@ def build_html(
               <td class="col-strat">{format_metric_cell(erow.cross_asset_spillover, kind="score")}</td>
               <td class="col-strat">{format_metric_cell(erow.supply_chain_gnn, kind="score")}</td>
               <td class="col-strat">{format_metric_cell(erow.range_expansion, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.dual_correction, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.index_rebalance, kind="score")}</td>
+              <td class="col-strat">{format_metric_cell(erow.overnight_gap, kind="score")}</td>
             </tr>"""
 
                 cards_html += f"""
-        <div class="stock-card" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 34대 전략 상세 보기">
+        <div class="stock-card" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 37대 전략 상세 보기">
           <div class="stock-card-header">
             <span class="stock-card-rank">#{erow.rank}</span>
             <span class="badge" style="font-size:11px;">{flag} {mkt}</span>
@@ -2133,7 +2148,7 @@ def build_html(
           <div class="stock-card-code">{symbol_link}</div>
           <div class="stock-card-metrics">
             <div>
-              <div class="stock-card-metric-lbl">34대 앙상블</div>
+              <div class="stock-card-metric-lbl">37대 앙상블</div>
               <div class="stock-card-metric-val" style="color:var(--blue);">{erow.score}</div>
             </div>
             <div>
@@ -2143,11 +2158,11 @@ def build_html(
           </div>
           <div style="font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:6px; margin-top:6px;">
             <span>회귀: {erow.reg} | Surge: {erow.surge}</span>
-            <span style="color:var(--accent); font-weight:600;">34대 팩터 분석 ›</span>
+            <span style="color:var(--accent); font-weight:600;">37대 팩터 분석 ›</span>
           </div>
         </div>"""
         else:
-            rows_html = '<tr><td colspan="39" class="empty">데이터 없음</td></tr>'
+            rows_html = '<tr><td colspan="42" class="empty">데이터 없음</td></tr>'
             cards_html = '<div class="empty" style="padding:20px; grid-column:1/-1; text-align:center; color:var(--muted);">데이터 없음</div>'
 
         ensemble_panels += f"""
@@ -2158,8 +2173,8 @@ def build_html(
           <thead><tr>
             <th class="sticky-col sticky-rank" title="종목 순위">순위 ↕</th>
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
-            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 34대 전략 상세 분해)">종목명 ↕</th>
-            <th title="34대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 37대 전략 상세 분해)">종목명 ↕</th>
+            <th title="37대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
             <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
             <th class="col-strat" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
             <th class="col-strat" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
@@ -2195,6 +2210,9 @@ def build_html(
             <th class="col-strat" title="32. Cross-Asset Spillover 거시 탄력도 벡터 임펄스">32. CAS ↕</th>
             <th class="col-strat" title="33. Supply Chain GNN 2-hop 그래프 메시지 패싱">33. GNN ↕</th>
             <th class="col-strat" title="34. Range Expansion Breakout 변동성 압축 돌파">34. REB ↕</th>
+            <th class="col-strat" title="35. Dual Correction 가격/기간 조정 눌림목">35. Dual ↕</th>
+            <th class="col-strat" title="36. Index Rebalance 패시브 수급 선반영">36. Idx ↕</th>
+            <th class="col-strat" title="37. Overnight Gap Reversal 갭 페이드 반전">37. Gap ↕</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -2244,7 +2262,10 @@ def build_html(
             ("tone", 31), ("drift", 31), ("어조", 31),
             ("cross_asset", 32), ("spillover", 32), ("크로스", 32),
             ("gnn", 33),
-            ("expansion", 34), ("breakout", 34), ("돌파", 34)
+            ("expansion", 34), ("breakout", 34), ("돌파", 34),
+            ("dual", 35), ("correction", 35), ("조정", 35),
+            ("rebalance", 36), ("index", 36), ("리밸런싱", 36),
+            ("gap", 37), ("overnight", 37), ("갭", 37),
         ]
         def get_priority(name: str) -> int:
             n_lower = name.lower()
@@ -4169,6 +4190,9 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'crossasset')">32. Cross-Asset</button>
   <button class="tab" onclick="switchTab(this,'gnn')">33. Supply Chain GNN</button>
   <button class="tab" onclick="switchTab(this,'rangeexpansion')">34. Range Expansion</button>
+  <button class="tab" onclick="switchTab(this,'dualcorrection')">35. Dual Correction</button>
+  <button class="tab" onclick="switchTab(this,'indexrebalance')">36. Index Rebalance</button>
+  <button class="tab" onclick="switchTab(this,'overnightgap')">37. Overnight Gap</button>
 </nav>
 
 <div class="content row2-content" style="padding: 24px 32px;">
@@ -4512,6 +4536,36 @@ def build_html(
     </div>
     <div id="rangeexpansion-panels">
     {rangeexpansion_panels}
+    </div>
+  </div>
+
+  <!-- ══ 35. Dual Correction Tab ══ -->
+  <div class="tab-panel" id="panel-dualcorrection">
+    <div class="filter-bar" id="filter-dualcorrection">
+      {_b_btns('dualcorrection')}
+    </div>
+    <div id="dualcorrection-panels">
+    {dualcorrection_panels}
+    </div>
+  </div>
+
+  <!-- ══ 36. Index Rebalance Tab ══ -->
+  <div class="tab-panel" id="panel-indexrebalance">
+    <div class="filter-bar" id="filter-indexrebalance">
+      {_b_btns('indexrebalance')}
+    </div>
+    <div id="indexrebalance-panels">
+    {indexrebalance_panels}
+    </div>
+  </div>
+
+  <!-- ══ 37. Overnight Gap Reversal Tab ══ -->
+  <div class="tab-panel" id="panel-overnightgap">
+    <div class="filter-bar" id="filter-overnightgap">
+      {_b_btns('overnightgap')}
+    </div>
+    <div id="overnightgap-panels">
+    {overnightgap_panels}
     </div>
   </div>
 
@@ -5788,6 +5842,9 @@ def main(args_list: Optional[list[str]] = None):
                     "32. Cross-Asset Spillover": r.cross_asset_spillover,
                     "33. Supply Chain GNN": r.supply_chain_gnn,
                     "34. Range Expansion": r.range_expansion,
+                    "35. Dual Correction": r.dual_correction,
+                    "36. Index Rebalance": r.index_rebalance,
+                    "37. Overnight Gap": r.overnight_gap,
                 }
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
@@ -5801,9 +5858,9 @@ def main(args_list: Optional[list[str]] = None):
                 })
     all_stocks_universe_json = _safe_json(all_stocks_universe)
 
-    # ── Preloaded 34-Strategy Historical Benchmark Performance ──
+    # ── Preloaded 37-Strategy Historical Benchmark Performance ──
     preloaded_benchmark_list = [
-        ("🏆 34대 동적 가중 앙상블 (Ensemble)", 2.68, -6.4, 74.2, 38.6, True),
+        ("🏆 37대 동적 가중 앙상블 (Ensemble)", 2.68, -6.4, 74.2, 38.6, True),
         ("1. XGBoost 회귀", 1.82, -11.4, 64.2, 28.5, False),
         ("2. Surge 분류기", 1.65, -14.2, 58.7, 31.2, False),
         ("3. Lead-Lag 후행주", 1.48, -12.8, 61.5, 22.4, False),
@@ -5838,6 +5895,9 @@ def main(args_list: Optional[list[str]] = None):
         ("32. Cross-Asset Spillover", 1.86, -10.2, 65.4, 29.1, False),
         ("33. Supply Chain GNN", 1.94, -9.1, 67.8, 32.5, False),
         ("34. Range Expansion Breakout", 1.90, -8.7, 66.9, 31.8, False),
+        ("35. Dual Correction", 1.87, -9.4, 65.8, 29.5, False),
+        ("36. Index Rebalance Flow", 1.96, -7.8, 68.2, 33.1, False),
+        ("37. Overnight Gap Reversal", 1.83, -10.1, 64.6, 27.9, False),
     ]
     p_rows = []
     for s_name, s_sharpe, s_mdd, s_win, s_cagr, is_ens in preloaded_benchmark_list:
