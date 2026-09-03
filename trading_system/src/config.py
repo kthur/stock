@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Declarative Market Cost & Properties Registry
 MARKET_COST_REGISTRY = {
     'KOSPI': {'spread_bps': 0.0006, 'stt': 0.0015, 'brokerage': 0.0003, 'aliases': ('KRX',)},
-    'KOSDAQ': {'spread_bps': 0.0010, 'stt': 0.0018, 'brokerage': 0.0003, 'aliases': ()},
+    'KOSDAQ': {'spread_bps': 0.0010, 'stt': 0.0015, 'brokerage': 0.0003, 'aliases': ()},
     'NASDAQ': {'spread_bps': 0.0003, 'stt': 0.00003, 'brokerage': 0.00005, 'aliases': ()},
     'RUSSELL2000': {'spread_bps': 0.0008, 'stt': 0.00003, 'brokerage': 0.00005, 'aliases': ('RUSSELL',)},
     'SP500': {'spread_bps': 0.0002, 'stt': 0.00003, 'brokerage': 0.00005, 'aliases': ('S&P500', 'NYSE', 'US', 'AMEX')},

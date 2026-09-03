@@ -79,6 +79,7 @@ trading_system/data/
 risk_config.json
 
 # Models (regenerated each pipeline run)
+models/
 trading_system/models/*.json
 trading_system/models/*.txt
 trading_system/models/*.cbm

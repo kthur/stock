@@ -86,7 +86,7 @@ def test_strategy_file_lists_parity():
     assert "lstm_predictions.txt" in content, "lstm_predictions.txt missing from pipeline.yml!"
     
     # Check step summary file loop
-    step_summary_match = re.search(r"### 📁 31대 전략 출력 파일 현황[\s\S]*?for f in ([^;]+);", content)
+    step_summary_match = re.search(r"### 📁 (?:31|34|37)대 전략 출력 파일 현황[\s\S]*?for f in ([^;]+);", content)
     assert step_summary_match, "Step summary file loop not found in pipeline.yml"
     summary_files = step_summary_match.group(1).split()
     assert "lstm_predictions.txt" in summary_files, "lstm_predictions.txt missing from Step Summary loop"

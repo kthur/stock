@@ -21,7 +21,7 @@ class StrategyCoverageAnalyzer:
         from src.core.strategy_registry import get_registry
         reg = get_registry()
         reg.auto_discover(["src.core", "src.ai"])
-        return list(reg.get_all_ids())
+        return [sid for sid, (_, meta) in reg.get_all().items() if not meta.is_standalone]
 
     def __init__(self, strategies: Optional[List[str]] = None):
         self.strategies = strategies if strategies else self.STRATEGIES
@@ -185,7 +185,7 @@ class StrategyCoverageAnalyzer:
                     reasons['LOW_EARNINGS_QUALITY'] = low_eq_cnt
                 if other_cnt > 0:
                     options_strats = {'iv_skew', 'gamma_squeeze'}
-                    us_strats = {'darkpool', 'darkpool_hft'}
+                    us_strats = {'darkpool', 'darkpool_hft', 'hft'}
                     pair_strats = {'stat_arb'}
                     sentiment_strats = {'sentiment'}
                     insider_strats = {'insider_buying', 'insider'}
@@ -195,9 +195,9 @@ class StrategyCoverageAnalyzer:
                     cross_asset_strats = {'cross_asset_spillover', 'cas'}
                     gnn_strats = {'supply_chain_gnn', 'sc_gnn'}
                     range_strats = {'range_expansion', 'range_expansion_breakout'}
-                    dual_strats = {'dual_correction'}
-                    rebal_strats = {'index_rebalance'}
-                    gap_strats = {'overnight_gap'}
+                    dual_strats = {'dual_correction', 'dual_correction_regime'}
+                    rebal_strats = {'index_rebalance', 'index_rebalance_structural_flow'}
+                    gap_strats = {'overnight_gap', 'overnight_gap_reversal'}
 
                     if strat in options_strats:
                         reasons['NO_OPTIONS_CHAIN'] = other_cnt

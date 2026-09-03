@@ -161,7 +161,7 @@ class TestTradingConfig(unittest.TestCase):
 
         # Verify taxes
         self.assertAlmostEqual(cfg.get_stt_tax("KOSPI"), 0.0015)
-        self.assertAlmostEqual(cfg.get_stt_tax("KOSDAQ"), 0.0018)
+        self.assertAlmostEqual(cfg.get_stt_tax("KOSDAQ"), 0.0015)
         self.assertAlmostEqual(cfg.get_stt_tax("CHINA_SSE"), 0.0005)
         self.assertAlmostEqual(cfg.get_stt_tax("JAPAN_TSE"), 0.0)
         self.assertAlmostEqual(cfg.get_stt_tax("INDIA_NSE"), 0.0010)

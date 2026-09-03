@@ -100,9 +100,9 @@ class UnifiedPortfolioAllocator:
         if not close_series:
             return pd.DataFrame(), []
 
-        prices_df = pd.DataFrame(close_series).ffill().bfill()
+        prices_df = pd.DataFrame(close_series).ffill()
         valid_symbols = [s for s in symbols if s in prices_df.columns]
-        returns_df = prices_df[valid_symbols].pct_change().dropna()
+        returns_df = prices_df[valid_symbols].pct_change().dropna(how="all").fillna(0.0)
         return returns_df, valid_symbols
 
     def calculate_cvar_weights(

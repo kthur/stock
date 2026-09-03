@@ -1409,15 +1409,16 @@ class OnDevicePredictionModel:
         dp_ratio = 0.35 + 0.1 * (vol_ratio_20d - 1.0) - 0.05 * (df['ret_1d'].abs() / np.maximum(ret_vol_20d, 1e-4))
         df['dark_pool_ratio'] = dp_ratio.clip(0.1, 0.6).fillna(0.35)
         # V8-HIGH-07 Fix: Determine conversion rate to USD for non-US assets based on symbol suffix
-        if is_krx_symbol:
+        sym_str = str(df['symbol'].iloc[0]) if ('symbol' in df.columns and len(df) > 0 and pd.notna(df['symbol'].iloc[0])) else ""
+        if is_krx_symbol or sym_str.isdigit() or sym_str.endswith(('.KS', '.KQ')):
             fx_conv = 1350.0
-        elif str(symbol).endswith(('.T', '.TYO')):
+        elif sym_str.endswith(('.T', '.TYO')):
             fx_conv = 155.0
-        elif str(symbol).endswith(('.TW', '.TWO')):
+        elif sym_str.endswith(('.TW', '.TWO')):
             fx_conv = 32.0
-        elif str(symbol).endswith(('.HK',)):
+        elif sym_str.endswith(('.HK',)):
             fx_conv = 7.8
-        elif str(symbol).endswith(('.L', '.LON')):
+        elif sym_str.endswith(('.L', '.LON')):
             fx_conv = 0.77
         else:
             fx_conv = 1.0
@@ -3193,12 +3194,12 @@ class OnDevicePredictionModel:
             ind_df.index = pd.to_datetime(ind_df.index)
             ind_df.index.name = 'date'
 
-            # V8-HIGH-14 Fix: Shift all US-origin indices and sector ETFs by 1 day because US market closes next morning KST
-            us_leaders = {'^GSPC', 'XLK', 'XLF', 'XLV', 'XLE'}
+            # Shift US sector ETFs by 1 day because US market closes next morning KST (prevent look-ahead bias)
+            us_etfs = {'XLK', 'XLF', 'XLV', 'XLE'}
             for src_col, target_sym in index_sector_mapping.items():
                 if src_col in ind_df.columns:
                     ret_series = ind_df[src_col] / 100.0
-                    if target_sym in us_leaders:
+                    if target_sym in us_etfs:
                         ret_series = ret_series.shift(1)
                     ret_pivot[target_sym] = ret_series
                     forced_leaders.append(target_sym)

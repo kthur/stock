@@ -49,7 +49,11 @@ def test_short_interest_squeeze_engine():
         '000660': pd.DataFrame({'close': np.linspace(100000, 95000, 30), 'volume': np.random.randint(1000, 5000, 30)}, index=dates)
     }
     
-    res = engine.calculate_scores(symbols, prices_dict=prices_dict)
+    features_df = {
+        '005930': {'short_ratio': 0.15, 'days_to_cover': 4.0},
+        '000660': {'short_ratio': 0.25, 'days_to_cover': 6.0}
+    }
+    res = engine.calculate_scores(symbols, prices_dict=prices_dict, features_df=features_df)
     assert not res.empty
     assert 'symbol' in res.columns
     assert 'short_squeeze_score' in res.columns

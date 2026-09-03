@@ -35,11 +35,11 @@ class TestPhase5StrategyRegistry(unittest.TestCase):
         self.assertIn("sector_rotation", strat_ids)
 
     def test_standalone_strategy_flag(self):
-        """Test standalone strategies (e.g. Microstructure) are marked is_standalone=True."""
-        item = self.registry.get("microstructure")
+        """Test standalone strategies (e.g. Opening Auction Arbitrage) are marked is_standalone=True."""
+        item = self.registry.get("opening_auction_arbitrage")
         self.assertIsNotNone(item)
         _, meta = item
-        self.assertTrue(meta.is_standalone, "Microstructure should be marked is_standalone=True")
+        self.assertTrue(meta.is_standalone, "Opening auction arbitrage should be marked is_standalone=True")
 
     def test_ml_adapters(self):
         """Test ML strategy adapters inherit BaseStrategyEngine and handle empty models gracefully."""
@@ -65,8 +65,8 @@ class TestPhase5StrategyRegistry(unittest.TestCase):
 
         self.assertIn("regression", weights)
         self.assertIn("stat_arb", weights)
-        self.assertIn("microstructure", weights)
-        self.assertEqual(weights["microstructure"], 0.0, "Microstructure should have 0.0 weight in ensemble")
+        self.assertIn("opening_auction_arbitrage", weights)
+        self.assertEqual(weights["opening_auction_arbitrage"], 0.0, "Standalone strategy should have 0.0 weight in ensemble")
         self.assertAlmostEqual(sum(weights.values()), 1.0, places=5)
 
     def test_coverage_analyzer_dynamic_strategies(self):

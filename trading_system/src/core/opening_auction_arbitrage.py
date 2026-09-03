@@ -142,7 +142,7 @@ OPENING_AUCTION_META = StrategyMeta(
     output_file="opening_auction_arbitrage_predictions.txt",
     requires_fundamentals=False,
     requires_indicators=True,
-    is_standalone=False,
+    is_standalone=True,
 )
 
 StrategyRegistry().register(OPENING_AUCTION_META, OpeningAuctionArbitrageEngine)

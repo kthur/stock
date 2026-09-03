@@ -57,6 +57,12 @@ STRATEGY_ALPHA_HALF_LIVES: Dict[str, float] = {
     'cross_asset_spillover': 5.0,
     'supply_chain_gnn': 10.0,
     'range_expansion_breakout': 2.0,
+    'dual_correction': 5.0,
+    'dual_correction_regime': 5.0,
+    'index_rebalance': 20.0,
+    'index_rebalance_structural_flow': 20.0,
+    'overnight_gap_reversal': 1.0,
+    'overnight_gap': 1.0,
 }
 
 
@@ -468,7 +474,7 @@ class ExecutionOMSEngine:
                 if close_price is None or close_price == "":
                     close_price = plan_price
                 if close_price is None or close_price == "":
-                    for alt_k in ["close", "price", "current_price"]:
+                    for alt_k in ["close", "Close", "CLOSE", "price", "current_price"]:
                         if pred.get(alt_k) not in (None, ""):
                             close_price = pred.get(alt_k)
                             break

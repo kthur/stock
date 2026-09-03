@@ -134,7 +134,9 @@ class SmartOrderRouter:
 
         is_krx = (
             mkt in ["KOSPI", "KOSDAQ", "KRX"] or
-            (len(sym) == 6 and sym.isdigit())
+            (len(sym) == 6 and sym.isdigit()) or
+            sym.endswith((".KS", ".KQ")) or
+            (sym.split(".")[0].isdigit() and len(sym.split(".")[0]) == 6)
         )
 
         if is_krx:

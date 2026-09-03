@@ -25,11 +25,16 @@ logger = logging.getLogger(__name__)
         category="factor",
         output_file="overnight_gap_predictions.txt",
         default_regime_weights={
-            "BEAR": 0.04,
-            "BEAR_HIGH_VOL": 0.06,
-            "SIDEWAYS_LOW_VOL": 0.05,
+            "BULL_LOW_VOL": 0.02,
             "BULL_HIGH_VOL": 0.03,
-            "BULL_LOW_VOL": 0.03,
+            "SIDEWAYS_LOW_VOL": 0.04,
+            "SIDEWAYS_HIGH_VOL": 0.04,
+            "BEAR_LOW_VOL": 0.04,
+            "BEAR_HIGH_VOL": 0.05,
+            "CRISIS": 0.04,
+            "BEAR": 0.04,
+            "SIDEWAYS": 0.04,
+            "BULL": 0.02,
         },
     )
 )
