@@ -226,9 +226,9 @@ def test_adversarial_entropy_compression_and_jump_penalty():
     """
     engine = EnsembleScoringEngine()
 
-    # 1. Max entropy compression test
+    # 1. Max entropy compression test (Phase 5 baseline: version=5)
     uniform_7 = {r: 1.0 / 7.0 for r in ALL_REGIMES}
-    hl_uniform = engine.get_regime_adaptive_half_lives(uniform_7)
+    hl_uniform = engine.get_regime_adaptive_half_lives(uniform_7, version=5)
 
     raw_expected = np.mean([engine.get_regime_adaptive_half_lives(r)['regression'] for r in ALL_REGIMES])
     expected_uniform = round(float(raw_expected * math.exp(-0.35)), 2)
@@ -239,7 +239,8 @@ def test_adversarial_entropy_compression_and_jump_penalty():
     # 2. Extreme jump penalty test: BULL_LOW_VOL to CRISIS (d_TV = 1.0)
     hl_jump = engine.get_regime_adaptive_half_lives(
         regime={'CRISIS': 1.0},
-        prev_regime_probs={'BULL_LOW_VOL': 1.0}
+        prev_regime_probs={'BULL_LOW_VOL': 1.0},
+        version=5
     )
     hl_crisis_calm = engine.get_regime_adaptive_half_lives('CRISIS')
     expected_jump = round(float(hl_crisis_calm['regression'] * math.exp(-0.50 * 0.75)), 2)

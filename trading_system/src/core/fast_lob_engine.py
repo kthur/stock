@@ -236,8 +236,61 @@ class FastOrderBookMatchingEngine:
             volume=volume
         )
 
+    def estimate_queue_position(self, order_id: str) -> Optional[Dict[str, Any]]:
+        """
+        F44: Computes exact FIFO queue position and fill probability for a resting order.
+        Returns:
+            queue_ahead: Volume ahead of this order in the FIFO queue
+            queue_behind: Volume behind this order in the FIFO queue
+            my_volume: Order's current active volume
+            queue_position_ratio: u_q = Q_ahead / max(1e-6, Q_ahead + my_vol + Q_behind) in [0.0, 1.0]
+            estimated_p_fill: Non-linear probability of execution before cancellation
+        """
+        with self._lock:
+            if order_id not in self.order_lookup:
+                return None
+            side, price = self.order_lookup[order_id]
+            book = self.bids if side == "BUY" else self.asks
+            if price not in book:
+                return None
+
+            q = book[price]
+            q_ahead = 0.0
+            my_vol = 0.0
+            q_behind = 0.0
+            found = False
+
+            for node in q:
+                if node.order_id == order_id:
+                    my_vol = node.volume
+                    found = True
+                elif not found:
+                    q_ahead += node.volume
+                else:
+                    q_behind += node.volume
+
+            if not found:
+                return None
+
+            tot = q_ahead + my_vol + q_behind
+            u_q = float(q_ahead / max(1e-6, tot))
+            # Cont-Kukanov fill probability: P_fill(u_q) = exp(-1.5 * u_q) * (1 - 0.25 * u_q)
+            p_fill = float(np.clip(math.exp(-1.5 * u_q) * (1.0 - 0.25 * u_q), 0.05, 0.95))
+
+            return {
+                "order_id": order_id,
+                "side": side,
+                "price": price,
+                "my_volume": my_vol,
+                "queue_ahead": q_ahead,
+                "queue_behind": q_behind,
+                "total_level_volume": tot,
+                "queue_position_ratio": round(u_q, 4),
+                "estimated_p_fill": round(p_fill, 4),
+            }
+
     def get_depth_snapshot(self, levels: int = 10) -> Dict[str, Any]:
-        """Returns top-K bids and asks, micro-price, and multi-tier OBI."""
+        """Returns top-K bids and asks, micro-price, L3 depth decay micro-price, and multi-tier OBI."""
         with self._lock:
             sorted_bid_prices = sorted(self.bids.keys(), reverse=True)[:levels]
             sorted_ask_prices = sorted(self.asks.keys())[:levels]
@@ -266,6 +319,25 @@ class FastOrderBookMatchingEngine:
             denom = sum(bids[i]["volume"] + asks[i]["volume"] for i in range(n))
             return float(np.clip(num / denom, -1.0, 1.0)) if denom > 0 else 0.0
 
+        # Multi-level exponential depth decay micro-price (lambda_depth = 0.35, F44)
+        w_k = [math.exp(-0.35 * i) for i in range(min(len(bids), len(asks), levels))]
+        if w_k and sum(w_k) > 0:
+            num_l3 = sum(w_k[i] * (bids[i]["volume"] - asks[i]["volume"]) for i in range(len(w_k)))
+            den_l3 = sum(w_k[i] * (bids[i]["volume"] + asks[i]["volume"]) for i in range(len(w_k)))
+            l3_imbalance = float(np.clip(num_l3 / max(1e-6, den_l3), -1.0, 1.0)) if den_l3 > 0 else 0.0
+            l3_micro_price = 0.5 * (p_b1 + p_a1) + 0.5 * spread * l3_imbalance
+        else:
+            l3_imbalance = obi_1
+            l3_micro_price = micro_price
+
+        # Order count fragmentation ratio at best bid/ask (F44)
+        with self._lock:
+            n_b1 = len(self.bids.get(p_b1, [])) if p_b1 in self.bids else 1
+            n_a1 = len(self.asks.get(p_a1, [])) if p_a1 in self.asks else 1
+        avg_sz_b1 = v_b1 / max(1, n_b1)
+        avg_sz_a1 = v_a1 / max(1, n_a1)
+        frag_ratio = float(np.clip(avg_sz_b1 / max(1e-6, avg_sz_a1), 0.1, 10.0))
+
         return {
             "symbol": self.symbol,
             "bids": bids,
@@ -274,6 +346,11 @@ class FastOrderBookMatchingEngine:
             "best_ask": p_a1,
             "spread": round(spread, 4),
             "micro_price": round(micro_price, 4),
+            "l3_micro_price": round(l3_micro_price, 4),
+            "l3_imbalance": round(l3_imbalance, 4),
+            "order_fragmentation_ratio": round(frag_ratio, 4),
+            "n_orders_best_bid": n_b1,
+            "n_orders_best_ask": n_a1,
             "obi_1": round(obi_1, 4),
             "obi_5": round(_calc_obi(5), 4),
             "obi_10": round(_calc_obi(10), 4),
@@ -319,3 +396,79 @@ class MicrosecondHawkesIntensity:
             dt = max(0.0, t - self.last_timestamp_sec)
             decayed = (self.current_intensity - self.mu) * math.exp(-self.beta * dt)
             return float(self.mu + max(0.0, decayed))
+
+
+class BivariateHawkesIntensity:
+    """
+    F44: Directional Bivariate Hawkes Intensity Process for Buy/Sell Toxicity Tracking.
+    Maintains coupled arrival intensities:
+        lambda_+(t) = mu_+ + (lambda_+ - mu_+) * exp(-beta * dt) + alpha_self * dN_+ + alpha_cross * dN_-
+        lambda_-(t) = mu_- + (lambda_- - mu_-) * exp(-beta * dt) + alpha_self * dN_- + alpha_cross * dN_+
+    """
+
+    def __init__(
+        self,
+        mu_buy: float = 1.0,
+        mu_sell: float = 1.0,
+        alpha_self: float = 0.4,
+        alpha_cross: float = 0.1,
+        beta: float = 1.2,
+    ):
+        self.mu_buy = float(mu_buy)
+        self.mu_sell = float(mu_sell)
+        self.alpha_self = float(alpha_self)
+        self.alpha_cross = float(alpha_cross)
+        self.beta = float(beta)
+        self.last_ts: Optional[float] = None
+        self.lambda_buy = float(mu_buy)
+        self.lambda_sell = float(mu_sell)
+        self._lock = threading.Lock()
+
+    def update(self, side: str, timestamp_sec: Optional[float] = None) -> Tuple[float, float]:
+        """Updates coupled arrival intensities with a directional trade event."""
+        t = timestamp_sec or time.time()
+        with self._lock:
+            if self.last_ts is not None:
+                dt = max(0.0, t - self.last_ts)
+                decay = math.exp(-self.beta * dt)
+                self.lambda_buy = self.mu_buy + max(0.0, self.lambda_buy - self.mu_buy) * decay
+                self.lambda_sell = self.mu_sell + max(0.0, self.lambda_sell - self.mu_sell) * decay
+
+            side_upper = str(side).upper()
+            if side_upper in ["BUY", "BID"]:
+                self.lambda_buy += self.alpha_self
+                self.lambda_sell += self.alpha_cross
+            else:
+                self.lambda_sell += self.alpha_self
+                self.lambda_buy += self.alpha_cross
+
+            self.last_ts = t
+            return (self.lambda_buy, self.lambda_sell)
+
+    def get_directional_toxicity(self, action: str, t_query: Optional[float] = None) -> Dict[str, float]:
+        """
+        Evaluates directional toxicity metrics for a proposed action (BUY vs SELL).
+        For BUY: adverse flow is aggressive selling (lambda_sell).
+        For SELL: adverse flow is aggressive buying (lambda_buy).
+        """
+        t = t_query or time.time()
+        with self._lock:
+            dt = max(0.0, t - self.last_ts) if self.last_ts else 0.0
+            decay = math.exp(-self.beta * dt)
+            lam_b = self.mu_buy + max(0.0, self.lambda_buy - self.mu_buy) * decay
+            lam_s = self.mu_sell + max(0.0, self.lambda_sell - self.mu_sell) * decay
+
+            delta_dir = (lam_s - lam_b) / max(1e-6, lam_s + lam_b)
+            is_buy = str(action).upper() in ["BUY", "BID", "LONG"]
+            if is_buy:
+                gamma = float(np.clip((lam_s - self.mu_sell) / (1.5 * self.mu_sell) + 0.35 * delta_dir, 0.0, 1.0))
+            else:
+                gamma = float(np.clip((lam_b - self.mu_buy) / (1.5 * self.mu_buy) - 0.50 * delta_dir, 0.0, 1.0))
+
+            return {
+                "lambda_buy": round(lam_b, 4),
+                "lambda_sell": round(lam_s, 4),
+                "delta_dir": round(delta_dir, 4),
+                "gamma_toxic_dir": round(gamma, 4),
+            }
+

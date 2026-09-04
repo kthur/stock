@@ -91,9 +91,24 @@ class BessembinderParams(tuple):
     3-tuple (gamma_tail, beta_tail, u_thresh) representing regime-adaptive Bessembinder scaling parameters.
     Supports smart sequence unpacking: unpacks 2 elements if caller expects 2 elements (backward-compatibility),
     or 3 elements if caller expects 3 elements.
+    Phase 6 Version 6 adds properties: beta_right, beta_left, u_thresh_right, u_thresh_left, eta_right, eta_left.
     """
-    def __new__(cls, gamma: float, beta: float, u_thresh: float = 0.60):
-        return super().__new__(cls, (float(gamma), float(beta), float(u_thresh)))
+    def __new__(
+        cls,
+        gamma: float,
+        beta: float,
+        u_thresh: float = 0.60,
+        beta_left: Optional[float] = None,
+        u_thresh_left: Optional[float] = None,
+        eta_right: Optional[float] = None,
+        eta_left: Optional[float] = None
+    ):
+        obj = super().__new__(cls, (float(gamma), float(beta), float(u_thresh)))
+        obj._beta_left = float(beta_left) if beta_left is not None else float(beta)
+        obj._u_thresh_left = float(u_thresh_left) if u_thresh_left is not None else float(u_thresh)
+        obj._eta_right = float(eta_right) if eta_right is not None else 2.0
+        obj._eta_left = float(eta_left) if eta_left is not None else 1.6
+        return obj
 
     @property
     def gamma(self) -> float:
@@ -104,8 +119,32 @@ class BessembinderParams(tuple):
         return self[1]
 
     @property
+    def beta_right(self) -> float:
+        return self[1]
+
+    @property
+    def beta_left(self) -> float:
+        return getattr(self, '_beta_left', self[1])
+
+    @property
     def u_thresh(self) -> float:
         return self[2]
+
+    @property
+    def u_thresh_right(self) -> float:
+        return self[2]
+
+    @property
+    def u_thresh_left(self) -> float:
+        return getattr(self, '_u_thresh_left', self[2])
+
+    @property
+    def eta_right(self) -> float:
+        return getattr(self, '_eta_right', 2.0)
+
+    @property
+    def eta_left(self) -> float:
+        return getattr(self, '_eta_left', 1.6)
 
     def __iter__(self):
         try:
@@ -1679,23 +1718,25 @@ class EnsembleScoringEngine:
             return {k: v / tot for k, v in calibrated.items()}
         return base_weights
 
-    @staticmethod
+    @classmethod
     def apply_top_decile_convex_boost(
+        cls,
         scores_df: pd.DataFrame,
         strategy_cols: List[str],
         base_scores: pd.Series,
         top_k: int = 3,
         lambda_boost: float = 0.35,
-        p_norm: float = 2.0,
+        p_norm: Optional[float] = None,
         regime: Optional[Union[str, int]] = None
     ) -> pd.Series:
         """
         Top-Decile Convex Alpha Booster (Grinold Law Alpha Preserver):
         Extracts the top K strongest active strategy scores for each asset,
         computes the Hölder p-norm / convex average of extreme conviction signals, and blends with base score:
-        S_boosted = (1 - lambda) * S_base + lambda * M_{p=2}(Top_K(S_active))
+        S_boosted = (1 - lambda) * S_base + lambda * M_{p}(Top_K(S_active))
         Prevents high-conviction 90%+ surge/breakout signals from being diluted by neutral signals.
-        Supports Hölder p=2.0 quadratic mean (M_2 = sqrt(mean(S_k^2))) and regime-adaptive lambda_boost in [0.20, 0.40].
+        Phase 6 (F41.2): Supports regime-adaptive Hölder exponent p(R) in [1.25, 2.50] and
+        cross-sectional factor dispersion-adaptive sigmoid gating theta_gate(sigma_cross).
         """
         if scores_df is None or scores_df.empty or not strategy_cols:
             return base_scores
@@ -1711,8 +1752,8 @@ class EnsembleScoringEngine:
 
         # Regime-adaptive lambda_boost parameterization
         eff_lambda = float(lambda_boost)
+        reg_str = str(regime).upper() if regime is not None else ''
         if regime is not None:
-            reg_str = str(regime).upper()
             if 'BULL' in reg_str or str(regime) == '2':
                 eff_lambda = 0.40
             elif 'CRISIS' in reg_str or 'BEAR_HIGH_VOL' in reg_str:
@@ -1722,19 +1763,46 @@ class EnsembleScoringEngine:
             elif 'SIDEWAYS_LOW_VOL' in reg_str or str(regime) == '1':
                 eff_lambda = 0.35
 
-        # Feature F35.3: Hölder quadratic mean (p=2.0) vs arithmetic mean (p=1.0)
+        # Feature F41.2: Regime-adaptive Hölder exponent p(R) in [1.25, 2.50]
+        if p_norm is None:
+            if 'CRISIS' in reg_str:
+                eff_p = 1.25
+            elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
+                eff_p = 1.50
+            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or ('BEAR' in reg_str and 'LOW_VOL' in reg_str):
+                eff_p = 1.80
+            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+                eff_p = 1.75
+            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or 'SIDEWAYS' in reg_str:
+                eff_p = 2.00
+            elif 'BULL_HIGH_VOL' in reg_str:
+                eff_p = 2.25
+            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
+                eff_p = 2.50
+            else:
+                eff_p = 2.00
+        else:
+            eff_p = float(p_norm)
+
         if vals.shape[1] >= top_k:
             top_k_vals = np.partition(vals, -top_k, axis=1)[:, -top_k:]
         else:
             top_k_vals = vals
 
-        if float(p_norm) == 2.0:
+        if float(eff_p) == 2.0:
             top_k_agg = np.sqrt(np.mean(np.square(top_k_vals), axis=1))
-        else:
+        elif float(eff_p) == 1.0:
             top_k_agg = np.mean(top_k_vals, axis=1)
+        else:
+            safe_vals = np.maximum(0.0, top_k_vals)
+            top_k_agg = np.power(np.mean(np.power(safe_vals, eff_p), axis=1), 1.0 / eff_p)
 
-        # Smooth Continuous Sigmoid/Softplus Conviction Gate (replaces hard Heaviside step at 0.60)
-        gate_arg = np.clip(15.0 * (top_k_agg - 0.60), -20.0, 20.0)
+        # Feature F41.2: Dispersion-Adaptive Sigmoid Conviction Gate
+        # theta_gate(sigma_cross) = clip(0.60 - 0.40 * (sigma_cross - 0.12), 0.55, 0.65)
+        sigma_cross = float(np.std(base_scores.values)) if len(base_scores) > 1 else 0.12
+        theta_gate = float(np.clip(0.60 - 0.40 * (sigma_cross - 0.12), 0.55, 0.65))
+
+        gate_arg = np.clip(16.0 * (top_k_agg - theta_gate), -20.0, 20.0)
         gate_weight = 1.0 / (1.0 + np.exp(-gate_arg))
         boosted = (1.0 - eff_lambda * gate_weight) * base_scores.values + (eff_lambda * gate_weight) * top_k_agg
         return pd.Series(np.clip(boosted, 0.0, 1.0), index=base_scores.index)
@@ -2042,7 +2110,8 @@ class EnsembleScoringEngine:
             target_horizon=target_horizon,
             sentiment_blacklist=sentiment_blacklist,
             held_symbols=held_symbols,
-            prices_dict=prices_dict
+            prices_dict=prices_dict,
+            version=extra_kwargs.get('version', 5)
         )
 
     def combine_predictions(self,
@@ -2098,10 +2167,12 @@ class EnsembleScoringEngine:
                             sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                             held_symbols: Optional[Union[Set[str], List[str]]] = None,
                             prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+                            version: int = 5,
                             **kwargs) -> pd.DataFrame:
         """
         Merges 34 strategy prediction DataFrames and computes weighted ensemble score.
         """
+        version = int(kwargs.get('version', version))
         regime = kwargs.get('regime_label', regime)
         us_regime = kwargs.get('us_regime_label', us_regime)
         regime_probs = kwargs.get('regime_probs', regime_probs)
@@ -3190,13 +3261,21 @@ class EnsembleScoringEngine:
                 synergy_multiplier = np.where(strong_signal_counts >= 3, 1.0 + 0.03 * (strong_signal_counts - 2), 1.0)
                 blended_score = pd.Series((blended_score * synergy_multiplier), index=merged.index).clip(0.0, 1.0)
 
-                # Phase 2-B: Continuous Bilinear Cross-Pillar Synergy Kernel
-                synergy_mult = self.compute_bilinear_cross_pillar_synergy(
-                    scores_df=merged,
-                    regime=regime,
-                    kappa=8.0,
-                    regime_adaptive_cap=True
-                )
+                # Phase 2-B: Quint-Pillar High-Order Tensor Synergy Kernel (F41.1) vs Quad-Pillar Baseline
+                if int(version) >= 6:
+                    synergy_mult = self.compute_quint_pillar_tensor_synergy(
+                        scores_df=merged,
+                        regime=regime,
+                        kappa=8.0,
+                        regime_adaptive_cap=True
+                    )
+                else:
+                    synergy_mult = self.compute_bilinear_cross_pillar_synergy(
+                        scores_df=merged,
+                        regime=regime,
+                        kappa=6.0,
+                        regime_adaptive_cap=True
+                    )
                 blended_score = pd.Series((blended_score * synergy_mult), index=merged.index).clip(0.0, 1.0)
 
                 # Phase 2-C: Fundamental Distress Gatekeeper vs High-Quality Compounder Dual Gate
@@ -3239,13 +3318,14 @@ class EnsembleScoringEngine:
         # Phase 2-D: Top-Decile Convex Alpha Booster (Grinold Law Alpha Preserver) for real universes (len >= 5)
         if len(merged) >= 5:
             strategy_score_cols = [sc for _, sc in strategy_cols if sc in merged.columns]
+            p_norm_arg = None if int(version) >= 6 else 2.0
             blended_score = self.apply_top_decile_convex_boost(
                 scores_df=merged,
                 strategy_cols=strategy_score_cols,
                 base_scores=blended_score,
                 top_k=3,
                 lambda_boost=0.35,
-                p_norm=2.0,
+                p_norm=p_norm_arg,
                 regime=regime
             )
 
@@ -3258,7 +3338,7 @@ class EnsembleScoringEngine:
                     power_gamma=1.60,
                     max_boost=0.50,
                     regime=regime,
-                    version=5
+                    version=int(version)
                 ),
                 index=merged.index
             )
@@ -3303,18 +3383,25 @@ class EnsembleScoringEngine:
         ens_scores = merged['ensemble_score'].values
         abs_centered = np.clip(ens_scores - 0.50, -0.50, 0.50)
 
-        # Feature F36.2: Smooth Hyperbolic Tangent Noise Deadband Soft-Thresholding
+        # Feature F36.2 & F42.2: Smooth Hyperbolic Tangent Noise Deadband Soft-Thresholding
         delta_noise = self.get_regime_adaptive_noise_deadband(regime, regime_probs=regime_probs)
-        z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise)
+        if int(version) >= 6:
+            z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime)
+            gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=6)
+        else:
+            z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, alpha_pos=3.0, alpha_neg=3.0)
+            gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=5)
 
-        # Feature F35.1: Regime-Adaptive Richards Right-Tail Exponent & Quadratic Rank Modulation
-        gamma_tail = self.get_regime_adaptive_gamma_tail(regime)
         if len(ens_scores) >= 5:
             ranks = pd.Series(ens_scores).rank(pct=True).values
             reg_str = str(regime).upper()
             if 'BULL' in reg_str or str(regime) == '2':
-                # Quadratic rank modulation in Bull regimes: steepens convexity for top percentiles
-                mult = np.where(z_denoised >= 0.0, 0.60 + 0.50 * ranks + 0.50 * (ranks ** 2), 1.40 - 0.80 * ranks)
+                if int(version) >= 6:
+                    # Cubic rank modulation in Bull regimes: steepens convexity for top percentiles
+                    mult = np.where(z_denoised >= 0.0, 0.60 + 0.30 * ranks + 0.30 * (ranks ** 2) + 0.55 * (ranks ** 3), 1.40 - 0.80 * ranks)
+                else:
+                    # Quadratic rank modulation in Bull regimes
+                    mult = np.where(z_denoised >= 0.0, 0.60 + 0.50 * ranks + 0.50 * (ranks ** 2), 1.40 - 0.80 * ranks)
             else:
                 mult = np.where(z_denoised >= 0.0, 0.60 + 0.80 * ranks, 1.40 - 0.80 * ranks)
             unclipped_score = z_denoised * mult
@@ -3849,6 +3936,43 @@ class EnsembleScoringEngine:
         "overnight_gap": 0.5,
     }
 
+    # Phase 6 Ergodic Stationary Distribution across 7 Market Regimes
+    PI_STATIONARY = {
+        'BULL_LOW_VOL': 0.20,
+        'BULL_HIGH_VOL': 0.15,
+        'SIDEWAYS_LOW_VOL': 0.25,
+        'SIDEWAYS_HIGH_VOL': 0.15,
+        'BEAR_LOW_VOL': 0.12,
+        'BEAR_HIGH_VOL': 0.08,
+        'CRISIS': 0.05
+    }
+
+    # Phase 6 4-Tier Strategy-Class Half-Life Elasticity (F42.1)
+    STRATEGY_ELASTICITY_CLASSES = {
+        # Class A: Ultra-Fast Microstructure & High-Turnover Signals (nu = 1.30)
+        'order_flow': 1.30, 'microstructure': 1.30, 'darkpool': 1.30, 'darkpool_hft': 1.30,
+        'overnight_gap': 1.30, 'overnight_gap_reversal': 1.30, 'stat_arb': 1.30, 'iv_skew': 1.30,
+        'surge': 1.30, 'gamma_squeeze': 1.30, 'short_term_reversal': 1.30, 'hft': 1.30,
+
+        # Class B: Medium-Fast Momentum & Trend Breakout Signals (nu = 1.00)
+        'vcp_ml': 1.00, 'vcp_rule': 1.00, 'vcp': 1.00, 'vcp_patterns': 1.00,
+        'trend_efficiency': 1.00, 'sector_rotation': 1.00, 'sector': 1.00,
+        'range_expansion': 1.00, 'range_expansion_breakout': 1.00, 'mq_factor': 1.00,
+        'short_squeeze': 1.00, 'lead_lag': 1.00, 'supply_chain': 1.00,
+
+        # Class C: Tactical Catalysts & Macro Flow Networks (nu = 0.75)
+        'event_driven': 0.75, 'event': 0.75, 'sentiment': 0.75, 'dual_correction': 0.75,
+        'index_rebalance': 0.75, 'index_rebalance_structural_flow': 0.75,
+        'insider_buying': 0.75, 'earnings_tone_drift': 0.75, 'tone_drift': 0.75,
+        'card_factor': 0.75, 'latr_factor': 0.75, 'cross_asset_spillover': 0.75,
+        'supply_chain_gnn': 0.75, 'inst_foreign_sector': 0.75,
+
+        # Class D: Slow Accounting Fundamentals & Structural Risk Parity (nu = 0.40)
+        'rim_valuation': 0.40, 'rim': 0.40, 'valueup_catalyst': 0.40, 'value_up': 0.40,
+        'accruals_quality': 0.40, 'arm_factor': 0.40, 'factor_neutralized': 0.40,
+        'vol_target': 0.40, 'regression': 0.40, 'lstm': 0.40
+    }
+
     @classmethod
     def _compute_single_regime_half_lives(
         cls,
@@ -3910,15 +4034,15 @@ class EnsembleScoringEngine:
         regime: Union[int, str, Dict[str, float]] = 'SIDEWAYS_LOW_VOL',
         regime_probs: Optional[Dict[str, float]] = None,
         prev_regime_probs: Optional[Dict[str, float]] = None,
-        transition_matrix: Optional[np.ndarray] = None
+        transition_matrix: Optional[np.ndarray] = None,
+        version: int = 6
     ) -> Dict[str, float]:
         """
-        Feature F36.1: Computes Probabilistic Regime Half-Life Expectation with
-        Shannon Transition Entropy Factor and Total Variation Jump Penalty:
-        tau_k^*(pi) = max(0.10, sum_m pi_m tau_k(R_m) * phi_entropy(pi) * phi_jump(d_TV))
-        where phi_entropy = exp(-0.35 * H_norm^2) and phi_jump = exp(-0.50 * max(0, d_TV - 0.25)).
-        Ensures smooth probabilistic transition dynamics while rapidly compressing factor half-life
-        during macro uncertainty or sudden regime shifts.
+        Feature F36.1 & F42.1: Computes Probabilistic Regime Half-Life Expectation with
+        Shannon Transition Entropy Factor, Total Variation Jump Penalty, and
+        Ergodic Stationary Distribution Divergence D_KL(pi || pi_infty), scaled by
+        4-Tier Strategy-Class Elasticity (nu_A = 1.30 to nu_D = 0.40):
+        tau_k^*(pi) = max(0.10, round(sum_m pi_m tau_k(R_m) * [phi_entropy * phi_jump * phi_KL]^(nu_k), 2))
         """
         # Determine if probabilistic mixture was provided
         probs_dict: Optional[Dict[str, float]] = None
@@ -3960,9 +4084,28 @@ class EnsembleScoringEngine:
                     d_tv = 0.5 * sum(abs(pi_norm.get(s, 0.0) - prev_pi.get(s, 0.0)) for s in all_states)
                     phi_jump = float(np.exp(-0.50 * max(0.0, d_tv - 0.25)))
 
-            # 4. Final compressed effective half-life
+            # Version 5 baseline without KL divergence or strategy elasticity
+            if int(version) <= 5:
+                base_damping = float(np.clip(phi_entropy * phi_jump, 1e-4, 1.0))
+                return {
+                    strat: max(0.10, round(float(val * base_damping), 2))
+                    for strat, val in expected_tau.items()
+                }
+
+            # 4. Feature F42.1: Stationary Distribution Divergence D_KL(pi || pi_infty)
+            d_kl = 0.0
+            for reg_k, p_val in pi_norm.items():
+                if p_val > 0.0:
+                    p_inf = cls.PI_STATIONARY.get(reg_k, 0.05)
+                    d_kl += p_val * np.log((p_val + 1e-12) / (p_inf + 1e-12))
+            phi_kl = float(np.exp(-0.25 * max(0.0, d_kl)))
+
+            base_damping = float(np.clip(phi_entropy * phi_jump * phi_kl, 1e-4, 1.0))
+
+            # 5. Final compressed effective half-life with 4-tier strategy elasticity:
+            # tau_k^*(pi) = max(0.10, round(val * (base_damping ** nu_k), 2))
             return {
-                strat: max(0.10, round(float(val * phi_entropy * phi_jump), 2))
+                strat: max(0.10, round(float(val * (base_damping ** cls.STRATEGY_ELASTICITY_CLASSES.get(strat, 1.00))), 2))
                 for strat, val in expected_tau.items()
             }
 
@@ -4310,6 +4453,235 @@ class EnsembleScoringEngine:
         synergy_multiplier = 1.0 + total_confluence.clip(0.0, eff_cap)
         return synergy_multiplier
 
+    @classmethod
+    def compute_quint_pillar_tensor_synergy(
+        cls,
+        scores_df: pd.DataFrame,
+        regime: Union[int, str] = 'SIDEWAYS_LOW_VOL',
+        kappa: float = 8.0,
+        regime_adaptive_cap: bool = True,
+        max_cap: Optional[float] = None,
+        **kwargs
+    ) -> pd.Series:
+        """
+        Phase 6 (F41.1): Quint-Pillar Economic Decomposition & High-Order Multi-Linear Tensor Synergy.
+        Partitions all 37 strategies into 5 disjoint canonical pillars without omission or overlap:
+        1. Val_Qual (6):      {rim_score, valueup_catalyst_score, accruals_quality_score, arm_score, factor_neutralized_score, reg_score}
+        2. Mom_Trend (9):     {surge_score, vcp_ml_score, trend_efficiency_score, sector_score, range_expansion_score, mq_score, ll_score, vcp_rule_score, lstm_score}
+        3. Micro_Flow (9):    {order_flow_score, inst_foreign_sector_score, darkpool_score, microstructure_score, overnight_gap_score, stat_arb_score, iv_skew_score, reversal_score, vol_target_score}
+        4. Corp_Cat (6):      {event_score, sentiment_score, short_squeeze_score, gamma_squeeze_score, insider_buying_score, earnings_tone_drift_score}
+        5. Network_Macro (7): {supply_chain_score, supply_chain_gnn_score, cross_asset_spillover_score, dual_correction_score, index_rebalance_score, card_score, latr_score}
+
+        Computes 2nd-order (10 pairs), 3rd-order (10 triplets), 4th-order (5 quads), and 5th-order (1 quint) contractions.
+        Caps scale up to 0.180 (1.180x multiplier) in BULL_LOW_VOL and are tightly bounded <= 0.040 in CRISIS.
+        """
+        if scores_df is None or scores_df.empty:
+            return pd.Series(1.0, index=scores_df.index if scores_df is not None else [0])
+
+        n_rows = len(scores_df)
+        if n_rows < 5:
+            return pd.Series(1.0, index=scores_df.index)
+
+        clusters = {
+            'val': [
+                'rim_score', 'valueup_catalyst_score', 'accruals_quality_score', 'arm_score',
+                'factor_neutralized_score', 'reg_score'
+            ],
+            'mom': [
+                'surge_score', 'vcp_ml_score', 'trend_efficiency_score', 'sector_score',
+                'range_expansion_score', 'mq_score', 'll_score', 'vcp_rule_score',
+                'lstm_score'
+            ],
+            'flow': [
+                'order_flow_score', 'inst_foreign_sector_score', 'darkpool_score',
+                'microstructure_score', 'overnight_gap_score', 'stat_arb_score',
+                'iv_skew_score', 'reversal_score', 'vol_target_score'
+            ],
+            'cat': [
+                'event_score', 'sentiment_score', 'short_squeeze_score', 'gamma_squeeze_score',
+                'insider_buying_score', 'earnings_tone_drift_score'
+            ],
+            'net': [
+                'supply_chain_score', 'supply_chain_gnn_score', 'cross_asset_spillover_score',
+                'dual_correction_score', 'index_rebalance_score', 'card_score', 'latr_score'
+            ]
+        }
+
+        # Pillar Convictions
+        denom = float(np.log(1.0 + np.exp(kappa * 0.50)) - np.log(2.0))
+        denom = max(1e-4, denom)
+        pillar_convictions = {}
+
+        for pillar_name, cols in clusters.items():
+            valid_cols = [c for c in cols if c in scores_df.columns]
+            if not valid_cols:
+                pillar_convictions[pillar_name] = pd.Series(0.0, index=scores_df.index)
+                continue
+
+            sub = scores_df[valid_cols].apply(pd.to_numeric, errors='coerce')
+            sub_max = sub.max(axis=1).fillna(0.50)
+            sub_mean = sub.mean(axis=1).fillna(0.50)
+            agg_s = (0.70 * sub_max + 0.30 * sub_mean).clip(0.0, 1.0)
+
+            excess_arg = kappa * (agg_s - 0.50)
+            raw_softplus = np.log1p(np.exp(np.clip(excess_arg, -20.0, 20.0))) - np.log(2.0)
+            psi = np.where(agg_s > 0.50, raw_softplus / denom, 0.0)
+            pillar_convictions[pillar_name] = pd.Series(np.clip(psi, 0.0, 1.0), index=scores_df.index)
+
+        reg_str = str(regime).upper()
+        if 'BULL_LOW_VOL' in reg_str:
+            omega_pairs = {
+                ('val', 'mom'): 0.025, ('val', 'flow'): 0.020, ('val', 'cat'): 0.015, ('val', 'net'): 0.015,
+                ('mom', 'flow'): 0.035, ('mom', 'cat'): 0.040, ('mom', 'net'): 0.030,
+                ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+                ('cat', 'net'): 0.025
+            }
+            w_tri = 0.025
+            w_quad = 0.035
+            w_quint = 0.060
+            reg_cap = 0.180
+        elif 'BULL_HIGH_VOL' in reg_str:
+            omega_pairs = {
+                ('val', 'mom'): 0.020, ('val', 'flow'): 0.025, ('val', 'cat'): 0.015, ('val', 'net'): 0.015,
+                ('mom', 'flow'): 0.040, ('mom', 'cat'): 0.025, ('mom', 'net'): 0.025,
+                ('flow', 'cat'): 0.030, ('flow', 'net'): 0.020,
+                ('cat', 'net'): 0.020
+            }
+            w_tri = 0.020
+            w_quad = 0.025
+            w_quint = 0.045
+            reg_cap = 0.145
+        elif 'SIDEWAYS_LOW_VOL' in reg_str:
+            omega_pairs = {
+                ('val', 'mom'): 0.020, ('val', 'flow'): 0.035, ('val', 'cat'): 0.025, ('val', 'net'): 0.020,
+                ('mom', 'flow'): 0.015, ('mom', 'cat'): 0.015, ('mom', 'net'): 0.015,
+                ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+                ('cat', 'net'): 0.020
+            }
+            w_tri = 0.015
+            w_quad = 0.015
+            w_quint = 0.030
+            reg_cap = 0.115
+        elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+            omega_pairs = {
+                ('val', 'mom'): 0.015, ('val', 'flow'): 0.040, ('val', 'cat'): 0.025, ('val', 'net'): 0.020,
+                ('mom', 'flow'): 0.008, ('mom', 'cat'): 0.008, ('mom', 'net'): 0.008,
+                ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+                ('cat', 'net'): 0.015
+            }
+            w_tri = 0.008
+            w_quad = 0.005
+            w_quint = 0.015
+            reg_cap = 0.070
+        elif 'BEAR_HIGH_VOL' in reg_str:
+            omega_pairs = {
+                ('val', 'mom'): 0.010, ('val', 'flow'): 0.045, ('val', 'cat'): 0.030, ('val', 'net'): 0.020,
+                ('mom', 'flow'): 0.005, ('mom', 'cat'): 0.005, ('mom', 'net'): 0.005,
+                ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+                ('cat', 'net'): 0.010
+            }
+            w_tri = 0.002
+            w_quad = 0.000
+            w_quint = 0.000
+            reg_cap = 0.045
+        elif 'BEAR_LOW_VOL' in reg_str or 'BEAR' in reg_str:
+            omega_pairs = {
+                ('val', 'mom'): 0.018, ('val', 'flow'): 0.035, ('val', 'cat'): 0.030, ('val', 'net'): 0.020,
+                ('mom', 'flow'): 0.010, ('mom', 'cat'): 0.010, ('mom', 'net'): 0.010,
+                ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+                ('cat', 'net'): 0.015
+            }
+            w_tri = 0.010
+            w_quad = 0.008
+            w_quint = 0.020
+            reg_cap = 0.085
+        elif 'CRISIS' in reg_str:
+            omega_pairs = {
+                ('val', 'mom'): 0.010, ('val', 'flow'): 0.040, ('val', 'cat'): 0.020, ('val', 'net'): 0.015,
+                ('mom', 'flow'): 0.005, ('mom', 'cat'): 0.005, ('mom', 'net'): 0.005,
+                ('flow', 'cat'): 0.020, ('flow', 'net'): 0.015,
+                ('cat', 'net'): 0.010
+            }
+            w_tri = 0.000
+            w_quad = 0.000
+            w_quint = 0.000
+            reg_cap = 0.040
+        elif 'BULL' in reg_str:
+            omega_pairs = {
+                ('val', 'mom'): 0.025, ('val', 'flow'): 0.020, ('val', 'cat'): 0.015, ('val', 'net'): 0.015,
+                ('mom', 'flow'): 0.035, ('mom', 'cat'): 0.035, ('mom', 'net'): 0.025,
+                ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+                ('cat', 'net'): 0.025
+            }
+            w_tri = 0.022
+            w_quad = 0.030
+            w_quint = 0.050
+            reg_cap = 0.160
+        else:
+            omega_pairs = {
+                ('val', 'mom'): 0.022, ('val', 'flow'): 0.030, ('val', 'cat'): 0.025, ('val', 'net'): 0.020,
+                ('mom', 'flow'): 0.015, ('mom', 'cat'): 0.015, ('mom', 'net'): 0.015,
+                ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+                ('cat', 'net'): 0.020
+            }
+            w_tri = 0.012
+            w_quad = 0.012
+            w_quint = 0.025
+            reg_cap = 0.100
+
+        # 1. 2nd-order Bilinear pairs (10 terms)
+        p_val = pillar_convictions['val']
+        p_mom = pillar_convictions['mom']
+        p_flow = pillar_convictions['flow']
+        p_cat = pillar_convictions['cat']
+        p_net = pillar_convictions['net']
+
+        synergy_sum = pd.Series(0.0, index=scores_df.index)
+        for (p1, p2), w_omega in omega_pairs.items():
+            synergy_sum += w_omega * (pillar_convictions[p1] * pillar_convictions[p2])
+
+        # 2. 3rd-order Trilinear triplets (10 terms)
+        triplets = [
+            (p_val, p_mom, p_flow), (p_val, p_mom, p_cat), (p_val, p_mom, p_net),
+            (p_val, p_flow, p_cat), (p_val, p_flow, p_net), (p_val, p_cat, p_net),
+            (p_mom, p_flow, p_cat), (p_mom, p_flow, p_net), (p_mom, p_cat, p_net),
+            (p_flow, p_cat, p_net)
+        ]
+        tri_confluence = pd.Series(0.0, index=scores_df.index)
+        if w_tri > 0:
+            for t1, t2, t3 in triplets:
+                tri_confluence += w_tri * (t1 * t2 * t3)
+
+        # 3. 4th-order Quadruplets (5 terms)
+        quads = [
+            (p_val, p_mom, p_flow, p_cat),
+            (p_val, p_mom, p_flow, p_net),
+            (p_val, p_mom, p_cat, p_net),
+            (p_val, p_flow, p_cat, p_net),
+            (p_mom, p_flow, p_cat, p_net)
+        ]
+        quad_confluence = pd.Series(0.0, index=scores_df.index)
+        if w_quad > 0:
+            for q1, q2, q3, q4 in quads:
+                quad_confluence += w_quad * (q1 * q2 * q3 * q4)
+
+        # 4. 5th-order Quintuplet Hyper-Confluence (1 term)
+        quint_confluence = pd.Series(0.0, index=scores_df.index)
+        if w_quint > 0:
+            quint_confluence = w_quint * (p_val * p_mom * p_flow * p_cat * p_net)
+
+        total_confluence = synergy_sum + tri_confluence + quad_confluence + quint_confluence
+
+        if max_cap is not None:
+            eff_cap = float(max_cap)
+        elif regime_adaptive_cap:
+            eff_cap = float(reg_cap)
+        else:
+            eff_cap = 0.100
+
+        synergy_multiplier = 1.0 + total_confluence.clip(0.0, eff_cap)
+        return synergy_multiplier
+
     compute_pillar_synergy_multiplier = compute_bilinear_cross_pillar_synergy
 
     # =========================================================================
@@ -4343,12 +4715,39 @@ class EnsembleScoringEngine:
         - BEAR_LOW_VOL: (1.30, 0.30, 0.65)
         - BEAR_HIGH_VOL: (1.20, 0.20, 0.70)
         - CRISIS: (1.20, 0.20, 0.78)
+
+        Version 6 (Phase 6 Asymmetric Richards S-Curve):
+        - BULL_LOW_VOL: (1.85, 0.60, 0.38, beta_left=0.35, u_th_left=0.60, eta_right=2.40, eta_left=1.40)
+        - BULL_HIGH_VOL: (1.70, 0.52, 0.45, beta_left=0.35, u_th_left=0.60, eta_right=2.20, eta_left=1.50)
+        - SIDEWAYS_LOW_VOL: (1.50, 0.42, 0.55, beta_left=0.35, u_th_left=0.60, eta_right=2.00, eta_left=1.60)
+        - SIDEWAYS_HIGH_VOL: (1.35, 0.30, 0.68, beta_left=0.35, u_th_left=0.65, eta_right=1.80, eta_left=1.70)
+        - BEAR_LOW_VOL: (1.30, 0.30, 0.65, beta_left=0.40, u_th_left=0.55, eta_right=1.80, eta_left=1.80)
+        - BEAR_HIGH_VOL: (1.20, 0.20, 0.70, beta_left=0.45, u_th_left=0.50, eta_right=1.60, eta_left=1.90)
+        - CRISIS: (1.20, 0.20, 0.78, beta_left=0.50, u_th_left=0.45, eta_right=1.50, eta_left=2.00)
         """
         if regime is None:
             return BessembinderParams(default_gamma, default_beta, default_u_thresh)
         reg_str = str(regime).upper()
 
-        if int(version) >= 5:
+        if int(version) >= 6:
+            if 'CRISIS' in reg_str:
+                return BessembinderParams(1.20, 0.20, 0.78, beta_left=0.50, u_thresh_left=0.45, eta_right=1.50, eta_left=2.00)
+            elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
+                return BessembinderParams(1.20, 0.20, 0.70, beta_left=0.45, u_thresh_left=0.50, eta_right=1.60, eta_left=1.90)
+            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or reg_str == 'BEAR':
+                return BessembinderParams(1.30, 0.30, 0.65, beta_left=0.40, u_thresh_left=0.55, eta_right=1.80, eta_left=1.80)
+            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+                return BessembinderParams(1.35, 0.30, 0.68, beta_left=0.35, u_thresh_left=0.65, eta_right=1.80, eta_left=1.70)
+            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or reg_str == 'SIDEWAYS':
+                return BessembinderParams(1.50, 0.42, 0.55, beta_left=0.35, u_thresh_left=0.60, eta_right=2.00, eta_left=1.60)
+            elif 'BULL_HIGH_VOL' in reg_str:
+                return BessembinderParams(1.70, 0.52, 0.45, beta_left=0.35, u_thresh_left=0.60, eta_right=2.20, eta_left=1.50)
+            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
+                return BessembinderParams(1.85, 0.60, 0.38, beta_left=0.35, u_thresh_left=0.60, eta_right=2.40, eta_left=1.40)
+            else:
+                return BessembinderParams(default_gamma, default_beta, default_u_thresh, beta_left=0.35, u_thresh_left=0.60, eta_right=2.00, eta_left=1.60)
+
+        if int(version) == 5:
             if 'CRISIS' in reg_str:
                 return BessembinderParams(1.20, 0.20, 0.78)
             elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
@@ -4397,7 +4796,10 @@ class EnsembleScoringEngine:
         eta: float = 1.60,
         regime: Optional[Union[str, int]] = None,
         eta_right: Optional[float] = None,
-        version: int = 5
+        version: int = 6,
+        beta_left: Optional[float] = None,
+        u_thresh_left: Optional[float] = None,
+        eta_left: Optional[float] = None
     ) -> np.ndarray:
         """
         Applies Bessembinder Right-Tail or Symmetric Richards Power-Law Convex Scaling:
@@ -4406,17 +4808,61 @@ class EnsembleScoringEngine:
         - When symmetric=True:
             Applies Generalized Symmetric/Asymmetric Richards / Bessembinder Power-Law S-Curve:
             u_i = 2 * (s_i - 0.50) in [-1.0, 1.0]
-            excess_i = max(0, (|u_i| - u_thresh) / (1 - u_thresh))
-            u_tilde_i = sgn(u_i) * |u_i|^gamma_tail * [ 1 + beta_tail * excess_i^eta(u_i) ]
-            s_tilde_i = 0.50 + 0.50 * (u_tilde_i / scale)
-        Feature F35.4: Asymmetric Richards tail scaling with eta_right = 2.0 and lowered u_thresh = 0.40 in Bull Low Vol.
-        Concentrates risk budget onto top-decile consensus winners while simultaneously
-        steepening bottom-decile penalties without rank inversion (rho_s = 1.0000).
+            Phase 6 Version 6: Bilateral Asymmetric Richards S-Curve with independent
+            left/right thresholds (u_th_r, u_th_l) and exponents (eta_r, eta_l).
+            Concentrates risk budget onto top-decile consensus winners while steepening
+            bottom-decile penalties without rank inversion (rho_s = 1.0000).
         """
         arr = np.nan_to_num(np.asarray(scores, dtype=np.float64), nan=0.0)
         if len(arr) < 5:
             return arr
 
+        if not symmetric:
+            p_low = np.percentile(arr, top_percentile)
+            p_high = np.percentile(arr, 99.0)
+            denom = max(1e-4, p_high - p_low)
+
+            boosted = arr.copy()
+            mask_top = arr > p_low
+            if np.any(mask_top):
+                norm_excess = np.clip((arr[mask_top] - p_low) / denom, 0.0, 1.0)
+                convex_mult = 1.0 + max_boost * np.power(norm_excess, power_gamma)
+                boosted[mask_top] = arr[mask_top] * convex_mult
+            return np.clip(boosted, 0.0, 1.0)
+
+        # Version 6: Bilateral Asymmetric Generalized Richards S-Curve
+        if int(version) >= 6:
+            adapt_params = None
+            if regime is not None:
+                adapt_params = cls.get_regime_adaptive_bessembinder_params(regime, version=version)
+
+            eff_gamma = gamma_tail if gamma_tail is not None else (adapt_params.gamma if adapt_params else 1.50)
+            eff_beta_right = beta_tail if beta_tail is not None else (adapt_params.beta_right if adapt_params else 0.42)
+            eff_beta_left = beta_left if beta_left is not None else (getattr(adapt_params, 'beta_left', eff_beta_right) if adapt_params else eff_beta_right)
+            eff_u_thresh_right = u_thresh if u_thresh != 0.60 else (adapt_params.u_thresh_right if adapt_params else 0.55)
+            eff_u_thresh_left = u_thresh_left if u_thresh_left is not None else (getattr(adapt_params, 'u_thresh_left', eff_u_thresh_right) if adapt_params else eff_u_thresh_right)
+            eff_eta_right = eta_right if eta_right is not None else (getattr(adapt_params, 'eta_right', 2.0) if adapt_params else 2.0)
+            eff_eta_left = eta_left if eta_left is not None else (getattr(adapt_params, 'eta_left', eff_eta_right) if adapt_params else eff_eta_right)
+
+            u = np.clip(2.0 * (arr - 0.50), -1.0, 1.0)
+            abs_u = np.abs(u)
+            excess_right = np.maximum(0.0, (u - eff_u_thresh_right) / max(1e-4, 1.0 - eff_u_thresh_right))
+            excess_left = np.maximum(0.0, (abs_u - eff_u_thresh_left) / max(1e-4, 1.0 - eff_u_thresh_left))
+
+            tail_boost_right = 1.0 + eff_beta_right * np.power(excess_right, eff_eta_right)
+            tail_boost_left = 1.0 + eff_beta_left * np.power(excess_left, eff_eta_left)
+
+            u_tilde = np.where(
+                u >= 0,
+                np.power(abs_u, eff_gamma) * tail_boost_right,
+                -np.power(abs_u, eff_gamma) * tail_boost_left
+            )
+
+            scale = max(1.0 + eff_beta_right, float(np.max(np.abs(u_tilde)))) if len(u_tilde) > 0 else (1.0 + eff_beta_right)
+            rescaled = 0.50 + 0.50 * (u_tilde / max(scale, 1e-4))
+            return np.clip(rescaled, 0.0, 1.0)
+
+        # Version 4 / 5 Legacy Branch
         eff_gamma = gamma_tail
         eff_beta = beta_tail
         eff_u_thresh = u_thresh
@@ -4434,25 +4880,10 @@ class EnsembleScoringEngine:
         if eff_beta is None:
             eff_beta = 0.40
 
-        if not symmetric:
-            p_low = np.percentile(arr, top_percentile)
-            p_high = np.percentile(arr, 99.0)
-            denom = max(1e-4, p_high - p_low)
-
-            boosted = arr.copy()
-            mask_top = arr > p_low
-            if np.any(mask_top):
-                norm_excess = np.clip((arr[mask_top] - p_low) / denom, 0.0, 1.0)
-                convex_mult = 1.0 + max_boost * np.power(norm_excess, power_gamma)
-                boosted[mask_top] = arr[mask_top] * convex_mult
-            return np.clip(boosted, 0.0, 1.0)
-
-        # Generalized Asymmetric Richards / Bessembinder Power-Law S-Curve
         u = np.clip(2.0 * (arr - 0.50), -1.0, 1.0)
         abs_u = np.abs(u)
         excess = np.maximum(0.0, (abs_u - eff_u_thresh) / max(1e-4, 1.0 - eff_u_thresh))
 
-        # Asymmetric curvature: eta_right = 2.0 for positive conviction in Bull/Sideways
         if eta_right is None:
             reg_str = str(regime).upper() if regime is not None else ''
             if 'BULL' in reg_str or 'SIDEWAYS_LOW_VOL' in reg_str:
@@ -4466,24 +4897,41 @@ class EnsembleScoringEngine:
         tail_boost = 1.0 + eff_beta * np.power(excess, eff_eta)
         u_tilde = np.sign(u) * np.power(abs_u, eff_gamma) * tail_boost
 
-        # Theoretical and cross-sectional bounding scale
         scale = max(1.0 + eff_beta, float(np.max(np.abs(u_tilde)))) if len(u_tilde) > 0 else (1.0 + eff_beta)
         rescaled = 0.50 + 0.50 * (u_tilde / max(scale, 1e-4))
         return np.clip(rescaled, 0.0, 1.0)
 
     @classmethod
-    def get_regime_adaptive_gamma_tail(cls, regime: Union[int, str] = 'BULL_LOW_VOL') -> float:
+    def get_regime_adaptive_gamma_tail(
+        cls,
+        regime: Union[int, str] = 'BULL_LOW_VOL',
+        version: int = 5
+    ) -> float:
         """
-        Feature F35.1: Regime-Adaptive Richards Right-Tail Exponent gamma_tail(R) in [1.00, 1.30]:
-        - BULL_LOW_VOL: 1.30 (steep right-tail convexity in calm bull trend)
-        - BULL_HIGH_VOL: 1.22
-        - SIDEWAYS_LOW_VOL: 1.15
-        - SIDEWAYS_HIGH_VOL: 1.10
-        - BEAR_LOW_VOL: 1.08
-        - BEAR_HIGH_VOL: 1.00
-        - CRISIS: 1.00 (linear tail to prevent over-amplification in panic)
+        Regime-Adaptive Richards Right-Tail Exponent gamma_tail(R):
+        - Phase 5: [1.00, 1.30]
+        - Phase 6 (version=6): [1.00, 1.35] (1.35 in BULL_LOW_VOL)
         """
         reg_str = str(regime).upper()
+        if int(version) >= 6:
+            if 'CRISIS' in reg_str or 'BEAR_HIGH_VOL' in reg_str:
+                return 1.00
+            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or ('BEAR' in reg_str and 'LOW_VOL' in reg_str):
+                return 1.10
+            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+                return 1.15
+            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or 'SIDEWAYS' in reg_str:
+                return 1.20
+            elif 'BULL_HIGH_VOL' in reg_str:
+                return 1.28
+            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
+                return 1.35
+            elif 'BEAR' in reg_str:
+                return 1.05
+            else:
+                return 1.20
+
+        # Version 5 baseline
         if 'CRISIS' in reg_str or 'BEAR_HIGH_VOL' in reg_str:
             return 1.00
         elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or ('BEAR' in reg_str and 'LOW_VOL' in reg_str):
@@ -4505,36 +4953,39 @@ class EnsembleScoringEngine:
     def get_regime_adaptive_noise_deadband(
         cls,
         regime: Union[int, str] = 'SIDEWAYS_LOW_VOL',
-        regime_probs: Optional[Dict[str, float]] = None
-    ) -> float:
+        regime_probs: Optional[Dict[str, float]] = None,
+        return_bilateral: bool = False
+    ) -> Union[float, Tuple[float, float]]:
         """
-        Feature F36.2: Computes regime-adaptive noise deadband delta_noise(R, pi) = delta_0(R) * (1.0 + 0.50 * H_norm(pi))
-        where delta_0 in [0.02, 0.07]:
-        - BULL_LOW_VOL: 0.020
-        - BULL_HIGH_VOL: 0.035
-        - SIDEWAYS_LOW_VOL: 0.045
-        - SIDEWAYS_HIGH_VOL: 0.060
-        - BEAR_LOW_VOL: 0.040
-        - BEAR_HIGH_VOL: 0.055
-        - CRISIS: 0.070
+        Feature F36.2 & F42.2: Computes regime-adaptive noise deadband:
+        delta_noise^+(R, pi) = delta_0(R) * (1.0 + 0.40 * H_norm(pi))
+        delta_noise^-(R, pi) = delta_noise^+ * chi_bear(R)
         """
         reg_str = str(regime).upper()
         if 'CRISIS' in reg_str:
             delta_0 = 0.070
+            chi_bear = 1.40
         elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
             delta_0 = 0.055
+            chi_bear = 1.35
         elif 'SIDEWAYS_HIGH_VOL' in reg_str:
             delta_0 = 0.060
+            chi_bear = 1.15
         elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or 'SIDEWAYS' in reg_str:
             delta_0 = 0.045
+            chi_bear = 1.00
         elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or 'BEAR' in reg_str:
             delta_0 = 0.040
+            chi_bear = 1.20
         elif 'BULL_HIGH_VOL' in reg_str:
             delta_0 = 0.035
+            chi_bear = 1.00
         elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
             delta_0 = 0.020
+            chi_bear = 1.00
         else:
             delta_0 = 0.045
+            chi_bear = 1.00
 
         h_norm = 0.0
         if regime_probs is not None and isinstance(regime_probs, dict) and len(regime_probs) > 1:
@@ -4545,27 +4996,62 @@ class EnsembleScoringEngine:
                 max_entropy = float(np.log(max(2.0, float(len(probs)), 7.0)))
                 h_norm = float(np.clip(shannon_entropy / max(1e-4, max_entropy), 0.0, 1.0))
 
-        return float(delta_0 * (1.0 + 0.50 * h_norm))
+        delta_plus = float(delta_0 * (1.0 + 0.40 * h_norm)) if h_norm > 0 else delta_0
+        delta_minus = float(delta_plus * chi_bear)
 
-    @staticmethod
+        if return_bilateral:
+            return delta_plus, delta_minus
+        return delta_plus
+
+    @classmethod
     def apply_smooth_noise_deadband(
+        cls,
         scores_centered: Union[pd.Series, np.ndarray],
-        delta_noise: float = 0.045
+        delta_noise: float = 0.045,
+        delta_neg: Optional[float] = None,
+        alpha_pos: float = 3.0,
+        alpha_neg: Optional[float] = None,
+        regime: Optional[Union[str, int]] = None
     ) -> Union[pd.Series, np.ndarray]:
         """
-        Feature F36.2: C^infinity-Smooth Hyperbolic Tangent Noise Deadband Soft-Thresholding:
-        z_denoised = z * tanh((|z| / delta_noise)^3)
-        Eliminates >85% of near-0.50 Brownian noise in sideways/turbulent markets
-        while preserving >98% of strong signals and guaranteeing strict rank monotonicity (rho_s = 1.0000).
+        Feature F36.2 & F42.2: Asymmetric Kurtosis-Adaptive Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^alpha_eff(z))
+        - Positive conviction (z >= 0): delta_eff = delta_noise, alpha_eff = alpha_pos (default 3.0, 3.5 in Bull)
+        - Negative conviction (z < 0): delta_eff = delta_neg, alpha_eff = 4.0 in Crisis/High-Vol, 3.5 in Bear Low Vol, alpha_pos when regime is None.
+        Squashes >90% of near-zero noise (|z| <= 0.01) while preserving >98.5% of high conviction signals (|z| >= 0.15)
+        with strictly monotonic rank order (rho_s == 1.0000).
         """
-        safe_delta = max(1e-6, float(delta_noise))
         is_series = isinstance(scores_centered, pd.Series)
         z = scores_centered.values if is_series else np.asarray(scores_centered, dtype=np.float64)
 
+        reg_str = str(regime).upper() if regime is not None else ''
+        if 'CRISIS' in reg_str:
+            chi_bear = 1.40
+            eff_alpha_neg = 4.0 if alpha_neg is None else alpha_neg
+        elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
+            chi_bear = 1.35
+            eff_alpha_neg = 4.0 if alpha_neg is None else alpha_neg
+        elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or 'BEAR' in reg_str:
+            chi_bear = 1.20
+            eff_alpha_neg = 3.5 if alpha_neg is None else alpha_neg
+        elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+            chi_bear = 1.15
+            eff_alpha_neg = 3.5 if alpha_neg is None else alpha_neg
+        else:
+            chi_bear = 1.00
+            eff_alpha_neg = alpha_pos if alpha_neg is None else alpha_neg
+
+        safe_delta_pos = max(1e-6, float(delta_noise))
+        safe_delta_neg = max(1e-6, float(delta_neg)) if delta_neg is not None else (safe_delta_pos * chi_bear)
+
+        is_neg = (z < 0.0)
+        delta_eff = np.where(is_neg, safe_delta_neg, safe_delta_pos)
+        alpha_eff = np.where(is_neg, eff_alpha_neg, alpha_pos)
+
         abs_z = np.abs(z)
-        ratio = np.clip(abs_z / safe_delta, 0.0, 50.0)
-        cube_arg = np.clip(np.power(ratio, 3.0), 0.0, 50.0)
-        denoised = z * np.tanh(cube_arg)
+        ratio = np.clip(abs_z / delta_eff, 0.0, 50.0)
+        arg = np.clip(np.power(ratio, alpha_eff), 0.0, 50.0)
+        denoised = z * np.tanh(arg)
 
         if is_series:
             return pd.Series(denoised, index=scores_centered.index)

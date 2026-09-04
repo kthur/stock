@@ -1,28 +1,25 @@
-## 2026-09-04T09:33:20Z
+# DISPATCH — Challenger M1-2
 
-You are Challenger 2 for Milestone 1 of Phase 5 Deep Quantitative Enhancements.
-Your working directory is: `d:\Finance\code\stock\.agents\challenger_m1_2`
+**Task**: Quantitative Spread Expansion & Noise Deadband Challenge for Milestone 1 (F41 & F42).
+**Authoritative Reference**: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (see ## 2026-09-04T13:40:12Z)
+**Worker Handoff**: `d:\Finance\code\stock\.agents\worker_m1\handoff.md`
+**Target Files**:
+- `src/ai/ensemble_scorer.py`
+- `src/ai/factor_suppression.py`
 
-MANDATORY FIRST STEP:
-Read the following authoritative files:
-1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (specifically header `## 2026-09-04T08:36:42Z`)
-2. `d:\Finance\code\stock\PROJECT.md`
-3. `d:\Finance\code\stock\.agents\orchestrator_quant_opt5\SCOPE.md`
-4. `d:\Finance\code\stock\.agents\worker_m1\handoff.md`
+**Objectives**:
+1. Adversarially challenge the top-decile alpha spread claim: does Version 6 expand top-decile spread by $\ge 15\%$ compared to Phase 5 across 500-stock randomized portfolios?
+2. Adversarially challenge the noise deadband claim: does asymmetric kurtosis deadband squash $\ge 90\%$ of noise for $|z| \le 0.010$ while preserving $\ge 98.5\%$ of conviction signals for $|z| \ge 0.150$?
+3. Verify Markov half-life elasticity: do microstructure signals decay faster than fundamental signals under regime transitions?
+4. Execute empirical tests via Python.
+5. Report verdict (CONFIRM / REJECT) with quantitative test metrics in `d:\Finance\code\stock\.agents\challenger_m1_2\handoff.md`.
 
-Your Mission:
-Perform adversarial stress-testing and empirical validation on Worker M1's changes in:
-- `trading_system/src/ai/ensemble_scorer.py`
-- `tests/test_phase5_signal_enhancement.py`
-
-Adversarial Stress Scenarios to Test:
-1. Extreme Regimes & Bounds: Verify that under all 6 market regimes (including Crisis and Sideways High Vol) and with extreme inputs (all 0s, all 1s, high NaN proportions), output scores strictly remain in $[0.0, 1.0]$ with 0 NaNs and 0 Infs.
-2. Quad-Pillar & Tri-Catalyst Synergy Bounds: Stress test synergy calculations with missing pillars, partial pillars, and verify that synergy multipliers never exceed the regime cap ($1.04 \sim 1.15$). Note: canonical specification in `ensemble_scorer.py` defines $\Omega(\text{val}, \text{cat}) = 0.015$ in Bull Low Vol.
-3. Performance Benchmarking: Measure execution runtime of `combine_predictions` on a realistic universe of 500 stocks across 37 strategies to verify negligible latency overhead (<50ms).
-4. Run all relevant tests via `.venv\Scripts\python.exe -m pytest tests/test_phase5_signal_enhancement.py tests/test_phase4_signal_enhancement.py -v`.
-
-Deliverable:
-Write an adversarial verification report to:
-`d:\Finance\code\stock\.agents\challenger_m1_2\handoff.md`
-with an explicit verdict: **`APPROVE`** or **`REQUEST_CHANGES`**.
-Notify me via `send_message`.
+## 2026-09-04T14:17:17Z
+You are challenger_m1_2.
+Your working directory is: d:\Finance\code\stock\.agents\challenger_m1_2\
+Read d:\Finance\code\stock\.agents\challenger_m1_2\DISPATCH.md and d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (mandatory).
+Read d:\Finance\code\stock\.agents\worker_m1\handoff.md.
+Adversarially challenge top-decile spread expansion (>= 15% vs Phase 5), noise deadband squashing (>= 90% for |z| <= 0.010), and signal transmission (>= 98.5% for |z| >= 0.150).
+Run empirical verification tests.
+Deliver your challenger report and verdict (CONFIRM or REJECT) to: d:\Finance\code\stock\.agents\challenger_m1_2\handoff.md
+Send completion message back to parent.

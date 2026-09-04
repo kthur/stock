@@ -1375,17 +1375,17 @@ class ExecutionOMSEngine:
         multi_obi: Optional[Dict[str, float]] = None,
         daily_volatility: Optional[float] = None,
         book_depth_ratio: Optional[float] = None,
+        queue_position_ratio: Optional[float] = None,
+        l3_micro_price: Optional[float] = None,
+        l3_imbalance: Optional[float] = None,
     ) -> float:
         """
-        Calculates optimal limit price for Midpoint Pegged passive maker order routing.
-        Saves half-spread and captures maker rebates when alpha urgency is low/medium.
-        Feature 13 & F31: Multi-Tier L2 OBI & Volume-Weighted Micro-Price Pegging:
-            P_base = P_micro if micro_price is valid else P_mid
-            OBI_comp = 0.50 * OBI_1 + 0.35 * OBI_5 + 0.15 * OBI_10 (if multi_obi) else OBI
-            P_peg = P_base + 0.5 * spread * tanh(kappa * OBI_comp)
-        F38: Volatility- and depth-adaptive L2 OBI micro-price dynamic curvature:
-            kappa_eff = clip(1.5 * (sigma / 0.02) / sqrt(R_depth), 0.8, 3.0)
-        where OBI in [-1.0, 1.0].
+        Phase 6 (F44) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
+        1. Base anchor price: L3 micro-price > L1 micro-price > mid price.
+        2. Dynamic curvature kappa_eff scales with volatility and orderbook depth.
+        3. Imbalance shift uses L3 decayed imbalance > multi-tier L2 OBI composite > L1 OBI.
+        4. Queue position adverse selection offset delta_P_queue compensates when order is buried (u_q > 0.40).
+        5. Strict clipping within [min(bid, ask), max(bid, ask)].
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
         if tp <= 0:
@@ -1396,15 +1396,19 @@ class ExecutionOMSEngine:
         p_ask = float(ask_price) if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
         p_mid = (p_bid + p_ask) / 2.0
 
-        # F31: Baseline price selection (micro_price if available and valid)
-        if micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
+        # 1. Base anchor price: L3 micro-price > L1 micro-price > mid price
+        if l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
+            p_base = float(l3_micro_price)
+        elif micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
             p_base = float(micro_price)
         else:
             p_base = p_mid
 
-        # F31: Multi-tier OBI composite calculation
+        # 2. Imbalance resolution: L3 decayed imbalance > Multi-tier L2 composite > L1 OBI
         eff_obi = None
-        if multi_obi is not None and isinstance(multi_obi, dict):
+        if l3_imbalance is not None and math.isfinite(float(l3_imbalance)):
+            eff_obi = float(l3_imbalance)
+        elif multi_obi is not None and isinstance(multi_obi, dict):
             obi_1 = float(multi_obi.get("OBI_1", multi_obi.get("obi_1", multi_obi.get("1", multi_obi.get(1, 0.0)))) or 0.0)
             obi_5 = float(multi_obi.get("OBI_5", multi_obi.get("obi_5", multi_obi.get("5", multi_obi.get(5, 0.0)))) or 0.0)
             obi_10 = float(multi_obi.get("OBI_10", multi_obi.get("obi_10", multi_obi.get("10", multi_obi.get(10, 0.0)))) or 0.0)
@@ -1412,7 +1416,7 @@ class ExecutionOMSEngine:
         elif obi is not None and math.isfinite(float(obi)):
             eff_obi = float(obi)
 
-        # F38: Volatility- and depth-adaptive L2 OBI micro-price dynamic curvature
+        # 3. Dynamic curvature scaling
         if daily_volatility is not None or book_depth_ratio is not None:
             sig = float(daily_volatility) if daily_volatility is not None else 0.02
             r_depth = float(book_depth_ratio) if book_depth_ratio is not None else 1.0
@@ -1423,24 +1427,40 @@ class ExecutionOMSEngine:
 
         is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE", "BID"]
 
+        # 4. Imbalance peg shift
         if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0:
             obi_val = float(np.clip(float(eff_obi), -1.0, 1.0))
             peg_shift = 0.5 * spr * math.tanh(kappa_eff * obi_val)
-            peg_price = p_base + peg_shift
+        else:
+            peg_shift = 0.0
+
+        # 5. Queue position adverse selection offset (F44)
+        q_shift = 0.0
+        if queue_position_ratio is not None and math.isfinite(float(queue_position_ratio)):
+            u_q = float(np.clip(float(queue_position_ratio), 0.0, 1.0))
+            if u_q > 0.40:
+                direction = 1.0 if is_buy else -1.0
+                urg = float(np.clip(float(alpha_urgency), 0.1, 1.0))
+                q_shift = direction * 0.5 * spr * urg * (u_q - 0.40) * 0.60
+
+        # If micro-price, L3 micro-price, OBI shift, or queue offset was active
+        if (
+            (l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0)
+            or (micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0)
+            or (eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0)
+            or q_shift != 0.0
+        ):
+            peg_price = p_base + peg_shift + q_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
-        # If micro_price was provided without OBI shift, use micro_price as peg anchor
-        if micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
-            return float(np.clip(p_base, min(p_bid, p_ask), max(p_bid, p_ask)))
-
-        if alpha_urgency <= 0.40:
-            peg_price = p_bid if is_buy else p_ask
-        elif alpha_urgency <= 0.75:
-            peg_price = p_mid
+        # Fallback to urgency interpolation between bid and ask
+        urgency = max(0.0, min(1.0, float(alpha_urgency)))
+        if is_buy:
+            peg_price = p_bid + urgency * (p_ask - p_bid)
         else:
-            peg_price = p_ask if is_buy else p_bid
+            peg_price = p_ask - urgency * (p_ask - p_bid)
 
-        return float(peg_price)
+        return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
     REGIME_TIMING_MATRIX: Dict[str, Dict[str, Any]] = {
         'BULL_LOW_VOL': {'entry_thresh': 0.65, 'tp_tier1': 0.08, 'tp_tier2': 0.15, 'tp_tier3': 0.25, 'sl_atr_mult': 2.0, 'ts_atr_mult': 2.5, 'max_holding_days': 45},
@@ -1844,17 +1864,17 @@ class AlmgrenChrissScheduler:
         multi_obi: Optional[Dict[str, float]] = None,
         daily_volatility: Optional[float] = None,
         book_depth_ratio: Optional[float] = None,
+        queue_position_ratio: Optional[float] = None,
+        l3_micro_price: Optional[float] = None,
+        l3_imbalance: Optional[float] = None,
     ) -> float:
         """
-        Calculates optimal limit price for Midpoint Pegged passive maker order routing.
-        Saves half-spread and captures maker rebates when alpha urgency is low/medium.
-        Feature 13 & F31: Multi-Tier L2 OBI & Volume-Weighted Micro-Price Pegging:
-            P_base = P_micro if micro_price is valid else P_mid
-            OBI_comp = 0.50 * OBI_1 + 0.35 * OBI_5 + 0.15 * OBI_10 (if multi_obi) else OBI
-            P_peg = P_base + 0.5 * spread * tanh(kappa * OBI_comp)
-        F38: Volatility- and depth-adaptive L2 OBI micro-price dynamic curvature:
-            kappa_eff = clip(1.5 * (sigma / 0.02) / sqrt(R_depth), 0.8, 3.0)
-        where OBI in [-1.0, 1.0].
+        Phase 6 (F44) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
+        1. Base anchor price: L3 micro-price > L1 micro-price > mid price.
+        2. Dynamic curvature kappa_eff scales with volatility and orderbook depth.
+        3. Imbalance shift uses L3 decayed imbalance > multi-tier L2 OBI composite > L1 OBI.
+        4. Queue position adverse selection offset delta_P_queue compensates when order is buried (u_q > 0.40).
+        5. Strict clipping within [min(bid, ask), max(bid, ask)].
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
         if tp <= 0:
@@ -1865,15 +1885,19 @@ class AlmgrenChrissScheduler:
         p_ask = float(ask_price) if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
         p_mid = (p_bid + p_ask) / 2.0
 
-        # F31: Baseline price selection (micro_price if available and valid)
-        if micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
+        # 1. Base anchor price: L3 micro-price > L1 micro-price > mid price
+        if l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
+            p_base = float(l3_micro_price)
+        elif micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
             p_base = float(micro_price)
         else:
             p_base = p_mid
 
-        # F31: Multi-tier OBI composite calculation
+        # 2. Imbalance resolution: L3 decayed imbalance > Multi-tier L2 composite > L1 OBI
         eff_obi = None
-        if multi_obi is not None and isinstance(multi_obi, dict):
+        if l3_imbalance is not None and math.isfinite(float(l3_imbalance)):
+            eff_obi = float(l3_imbalance)
+        elif multi_obi is not None and isinstance(multi_obi, dict):
             obi_1 = float(multi_obi.get("OBI_1", multi_obi.get("obi_1", multi_obi.get("1", multi_obi.get(1, 0.0)))) or 0.0)
             obi_5 = float(multi_obi.get("OBI_5", multi_obi.get("obi_5", multi_obi.get("5", multi_obi.get(5, 0.0)))) or 0.0)
             obi_10 = float(multi_obi.get("OBI_10", multi_obi.get("obi_10", multi_obi.get("10", multi_obi.get(10, 0.0)))) or 0.0)
@@ -1881,7 +1905,7 @@ class AlmgrenChrissScheduler:
         elif obi is not None and math.isfinite(float(obi)):
             eff_obi = float(obi)
 
-        # F38: Volatility- and depth-adaptive L2 OBI micro-price dynamic curvature
+        # 3. Dynamic curvature scaling
         if daily_volatility is not None or book_depth_ratio is not None:
             sig = float(daily_volatility) if daily_volatility is not None else 0.02
             r_depth = float(book_depth_ratio) if book_depth_ratio is not None else 1.0
@@ -1890,24 +1914,42 @@ class AlmgrenChrissScheduler:
         else:
             kappa_eff = float(kappa)
 
+        is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE", "BID"]
+
+        # 4. Imbalance peg shift
         if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0:
             obi_val = float(np.clip(float(eff_obi), -1.0, 1.0))
             peg_shift = 0.5 * spr * math.tanh(kappa_eff * obi_val)
-            peg_price = p_base + peg_shift
+        else:
+            peg_shift = 0.0
+
+        # 5. Queue position adverse selection offset (F44)
+        q_shift = 0.0
+        if queue_position_ratio is not None and math.isfinite(float(queue_position_ratio)):
+            u_q = float(np.clip(float(queue_position_ratio), 0.0, 1.0))
+            if u_q > 0.40:
+                direction = 1.0 if is_buy else -1.0
+                urg = float(np.clip(float(alpha_urgency), 0.1, 1.0))
+                q_shift = direction * 0.5 * spr * urg * (u_q - 0.40) * 0.60
+
+        # If micro-price, L3 micro-price, OBI shift, or queue offset was active
+        if (
+            (l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0)
+            or (micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0)
+            or (eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0)
+            or q_shift != 0.0
+        ):
+            peg_price = p_base + peg_shift + q_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
-        # If micro_price was provided without OBI shift, use micro_price as peg anchor
-        if micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
-            return float(np.clip(p_base, min(p_bid, p_ask), max(p_bid, p_ask)))
-
+        # Fallback to urgency interpolation between bid and ask
         urgency = max(0.0, min(1.0, float(alpha_urgency)))
-        act = str(action).upper().strip()
-        if act in ("BUY", "BID", "LONG", "BUY_HEDGE"):
+        if is_buy:
             peg_price = p_bid + urgency * (p_ask - p_bid)
-            return float(min(peg_price, p_ask))
         else:
             peg_price = p_ask - urgency * (p_ask - p_bid)
-            return float(max(peg_price, p_bid))
+
+        return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
 
 class GatheralMarketImpactKernel:

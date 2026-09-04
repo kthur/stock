@@ -9,7 +9,36 @@ logger = logging.getLogger(__name__)
 # DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results,
 # create dummy/facade implementations, or circumvent the intended task. A Forensic
 # Auditor will independently verify your work. Integrity violations WILL be detected
-# and your work WILL be rejected.
+# Phase 6 Quint-Pillar Economic Decomposition Mapping (37 strategies across 5 disjoint canonical pillars)
+class QuintPillarMap(dict):
+    """
+    5-Pillar Canonical Mapping supporting both short keys ('val', 'mom', 'flow', 'cat', 'net')
+    and formal cluster labels ('VAL_QUAL', 'MOM_TREND', 'MICRO_FLOW', 'CORP_CAT', 'NETWORK_MACRO').
+    """
+    _ALIASES = {
+        'VAL_QUAL': 'val',
+        'MOM_TREND': 'mom',
+        'MICRO_FLOW': 'flow',
+        'CORP_CAT': 'cat',
+        'NETWORK_MACRO': 'net',
+    }
+
+    def __getitem__(self, key: str) -> List[str]:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return super().__getitem__(canonical_key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return super().get(canonical_key, default)
+
+
+QUINT_PILLAR_MAP = QuintPillarMap({
+    'val': ['rim_valuation', 'valueup_catalyst', 'accruals_quality', 'arm_factor', 'factor_neutralized', 'regression'],
+    'mom': ['surge', 'vcp_ml', 'trend_efficiency', 'sector_rotation', 'range_expansion', 'mq_factor', 'lead_lag', 'vcp_rule', 'lstm'],
+    'flow': ['order_flow', 'inst_foreign_sector', 'darkpool', 'microstructure', 'overnight_gap', 'stat_arb', 'iv_skew', 'short_term_reversal', 'vol_target'],
+    'cat': ['event_driven', 'sentiment', 'short_squeeze', 'gamma_squeeze', 'insider_buying', 'earnings_tone_drift'],
+    'net': ['supply_chain', 'supply_chain_gnn', 'cross_asset_spillover', 'dual_correction', 'index_rebalance', 'card_factor', 'latr_factor']
+})
 
 
 def solve_single_stage_entropy_allocation(
@@ -78,6 +107,9 @@ class RegimeFactorSuppressionEngine:
         'REVERSAL': ['stat_arb', 'vcp_rule', 'vcp', 'vcp_patterns', 'short_term_reversal', 'card_factor', 'dual_correction', 'overnight_gap_reversal', 'overnight_gap'],
         'FLOW_MICRO': ['lead_lag', 'event_driven', 'iv_skew', 'order_flow', 'latr_factor', 'inst_foreign_sector', 'sentiment', 'microstructure', 'gamma_squeeze', 'insider_buying', 'darkpool', 'darkpool_hft', 'earnings_tone_drift', 'tone_drift', 'hft', 'index_rebalance', 'index_rebalance_structural_flow']
     }
+
+    # Phase 6 Quint-Pillar Economic Decomposition Mapping (37 strategies)
+    QUINT_PILLAR_MAP = QUINT_PILLAR_MAP
 
     # Inverse mapping from strategy to cluster name
     STRATEGY_TO_CLUSTER = {}

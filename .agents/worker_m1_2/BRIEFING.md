@@ -1,7 +1,7 @@
-# BRIEFING — 2026-07-31T18:55:00Z
+# BRIEFING — 2026-09-04T14:30:33Z
 
 ## Mission
-Remediate 5 critical bugs in Intraday Stop-Loss Engine and RiskManager for Milestone 1 (R1).
+Remediate branch ordering defect in compute_quint_pillar_tensor_synergy in trading_system/src/ai/ensemble_scorer.py to ensure BEAR_HIGH_VOL precedes BEAR_LOW_VOL / BEAR.
 
 ## 🔒 My Identity
 - Archetype: worker_m1_2
@@ -9,49 +9,44 @@ Remediate 5 critical bugs in Intraday Stop-Loss Engine and RiskManager for Miles
 - Working directory: d:\Finance\code\stock\.agents\worker_m1_2
 - Original parent: 450b5560-14d4-4158-80b1-57ec805a6db7
 - Milestone: M1 R1 Intraday Microstructure & Dynamic Stop-Loss Engine Bug Fixes
+- Current Milestone: Milestone 1 Remediation (Iteration 2)
+- Current Parent Conversation ID: cb4888d0-b14d-471f-b555-422c2a30d7c0
 
 ## 🔒 Key Constraints
 - Minimal change principle.
 - Absolute genuine implementation — no hardcoding, facades, or shortcuts.
 - Ensure all tests (unit tests, stress tests, full test suite) pass.
+- Exclusive Write Ownership: src/ai/ensemble_scorer.py, src/ai/factor_suppression.py, tests/test_phase6_signal_enhancement.py, tests/test_phase6_m1_challenger1_adversarial.py.
 
 ## Current Parent
-- Conversation ID: 450b5560-14d4-4158-80b1-57ec805a6db7
-- Updated: 2026-07-31T18:55:00Z
+- Conversation ID: cb4888d0-b14d-471f-b555-422c2a30d7c0
+- Updated: 2026-09-04T14:30:33Z
 
 ## Task Summary
-- **What to build**: Bug fixes for IntradayStopLossEngine and RiskManager check_intraday_risk
-- **Success criteria**: 100% pass on pytest suite and stress tests, comprehensive tests added, valid code, clear handoff & changes reports.
+- **What to build**: Fix branch ordering defect in `compute_quint_pillar_tensor_synergy` in `trading_system/src/ai/ensemble_scorer.py` (ensure BEAR_HIGH_VOL precedes BEAR_LOW_VOL / BEAR).
+- **Success criteria**: 100% pass on pytest tests/test_phase6_signal_enhancement.py tests/test_phase6_m1_challenger1_adversarial.py tests/test_phase5_signal_enhancement.py tests/test_phase4_signal_enhancement.py -v.
 - **Interface contracts**: AGENTS.md
-- **Code layout**: trading_system/src/risk/, src/risk/, trading_system/tests/
+- **Code layout**: trading_system/src/ai/ensemble_scorer.py
 
 ## Key Decisions Made
-- Added per-symbol exception isolation in `RiskManager.check_intraday_risk()` with warning logging and safe fallback StopLossResult.
-- Implemented `_is_invalid_price` and `_is_invalid_volume` input validation gating execution before updating internal state (`_symbol_peaks` / `_price_history`).
-- Fixed volume window slicing to `volumes[-window_len:]` (up to 20 elements) and added Dict vs DataFrame zero-volume baseline parity logic.
-- Implemented transient outlier spike filtering (`> 1.5 * last_valid_price`), median baseline calculation for DataFrame inputs, and `reset_symbol`/`reset_all` methods.
-- Implemented LRU eviction using `OrderedDict` with `max_symbols` capacity limit (10,000 tickers) and thread lock for thread safety.
+- Reorder regime branches in compute_quint_pillar_tensor_synergy so BEAR_HIGH_VOL is evaluated before BEAR_LOW_VOL / BEAR fallback.
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/risk/intraday_stop_loss.py`: Core engine hardening & bug fixes
-  - `trading_system/src/risk/risk_manager.py`: Per-symbol exception isolation in check_intraday_risk()
-  - `trading_system/tests/test_intraday_stop_loss.py`: Unit test coverage for all 5 bugs
-  - `.agents/worker_m1_2/changes.md`: Remediation report
-  - `.agents/worker_m1_2/handoff.md`: Self-contained handoff report
-- **Build status**: PASS (13/13 unit tests, 21/21 stress tests in harness 2, 8/8 stress tests in harness 1)
+  - `trading_system/src/ai/ensemble_scorer.py`: Fixed branch ordering in `compute_quint_pillar_tensor_synergy` so `BEAR_HIGH_VOL` precedes `BEAR_LOW_VOL` / `BEAR`.
+- **Build status**: PASS (48/48 passed)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (13/13 unit tests, 21/21 stress tests)
-- **Lint status**: PASS
-- **Tests added/modified**: 5 new unit test functions in `test_intraday_stop_loss.py`
+- **Build/test result**: PASS (48/48 passed in 24.97s) across Phase 6, Phase 5, Phase 4 suites + Challenger 1 adversarial test
+- **Lint status**: Clean (py_compile exit code 0)
+- **Tests added/modified**: `tests/test_phase6_m1_challenger1_adversarial.py` now 100% passing (27/27)
 
 ## Loaded Skills
 - None
 
 ## Artifact Index
-- `.agents/worker_m1_2/ORIGINAL_REQUEST.md` — Original request content
-- `.agents/worker_m1_2/BRIEFING.md` — Agent briefing & state
-- `.agents/worker_m1_2/changes.md` — Detailed remediation report
-- `.agents/worker_m1_2/handoff.md` — Self-contained handoff report
+- .agents/worker_m1_2/DISPATCH.md
+- .agents/worker_m1_2/BRIEFING.md
+- .agents/worker_m1_2/progress.md
+- .agents/worker_m1_2/handoff.md

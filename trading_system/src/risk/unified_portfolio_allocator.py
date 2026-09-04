@@ -71,10 +71,12 @@ class UnifiedPortfolioAllocator:
     def calculate_asymmetric_leland_multipliers(
         unrealized_return: float,
         volatility_20d: float,
+        downside_semi_volatility: Optional[float] = None,
     ) -> Tuple[float, float]:
         """
         Computes continuous volatility-normalized asymmetric Leland buffer multipliers:
-            z_unrealized = u_ret / (volatility_20d * sqrt(5))
+            z_unrealized = u_ret / (volatility_20d * sqrt(5)) (for u_ret >= 0)
+            z_unrealized = u_ret / (downside_semi_volatility * sqrt(5)) (for u_ret < 0, F43)
         - Runners (z > 0): smoothly expands upper band (1.0 -> 1.8x) to let winners run.
         - Laggards (z < 0): smoothly tightens lower band (1.0 -> 0.6x) for swift de-risking.
         Returns:
@@ -82,7 +84,13 @@ class UnifiedPortfolioAllocator:
         """
         u_ret = float(unrealized_return) if (unrealized_return is not None and math.isfinite(float(unrealized_return))) else 0.0
         vol_clean = max(0.005, float(volatility_20d)) if (volatility_20d is not None and math.isfinite(float(volatility_20d))) else 0.02
-        vol_5d = vol_clean * math.sqrt(5.0)
+
+        if u_ret < 0.0 and downside_semi_volatility is not None and math.isfinite(float(downside_semi_volatility)):
+            eff_vol = max(0.005, float(downside_semi_volatility))
+        else:
+            eff_vol = vol_clean
+
+        vol_5d = eff_vol * math.sqrt(5.0)
         z_unrealized = u_ret / vol_5d if vol_5d > 0.0 else 0.0
 
         if z_unrealized > 0.0:
@@ -98,6 +106,52 @@ class UnifiedPortfolioAllocator:
             lower_mult = 1.0
 
         return float(upper_mult), float(lower_mult)
+
+    @staticmethod
+    def compute_downside_semi_volatility(
+        returns_matrix: np.ndarray,
+        target_return: float = 0.0,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        F43: Computes upside volatility sigma_i^+, downside semi-volatility sigma_i^-,
+        and downside asymmetry ratio D_i = sigma_i^- / sigma_i^+.
+        """
+        R = np.asarray(returns_matrix, dtype=float)
+        if R.ndim == 1:
+            R = R.reshape(-1, 1)
+        T, n = R.shape
+        if T < 3 or n == 0:
+            return np.full(n, 0.02), np.full(n, 0.02), np.ones(n)
+
+        diff = R - target_return
+        upside = np.maximum(diff, 0.0)
+        downside = np.minimum(diff, 0.0)
+
+        sigma_plus = np.sqrt(np.maximum(np.mean(upside ** 2, axis=0), 1e-8))
+        sigma_minus = np.sqrt(np.maximum(np.mean(downside ** 2, axis=0), 1e-8))
+        downside_ratio = np.clip(sigma_minus / sigma_plus, 0.20, 5.0)
+
+        return sigma_plus, sigma_minus, downside_ratio
+
+    @staticmethod
+    def compute_component_cvar_risk_contributions(
+        weights: np.ndarray,
+        cov_matrix: np.ndarray,
+        k_alpha: float = 2.40,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        F43: Computes Euler marginal risk contribution MRC_i and percentage tail risk contribution TRC_i:
+            MRC_i = k_alpha * (Sigma w)_i / sigma_p
+            TRC_i = w_i * (Sigma w)_i / (w^T Sigma w)
+        """
+        w = np.asarray(weights, dtype=float)
+        port_var = float(w @ cov_matrix @ w)
+        port_std = math.sqrt(max(1e-8, port_var))
+
+        cov_w = cov_matrix @ w
+        mrc = k_alpha * (cov_w / port_std)
+        trc = (w * cov_w) / max(1e-8, port_var)
+        return mrc, trc
 
     @staticmethod
     def compute_higher_order_co_moments(
@@ -425,6 +479,123 @@ class UnifiedPortfolioAllocator:
         self._last_blend_weights = dict(blend_cfg)
         return blend_cfg
 
+    def compute_information_theoretic_blend_weights(
+        self,
+        regime: Optional[Union[str, int, Dict[str, float]]] = "BULL_LOW_VOL",
+        vix_val: Optional[float] = None,
+        crisis_severity: float = 0.0,
+        alpha_dispersion: Optional[float] = None,
+        diversification_ratio: Optional[float] = None,
+        gpd_tail_index: Optional[float] = None,
+        market_coskewness: Optional[float] = None,
+        temperature: float = 1.0,
+    ) -> Dict[str, float]:
+        """
+        F43: Continuous Information-Theoretic 4-Model Reliability Optimization.
+        Computes dynamic posterior log-odds updates Delta ell_m across:
+        [Black-Litterman, HERC, Risk Parity, EVT-CVaR]
+        and applies temperature-controlled Softmax blending.
+        """
+        # 1. Base Prior w^(0)
+        w_prior = {"bl": 0.0, "herc": 0.0, "rp": 0.0, "cvar": 0.0}
+        c_crisis = max(0.0, min(1.0, float(crisis_severity)))
+        v_vol = 0.0
+        u_entropy = 0.0
+
+        if isinstance(regime, dict):
+            probs = [max(0.0, float(v)) for v in regime.values()]
+            tot_p = sum(probs)
+            if tot_p > 0:
+                norm_probs = [p / tot_p for p in probs]
+                # Normalized Shannon entropy H_norm in [0, 1]
+                h_val = -sum(p * math.log(p + 1e-12) for p in norm_probs if p > 0)
+                u_entropy = float(np.clip(h_val / math.log(max(2, len(probs))), 0.0, 1.0))
+                for (r_k, r_v), p_norm in zip(regime.items(), norm_probs):
+                    r_str = str(r_k).upper()
+                    sub_cfg = self.REGIME_OPTIMIZER_BLENDS.get(r_str, self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
+                    for m_k in w_prior:
+                        w_prior[m_k] += p_norm * sub_cfg[m_k]
+                    if "CRISIS" in r_str:
+                        c_crisis = max(c_crisis, p_norm)
+                    if "HIGH_VOL" in r_str:
+                        v_vol = max(v_vol, p_norm)
+            else:
+                w_prior = dict(self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
+        else:
+            if isinstance(regime, int):
+                int_map = {
+                    0: "BULL_LOW_VOL", 1: "BULL_HIGH_VOL",
+                    2: "SIDEWAYS_LOW_VOL", 3: "SIDEWAYS_HIGH_VOL",
+                    4: "BEAR_LOW_VOL", 5: "BEAR_HIGH_VOL",
+                    6: "CRISIS"
+                }
+                reg_str = int_map.get(regime, "SIDEWAYS_LOW_VOL")
+            else:
+                reg_str = str(regime).upper() if regime else "BULL_LOW_VOL"
+
+            if "CRISIS" in reg_str:
+                c_crisis = max(c_crisis, 1.0)
+                sub_cfg = self.REGIME_OPTIMIZER_BLENDS["CRISIS"]
+            elif reg_str in self.REGIME_OPTIMIZER_BLENDS:
+                sub_cfg = self.REGIME_OPTIMIZER_BLENDS[reg_str]
+            elif "BEAR" in reg_str:
+                sub_cfg = self.REGIME_OPTIMIZER_BLENDS["BEAR_HIGH_VOL" if "HIGH" in reg_str else "BEAR_LOW_VOL"]
+            elif "BULL" in reg_str:
+                sub_cfg = self.REGIME_OPTIMIZER_BLENDS["BULL_HIGH_VOL" if "HIGH" in reg_str else "BULL_LOW_VOL"]
+            else:
+                sub_cfg = self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"]
+
+            w_prior = dict(sub_cfg)
+            if "HIGH_VOL" in reg_str:
+                v_vol = max(v_vol, 1.0)
+            u_entropy = 0.0
+
+        # VIX shock volatility indicator
+        if vix_val is not None and math.isfinite(float(vix_val)):
+            vix_f = float(vix_val)
+            v_vol = max(v_vol, 1.0 / (1.0 + math.exp(-max(-10.0, min(10.0, (vix_f - 20.0) / 3.0)))))
+
+        disp = float(alpha_dispersion) if (alpha_dispersion is not None and math.isfinite(float(alpha_dispersion))) else 0.02
+        dr = float(diversification_ratio) if (diversification_ratio is not None and math.isfinite(float(diversification_ratio))) else 1.30
+        xi = float(gpd_tail_index) if (gpd_tail_index is not None and math.isfinite(float(gpd_tail_index))) else 0.15
+        coskew_mkt = float(market_coskewness) if (market_coskewness is not None and math.isfinite(float(market_coskewness))) else 0.0
+
+        # 2. Compute Log-Odds Updates Delta ell_m
+        delta_ell = {
+            "bl": (
+                0.35 * math.tanh((disp - 0.025) / 0.015)
+                - 0.50 * (u_entropy ** 2)
+                - 1.20 * (v_vol + 1.50 * c_crisis)
+                + 0.20 * math.tanh(coskew_mkt)
+            ),
+            "herc": (
+                0.40 * math.tanh((dr - 1.30) / 0.40)
+                + 0.25 * u_entropy * (1.0 - c_crisis)
+                - 0.30 * c_crisis
+            ),
+            "rp": (
+                0.50 * math.tanh((dr - 1.30) / 0.35)
+                - 0.40 * c_crisis
+                - 0.20 * v_vol
+            ),
+            "cvar": (
+                0.80 * v_vol
+                + 1.40 * c_crisis
+                + 0.60 * ((xi - 0.15) / 0.30)
+                - 0.40 * math.tanh(coskew_mkt)
+                + 0.35 * max(0.0, 1.20 - dr)
+            ),
+        }
+
+        # 3. Temperature-controlled Softmax Blending
+        tau = max(0.10, float(temperature))
+        log_odds = {k: math.log(max(1e-4, w_prior[k])) + delta_ell[k] for k in w_prior}
+        max_log = max(log_odds.values())
+        exps = {k: math.exp((v - max_log) / tau) for k, v in log_odds.items()}
+        tot_exp = sum(exps.values())
+
+        return {k: float(v / tot_exp) for k, v in exps.items()}
+
     def calculate_cvar_weights(
         self,
         returns_df: pd.DataFrame,
@@ -652,77 +823,58 @@ class UnifiedPortfolioAllocator:
         if n == 1:
             return np.array([1.0])
 
-        # Feature 9: Continuous Markov 4-Model Dynamic Blending
-        blend_cfg = self.compute_dynamic_regime_blend_weights(regime)
-
-        # F29: Dynamic Model Conviction & Return-Dispersion Blending
+        # Feature 9 & F43: Continuous Information-Theoretic 4-Model Reliability Blending
+        alpha_disp = None
         if predicted_returns is not None and len(predicted_returns) == n:
             p_rets = np.asarray(predicted_returns, dtype=float)
             if np.any(np.abs(p_rets) >= 1.0):
                 p_rets = p_rets / 100.0
             alpha_disp = float(np.nanstd(p_rets))
 
-            reg_str = ""
-            if isinstance(regime, dict):
-                reg_str = " ".join([str(k).upper() for k, v in regime.items() if float(v) > 0.15])
-            elif regime:
-                reg_str = str(regime).upper()
-
-            is_crisis = "CRISIS" in reg_str
-            is_high_vol = "HIGH_VOL" in reg_str
-            is_bull_or_sideways = ("BULL" in reg_str or "SIDEWAYS" in reg_str) and not is_crisis
-
-            # When dispersion is high (sigma(mu) > 0.03) in Bull or Sideways regimes, scale up Black-Litterman:
-            # w_BL^adj = w_BL * (1.0 + 0.30 * tanh((sigma(mu) - 0.03) / 0.02))
-            if is_bull_or_sideways and alpha_disp > 0.03 and blend_cfg.get("bl", 0.0) > 0:
-                bl_scale = 1.0 + 0.30 * math.tanh((alpha_disp - 0.03) / 0.02)
-                blend_cfg["bl"] *= bl_scale
-
-            # In high volatility or crisis, boost EVT-CVaR and HERC to preserve capital
-            if is_crisis or is_high_vol:
-                cvar_boost = 0.20 if is_crisis else 0.10
-                herc_boost = 0.15 if is_crisis else 0.10
-                blend_cfg["cvar"] += cvar_boost
-                blend_cfg["herc"] += herc_boost
-
-            tot_b = sum(blend_cfg.values())
-            if tot_b > 0:
-                blend_cfg = {k: float(v / tot_b) for k, v in blend_cfg.items()}
-
-        # F37: Dynamic Risk Parity Diversification Ratio (DRP-DR) Scaling
+        dr_base = 1.30
         if cov_matrix is not None and cov_matrix.shape == (n, n):
             try:
                 diag_vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-8))
                 mean_vol = float(np.mean(diag_vols))
                 eq_w = np.full(n, 1.0 / n)
                 port_vol_eq = math.sqrt(max(1e-8, float(eq_w @ cov_matrix @ eq_w)))
-                dr_base = float(mean_vol / port_vol_eq) if port_vol_eq > 0 else 1.0
-                # delta_DR = clip(1.0 + 0.40 * (DR - 1.30) / 0.50, 0.60, 1.40)
-                delta_dr = float(np.clip(1.0 + 0.40 * (dr_base - 1.30) / 0.50, 0.60, 1.40))
+                dr_base = float(mean_vol / port_vol_eq) if port_vol_eq > 0 else 1.30
+            except Exception:
+                dr_base = 1.30
 
-                if "herc" in blend_cfg and blend_cfg["herc"] > 0:
-                    blend_cfg["herc"] *= delta_dr
-                if "rp" in blend_cfg and blend_cfg["rp"] > 0:
-                    blend_cfg["rp"] *= delta_dr
+        eff_xi = 0.15
+        co_skew = None
+        co_kurt = None
+        mkt_coskew = 0.0
+        if returns_df is not None and returns_df.shape[0] >= 5 and returns_df.shape[1] == n:
+            try:
+                co_skew, co_kurt = self.compute_higher_order_co_moments(returns_df.values)
+                eff_xi = self.estimate_gpd_tail_index(returns_df.values, tail_quantile=0.90)
+                mkt_coskew = float(np.nanmean(co_skew))
+            except Exception:
+                pass
 
-                # If diversification collapsed (correlation spike DR < 1.30), boost EVT-CVaR
-                if delta_dr < 1.0 and "cvar" in blend_cfg:
-                    blend_cfg["cvar"] += float((1.0 - delta_dr) * 0.20)
+        c_crisis = 0.0
+        if isinstance(regime, dict):
+            c_crisis = max(0.0, float(regime.get("CRISIS", 0.0)))
+        elif regime and "CRISIS" in str(regime).upper():
+            c_crisis = 1.0
 
-                tot_dr_b = sum(blend_cfg.values())
-                if tot_dr_b > 0:
-                    blend_cfg = {k: float(v / tot_dr_b) for k, v in blend_cfg.items()}
-            except Exception as e_dr:
-                logger.debug(f"[DRP-DR Scaling] Exception: {e_dr}")
+        blend_cfg = self.compute_information_theoretic_blend_weights(
+            regime=regime,
+            crisis_severity=c_crisis,
+            alpha_dispersion=alpha_disp,
+            diversification_ratio=dr_base,
+            gpd_tail_index=eff_xi,
+            market_coskewness=mkt_coskew,
+        )
 
         # F37: Systematic Higher-Order Co-Moments Alpha Conviction Adjustment
         eff_predicted_returns = predicted_returns
-        if predicted_returns is not None and len(predicted_returns) == n and returns_df is not None and returns_df.shape[0] >= 5 and returns_df.shape[1] == n:
+        if predicted_returns is not None and len(predicted_returns) == n and co_skew is not None and co_kurt is not None:
             try:
-                co_skew, co_kurt = self.compute_higher_order_co_moments(returns_df.values)
                 p_rets_arr = np.asarray(predicted_returns, dtype=float)
                 # mu_i^adj = mu_i * (1 + lambda_skew * s_i^coskew - lambda_kurt * (k_i^cokurt - 3))
-                # lambda_skew = 0.15, lambda_kurt = 0.05
                 co_tilt = np.clip(1.0 + 0.15 * co_skew - 0.05 * (co_kurt - 3.0), 0.20, 2.50)
                 eff_predicted_returns = p_rets_arr * co_tilt
             except Exception as e_cm:
@@ -799,6 +951,15 @@ class UnifiedPortfolioAllocator:
                     except Exception:
                         tail_cov = cov_matrix
 
+                # Dynamic lambda_semi for F43
+                v_vol_cvar = 1.0 if "HIGH_VOL" in str(regime).upper() else 0.0
+                if isinstance(regime, dict):
+                    v_vol_cvar = max(0.0, sum(float(v) for k, v in regime.items() if "HIGH_VOL" in str(k).upper()))
+                dyn_semi_cov_weight = float(np.clip(
+                    0.25 + 0.35 * v_vol_cvar + 0.40 * c_crisis + 0.20 * max(0.0, -mkt_coskew),
+                    0.20, 0.75
+                ))
+
                 w_cvar = self.calculate_cvar_weights(
                     returns_df,
                     confidence_level=0.95,
@@ -807,7 +968,7 @@ class UnifiedPortfolioAllocator:
                     cov_matrix=tail_cov if tail_cov is not None else cov_matrix,
                     regime=regime,
                     use_downside_semi_cov=True,
-                    semi_cov_weight=0.35,
+                    semi_cov_weight=dyn_semi_cov_weight,
                 )
             except Exception as e:
                 logger.debug(f"[CVaR] Failed, fallback: {e}")
@@ -821,15 +982,31 @@ class UnifiedPortfolioAllocator:
             blend_cfg["cvar"] * w_cvar
         )
 
-        # Alpha-Vol Conviction Tilting: tilts risk-parity/HERC weights toward high-alpha leaders
+        # F43: Downside Sortino Tail Multiplier Tilting
+        down_ratios = np.ones(n)
+        if returns_df is not None and returns_df.shape[0] >= 3 and returns_df.shape[1] == n:
+            try:
+                _, _, down_ratios = self.compute_downside_semi_volatility(returns_df.values)
+            except Exception:
+                down_ratios = np.ones(n)
+
         if eff_predicted_returns is not None and len(eff_predicted_returns) == n:
             preds = np.asarray(eff_predicted_returns, dtype=float)
             p_std = float(np.nanstd(preds))
-            if p_std > 1e-6:
-                p_mean = float(np.nanmean(preds))
-                z_alpha = np.clip((preds - p_mean) / max(p_std, 0.01), -2.5, 2.5)
-                tilt_mult = np.exp(0.35 * z_alpha)
-                w_composite = w_composite * tilt_mult
+            p_mean = float(np.nanmean(preds))
+            z_alpha = np.clip((preds - p_mean) / max(p_std, 0.01), -2.5, 2.5) if p_std > 1e-6 else np.zeros(n)
+
+            coskew_pen = np.zeros(n)
+            if co_skew is not None and len(co_skew) == n:
+                coskew_pen = np.maximum(0.0, -np.nan_to_num(co_skew, nan=0.0))
+
+            tilt_mult = np.exp(
+                0.35 * z_alpha
+                - 0.50 * np.maximum(0.0, down_ratios - 1.0)
+                + 0.25 * np.maximum(0.0, 1.0 - down_ratios)
+                - 0.25 * coskew_pen
+            )
+            w_composite = w_composite * tilt_mult
 
         tot_w = np.sum(w_composite)
         w_blended = w_composite / tot_w if tot_w > 0 else np.full(n, 1.0 / n)
@@ -843,6 +1020,30 @@ class UnifiedPortfolioAllocator:
             max_sector_weight=self.max_sector_weight,
             factor_loadings=factor_loadings
         )
+
+        # F43: Euler Component CVaR (CCVaR) Risk Budget Enforcement
+        if cov_matrix is not None and cov_matrix.shape == (n, n) and n > 1:
+            try:
+                _, trc = self.compute_component_cvar_risk_contributions(w_target, cov_matrix)
+                trc_cap = max(1.75 / n, 0.20)
+                viol_mask = trc > trc_cap
+                if np.any(viol_mask) and np.any(~viol_mask):
+                    w_target[viol_mask] *= (trc_cap / trc[viol_mask])
+                    tot_w = np.sum(w_target)
+                    if tot_w < 1.0:
+                        unalloc = 1.0 - tot_w
+                        fav_scores = np.maximum(w_target[~viol_mask], 0.0)
+                        sum_fav = np.sum(fav_scores)
+                        if sum_fav > 0:
+                            w_target[~viol_mask] += unalloc * (fav_scores / sum_fav)
+                        else:
+                            w_target[~viol_mask] += unalloc / np.sum(~viol_mask)
+                    w_target = np.clip(w_target, 0.0, self.max_single_weight)
+                    sum_w = np.sum(w_target)
+                    if sum_w > 0:
+                        w_target = w_target / sum_w
+            except Exception as e_cvar_budget:
+                logger.debug(f"[Component CVaR Budget Enforcement] Exception: {e_cvar_budget}")
 
         # 6. Dynamic Alpha Half-Life Convergence Speed (theta_i*) & Dark-Pool Adjusted Gatheral 3/2-Power Liquidity Impact
         if advs is not None and len(advs) == n and total_capital > 0:
@@ -985,8 +1186,9 @@ class UnifiedPortfolioAllocator:
         port_var = float(weights.T @ cov_matrix @ weights)
         annualized_port_vol = float(np.sqrt(max(1e-8, port_var * 252.0)))
 
-        # F37: Compute Shannon regime entropy uncertainty U_regime = H(pi) / ln(6)
+        # F43: Quadratic Shannon Regime Entropy Uncertainty & Crisis Severity
         u_regime = 0.0
+        c_crisis = 0.0
         if isinstance(regime, dict) and len(regime) > 0:
             probs = np.array([max(0.0, float(v)) for v in regime.values()], dtype=float)
             tot_p = np.sum(probs)
@@ -995,8 +1197,10 @@ class UnifiedPortfolioAllocator:
                 # Shannon entropy H(pi) = -sum(pi * ln(pi))
                 h_pi = -float(np.sum([p * math.log(p + 1e-12) for p in probs if p > 0]))
                 u_regime = float(np.clip(h_pi / math.log(6.0), 0.0, 1.0))
+            c_crisis = max(0.0, float(regime.get("CRISIS", 0.0)))
         elif regime and isinstance(regime, str):
             u_regime = 0.0
+            c_crisis = 1.0 if "CRISIS" in str(regime).upper() else 0.0
 
         if isinstance(regime, dict):
             regime_key = max(regime, key=regime.get) if regime else "BULL_LOW_VOL"
@@ -1024,10 +1228,11 @@ class UnifiedPortfolioAllocator:
             max_alloc_cap = 0.50  # Risk off
             min_alloc_floor = 0.20
 
-        # F37: Entropy-Weighted Adaptive Target Volatility Scaling
-        eff_target_vol = self.target_volatility * (1.0 - 0.25 * u_regime)
-        max_alloc_cap *= (1.0 - 0.20 * u_regime)
-        min_alloc_floor *= (1.0 - 0.30 * u_regime)
+        # F43: Quadratic Shannon Regime Entropy Scaling & Macro Crisis Scaling
+        u_regime_sq = u_regime ** 2
+        eff_target_vol = self.target_volatility * (1.0 - 0.30 * u_regime_sq) * (1.0 - 0.20 * c_crisis)
+        max_alloc_cap *= (1.0 - 0.20 * u_regime_sq) * (1.0 - 0.35 * c_crisis)
+        min_alloc_floor *= (1.0 - 0.30 * u_regime_sq)
 
         # Scale factor = target_vol / realized_vol (C-06 fix: eliminate double-scaling cash drag)
         raw_scale = eff_target_vol / max(annualized_port_vol, 0.04)
@@ -1059,12 +1264,14 @@ class UnifiedPortfolioAllocator:
         asset_cost_bps: Optional[Union[np.ndarray, List[float]]] = None,
         symbols: Optional[List[str]] = None,
         markets: Optional[List[str]] = None,
+        downside_volatilities: Optional[Union[np.ndarray, List[float]]] = None,
     ) -> np.ndarray:
         """
         Volatility-Normalized Asymmetric Leland Dynamic No-Trade Buffer Bands:
         Suppresses unnecessary churn and transaction taxes (STT) when drift is within noise band.
         Uses continuous volatility-normalized Z-scores:
-            z_unrealized = u_ret / (sigma_20d * sqrt(5))
+            z_unrealized = u_ret / (sigma_20d * sqrt(5)) (for u_ret >= 0)
+            z_unrealized = u_ret / (sigma_minus * sqrt(5)) (for u_ret < 0, F43)
         - Winning runners (z > 0): upper band smoothly expands up to 1.8x to prevent premature rebalance sales.
         - Laggards (z < 0): lower band smoothly tightens down to 0.6x for prompt de-risking.
         - Boundary Rebalancing: when weight breaches band, rebalances to boundary (L_i or U_i) rather
@@ -1139,7 +1346,14 @@ class UnifiedPortfolioAllocator:
             if use_asymmetric_bands and unrealized_returns is not None:
                 u_ret = float(unrealized_returns[i]) if (len(unrealized_returns) > i and np.isfinite(unrealized_returns[i])) else 0.0
                 vol_i = float(vols[i]) if (len(vols) > i and np.isfinite(vols[i])) else 0.02
-                upper_mult, lower_mult = self.calculate_asymmetric_leland_multipliers(u_ret, vol_i)
+                down_vol_i = None
+                if downside_volatilities is not None and len(downside_volatilities) > i:
+                    dv = float(downside_volatilities[i])
+                    if np.isfinite(dv):
+                        down_vol_i = dv
+                upper_mult, lower_mult = self.calculate_asymmetric_leland_multipliers(
+                    u_ret, vol_i, downside_semi_volatility=down_vol_i
+                )
             else:
                 upper_mult = 1.0
                 lower_mult = 1.0

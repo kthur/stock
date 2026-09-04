@@ -1,30 +1,26 @@
-## 2026-09-04T09:00:57Z
+# DISPATCH — Forensic Auditor M1
 
-<USER_REQUEST>
-You are the Forensic Integrity Auditor for Milestone 1 of Phase 5 Deep Quantitative Enhancements.
-Your working directory is: `d:\Finance\code\stock\.agents\auditor_m1`
+**Task**: Forensic Integrity Audit for Phase 6 Milestone 1 (F41 & F42).
+**Authoritative Reference**: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (see ## 2026-09-04T13:40:12Z)
+**Worker Handoff**: `d:\Finance\code\stock\.agents\worker_m1\handoff.md`
+**Target Files**:
+- `src/ai/ensemble_scorer.py`
+- `src/ai/factor_suppression.py`
+- `tests/test_phase6_signal_enhancement.py`
 
-MANDATORY FIRST STEP:
-Read the following authoritative files:
-1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (specifically header `## 2026-09-04T08:36:42Z`)
-2. `d:\Finance\code\stock\PROJECT.md`
-3. `d:\Finance\code\stock\.agents\orchestrator_quant_opt5\SCOPE.md`
-4. `d:\Finance\code\stock\.agents\worker_m1\handoff.md`
+## Forensic Audit Protocol
+Perform an uncompromising integrity verification across:
+1. Static Analysis: Examine AST and source diffs for hardcoded returns, fake mock tables, bypass flags, or dummy branches that return pre-baked numbers.
+2. Logic Authenticity: Verify that tensor synergy contractions, Hölder p-norm, Richards Version 6 power law, Markov KL divergence, and asymmetric deadband calculations actually execute mathematical operations at runtime.
+3. Test Authenticity: Check that `test_phase6_signal_enhancement.py` does not contain tautological assertions (`assert True`), dummy mocks, or test-skipping tricks.
+4. Report binary verdict: **CLEAN** or **INTEGRITY VIOLATION** with detailed forensic evidence in `d:\Finance\code\stock\.agents\auditor_m1\handoff.md`.
 
-Your Mission:
-Perform rigorous forensic integrity audit on Worker M1's implementation of Features F35 and F36 in:
-- `trading_system/src/ai/ensemble_scorer.py`
-- `tests/test_phase5_signal_enhancement.py`
-
-Integrity Checks to Conduct:
-1. Static Analysis: Verify NO hardcoded test results, test symbol branches (e.g. `if symbol == 'TEST': return 0.99`), or mock return values.
-2. Genuine Implementation: Verify that mathematical functions (Quad-Pillar kernel, Hölder quadratic mean, asymmetric Richards scaling, Shannon entropy decay, hyperbolic tangent noise deadband) implement actual calculations on dynamic inputs.
-3. Test Authenticity: Verify that tests in `tests/test_phase5_signal_enhancement.py` assert genuine algorithmic properties rather than tautologies (e.g. asserting `1 == 1` or mocking the subject under test).
-4. Runtime Execution: Run `.venv\Scripts\python.exe -m pytest tests/test_phase5_signal_enhancement.py tests/test_phase4_signal_enhancement.py -v` and inspect execution trace.
-
-Deliverable:
-Write a comprehensive audit report to:
-`d:\Finance\code\stock\.agents\auditor_m1\handoff.md`
-with an unambiguous verdict: **`CLEAN`** or **`INTEGRITY VIOLATION`**.
-Notify me via `send_message`.
-</USER_REQUEST>
+## 2026-09-04T14:17:17Z
+You are auditor_m1.
+Your working directory is: d:\Finance\code\stock\.agents\auditor_m1\
+Read d:\Finance\code\stock\.agents\auditor_m1\DISPATCH.md and d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (mandatory).
+Read d:\Finance\code\stock\.agents\worker_m1\handoff.md.
+Perform an uncompromising forensic audit across AST, runtime math, and test validity for cheating, dummy implementations, or hardcoded answers.
+Run tests and verify.
+Deliver your binary audit verdict (CLEAN or INTEGRITY VIOLATION) to: d:\Finance\code\stock\.agents\auditor_m1\handoff.md
+Send completion message back to parent.

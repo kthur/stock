@@ -1,159 +1,235 @@
 # Handoff Report — Milestone 1 Adversarial Challenge & Empirical Verification
 
-**Agent**: Challenger 1 (Roles: critic, specialist)  
-**Milestone**: M15 (Phase 5 Milestone 1: Requirement R1 - Features F35 & F36)  
-**Date**: 2026-09-04T18:33:00+09:00  
-**Recipient**: parent (`61d3427d-726d-48df-945c-5ec75b30ebde`)  
-**Verdict**: **`APPROVE`**
+**Agent**: Challenger M1-1 (Roles: critic, specialist)  
+**Milestone**: M16 (Phase 6 Milestone 1: Requirement R1 - Features F41 & F42)  
+**Date**: 2026-09-04T14:22:00Z (Local: 2026-09-04T23:22:00+09:00)  
+**Recipient**: parent (`cb4888d0-b14d-471f-b555-422c2a30d7c0`)  
+**Verdict**: **`REJECT`** (Rank monotonicity and Hölder p-norm confirmed; rejected due to branch-ordering dead code and regime synergy cap bypass in `compute_quint_pillar_tensor_synergy`)
 
 ---
 
 ## 1. Observation
 
-### 1.1 Scope and Code Changes Verified
-1. **Target implementation**: `trading_system/src/ai/ensemble_scorer.py`
-   - Lines 1682–1741: `apply_top_decile_convex_boost` upgraded with Hölder $p=2.0$ quadratic mean ($M_2 = \sqrt{\frac{1}{K}\sum S_k^2}$) and regime-adaptive $\lambda_{\text{boost}} \in [0.20, 0.40]$.
-   - Lines 3239–3265: Phase 2-D top-decile boost and Phase 2-E Bessembinder convex power-law scaling integrated into `combine_predictions`.
-   - Lines 3303–3335: Hyperbolic tangent noise deadband soft-thresholding ($z_{\text{denoised}} = z \cdot \tanh((|z|/\delta)^3)$), quadratic rank modulation ($0.60 + 0.50 r + 0.50 r^2$), and regime-adaptive Richards exponent $\gamma_{\text{tail}}(R) \in [1.00, 1.30]$.
-   - Lines 3852–3971: `get_regime_adaptive_half_lives` upgraded with continuous expectation $\sum_m \pi_m \tau_k(R_m)$, Shannon transition entropy factor $\phi_{\text{entropy}} = \exp(-0.35 \cdot H_{\text{norm}}^2)$, and Total Variation jump penalty $\phi_{\text{jump}} = \exp(-0.50 \cdot \max(0, d_{\text{TV}} - 0.25))$.
-   - Lines 4130–4312: `compute_bilinear_cross_pillar_synergy` upgraded with Quad-Pillar confluence kernel $\Xi_{\text{quad}} = \Omega_{\text{quad}} \cdot (\psi_{\text{val}} \cdot \psi_{\text{mom}} \cdot \psi_{\text{flow}} \cdot \psi_{\text{cat}})$ and Tri-Catalyst kernel with regime-adaptive synergy caps ($1.04\times$ in Crisis to $1.15\times$ in Bull Low Vol).
-   - Lines 4317–4470: `apply_bessembinder_convex_power_law` upgraded with Version 5 parameters ($u_{\text{thresh}} = 0.40, \gamma = 1.75, \beta = 0.55$) and asymmetric Richards exponent $\eta_{\text{right}} = 2.0$.
-   - Lines 4472–4571: Class methods `get_regime_adaptive_gamma_tail`, `get_regime_adaptive_noise_deadband`, and `apply_smooth_noise_deadband`.
-
-2. **Test Suites Verified**:
-   - `tests/test_phase5_signal_enhancement.py` (Worker M1 test suite, 7 tests)
-   - `tests/test_adversarial_phase5_m1.py` (Challenger 1 stress test suite, 24 tests)
-   - `tests/test_phase4_signal_enhancement.py` (Phase 4 regression suite, 8 tests)
-   - `tests/test_regime_ensemble.py` (4 tests)
-   - `tests/test_adversarial_ensemble_scorer_challenger.py` (17 tests)
+### 1.1 Implementation Files and Test Suites Inspected
+1. `trading_system/src/ai/factor_suppression.py`:
+   - Lines 30–75: `QuintPillarMap` and `QUINT_PILLAR_MAP` partitioning 37 strategies across 5 canonical pillars (`val`: 6, `mom`: 9, `flow`: 9, `cat`: 6, `net`: 7).
+2. `trading_system/src/ai/ensemble_scorer.py`:
+   - Lines 45–80: `BessembinderParams` namedtuple with Version 6 bilateral parameters.
+   - Lines 1740–1835: `apply_top_decile_convex_boost` with regime-adaptive Hölder exponent $p(R) \in [1.25, 2.50]$ and dispersion-adaptive gating $\theta_{\text{gate}}(\sigma_{\text{cross}})$.
+   - Lines 4448–4676: `compute_quint_pillar_tensor_synergy` high-order multi-linear tensor kernel.
+   - Lines 4720–4775: `get_regime_adaptive_bessembinder_params` with Version 6 bilateral matrix.
+   - Lines 4777–4880: `apply_bessembinder_convex_power_law` with Version 6 bilateral asymmetric Richards S-curve.
+   - Lines 4032–4105: `get_regime_adaptive_half_lives` with Markov stationary divergence $\phi_{\text{KL}}$ and 4-tier elasticity.
+   - Lines 4950–5051: `get_regime_adaptive_noise_deadband` and `apply_smooth_noise_deadband` with bilateral thresholds and kurtosis-adaptive exponent $\alpha(z) \in [3.0, 4.0]$.
+3. `tests/test_phase6_signal_enhancement.py`: Worker M1 test suite (6 tests).
+4. `tests/test_phase6_m1_challenger1_adversarial.py`: Challenger M1-1 adversarial stress suite (27 tests across 9 challenge categories).
 
 ### 1.2 Verbatim Test Outputs
 
-**Phase 5 Signal Enhancement Test Suite**:
-```
-tests/test_phase5_signal_enhancement.py::test_feature_35_1_top_decile_spread_expansion_and_monotonicity PASSED [ 14%]
-tests/test_phase5_signal_enhancement.py::test_feature_35_2_quad_pillar_synergy_kernel PASSED [ 28%]
-tests/test_phase5_signal_enhancement.py::test_feature_35_3_holder_p2_convex_boost PASSED [ 42%]
-tests/test_phase5_signal_enhancement.py::test_feature_35_4_asymmetric_bessembinder_scaling PASSED [ 57%]
-tests/test_phase5_signal_enhancement.py::test_feature_36_1_probabilistic_half_life_entropy_penalty PASSED [ 71%]
-tests/test_phase5_signal_enhancement.py::test_feature_36_2_tanh_noise_deadband PASSED [ 85%]
-tests/test_phase5_signal_enhancement.py::test_feature_36_3_random_stress_universe_all_regimes PASSED [100%]
-============================= 7 passed in 13.93s ==============================
-```
-
-**Adversarial Stress Suite (`tests/test_adversarial_phase5_m1.py`)**:
-```
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_bessembinder_distributions[BULL_LOW_VOL] PASSED [  4%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_bessembinder_distributions[BULL_HIGH_VOL] PASSED [  8%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_bessembinder_distributions[SIDEWAYS_LOW_VOL] PASSED [ 12%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_bessembinder_distributions[SIDEWAYS_HIGH_VOL] PASSED [ 16%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_bessembinder_distributions[BEAR_LOW_VOL] PASSED [ 20%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_bessembinder_distributions[BEAR_HIGH_VOL] PASSED [ 25%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_bessembinder_distributions[CRISIS] PASSED [ 29%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_convex_alpha_distributions[BULL_LOW_VOL] PASSED [ 33%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_convex_alpha_distributions[BULL_HIGH_VOL] PASSED [ 37%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_convex_alpha_distributions[SIDEWAYS_LOW_VOL] PASSED [ 41%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_convex_alpha_distributions[SIDEWAYS_HIGH_VOL] PASSED [ 45%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_convex_alpha_distributions[BEAR_LOW_VOL] PASSED [ 50%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_convex_alpha_distributions[BEAR_HIGH_VOL] PASSED [ 54%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_rank_invariance_convex_alpha_distributions[CRISIS] PASSED [ 58%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_combine_predictions_positive_conviction_rank_invariance[BULL_LOW_VOL] PASSED [ 62%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_combine_predictions_positive_conviction_rank_invariance[BULL_HIGH_VOL] PASSED [ 66%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_combine_predictions_positive_conviction_rank_invariance[SIDEWAYS_LOW_VOL] PASSED [ 70%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_combine_predictions_positive_conviction_rank_invariance[SIDEWAYS_HIGH_VOL] PASSED [ 75%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_combine_predictions_positive_conviction_rank_invariance[BEAR_LOW_VOL] PASSED [ 79%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_combine_predictions_positive_conviction_rank_invariance[BEAR_HIGH_VOL] PASSED [ 83%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_combine_predictions_positive_conviction_rank_invariance[CRISIS] PASSED [ 87%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_noise_squashing_vs_signal_preservation PASSED [ 91%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_entropy_compression_and_jump_penalty PASSED [ 96%]
-tests/test_adversarial_phase5_m1.py::test_adversarial_holder_p2_quad_pillar_extremes PASSED [100%]
-============================= 24 passed in 11.20s =============================
-```
-
-**Full Regression Suite (`tests/test_phase4_signal_enhancement.py`, `tests/test_regime_ensemble.py`, `tests/test_adversarial_ensemble_scorer_challenger.py`)**:
-```
-============================= 29 passed in 23.89s =============================
-```
-**Combined Total**: 60 passed, 0 failed, 0 regressions.
-
----
-
-## 2. Adversarial Challenge & Stress-Test Findings
-
-### Challenge Summary
-- **Overall Risk Assessment**: **LOW**
-- The mathematical transformations are robust, numerically stable across pathological distributions, and fully preserve rank invariance within non-degenerate support.
-
-### Scenario 1: Rank Invariance Stress
-- **Hypothesis Tested**: Spearman $\rho_s$ between pre-convex and post-convex alpha is strictly $\ge 0.9999$ across Gaussian, Uniform, Cauchy, and Pareto distributions.
-- **Empirical Findings**:
-  1. `apply_bessembinder_convex_power_law`: Evaluated on 500 assets across all 4 distributions and all 7 regimes. Spearman $\rho_s \ge 0.9999$ held in 100% of test cases. Dynamic normalization by `scale = max(1.0 + beta, max(|u_tilde|))` prevents saturation clipping, guaranteeing strict rank preservation.
-  2. Unclipped power-law convex alpha ($u \to ca_{\text{unclipped}}$): Evaluated on 600 assets across all 4 distributions and all 7 regimes. Spearman $\rho_s = 1.000000$ held identically everywhere, confirming that the power law transformation is a strictly monotonic bijection.
-  3. `combine_predictions` downstream clipping: In `combine_predictions`, downstream expected returns deduct roundtrip transaction friction (`raw_exp_ret - friction_cost_pct`) and clip to 0.0 (`np.clip(..., 0.0, 50.0)`). For assets near neutral ($z \approx 0$), raw expected return is squashed below transaction friction, creating a zero-plateau at 0.0. For all assets exceeding friction ($ret > 0.0$), rank correlation satisfies $\rho_s \ge 0.999897$ (and $1.000000$ in 5 of 7 regimes).
-
-### Scenario 2: Noise Squashing vs Signal Preservation Stress
-- **Hypothesis Tested**: Inputs with $|z| \le 0.02$ are attenuated by $>85\%$, while inputs with $|z| \ge 0.15$ are preserved by $>98\%$.
-- **Empirical Findings**:
-  1. For baseline $\delta = 0.045$ (Sideways Low Vol):
-     - At $z = 0.020$: Attenuation $= 91.24\% > 85.0\%$.
-     - At $z = 0.010$: Attenuation $= 98.90\% > 85.0\%$.
-     - At $z = 0.150$: Signal transmission $= 99.999\% > 98.0\%$.
-     - At $z = 0.350$: Signal transmission $= 100.00\% > 98.0\%$.
-  2. Multi-regime parameters: For all regimes where $\delta \ge 0.040$, attenuation at $|z| \le 0.02$ strictly exceeds $85\%$. For all 7 regimes ($\delta \in [0.020, 0.070]$), signal retention at $|z| \ge 0.15$ strictly exceeds $98\%$.
-  3. Mathematical properties confirmed: $g(-z) = -g(z)$ (symmetry error $< 10^{-12}$), strictly positive first derivative ($g'(z) > 0$), and smooth zero point $g(0) = 0.0$.
-
-### Scenario 3: Entropy Compression & Jump Penalty Stress
-- **Hypothesis Tested**: Shannon transition entropy factor $\phi_{\text{entropy}}$ and Total Variation jump penalty $\phi_{\text{jump}}$ compress effective factor half-lives under uncertainty while preserving $\tau \ge 0.10$.
-- **Empirical Findings**:
-  1. Maximum Entropy (Uniform 7-regime distribution): $\phi_{\text{entropy}} = \exp(-0.35 \cdot 1.0^2) \approx 0.7047$, compressing regression half-life from 18.00d down to 12.68d (~30% compression).
-  2. Maximum Jump Penalty (Bull Low Vol to Crisis flip, $d_{\text{TV}} = 1.0$): $\phi_{\text{jump}} = \exp(-0.50 \cdot 0.75) \approx 0.6873$, compressing Crisis half-life from 6.00d down to 4.12d (~31.3% compression).
-  3. Pathological inputs: Unnormalized probability weights (sum = 100.0) match normalized equivalents identically. Negative weights and zero vectors fall back safely to deterministic Sideways defaults.
-  4. Floor invariant: Across all strategies and extreme tests, no half-life ever dropped below the 0.10d threshold.
-
-### Scenario 4: Hölder $p=2.0$ Quadratic Mean & Quad-Pillar Extremes
-- **Hypirical Findings**:
-  1. Hölder quadratic mean ($M_2 = \sqrt{\frac{1}{K}\sum S_k^2}$) preserves extreme conviction signals: An asset with a single extreme surge signal (1.00) and moderate secondary signals (0.55, 0.55) achieves a boosted score of $0.6137$ under $p=2.0$ vs $0.5991$ under arithmetic mean $p=1.0$.
-  2. Quad-Pillar confluence: With extreme 1.00 saturation across all 4 pillars (Val, Mom, Flow, Cat), the synergy multiplier saturates at exactly the regime caps ($1.150\times$ in Bull Low Vol, $1.040\times$ in Crisis).
-
----
-
-## 3. Logic Chain
-
-1. **Observation**: `apply_bessembinder_convex_power_law` and unclipped power-law convex alpha transformations were executed on 500+ assets across 4 distinct non-Gaussian distributions (Gaussian, Uniform, Cauchy, Pareto) across all 7 market regimes.
-   - **Inference**: Rank correlation $\rho_s \ge 0.9999$ was empirically proven, verifying that the tail convexity enhancements preserve asset ordering without introducing rank inversions.
-2. **Observation**: Soft-thresholding via $z \cdot \tanh((|z|/\delta)^3)$ was evaluated over dense grids in $[-0.50, 0.50]$.
-   - **Inference**: Microstructural Brownian noise near 0.50 is attenuated by $91.24\%$ to $98.90\%$, while conviction signals $|z| \ge 0.15$ retain $99.999\%$ transmission. The function is odd, $C^\infty$-smooth, and strictly monotonic.
-3. **Observation**: `get_regime_adaptive_half_lives` was tested under uniform 7-regime mixtures, $1.0$ Total Variation jumps, and unnormalized probability vectors.
-   - **Inference**: The Shannon entropy factor ($\approx 0.705$) and TV jump penalty ($\approx 0.687$) dynamically shorten memory during structural transitions and macro ambiguity. All outputs are bounded above $0.10$ days.
-4. **Observation**: Regression test suites spanning Phase 4 (`test_phase4_signal_enhancement.py`), regime ensembles (`test_regime_ensemble.py`), and historical challenger tests (`test_adversarial_ensemble_scorer_challenger.py`) passed 29/29 tests with zero failures.
-   - **Inference**: Worker M1's changes are 100% backward compatible and introduce zero regressions.
-
----
-
-## 4. Caveats
-
-1. **Transaction Cost Gating**: In `combine_predictions`, expected return output `ensemble_expected_return` is net of microstructural costs and clipped to 0.0. Stocks with raw expected return below transaction friction are zero-weighted. Downstream tests comparing input scores directly to `ensemble_expected_return` must account for this economic gating.
-2. **Upper Bound Truncation in `combine_predictions`**: In line 3325 of `ensemble_scorer.py`, `convex_alpha` is clipped at 1.0 via `np.clip((|2u|^\gamma)/\gamma, 0.0, 1.0)`. In theoretical universes with extreme unclipped conviction ($u \ge 0.50$ when $\gamma = 1.0$), a small fraction of the top tail could saturate at 1.0. In production, this is mitigated because `apply_bessembinder_convex_power_law` is applied prior to this step and normalizes scores smoothly.
-
----
-
-## 5. Conclusion & Verdict
-
-Worker M1's implementation of Milestone 1 (Requirement R1: Features F35 & F36) in `trading_system/src/ai/ensemble_scorer.py` and `tests/test_phase5_signal_enhancement.py` is empirically sound, mathematically rigorous, and fully verified across all stress scenarios.
-
-**Verdict**: **`APPROVE`**
-
----
-
-## 6. Verification Method
-
-To independently reproduce all adversarial and empirical validations:
-
+#### A. Worker M1 Test Suite Execution
+Command:
 ```bash
-# 1. Run Worker M1 test suite and Challenger 1 adversarial stress suite
-.venv\Scripts\python.exe -m pytest tests/test_phase5_signal_enhancement.py tests/test_adversarial_phase5_m1.py -v
-
-# 2. Run full regression test suites
-.venv\Scripts\python.exe -m pytest tests/test_phase4_signal_enhancement.py tests/test_regime_ensemble.py tests/test_adversarial_ensemble_scorer_challenger.py -v
+.venv\Scripts\python.exe -m pytest tests/test_phase6_signal_enhancement.py -v
 ```
-Expected Result: 31 passed in suite 1 (~14s), 29 passed in suite 2 (~24s). Total 60 passed, 0 failed.
+Output:
+```
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0 -- D:\Finance\code\stock\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Finance\code\stock
+configfile: pyproject.toml
+plugins: anyio-4.14.0, dash-2.18.2, cov-7.1.0, github-actions-annotate-failures-0.4.2
+collecting ... collected 6 items
+
+tests/test_phase6_signal_enhancement.py::test_feature_41_1_quint_pillar_tensor_synergy_kernel PASSED [ 16%]
+tests/test_phase6_signal_enhancement.py::test_feature_41_2_adaptive_holder_p_norm_boost PASSED [ 33%]
+tests/test_phase6_signal_enhancement.py::test_feature_41_3_asymmetric_richards_v6_scaling_and_monotonicity PASSED [ 50%]
+tests/test_phase6_signal_enhancement.py::test_feature_42_1_markov_stationary_divergence_and_class_elasticity PASSED [ 66%]
+tests/test_phase6_signal_enhancement.py::test_feature_42_2_asymmetric_kurtosis_noise_deadband PASSED [ 83%]
+tests/test_phase6_signal_enhancement.py::test_feature_42_3_multi_market_randomized_stress_all_regimes PASSED [100%]
+
+============================= 6 passed in 26.06s ==============================
+```
+
+#### B. Adversarial Stress Suite Execution (`tests/test_phase6_m1_challenger1_adversarial.py`)
+Command:
+```bash
+.venv\Scripts\python.exe -m pytest tests/test_phase6_m1_challenger1_adversarial.py -v
+```
+Output:
+```
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0 -- D:\Finance\code\stock\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Finance\code\stock
+configfile: pyproject.toml
+plugins: anyio-4.14.0, dash-2.18.2, cov-7.1.0, github-actions-annotate-failures-0.4.2
+collecting ... collected 27 items
+
+tests/test_phase6_m1_challenger1_adversarial.py::test_rank_monotonicity_across_distributions[BULL_LOW_VOL] PASSED [  3%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_rank_monotonicity_across_distributions[BULL_HIGH_VOL] PASSED [  7%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_rank_monotonicity_across_distributions[SIDEWAYS_LOW_VOL] PASSED [ 11%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_rank_monotonicity_across_distributions[SIDEWAYS_HIGH_VOL] PASSED [ 14%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_rank_monotonicity_across_distributions[BEAR_LOW_VOL] PASSED [ 18%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_rank_monotonicity_across_distributions[BEAR_HIGH_VOL] PASSED [ 22%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_rank_monotonicity_across_distributions[CRISIS] PASSED [ 25%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_strict_pointwise_monotonicity[BULL_LOW_VOL] PASSED [ 29%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_strict_pointwise_monotonicity[BULL_HIGH_VOL] PASSED [ 33%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_strict_pointwise_monotonicity[SIDEWAYS_LOW_VOL] PASSED [ 37%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_strict_pointwise_monotonicity[SIDEWAYS_HIGH_VOL] PASSED [ 40%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_strict_pointwise_monotonicity[BEAR_LOW_VOL] PASSED [ 44%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_strict_pointwise_monotonicity[BEAR_HIGH_VOL] PASSED [ 48%]
+tests/test_strict_pointwise_monotonicity[CRISIS] PASSED [ 51%]
+tests/test_holder_boundary_zero_and_uniform_vectors PASSED [ 55%]
+tests/test_jensen_inequality_stress_1000_trials PASSED [ 59%]
+tests/test_dispersion_gate_extremes PASSED [ 62%]
+tests/test_flash_crash_and_meme_squeeze_simulations[BULL_LOW_VOL] PASSED [ 66%]
+tests/test_flash_crash_and_meme_squeeze_simulations[BULL_HIGH_VOL] PASSED [ 70%]
+tests/test_flash_crash_and_meme_squeeze_simulations[SIDEWAYS_LOW_VOL] PASSED [ 74%]
+tests/test_flash_crash_and_meme_squeeze_simulations[SIDEWAYS_HIGH_VOL] PASSED [ 77%]
+tests/test_flash_crash_and_meme_squeeze_simulations[BEAR_LOW_VOL] PASSED [ 81%]
+tests/test_flash_crash_and_meme_squeeze_simulations[BEAR_HIGH_VOL] PASSED [ 85%]
+tests/test_flash_crash_and_meme_squeeze_simulations[CRISIS] PASSED [ 88%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_quint_pillar_tensor_confluence_and_zero_leakage FAILED [ 92%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_markov_stationary_divergence_pathological_inputs PASSED [ 96%]
+tests/test_phase6_m1_challenger1_adversarial.py::test_asymmetric_kurtosis_noise_deadband_adversarial PASSED [100%]
+
+================================== FAILURES ===================================
+____________ test_quint_pillar_tensor_confluence_and_zero_leakage _____________
+tests\test_phase6_m1_challenger1_adversarial.py:378: in test_quint_pillar_tensor_confluence_and_zero_leakage
+    assert mult.loc['ASSET_0'] <= expected_cap, (
+E   AssertionError: Regime BEAR_HIGH_VOL exceeded synergy cap 1.04501: got 1.085
+E   assert 1.085 <= 1.04501
+=========================== short test summary info ===========================
+FAILED tests/test_phase6_m1_challenger1_adversarial.py::test_quint_pillar_tensor_confluence_and_zero_leakage - AssertionError: Regime BEAR_HIGH_VOL exceeded synergy cap 1.04501: got 1.085
+assert 1.085 <= 1.04501
+======================== 1 failed, 26 passed in 17.94s ========================
+```
+
+### 1.3 Exact Defect Isolation in Source Code
+- **File**: `trading_system/src/ai/ensemble_scorer.py`
+- **Lines**: 4567–4588
+- **Verbatim Code**:
+  ```python
+  4567:         elif 'BEAR_LOW_VOL' in reg_str or 'BEAR' in reg_str:
+  4568:             omega_pairs = {
+  4569:                 ('val', 'mom'): 0.018, ('val', 'flow'): 0.035, ('val', 'cat'): 0.030, ('val', 'net'): 0.020,
+  4570:                 ('mom', 'flow'): 0.010, ('mom', 'cat'): 0.010, ('mom', 'net'): 0.010,
+  4571:                 ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+  4572:                 ('cat', 'net'): 0.015
+  4573:             }
+  4574:             w_tri = 0.010
+  4575:             w_quad = 0.008
+  4576:             w_quint = 0.020
+  4577:             reg_cap = 0.085
+  4578:         elif 'BEAR_HIGH_VOL' in reg_str:
+  4579:             omega_pairs = {
+  4580:                 ('val', 'mom'): 0.010, ('val', 'flow'): 0.045, ('val', 'cat'): 0.030, ('val', 'net'): 0.020,
+  4581:                 ('mom', 'flow'): 0.005, ('mom', 'cat'): 0.005, ('mom', 'net'): 0.005,
+  4582:                 ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+  4583:                 ('cat', 'net'): 0.010
+  4584:             }
+  4585:             w_tri = 0.002
+  4586:             w_quad = 0.000
+  4587:             w_quint = 0.000
+  4588:             reg_cap = 0.045
+  ```
+- **Defect Description**:
+  Line 4567 conditions on `'BEAR_LOW_VOL' in reg_str or 'BEAR' in reg_str`.
+  When `reg_str = 'BEAR_HIGH_VOL'`, the expression `'BEAR' in reg_str` evaluates to `True`.
+  Therefore, any input with `'BEAR_HIGH_VOL'` immediately enters line 4567 and assigns `reg_cap = 0.085` and active quad/quint contractions (`w_quad=0.008, w_quint=0.020`).
+  Line 4578 (`elif 'BEAR_HIGH_VOL' in reg_str:`) is **completely unreachable dead code**.
+  In contrast, lines 1770, 3985, 4726, 4959, and 5022 correctly place `BEAR_HIGH_VOL` **before** `BEAR_LOW_VOL`.
+
+---
+
+## 2. Logic Chain
+
+1. **Step 1: Empirical Validation of Rank Monotonicity ($\rho_s == 1.0000$)**:
+   - Tested Version 6 Bilateral Richards S-curve across 6 probability distributions (Uniform, Gaussian, Cauchy, Pareto, Beta, Micro-scale $[0.4999, 0.5001]$) across all 7 market regimes.
+   - For all distributions and regimes, $|1.0 - \rho_s| < 10^{-5}$ identically.
+   - Tested pointwise derivatives across a 1,000-point uniform grid in $(0, 1)$: $\Delta y = y_{i+1} - y_i > 0$ strictly holds everywhere.
+   - Confirmed: The Bilateral Asymmetric Richards S-Curve is a strictly increasing monotonic bijection.
+
+2. **Step 2: Empirical Validation of Hölder $p(R)$-Norm Boundary Behavior**:
+   - Boundary vectors: Zero vectors $[0, 0, 0]$ evaluate without NaN or division by zero. Uniform vectors $[c, c, c]$ strictly preserve $M_p([c, c, c]) = c$ for all $p \in [1.0, 2.50]$.
+   - Single-factor spikes $[1.0, 0.0, 0.0]$ evaluate to $(1/3)^{1/p}$.
+   - Jensen's Generalized Mean Inequality ($M_{2.50} \ge M_{2.25} \ge M_{2.00} \ge M_{1.80} \ge M_{1.50} \ge M_{1.25} \ge M_{1.00}$) verified across 1,000 randomized 5-factor trials with zero violations.
+   - Dispersion-adaptive gating verified at boundary standard deviations $\sigma_{\text{cross}} = 0.0$ ($\theta_{\text{gate}} = 0.648$, raising activation hurdle) and $\sigma_{\text{cross}} = 0.35$ ($\theta_{\text{gate}} = 0.550$, lowering hurdle to floor). All outputs remain strictly bounded in $[0.0, 1.0]$.
+
+3. **Step 3: Empirical Validation of Markov Divergence & Noise Deadband**:
+   - Continuous Markov stationary divergence $\phi_{\text{KL}}(\pi) = \exp(-0.25 D_{\text{KL}}(\pi \,\|\, \pi_\infty))$ smoothly compresses half-lives, preserving the invariant floor $\tau_k \ge 0.10$d across all 37 strategies even under degenerate 100% Crisis distributions.
+   - Microstructure factors (Class A, $\nu_A = 1.30$) decay more aggressively than fundamental factors (Class D, $\nu_D = 0.40$).
+   - Kurtosis noise deadband maintains exact point symmetry $g(-z) = -g(z)$ in unconditioned default mode, attenuates negative noise more aggressively in Crisis, squashes $>90\%$ near-zero noise ($|z| \le 0.010$), transmits $>98.5\%$ high-conviction signal ($|z| \ge 0.150$), and strictly preserves rank order ($\rho_s == 1.0000$).
+
+4. **Step 4: Discovery of High-Order Tensor Synergy Branching Defect**:
+   - In `compute_quint_pillar_tensor_synergy`, line 4567 places `elif 'BEAR_LOW_VOL' in reg_str or 'BEAR' in reg_str:` before line 4578 `elif 'BEAR_HIGH_VOL' in reg_str:`.
+   - Because `'BEAR' in 'BEAR_HIGH_VOL'` is `True`, line 4578 is dead code.
+   - In high-volatility bear regimes (`BEAR_HIGH_VOL`), the synergy cap evaluates to $0.085$ ($1.085\times$) instead of the intended $0.045$ ($1.045\times$) — an **88.9% cap inflation**.
+   - Furthermore, 4th-order quad and 5th-order hyper-confluence terms ($w_{\text{quad}} = 0.008, w_{\text{quint}} = 0.020$) are actively computed in `BEAR_HIGH_VOL` instead of being zeroed out.
+   - Worker M1's test suite in `tests/test_phase6_signal_enhancement.py` (line 139) only asserted `m <= 1.18001` (the maximum bull cap) across all regimes, failing to catch this regime-specific cap violation.
+
+5. **Step 5: Impact Assessment & Verdict Determination**:
+   - While rank monotonicity and Hölder generalized mean behaviors are empirically verified and mathematically sound, inflating risk budget by nearly $2\times$ during turbulent high-volatility bear sell-offs poses an unhedged risk exposure.
+   - Because the code contains unreachable dead code and violates its documented security cap in `BEAR_HIGH_VOL`, Milestone 1 cannot be approved as-is.
+   - Verdict is **`REJECT`** pending Worker M1's branch-ordering fix.
+
+---
+
+## 3. Caveats
+
+- **Narrow Defect Scope**: This rejection is solely due to the branch-ordering bug at lines 4567–4588 of `trading_system/src/ai/ensemble_scorer.py`. No other bugs were found; all other 26 adversarial stress tests passed cleanly.
+- **Worker Fix Simplicity**: The fix is a 2-line reordering: move `elif 'BEAR_HIGH_VOL' in reg_str:` before `elif 'BEAR_LOW_VOL' in reg_str or 'BEAR' in reg_str:`, exactly matching the pattern established in lines 1770, 3985, 4726, 4959, and 5022.
+- **Review-Only Constraint Respected**: In accordance with the Challenger protocol, Challenger M1-1 did not modify `ensemble_scorer.py`.
+
+---
+
+## 4. Conclusion
+
+- **Verdict**: **`REJECT`**
+- **Action Required by Worker M1**:
+  In `trading_system/src/ai/ensemble_scorer.py`, reorder lines 4567–4588 so that `elif 'BEAR_HIGH_VOL' in reg_str:` is evaluated before `elif 'BEAR_LOW_VOL' in reg_str or 'BEAR' in reg_str:`.
+  ```python
+          elif 'BEAR_HIGH_VOL' in reg_str:
+              omega_pairs = {
+                  ('val', 'mom'): 0.010, ('val', 'flow'): 0.045, ('val', 'cat'): 0.030, ('val', 'net'): 0.020,
+                  ('mom', 'flow'): 0.005, ('mom', 'cat'): 0.005, ('mom', 'net'): 0.005,
+                  ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+                  ('cat', 'net'): 0.010
+              }
+              w_tri = 0.002
+              w_quad = 0.000
+              w_quint = 0.000
+              reg_cap = 0.045
+          elif 'BEAR_LOW_VOL' in reg_str or 'BEAR' in reg_str:
+              omega_pairs = {
+                  ('val', 'mom'): 0.018, ('val', 'flow'): 0.035, ('val', 'cat'): 0.030, ('val', 'net'): 0.020,
+                  ('mom', 'flow'): 0.010, ('mom', 'cat'): 0.010, ('mom', 'net'): 0.010,
+                  ('flow', 'cat'): 0.025, ('flow', 'net'): 0.020,
+                  ('cat', 'net'): 0.015
+              }
+              w_tri = 0.010
+              w_quad = 0.008
+              w_quint = 0.020
+              reg_cap = 0.085
+  ```
+
+---
+
+## 5. Verification Method
+
+1. Run the worker's test suite:
+   ```bash
+   .venv\Scripts\python.exe -m pytest tests/test_phase6_signal_enhancement.py -v
+   ```
+   Expect: 6 passed in ~26s.
+
+2. Run the challenger's adversarial test suite:
+   ```bash
+   .venv\Scripts\python.exe -m pytest tests/test_phase6_m1_challenger1_adversarial.py -v
+   ```
+   Prior to fix: 1 failed (`test_quint_pillar_tensor_confluence_and_zero_leakage`), 26 passed.  
+   After fix: Expect 27 passed in ~18s.
+
+3. Invalidation condition:
+   If `compute_quint_pillar_tensor_synergy(..., regime='BEAR_HIGH_VOL', regime_adaptive_cap=True)` returns a synergy multiplier $> 1.04501$ for 5-pillar assets, the fix is invalid.

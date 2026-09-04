@@ -1,43 +1,54 @@
-# BRIEFING — 2026-07-30T13:32:00+09:00
+# BRIEFING — 2026-09-04T13:42:46Z
 
 ## Mission
-Conduct a detailed system architecture, DB I/O, concurrency, memory footprint, data missingness, and pipeline stability audit of the Stock Trading System (3,379 symbols).
+Investigate Phase 6 quantitative enhancements for F43: Regime-Adaptive 4-Model Reliability Optimization & Tail Risk Budgeting in UnifiedPortfolioAllocator.
 
 ## 🔒 My Identity
 - Archetype: Explorer
-- Roles: System Architecture & Concurrency Specialist
+- Roles: Quantitative Portfolio & Risk Engineering Specialist
 - Working directory: d:\Finance\code\stock\.agents\explorer_m1_2
-- Original parent: 3f39566b-21e1-4a55-97f6-005b5c8f9946
-- Milestone: M1 (Financial & System Architecture Diagnosis)
+- Original parent: cb4888d0-b14d-471f-b555-422c2a30d7c0
+- Milestone: M1 (Phase 6 Exploration - F43 Portfolio Allocation)
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
-- Inspect 5 key target files: run_pipeline.py, indicator_storage.py, database.py, coverage_analyzer.py, ensemble_scorer.py
-- Document vulnerabilities line-by-line with exact code paths, file lines, root cause analysis, severity, and performance impact
+- Analyze UnifiedPortfolioAllocator, test_phase5_portfolio_execution.py, test_unified_portfolio_engine.py, orchestrator_quant_opt5_gen2/handoff.md
+- Formulate concrete mathematical formulas, code modification targets, and test cases
 - Write report to d:\Finance\code\stock\.agents\explorer_m1_2\handoff.md and send message back to parent
 
 ## Current Parent
-- Conversation ID: 3f39566b-21e1-4a55-97f6-005b5c8f9946
-- Updated: 2026-07-30T13:32:00+09:00
+- Conversation ID: cb4888d0-b14d-471f-b555-422c2a30d7c0
+- Updated: 2026-09-04T13:42:46Z
 
 ## Investigation State
 - **Explored paths**:
-  - `trading_system/run_pipeline.py`
-  - `trading_system/src/data_layer/indicator_storage.py`
-  - `trading_system/src/persistence/database.py`
-  - `trading_system/src/analysis/coverage_analyzer.py`
-  - `trading_system/src/ai/ensemble_scorer.py`
-  - `trading_system/src/execution/oms_engine.py`
-  - `trading_system/src/ai/trading_agent.py`
+  - `d:\Finance\code\stock\.agents\explorer_m1_2\DISPATCH.md`
+  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
+  - `d:\Finance\code\stock\.agents\orchestrator_quant_opt5_gen2\handoff.md`
+  - `trading_system/src/risk/unified_portfolio_allocator.py`
+  - `trading_system/src/risk/portfolio_allocator.py`
+  - `tests/test_phase5_portfolio_execution.py`
+  - `tests/test_unified_portfolio_engine.py`
+  - `tests/test_phase4_portfolio_execution.py`
 - **Key findings**:
-  - Identified 13 vulnerabilities across 4 core categories: DB locking/concurrency, GIL thread-pool CPU bottlenecks, float32 precision loss for mega-caps, memory accumulation across 3,379 symbols, DB schema column drop (13 strategies missing from DB table), dynamic weight renormalization selection bias, and false exit 0 error masking.
-- **Unexplored areas**: None (Audit completed).
+  - Dissected F37 implementation in `UnifiedPortfolioAllocator` (co-moments, Cornish-Fisher EVT-CVaR, DRP-DR scaling, Shannon entropy target vol scaling).
+  - Identified 5 vulnerabilities in F37: sequential heuristic blending order distortion, fixed downside semi-cov weight (0.35), pure alpha conviction tilt ignoring downside risk drag, lack of Euler Component CVaR risk budget caps, and linear entropy target vol drag.
+  - Formulated complete mathematical framework for F43:
+    1. Information-Theoretic 4-Model Reliability Optimization ($\Delta \ell_m$) and Softmax temperature blending.
+    2. Regime-adaptive downside semi-covariance ($\lambda_{\text{semi}} \in [0.20, 0.75]$) and Downside Sortino Conviction Multiplier with Downside Ratio $\mathcal{D}_i$.
+    3. Euler Component CVaR (CCVaR) risk budget cap ($\text{TRC}_i \le \text{TRC}_{\text{cap}}$).
+    4. Quadratic Shannon entropy target vol scaling ($1 - 0.30 U^2$).
+    5. Downside semi-volatility normalized asymmetric Leland buffer bands.
+  - Specified concrete code modification targets with exact method signatures and 6 complete pytest test cases.
+- **Unexplored areas**: None (Investigation complete).
 
 ## Key Decisions Made
-- Completed systematic line-by-line audit and compiled 5-component handoff report.
+- Authored comprehensive Phase 6 F43 report to `d:\Finance\code\stock\.agents\explorer_m1_2\handoff.md`.
+- Completed all objectives with 100% verification against baseline test suites (42/42 tests passing).
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\explorer_m1_2\ORIGINAL_REQUEST.md` — Initial user/parent request
+- `d:\Finance\code\stock\.agents\explorer_m1_2\DISPATCH.md` — Task dispatch log
 - `d:\Finance\code\stock\.agents\explorer_m1_2\BRIEFING.md` — Working memory state
 - `d:\Finance\code\stock\.agents\explorer_m1_2\progress.md` — Liveness heartbeat log
-- `d:\Finance\code\stock\.agents\explorer_m1_2\handoff.md` — 5-Component Comprehensive Audit Report
+- `d:\Finance\code\stock\.agents\explorer_m1_2\handoff.md` — Comprehensive Phase 6 F43 Investigation Report
+

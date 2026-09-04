@@ -1,7 +1,7 @@
-# BRIEFING — 2026-07-30T04:31:15Z
+# BRIEFING — 2026-09-04T13:43:00Z
 
 ## Mission
-Audit risk management, portfolio optimization, 2D regime ensemble engine, and hyperparameter tuning in the Stock Trading System.
+Investigate Phase 6 enhancements for F44 (Level-3 Micro-Price Pegging, Hawkes Toxicity & Darkpool Liquidity Capture across KRX and US venues), formulating mathematical models, code targets, and test cases.
 
 ## 🔒 My Identity
 - Archetype: explorer
@@ -9,26 +9,33 @@ Audit risk management, portfolio optimization, 2D regime ensemble engine, and hy
 - Working directory: d:\Finance\code\stock\.agents\explorer_m1_3
 - Original parent: 3f39566b-21e1-4a55-97f6-005b5c8f9946
 - Milestone: M1-3
+- Appended Role: Phase 6 Microstructure, L3 Orderbook & Execution Specialist (F44)
+- Current Parent: cb4888d0-b14d-471f-b555-422c2a30d7c0
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement code fixes
 - Focus on risk management, portfolio construction, 2D regime ensemble, HPO/Optuna
+- F44 Focus: Level-3 Micro-Price Pegging, Hawkes Toxicity, Darkpool Liquidity Capture
 
 ## Current Parent
-- Conversation ID: 3f39566b-21e1-4a55-97f6-005b5c8f9946
-- Updated: 2026-07-30T04:31:15Z
+- Conversation ID: cb4888d0-b14d-471f-b555-422c2a30d7c0
+- Updated: 2026-09-04T13:43:00Z
 
 ## Investigation State
-- **Explored paths**: `src/risk/risk_manager.py`, `src/ai/ensemble_scorer.py`, `src/ai/optuna_tuner.py`, `src/risk/position_sizing.py`, `src/risk/portfolio_optimizer.py`, `src/analysis/portfolio_optimizer.py`, `trading_system/run_pipeline.py`.
+- **Explored paths**: `trading_system/src/execution/smart_order_router.py`, `trading_system/src/core/fast_lob_engine.py`, `trading_system/src/execution/oms_engine.py`, `trading_system/src/risk/unified_portfolio_allocator.py`, `tests/test_phase5_portfolio_execution.py`, `tests/test_fast_lob_engine.py`, `tests/test_smart_router.py`.
 - **Key findings**:
-  1. `RiskManager` pipeline disconnection: Re-instantiated fresh in `run_pipeline.py` without state persistence, drawdown permanently 0.0%, 25% of CrisisDetector score neutralized, crisis gating & ATR stops uninvoked.
-  2. 2D Regime Engine flaws: `REGIME_2D_WEIGHTS` unnormalized sum errors, `get_regime_reasoning_summary()` state mutation side-effects on `self._prev_weights`, report sorting by un-cost-adjusted `ensemble_score` vs Allocator sorting by net expected return.
-  3. Optuna HPO flaws: Objective function gaming & unused params in VCP Rule HPO, threshold selection bias in Lead-Lag HPO, absence of temporal CV in Strategies 3 & 4, single-model (XGBoost only) HPO with pseudo-copying to LightGBM/CatBoost.
-  4. Portfolio Construction flaws: `ensemble_scorer.py` feeds `np.random.normal` white noise as dummy returns to Risk Parity; HRP weights multiplied by ad-hoc market budgets breaking tree optimality.
-- **Unexplored areas**: None (Full audit completed).
+  1. `FastOrderBookMatchingEngine`: L3 individual orders are stored in FIFO queues, but lacks queue position query `estimate_queue_position` ($u_q$, fill probability), multi-tier depth decay micro-price, and order fragmentation power metrics.
+  2. `MicrosecondHawkesIntensity`: Univariate only; lacks buy/sell directional split $(\lambda_+, \lambda_-)$, missing directional toxicity detection for predatory selling runs.
+  3. `SmartOrderRouter`: Continuous Hawkes modulation operates on isotropic toxicity; darkpool MinQty is statically pegged to 20%; lacks logistic anti-gaming fill probability and venue-specialized parameter tags.
+  4. `oms_engine.py`: Peg calculation adjusts for composite L2 OBI, but lacks queue position concession $\Delta P_{\text{queue}}$ and multi-tier L3 depth decay.
+- **Unexplored areas**: None. Full mathematical formulation, code modification blueprints, and test suite specs completed.
 
 ## Key Decisions Made
-- Audit complete. All findings line-by-line documented with exact code paths, file lines, root cause analysis, severity, and portfolio impact in `handoff.md`.
+- Formulated complete mathematical models for L3 depth decay micro-price ($P_{\text{micro}}^{(L3)}$ with $\lambda=0.35$), FIFO queue position tracking ($u_q$), queue concession offset ($\Delta P_{\text{queue}}$), bivariate marked Hawkes directional toxicity ($\Gamma_{\text{toxic}}^{\text{dir}}$), dynamic anti-gaming MinQty ($20\% \to 50\%$), and logistic hazard darkpool fill probability.
+- Designed 12 targeted unit/property test specifications for `tests/test_phase6_execution_microstructure.py`.
+- Finalized comprehensive 5-component handoff report at `d:\Finance\code\stock\.agents\explorer_m1_3\handoff.md`.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\explorer_m1_3\handoff.md` — Final Handoff Audit Report
+- `d:\Finance\code\stock\.agents\explorer_m1_3\handoff.md` — Final Phase 6 F44 Investigation Report (529 lines)
+- `d:\Finance\code\stock\.agents\explorer_m1_3\progress.md` — Liveness heartbeat
+
