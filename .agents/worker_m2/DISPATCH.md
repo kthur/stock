@@ -1,24 +1,42 @@
-## 2026-08-30T13:49:15Z
-Milestone 2: Ensemble Meta-Learner & Dynamic 2D/3D Regime Weighting Enhancement.
-Assignee: teamwork_preview_worker (worker_m2)
-Working Directory: d:\Finance\code\stock\.agents\worker_m2
-Authoritative Original Request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Project Blueprint: d:\Finance\code\stock\PROJECT.md
-Survey Specification: d:\Finance\code\stock\.agents\explorer_survey_2\survey_report.md
-Project Rules: d:\Finance\code\stock\AGENTS.md
+## 2026-09-04T09:40:42Z
+You are Worker M2 for Phase 5 Deep Quantitative Enhancements (Milestone 2).
+Your working directory is: `d:\Finance\code\stock\.agents\worker_m2`
 
-Task Requirements:
-1. Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md, PROJECT.md, and d:\Finance\code\stock\.agents\explorer_survey_2\survey_report.md.
-2. In `trading_system/src/ai/ensemble_scorer.py`:
-   - Register the 3 new high-alpha strategy keys (`cross_asset_spillover`, `supply_chain_gnn`, `range_expansion_breakout`) and their score columns (`cross_asset_spillover_score`, `supply_chain_gnn_score`, `range_expansion_score`) into:
-     - `ALPHA_HORIZON_TIERS` (assign appropriately: e.g. `cross_asset_spillover` in medium/fast, `supply_chain_gnn` in medium, `range_expansion_breakout` in fast).
-     - `REGIME_WEIGHTS` (1D regime base weights: BULL, SIDEWAYS, BEAR).
-     - `REGIME_2D_WEIGHTS` (all 6 2D regimes: BEAR_LOW_VOL, BEAR_HIGH_VOL, SIDEWAYS_LOW_VOL, SIDEWAYS_HIGH_VOL, BULL_LOW_VOL, BULL_HIGH_VOL). Verify strict 1.000 sum invariant.
-     - `MACRO_WEIGHT_MODIFIERS` (3D macro modifiers).
-     - `strategy_cols` and `STRATEGY_SCORE_COLS`.
-   - Ensure synergy boosting and confluence rules seamlessly incorporate the new signals.
-3. Validate and verify that `CrossSectionalScoreNormalizer`, `FactorOrthogonalizerEngine` (PCA-ZCA whitening), and `RegimeFactorSuppressionEngine` cleanly process the expanded 34-strategy matrix.
-4. Run verification tests:
-   `$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/test_advanced_ensemble_features.py tests/test_regime_ensemble.py tests/test_adversarial_ensemble_scorer_challenger.py tests/test_r1_high_alpha_strategies.py -v`
-5. Write your complete implementation and verification report to `d:\Finance\code\stock\.agents\worker_m2\handoff.md`.
-6. Send a message to parent when complete.
+MANDATORY FIRST STEP:
+Read the following authoritative files:
+1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (specifically header `## 2026-09-04T08:36:42Z`)
+2. `d:\Finance\code\stock\PROJECT.md`
+3. `d:\Finance\code\stock\.agents\orchestrator_quant_opt5\SCOPE.md`
+4. `d:\Finance\code\stock\.agents\explorer_survey_2\analysis.md` and `handoff.md`
+
+MANDATORY INTEGRITY WARNING:
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+
+Write Ownership (Exclusive):
+You exclusively own and may modify or create:
+- `src/risk/unified_portfolio_allocator.py`
+- `src/execution/smart_order_router.py`
+- `src/execution/oms_engine.py`
+- `tests/test_phase5_portfolio_execution.py`
+
+Mission:
+Implement Milestone 2: Requirement R2 (Features F37 and F38):
+1. Feature F37: 4-Model Portfolio Allocation & Capital Efficiency 5th Deepening in `src/risk/unified_portfolio_allocator.py`:
+   - Higher-order systematic co-skewness ($s_i^{\text{coskew}} = \frac{E[\tilde{r}_i \tilde{r}_m^2]}{\sigma_i \sigma_m^2}$) and co-kurtosis ($k_i^{\text{cokurt}} = \frac{E[\tilde{r}_i \tilde{r}_m^3]}{\sigma_i \sigma_m^3}$) alpha conviction tilt $\mu_i^{\text{adj}} = \mu_i \cdot (1 + \lambda_{\text{skew}} s_i^{\text{coskew}} - \lambda_{\text{kurt}} (k_i^{\text{cokurt}} - 3))$, where $\lambda_{\text{skew}} = 0.15, \lambda_{\text{kurt}} = 0.05$.
+   - Dynamic Cornish-Fisher EVT-CVaR tail expansion $k_\alpha(w) \in [2.05, 3.20]$ adapting to portfolio skewness and kurtosis in `calculate_cvar_weights`.
+   - Dynamic Risk Parity Diversification Ratio (DRP-DR) scaling $\delta_{\text{DR}} = \text{clip}(1.0 + 0.40 \frac{DR - 1.30}{0.50}, 0.60, 1.40)$ where $DR = \frac{w^T \sigma}{\sqrt{w^T \Sigma w}}$, scaling HERC and Risk Parity weights in `optimize_multi_model_blend`.
+   - Entropy-Weighted Adaptive Target Volatility Scaling under Shannon regime uncertainty $U_{\text{regime}} = H(\pi)/\ln(6)$ scaling target volatility by $(1 - 0.25 U_{\text{regime}})$ and allocation cap by $(1 - 0.20 U_{\text{regime}})$ in `apply_target_volatility_scaling`.
+   - Hill/Pickands GPD dynamic tail index ($\hat{\xi} \in [0.05, 0.45]$) in parametric CVaR risk budgeting.
+
+2. Feature F38: Execution Slippage & Friction Cost Minimization 5th Deepening in `src/execution/smart_order_router.py` and `src/execution/oms_engine.py`:
+   - Continuous Hawkes toxicity modulation ($\Gamma_{\text{toxic}} = \text{clip}(\frac{\lambda - \bar{\lambda}}{2.5 \bar{\lambda} - \bar{\lambda}}, 0, 1)$) with smooth maker ratio decay: $\text{maker\_ratio} = \text{clip}(0.70 [1 - 0.571 \Gamma_{\text{toxic}}], 0.30, 0.70)$ in `smart_order_router.py`.
+   - Darkpool Midpoint Resting with Minimum Quantity (MinQty $\ge 20\%$) and queue-priority fill probability estimation.
+   - Volatility- and depth-adaptive L2 OBI micro-price dynamic curvature $\kappa_{\text{eff}} = \text{clip}(1.5 \frac{\sigma}{0.02} / \sqrt{R_{\text{depth}}}, 0.8, 3.0)$ in `oms_engine.py` (`calculate_peg_limit_price`).
+   - ADV-adaptive Gatheral slice count $n_{\text{slices}}^* = \text{clip}(\text{round}(3 + 8 \sqrt{\rho_{\text{adv}} / 0.01}), 2, 20)$ with intraday U-shaped volume smile weighting $V_{\text{smile}}(t) = 1.0 + 0.6(2t-1)^2$ in `AlmgrenChrissScheduler`.
+   - Granular 5-market spread- and tax-aware Leland dynamic buffer bands in `apply_leland_no_trade_buffers`: KOSDAQ 35.0, KOSPI 25.0, RUSSELL2000 16.0, NASDAQ 7.0, SP500 5.0 bps.
+
+3. Testing & Verification:
+   - Create `tests/test_phase5_portfolio_execution.py` covering all F37 and F38 features (co-skewness/kurtosis conviction tilt, Cornish-Fisher expansion, DRP-DR scaling, entropy volatility scaling, continuous Hawkes toxicity decay, MinQty darkpool resting, adaptive OBI curvature, ADV slice smile, and 5-market Leland buffer bands).
+   - Run tests: `.venv\Scripts\python.exe -m pytest tests/test_phase5_portfolio_execution.py tests/test_phase4_portfolio_execution.py -v`.
+   - Run tests: `.venv\Scripts\python.exe -m pytest tests/test_unified_portfolio_engine.py -v`.
+   - Ensure all tests pass with 100% exit code 0.

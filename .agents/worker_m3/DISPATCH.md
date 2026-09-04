@@ -1,28 +1,55 @@
-## 2026-08-21T16:31:45Z
-Worker: worker_m3
-Domain: Domain 2 Implementation Worker (V6-09 ~ V6-16)
-Working directory: d:\Finance\code\stock\.agents\worker_m3\
+## 2026-09-04T09:56:41Z
+You are Worker M3 for Phase 5 Deep Quantitative Enhancements (Milestone 3).
+Your working directory is: `d:\Finance\code\stock\.agents\worker_m3`
 
-Mandatory inputs:
-1. d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-2. d:\Finance\code\stock\system_improvement_report_v6.md (Sections 3.1~3.8 for Domain 2: V6-09 ~ V6-16)
-3. d:\Finance\code\stock\.agents\explorer_2\analysis.md (Domain 2 section)
-4. d:\Finance\code\stock\AGENTS.md
+MANDATORY FIRST STEP:
+Read the following authoritative files:
+1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (specifically header `## 2026-09-04T08:36:42Z`)
+2. `d:\Finance\code\stock\PROJECT.md`
+3. `d:\Finance\code\stock\.agents\orchestrator_quant_opt5\SCOPE.md`
+4. `d:\Finance\code\stock\.agents\explorer_survey_3\analysis.md` and `handoff.md`
+5. `d:\Finance\code\stock\trading_system\scripts\benchmark_phase4_quant_performance.py`
+6. `d:\Finance\code\stock\tests\test_benchmark_phase4.py`
 
-Exclusive Write Ownership:
-- `src/risk/portfolio_allocator.py`
-- `src/analysis/portfolio_optimizer.py`
-- `src/risk/risk_manager.py`
-- `src/analysis/coverage_analyzer.py`
-- `src/analysis/fx_adjusted_covariance.py`
-- Related tests in `tests/` for Domain 2
+MANDATORY INTEGRITY WARNING:
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-Tasks:
-- V6-09: Fix Leland dynamic buffer band boundary collapse (w_curr=0, w_targ=0) in `src/risk/portfolio_allocator.py` (scale \delta_i \le 0.40 w_{targ} and explicitly bypass buffer checks for w_{curr}=0 and w_{targ}=0).
-- V6-10: Fix Black-Litterman piecewise step discontinuity & gradient explosion in `src/analysis/portfolio_optimizer.py` (smooth quadratic penalty and global problem formulation).
-- V6-11: Fix EVT-POT quantile inversion (u \le q_\alpha) and non-regular GPD shape bounds (\xi \in [-0.5, 0.5]) in `src/risk/portfolio_allocator.py`.
-- V6-12: Fix Rockafellar-Uryasev convex CVaR L1 smoothing (Pseudo-Huber) & vectorized constraint callbacks in `src/risk/portfolio_allocator.py`.
-- V6-13: Fix CrisisDetector recovery latch suppressing WATCH defensive haircuts in `src/risk/risk_manager.py` (auto-reset at day 20, gate recovery multiplier strictly on `CrisisLevel.NONE`).
-- V6-14: Fix primary missing reason frequency selector distortion in `src/analysis/coverage_analyzer.py` (`max(reasons, key=reasons.get)`).
-- V6-15: Fix downside co-semivariance equicorrelation shrinkage erasing negative hedging benefits in `src/risk/portfolio_allocator.py` / `src/analysis/portfolio_optimizer.py` (Ledoit-Wolf diagonal variance target).
-- V6-16: Fix RMT Marchenko-Pastur residual eigenvalue noise variance over-shrinking in `src/analysis/fx_adjusted_covariance.py` (dynamic residual variance excluding market mode \lambda_1).
+Write Ownership (Exclusive):
+You exclusively own and may create or modify:
+- `src/execution/smart_order_router.py` (apply 1-line robustness fix: initialize `maker_ratio = 0.70` before the Hawkes block around line 92)
+- `trading_system/scripts/benchmark_phase5_quant_performance.py`
+- `tests/test_benchmark_phase5.py`
+- `reports/quant_benchmark_comparison_phase5.md`
+- `trading_system/result/quant_benchmark_comparison_phase5.md`
+- `reports/quant_benchmark_comparison.md`
+- `PROJECT.md` and `AGENTS.md` (document Phase 5 Features F35~F40 and Milestones M15~M18)
+
+Mission:
+Implement Milestone 3: Requirement R3 (Feature F39):
+1. Apply the 1-line robustness fix in `src/execution/smart_order_router.py`:
+   Ensure `maker_ratio = 0.70` is initialized before line 92 so non-finite Hawkes intensity does not cause `UnboundLocalError`.
+2. Build `trading_system/scripts/benchmark_phase5_quant_performance.py`:
+   - Follow the established architecture of `benchmark_phase4_quant_performance.py`.
+   - Implement Phase 4 Baseline vs Phase 5 Enhanced across all 5 markets: KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000.
+   - Compute all 15 quantitative metrics (Net Expected Return, Gross Return, Annualized Sharpe Ratio, Information Coefficient (Rank-IC & Pearson IC), Maximum Drawdown (MDD), Annualized Turnover, Trading & Friction Costs, Top-Decile Alpha Spread, Execution Slippage, Darkpool Savings, Win Rate, Profit Factor, etc.).
+   - Compute global institutional capital-weighted aggregate (SP500: 35%, NASDAQ: 25%, KOSPI: 20%, KOSDAQ: 10%, RUSSELL2000: 10%).
+   - Include Section 3: Strategic Factor Attribution Matrix detailing contributions from F35 (High-order non-linear signal combination & right-tail convexity), F36 (Regime transition half-life decay & noise filtering), F37 (4-model portfolio allocation & capital efficiency), F38 (SOR/LOB OBI pegging & friction reduction).
+   - Synchronize markdown reports across all 3 target paths:
+     1. `reports/quant_benchmark_comparison_phase5.md`
+     2. `trading_system/result/quant_benchmark_comparison_phase5.md`
+     3. `reports/quant_benchmark_comparison.md`
+3. Execute the benchmark script:
+   - Run: `.venv\Scripts\python.exe trading_system/scripts/benchmark_phase5_quant_performance.py` and verify exit code 0 and non-zero output tables across all 3 report paths.
+4. Build `tests/test_benchmark_phase5.py`:
+   - Create 4 tests verifying profile completeness, 5-market execution, Markdown report section and feature tags (`F35`~`F38`), and market filtering.
+   - Run: `.venv\Scripts\python.exe -m pytest tests/test_benchmark_phase5.py tests/test_benchmark_phase4.py -v` ensuring 100% pass rate.
+5. Update `PROJECT.md` and `AGENTS.md` with Phase 5 features F35~F40 and milestones M15~M18.
+
+Deliverable:
+Write a complete handoff report to `d:\Finance\code\stock\.agents\worker_m3\handoff.md` with sections:
+1. Observation (Files modified, exact changes made)
+2. Logic Chain (Mathematical and quantitative rationale)
+3. Caveats
+4. Conclusion
+5. Verification Method (Exact pytest commands and outputs)
+Then send a notification message back to me via `send_message`.

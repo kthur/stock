@@ -1,55 +1,39 @@
-## 2026-08-31T20:08:39Z
+## 2026-09-04T10:03:18Z
+You are Worker M4 for Phase 5 Deep Quantitative Enhancements (Milestone 4).
+Your working directory is: `d:\Finance\code\stock\.agents\worker_m4`
 
-You are worker_m4 (teamwork_preview_worker).
-Working directory: d:/Finance/code/stock/.agents/worker_m4/
-Workspace root: d:/Finance/code/stock
+MANDATORY FIRST STEP:
+Read the following authoritative files:
+1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (specifically header `## 2026-09-04T08:36:42Z`)
+2. `d:\Finance\code\stock\PROJECT.md`
+3. `d:\Finance\code\stock\.agents\orchestrator_quant_opt5\SCOPE.md`
 
-You must strictly follow the integrity rules:
+MANDATORY INTEGRITY WARNING:
 DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-Context:
-Milestones 1, 2, and 3 are completed:
-- M1 (R1): GHA workflows (.github/workflows/pipeline.yml, preseed.yml, training.yml) patched for 5 markets, cache fallbacks, LSTM inclusion.
-- M2 (R2): 31-Strategy canonical sequence (1~31) unified across AGENTS.md, run_pipeline.py, reporter.py, verify_gha_artifacts.py, and .agents/skills/gha-artifact-verifier/SKILL.md.
-- M3 (R3): Dashboard metric consolidation & UX enhancement in generate_report.py (3 single consolidated cards: Market Regime & Risk Gates, Strategy Coverage & Missingness Center, Portfolio Optimization & Execution OMS; 31 canonical strategy tabs; responsive desktop/mobile layouts; index.html generated).
+Mission:
+Execute Milestone 4: Comprehensive Test Suite Verification (Feature F40):
+1. Execute the full repository pytest test suite:
+   - First collect tests: `.venv\Scripts\python.exe -m pytest --collect-only -q` to report exact test count (should be ~2,380+ tests).
+   - Run the full suite: `.venv\Scripts\python.exe -m pytest tests/ -v --durations=10`.
+   - Verify that all active tests pass with 0 failures, 0 errors, and only expected skips (the 2 Phase 3 live broker tests in `test_e2e.py`).
+2. Verify Phase 5 specific test suites individually:
+   - `.venv\Scripts\python.exe -m pytest tests/test_phase5_signal_enhancement.py -v`
+   - `.venv\Scripts\python.exe -m pytest tests/test_phase5_portfolio_execution.py -v`
+   - `.venv\Scripts\python.exe -m pytest tests/test_benchmark_phase5.py -v`
+   - `.venv\Scripts\python.exe -m pytest tests/test_phase4_signal_enhancement.py tests/test_phase4_portfolio_execution.py tests/test_benchmark_phase4.py -v`
+3. Verify that the benchmark script runs cleanly:
+   - `.venv\Scripts\python.exe trading_system/scripts/benchmark_phase5_quant_performance.py`
+4. Confirm report synchronization across all 3 files:
+   - `reports/quant_benchmark_comparison_phase5.md`
+   - `trading_system/result/quant_benchmark_comparison_phase5.md`
+   - `reports/quant_benchmark_comparison.md`
 
-Your task:
-1. Read d:/Finance/code/stock/.agents/ORIGINAL_REQUEST.md and d:/Finance/code/stock/PROJECT.md.
-2. Run the complete pytest test suite using the Python environment:
-   `.venv\Scripts\python.exe -m pytest tests/ -v` (or run without -v if output is too long, and check summary count, passed/failed).
-3. Run the artifact verifier:
-   `.venv\Scripts\python.exe trading_system/scripts/verify_gha_artifacts.py --strict`
-4. Inspect and verify:
-   - `gh-pages/index.html` exists and is non-empty, contains the 3 consolidated cards, and 31 strategy tabs.
-   - All 31 strategy prediction files in `trading_system/result/` or `trading_system/` exist and are valid.
-5. If any test fails or artifact check fails, fix the underlying issue authentically and re-verify.
-6. Write a comprehensive handoff report to `d:/Finance/code/stock/.agents/worker_m4/handoff.md` detailing:
-   - Pytest test execution results (total tests, passed, failed, skipped, execution time).
-   - Artifact verifier execution results.
-   - Confirmation of 31-strategy outputs and dashboard validity.
-   - Verdict: DONE.
-7. Send a message to parent with your status and handoff file path.
-
-## 2026-08-31T20:23:53Z
-
-**Context**: Full E2E Test Suite & Artifact Verification for Milestone 4
-**Content**: Checking in on progress of pytest execution and artifact verification.
-**Action**: Please reply with your current status or ETA when ready.
-
-## 2026-08-31T20:34:35Z
-
-**Context**: Milestone 4 Verification
-**Content**: Checking in on final test summary and handoff status.
-**Action**: Please send your completion status or latest update.
-
-## 2026-08-31T20:45:49Z
-
-**Context**: Milestone 4 E2E Verification
-**Content**: Status query: Has the final pytest full test suite finished, and what were the final results?
-**Action**: Please respond with the test suite stats and write your final handoff.md.
-
-## 2026-08-31T20:51:14Z
-
-**Context**: Milestone 4 E2E Verification
-**Content**: Status query: How is the full pytest run progressing?
-**Action**: Please respond with the current percentage / count or handoff when ready.
+Deliverable:
+Write a complete handoff report to `d:\Finance\code\stock\.agents\worker_m4\handoff.md` with sections:
+1. Observation (Test collection count, total passed, skipped, failed, total duration)
+2. Logic Chain (Verification of zero regressions across all modules)
+3. Caveats
+4. Conclusion
+5. Verification Method (Verbatim test commands and execution outputs)
+Then send a notification message back to me via `send_message`.

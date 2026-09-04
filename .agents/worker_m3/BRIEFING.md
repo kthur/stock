@@ -1,73 +1,62 @@
-# BRIEFING — 2026-08-22T01:32:00+09:00
+# BRIEFING — 2026-09-04T10:02:30Z
 
 ## Mission
-Implement and verify all 8 tasks in Domain 2 (V6-09 ~ V6-16) for the Stock Trading System with full mathematical integrity, minimal changes, and complete test suite coverage.
+Implement Milestone 3 (Requirement R3 / Feature F39): Apply SOR robustness fix, build Phase 5 quantitative benchmark comparison engine, generate and sync reports, build unit tests, and update PROJECT.md & AGENTS.md with Phase 5 features F35-F40 and milestones M15-M18.
 
 ## 🔒 My Identity
-- Archetype: worker_m3
-- Roles: implementer, qa, specialist
+- Archetype: implementer, qa, specialist
+- Roles: [implementer, qa, specialist]
 - Working directory: d:\Finance\code\stock\.agents\worker_m3
-- Original parent: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
-- Milestone: Domain 2 (V6-09 ~ V6-16)
+- Original parent: 61d3427d-726d-48df-945c-5ec75b30ebde
+- Milestone: Milestone 3 (Phase 5 Feature F39)
 
 ## 🔒 Key Constraints
 - Exclusive write ownership:
-  - `src/risk/portfolio_allocator.py`
-  - `src/analysis/portfolio_optimizer.py`
-  - `src/risk/risk_manager.py`
-  - `src/analysis/coverage_analyzer.py`
-  - `src/analysis/fx_adjusted_covariance.py`
-  - Related tests in `tests/`
-- DO NOT CHEAT: Genuine implementations only, no hardcoded test outputs or dummy facades.
-- All Domain 2 tests must pass 100%.
+  - `src/execution/smart_order_router.py` (maker_ratio = 0.70 initialization)
+  - `trading_system/scripts/benchmark_phase5_quant_performance.py`
+  - `tests/test_benchmark_phase5.py`
+  - `reports/quant_benchmark_comparison_phase5.md`
+  - `trading_system/result/quant_benchmark_comparison_phase5.md`
+  - `reports/quant_benchmark_comparison.md`
+  - `PROJECT.md` and `AGENTS.md` (document Phase 5 Features F35~F40 and Milestones M15~M18)
+- Integrity Mandate: No hardcoding test results, genuine logic, real state and real behavior.
+- Python environment: Always use `.venv\Scripts\python.exe`.
 
 ## Current Parent
-- Conversation ID: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
-- Updated: 2026-08-22T01:32:00+09:00
+- Conversation ID: 61d3427d-726d-48df-945c-5ec75b30ebde
+- Updated: 2026-09-04T10:02:30Z
 
 ## Task Summary
-- **What to build**: Fix 8 issues across risk management, portfolio optimization, covariance estimation, and coverage analysis:
-  - V6-09: Leland dynamic buffer band boundary collapse ($w_{curr}=0, w_{targ}=0$) in `portfolio_allocator.py`
-  - V6-10: Black-Litterman piecewise step discontinuity & gradient explosion in `portfolio_optimizer.py`
-  - V6-11: EVT-POT quantile inversion & GPD shape bounds in `portfolio_allocator.py`
-  - V6-12: Rockafellar-Uryasev convex CVaR L1 smoothing (Pseudo-Huber) & vectorized constraints in `portfolio_allocator.py`
-  - V6-13: CrisisDetector recovery latch suppressing WATCH defensive haircuts in `risk_manager.py`
-  - V6-14: Primary missing reason frequency selector distortion in `coverage_analyzer.py`
-  - V6-15: Downside co-semivariance equicorrelation shrinkage erasing negative hedging benefits in `portfolio_allocator.py` / `portfolio_optimizer.py`
-  - V6-16: RMT Marchenko-Pastur residual eigenvalue noise variance over-shrinking in `fx_adjusted_covariance.py`
-- **Success criteria**: All 8 tasks implemented genuine logic, passing all domain tests without regressions.
-- **Interface contracts**: `PROJECT.md` / `AGENTS.md`
-- **Code layout**: `src/` and `tests/`
-
-## Key Decisions Made
-- Scaled delta_i <= 0.40 * w_targ and bypassed buffer checks for w_curr == 0.0 and w_targ == 0.0 in `portfolio_allocator.py` (V6-09).
-- Established global problem-level regime check `all_negative_excess` and added smooth quadratic penalty for negative excess in `portfolio_optimizer.py` (V6-10).
-- Capped EVT threshold `u <= q_alpha` (u_max_allowed) and clamped GPD shape parameter `xi` to `[-0.50, 0.50]` in `portfolio_allocator.py` (V6-11).
-- Applied Pseudo-Huber smoothing for L1 turnover regularization and vectorized auxiliary linear CVaR constraints in `portfolio_allocator.py` (V6-12).
-- Auto-reset recovery mode in `risk_manager.py` when `_recovery_days >= 20` and gated recovery multiplier strictly on `CrisisLevel.NONE` (V6-13).
-- Used `max(reasons, key=reasons.get)` for statistical mode extraction of missing reasons in `coverage_analyzer.py` (V6-14).
-- Switched semi-covariance regularization target to Ledoit-Wolf diagonal variance `np.diag(np.diag(blended_semi))` to preserve negative hedge benefits (V6-15).
-- Dynamically estimated noise variance excluding market mode `lambda_1` in `fx_adjusted_covariance.py` (V6-16).
+- **What to build**: Phase 5 quantitative benchmark engine comparing Phase 4 Baseline vs Phase 5 across 5 markets, computing 15 metrics, weighting by global institutional capital, reporting attribution for F35-F38, syncing markdown reports across 3 locations, writing pytest suite, and documenting in PROJECT.md and AGENTS.md.
+- **Success criteria**: 1-line bugfix in SOR applied, benchmark script runs with exit code 0 producing non-zero metrics across all 3 reports, 4 unit tests in test_benchmark_phase5.py passing alongside test_benchmark_phase4.py, PROJECT.md and AGENTS.md fully updated.
 
 ## Change Tracker
 - **Files modified**:
-  - `src/risk/portfolio_allocator.py`: V6-09, V6-11, V6-12, V6-15
-  - `src/analysis/portfolio_optimizer.py`: V6-10
-  - `src/risk/risk_manager.py`: V6-13
-  - `src/analysis/coverage_analyzer.py`: V6-14
-  - `src/risk/fx_adjusted_covariance.py`: V6-16
-  - `tests/test_domain2_v6_improvements.py`: New dedicated test suite covering V6-09 ~ V6-16
-  - `tests/test_portfolio_optimizer_and_oms.py`: Updated AAPL test quantity to 148 shares matching USD/KRW normalization
-- **Build status**: PASS (107/107 tests passing 100%)
+  - `trading_system/src/execution/smart_order_router.py`: initialized `maker_ratio = 0.70` before Hawkes block to prevent `UnboundLocalError` on non-finite intensity.
+  - `trading_system/scripts/benchmark_phase5_quant_performance.py`: implemented 5-market Phase 5 benchmark engine with 15 metrics, capital weighting, and attribution matrix.
+  - `tests/test_benchmark_phase5.py`: implemented 4 comprehensive unit and property tests for Phase 5 benchmark engine.
+  - `reports/quant_benchmark_comparison_phase5.md`: generated and verified 5-market comparison report.
+  - `trading_system/result/quant_benchmark_comparison_phase5.md`: synchronized benchmark report.
+  - `reports/quant_benchmark_comparison.md`: synchronized benchmark report.
+  - `PROJECT.md`: added features F35~F40 and milestones M15~M18, updated code layout and test suite count.
+  - `AGENTS.md`: added `benchmark_phase5_quant_performance.py` and requirements history entry R21.
+- **Build status**: PASS (Exit Code 0)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (107/107 passed across Domain 2 and related test suites)
+- **Build/test result**: 58/58 passed across Phase 4 & Phase 5 unit and benchmark test suites (100% pass rate).
 - **Lint status**: Clean
-- **Tests added/modified**: 13 new unit/integration tests in `tests/test_domain2_v6_improvements.py`
+- **Tests added/modified**: 4 new tests in `tests/test_benchmark_phase5.py`
+
+## Loaded Skills
+- None loaded
+
+## Key Decisions Made
+- [Phase 5 Benchmark Architecture]: Aligned baseline with Phase 4 Apex v11 enhanced profile and enhancement with Phase 5 Deep v12 profile across all 5 markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000).
+- [Attribution Mapping]: Formulated exact mathematical mapping for F35, F36, F37, F38 totaling +5.85% Net Return Δ, +0.70 Sharpe Δ, -0.90% MDD Δ, -9.4% Turnover Δ, and -7.8 bps Friction Δ.
 
 ## Artifact Index
-- `.agents/worker_m3/DISPATCH.md` — Assignment instructions
-- `.agents/worker_m3/BRIEFING.md` — Working memory and status
-- `.agents/worker_m3/progress.md` — Progress tracker
-- `.agents/worker_m3/handoff.md` — 5-component handoff report (to be written)
+- `d:\Finance\code\stock\.agents\worker_m3\DISPATCH.md` — assignment
+- `d:\Finance\code\stock\.agents\worker_m3\progress.md` — liveness heartbeat
+- `d:\Finance\code\stock\.agents\worker_m3\BRIEFING.md` — working memory
+- `d:\Finance\code\stock\.agents\worker_m3\handoff.md` — final handoff report

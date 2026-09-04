@@ -100,6 +100,132 @@ class UnifiedPortfolioAllocator:
         return float(upper_mult), float(lower_mult)
 
     @staticmethod
+    def compute_higher_order_co_moments(
+        returns_matrix: np.ndarray,
+        market_returns: Optional[np.ndarray] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Computes systematic higher-order co-skewness and co-kurtosis vectors:
+            s_i^coskew = E[ \tilde{r}_i \tilde{r}_m^2 ] / (sigma_i * sigma_m^2)
+            k_i^cokurt = E[ \tilde{r}_i \tilde{r}_m^3 ] / (sigma_i * sigma_m^3)
+        where \tilde{r}_i, \tilde{r}_m are demeaned asset and market returns.
+        """
+        R = np.asarray(returns_matrix, dtype=float)
+        if R.ndim == 1:
+            R = R.reshape(-1, 1)
+        T, n = R.shape
+        if T < 5 or n == 0:
+            return np.zeros(n), np.full(n, 3.0)
+
+        # Demean returns
+        R_mean = np.nanmean(R, axis=0, keepdims=True)
+        R_tilde = np.nan_to_num(R - R_mean, nan=0.0)
+
+        # Market returns (equal-weighted cross-sectional return if not provided)
+        if market_returns is not None and len(market_returns) == T:
+            r_m = np.asarray(market_returns, dtype=float)
+        else:
+            r_m = np.mean(R, axis=1)
+
+        r_m_mean = np.nanmean(r_m)
+        r_m_tilde = np.nan_to_num(r_m - r_m_mean, nan=0.0)
+
+        sigma_i = np.sqrt(np.maximum(np.mean(R_tilde ** 2, axis=0), 1e-8))
+        sigma_m = math.sqrt(max(float(np.mean(r_m_tilde ** 2)), 1e-8))
+
+        r_m2 = r_m_tilde ** 2
+        r_m3 = r_m_tilde ** 3
+
+        # E[ \tilde{r}_i \tilde{r}_m^2 ]
+        co_skew_num = np.mean(R_tilde * r_m2[:, np.newaxis], axis=0)
+        co_skew = co_skew_num / (sigma_i * (sigma_m ** 2))
+
+        # E[ \tilde{r}_i \tilde{r}_m^3 ]
+        co_kurt_num = np.mean(R_tilde * r_m3[:, np.newaxis], axis=0)
+        co_kurt = co_kurt_num / (sigma_i * (sigma_m ** 3))
+
+        # Clean numerical outliers
+        co_skew = np.clip(np.nan_to_num(co_skew, nan=0.0), -5.0, 5.0)
+        co_kurt = np.clip(np.nan_to_num(co_kurt, nan=3.0), -2.0, 15.0)
+
+        return co_skew, co_kurt
+
+    @staticmethod
+    def estimate_gpd_tail_index(
+        returns_matrix: np.ndarray,
+        tail_quantile: float = 0.90,
+    ) -> float:
+        """
+        Estimates the Generalized Pareto Distribution (GPD) dynamic tail index xi in [0.05, 0.45]
+        using Hill's heavy-tail order statistic estimator on lower tail portfolio/asset losses.
+        xi approx 0.05 -> near-Gaussian thin tail.
+        xi approx 0.25 -> Student-t fat tail.
+        xi approx 0.40+ -> Fréchet heavy tail / crisis regime.
+        """
+        R = np.asarray(returns_matrix, dtype=float)
+        if R.ndim == 1:
+            losses = -np.nan_to_num(R, nan=0.0)
+        else:
+            losses = -np.nan_to_num(np.mean(R, axis=1), nan=0.0)
+
+        losses = losses[np.isfinite(losses)]
+        T = len(losses)
+        if T < 10:
+            return 0.15
+
+        u = float(np.quantile(losses, tail_quantile))
+        excesses = losses[losses > u] - u
+        excesses = excesses[excesses > 1e-7]
+        K = len(excesses)
+        if K < 3:
+            return 0.15
+
+        # Hill's estimator on sorted positive excesses: Y_{(1)} <= ... <= Y_{(K)}
+        sorted_excesses = np.sort(excesses)
+        y_min = sorted_excesses[0]
+        log_ratios = np.log(sorted_excesses / y_min)
+        xi_hat = float(np.mean(log_ratios))
+        return float(np.clip(xi_hat, 0.05, 0.45))
+
+    @classmethod
+    def resolve_market_cost_bps(
+        cls,
+        symbol: Optional[str] = None,
+        market: Optional[str] = None,
+        default_cost_bps: float = 20.0,
+    ) -> float:
+        """
+        Resolves granular 5-market spread and tax friction cost in basis points (bps):
+        - KOSDAQ: 35.0 bps (18 bps STT + 2 bps fee + 15 bps half-spread)
+        - KOSPI: 25.0 bps (18 bps STT + 2 bps fee + 5 bps half-spread)
+        - RUSSELL2000: 16.0 bps (0.5 bps reg fee + 15.5 bps half-spread)
+        - NASDAQ: 7.0 bps (0.5 bps reg fee + 6.5 bps half-spread)
+        - SP500: 5.0 bps (0.5 bps reg fee + 4.5 bps half-spread)
+        """
+        if market:
+            m_str = str(market).upper().strip()
+            if "KOSDAQ" in m_str or m_str in ("KQ", "KOSDAQ_INDEX"):
+                return 35.0
+            if "KOSPI" in m_str or m_str in ("KS", "KOSPI_INDEX"):
+                return 25.0
+            if "RUSSELL" in m_str or "R2000" in m_str or m_str == "RUSSELL2000":
+                return 16.0
+            if "NASDAQ" in m_str or "NDX" in m_str:
+                return 7.0
+            if "SP500" in m_str or "S&P500" in m_str or "SPX" in m_str or "S&P" in m_str:
+                return 5.0
+
+        if symbol:
+            s_str = str(symbol).upper().strip()
+            if s_str.endswith(".KQ"):
+                return 35.0
+            if s_str.endswith(".KS") or (s_str.split(".")[0].isdigit() and len(s_str.split(".")[0]) == 6):
+                return 25.0
+
+        return float(default_cost_bps)
+
+
+    @staticmethod
     def compute_returns_matrix(
         symbols: List[str],
         prices_dict: Dict[str, pd.DataFrame],
@@ -396,10 +522,32 @@ class UnifiedPortfolioAllocator:
                         logger.debug(f"[EVT-CVaR Downside Semi-Cov] Fallback to base cov: {e_semi}")
                         eff_cov = eff_base_cov
 
+                # F37: Dynamic Cornish-Fisher EVT-CVaR tail expansion & Hill/Pickands GPD dynamic tail index
+                z_alpha = 1.645 if alpha >= 0.95 else 1.282
+                co_skew, co_kurt = None, None
+                eff_xi = 0.15
+                if returns_df is not None and returns_df.shape[0] >= 5 and returns_df.shape[1] == n:
+                    try:
+                        co_skew, co_kurt = self.compute_higher_order_co_moments(returns_df.values)
+                        eff_xi = self.estimate_gpd_tail_index(returns_df.values, tail_quantile=0.90)
+                    except Exception as e_moments:
+                        logger.debug(f"[EVT-CVaR Co-Moments] Fallback: {e_moments}")
+
                 def obj_evt_cvar(w):
                     port_var = float(w @ eff_cov @ w)
                     port_std = math.sqrt(max(1e-8, port_var))
-                    cvar_est = k_alpha * port_std
+                    # F37: Dynamic Cornish-Fisher EVT-CVaR tail expansion adapting to portfolio co-skewness and co-kurtosis
+                    if co_skew is not None and co_kurt is not None:
+                        s_p = float(np.dot(w, co_skew))
+                        k_p = float(np.dot(w, co_kurt - 3.0))
+                        k_alpha_w = float(np.clip(
+                            z_alpha + 0.41 - ((z_alpha ** 2 - 1.0) / 6.0) * s_p + 0.10 * max(0.0, k_p) + 1.25 * eff_xi,
+                            2.05, 3.20
+                        ))
+                    else:
+                        k_alpha_w = float(np.clip(k_alpha + 1.25 * (eff_xi - 0.15), 2.05, 3.20))
+
+                    cvar_est = k_alpha_w * port_std
                     if has_alpha:
                         return cvar_est - float(eff_lambda_alpha * np.dot(w, p_rets))
                     return cvar_est
@@ -541,6 +689,46 @@ class UnifiedPortfolioAllocator:
             if tot_b > 0:
                 blend_cfg = {k: float(v / tot_b) for k, v in blend_cfg.items()}
 
+        # F37: Dynamic Risk Parity Diversification Ratio (DRP-DR) Scaling
+        if cov_matrix is not None and cov_matrix.shape == (n, n):
+            try:
+                diag_vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-8))
+                mean_vol = float(np.mean(diag_vols))
+                eq_w = np.full(n, 1.0 / n)
+                port_vol_eq = math.sqrt(max(1e-8, float(eq_w @ cov_matrix @ eq_w)))
+                dr_base = float(mean_vol / port_vol_eq) if port_vol_eq > 0 else 1.0
+                # delta_DR = clip(1.0 + 0.40 * (DR - 1.30) / 0.50, 0.60, 1.40)
+                delta_dr = float(np.clip(1.0 + 0.40 * (dr_base - 1.30) / 0.50, 0.60, 1.40))
+
+                if "herc" in blend_cfg and blend_cfg["herc"] > 0:
+                    blend_cfg["herc"] *= delta_dr
+                if "rp" in blend_cfg and blend_cfg["rp"] > 0:
+                    blend_cfg["rp"] *= delta_dr
+
+                # If diversification collapsed (correlation spike DR < 1.30), boost EVT-CVaR
+                if delta_dr < 1.0 and "cvar" in blend_cfg:
+                    blend_cfg["cvar"] += float((1.0 - delta_dr) * 0.20)
+
+                tot_dr_b = sum(blend_cfg.values())
+                if tot_dr_b > 0:
+                    blend_cfg = {k: float(v / tot_dr_b) for k, v in blend_cfg.items()}
+            except Exception as e_dr:
+                logger.debug(f"[DRP-DR Scaling] Exception: {e_dr}")
+
+        # F37: Systematic Higher-Order Co-Moments Alpha Conviction Adjustment
+        eff_predicted_returns = predicted_returns
+        if predicted_returns is not None and len(predicted_returns) == n and returns_df is not None and returns_df.shape[0] >= 5 and returns_df.shape[1] == n:
+            try:
+                co_skew, co_kurt = self.compute_higher_order_co_moments(returns_df.values)
+                p_rets_arr = np.asarray(predicted_returns, dtype=float)
+                # mu_i^adj = mu_i * (1 + lambda_skew * s_i^coskew - lambda_kurt * (k_i^cokurt - 3))
+                # lambda_skew = 0.15, lambda_kurt = 0.05
+                co_tilt = np.clip(1.0 + 0.15 * co_skew - 0.05 * (co_kurt - 3.0), 0.20, 2.50)
+                eff_predicted_returns = p_rets_arr * co_tilt
+            except Exception as e_cm:
+                logger.debug(f"[Higher-Order Co-Moments Tilt] Exception: {e_cm}")
+                eff_predicted_returns = predicted_returns
+
         # 1. Model A: Black-Litterman Conviction (with CAPM Equilibrium Market-Cap Priors)
         w_bl = np.full(n, 1.0 / n)
         if blend_cfg["bl"] > 0:
@@ -553,7 +741,7 @@ class UnifiedPortfolioAllocator:
 
                 w_bl = calculate_black_litterman_weights(
                     cov_matrix=cov_matrix,
-                    predicted_returns=predicted_returns,
+                    predicted_returns=eff_predicted_returns,
                     prior_weights=prior_w,
                     risk_aversion=self.risk_aversion,
                     symbols=symbols,
@@ -614,7 +802,7 @@ class UnifiedPortfolioAllocator:
                 w_cvar = self.calculate_cvar_weights(
                     returns_df,
                     confidence_level=0.95,
-                    predicted_returns=predicted_returns,
+                    predicted_returns=eff_predicted_returns,
                     lambda_alpha=0.50,
                     cov_matrix=tail_cov if tail_cov is not None else cov_matrix,
                     regime=regime,
@@ -634,12 +822,12 @@ class UnifiedPortfolioAllocator:
         )
 
         # Alpha-Vol Conviction Tilting: tilts risk-parity/HERC weights toward high-alpha leaders
-        if predicted_returns is not None and len(predicted_returns) == n:
-            preds = np.asarray(predicted_returns, dtype=float)
+        if eff_predicted_returns is not None and len(eff_predicted_returns) == n:
+            preds = np.asarray(eff_predicted_returns, dtype=float)
             p_std = float(np.nanstd(preds))
             if p_std > 1e-6:
                 p_mean = float(np.nanmean(preds))
-                z_alpha = np.clip((preds - p_mean) / p_std, -2.5, 2.5)
+                z_alpha = np.clip((preds - p_mean) / max(p_std, 0.01), -2.5, 2.5)
                 tilt_mult = np.exp(0.35 * z_alpha)
                 w_composite = w_composite * tilt_mult
 
@@ -777,7 +965,7 @@ class UnifiedPortfolioAllocator:
         self,
         weights: np.ndarray,
         cov_matrix: np.ndarray,
-        regime: Optional[str] = "BULL_LOW_VOL",
+        regime: Optional[Union[str, int, Dict[str, float]]] = "BULL_LOW_VOL",
         expected_returns: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, float]:
         """
@@ -786,6 +974,9 @@ class UnifiedPortfolioAllocator:
         - In Bull Low-Vol: scales allocation up to 98% (eliminating cash drag).
         - In High-Conviction Bull (Sharpe >= 1.5): scales allocation up to 100% (Kelly boost).
         - In Bear High-Vol / Crisis: scales allocation down to 40~50% (preserving cash).
+        F37: Entropy-Weighted Adaptive Target Volatility Scaling under Shannon regime uncertainty:
+            U_regime = H(pi) / ln(6)
+            Scales target volatility by (1 - 0.25 * U_regime) and allocation cap by (1 - 0.20 * U_regime).
         """
         n = len(weights)
         if n == 0 or cov_matrix.shape[0] != n:
@@ -793,6 +984,19 @@ class UnifiedPortfolioAllocator:
 
         port_var = float(weights.T @ cov_matrix @ weights)
         annualized_port_vol = float(np.sqrt(max(1e-8, port_var * 252.0)))
+
+        # F37: Compute Shannon regime entropy uncertainty U_regime = H(pi) / ln(6)
+        u_regime = 0.0
+        if isinstance(regime, dict) and len(regime) > 0:
+            probs = np.array([max(0.0, float(v)) for v in regime.values()], dtype=float)
+            tot_p = np.sum(probs)
+            if tot_p > 0:
+                probs = probs / tot_p
+                # Shannon entropy H(pi) = -sum(pi * ln(pi))
+                h_pi = -float(np.sum([p * math.log(p + 1e-12) for p in probs if p > 0]))
+                u_regime = float(np.clip(h_pi / math.log(6.0), 0.0, 1.0))
+        elif regime and isinstance(regime, str):
+            u_regime = 0.0
 
         if isinstance(regime, dict):
             regime_key = max(regime, key=regime.get) if regime else "BULL_LOW_VOL"
@@ -820,8 +1024,13 @@ class UnifiedPortfolioAllocator:
             max_alloc_cap = 0.50  # Risk off
             min_alloc_floor = 0.20
 
+        # F37: Entropy-Weighted Adaptive Target Volatility Scaling
+        eff_target_vol = self.target_volatility * (1.0 - 0.25 * u_regime)
+        max_alloc_cap *= (1.0 - 0.20 * u_regime)
+        min_alloc_floor *= (1.0 - 0.30 * u_regime)
+
         # Scale factor = target_vol / realized_vol (C-06 fix: eliminate double-scaling cash drag)
-        raw_scale = self.target_volatility / max(annualized_port_vol, 0.04)
+        raw_scale = eff_target_vol / max(annualized_port_vol, 0.04)
         effective_alloc = float(np.clip(raw_scale, min_alloc_floor, max_alloc_cap))
 
         # Scale weights
@@ -849,6 +1058,7 @@ class UnifiedPortfolioAllocator:
         use_asymmetric_bands: bool = True,
         asset_cost_bps: Optional[Union[np.ndarray, List[float]]] = None,
         symbols: Optional[List[str]] = None,
+        markets: Optional[List[str]] = None,
     ) -> np.ndarray:
         """
         Volatility-Normalized Asymmetric Leland Dynamic No-Trade Buffer Bands:
@@ -859,10 +1069,12 @@ class UnifiedPortfolioAllocator:
         - Laggards (z < 0): lower band smoothly tightens down to 0.6x for prompt de-risking.
         - Boundary Rebalancing: when weight breaches band, rebalances to boundary (L_i or U_i) rather
           than full target, minimizing unnecessary turnover and market impact while controlling tracking error.
-        F30: Market-Specific STT & Fee-Aware Leland Dynamic Buffer Bands:
-          - If symbols is provided: sets c_i = max(leland_cost_bps, 25.0) bps for Korean assets (.KS, .KQ, 6-digit)
-            to incorporate Korea's 0.18% STT, and c_i = min(leland_cost_bps, 8.0) bps for US assets.
-          - If asset_cost_bps is provided: directly uses custom per-asset bps.
+        F30 & F38: Granular 5-Market Spread & Tax-Aware Leland Dynamic Buffer Bands:
+          - KOSDAQ: 35.0 bps (18 bps STT + 2 bps fee + 15 bps half-spread)
+          - KOSPI: 25.0 bps (18 bps STT + 2 bps fee + 5 bps half-spread)
+          - RUSSELL2000: 16.0 bps (0.5 bps reg fee + 15.5 bps half-spread)
+          - NASDAQ: 7.0 bps (0.5 bps reg fee + 6.5 bps half-spread)
+          - SP500: 5.0 bps (0.5 bps reg fee + 4.5 bps half-spread)
         Delta_i = ( 3/4 * Cost_i * w_i * (1 - w_i) * sigma_ann^2 / gamma )^(1/3)
         """
         n = len(target_weights)
@@ -871,7 +1083,7 @@ class UnifiedPortfolioAllocator:
 
         mode = (rebalance_mode or getattr(self, "rebalance_mode", "boundary")).lower()
 
-        # F30: Resolve per-asset transaction cost fraction c_i
+        # F30 & F38: Resolve granular 5-market per-asset transaction cost fraction c_i
         if asset_cost_bps is not None:
             ac_arr = np.asarray(asset_cost_bps, dtype=float)
             if len(ac_arr) == n:
@@ -880,13 +1092,22 @@ class UnifiedPortfolioAllocator:
                 cost_fraction = np.full(n, float(ac_arr[0]) / 10_000.0)
             else:
                 cost_fraction = np.full(n, self.leland_cost_bps / 10_000.0)
+        elif markets is not None and len(markets) == n:
+            costs = []
+            for i in range(n):
+                sym = symbols[i] if (symbols is not None and len(symbols) > i) else None
+                mkt = markets[i]
+                c_bps = self.resolve_market_cost_bps(symbol=sym, market=mkt, default_cost_bps=self.leland_cost_bps)
+                costs.append(c_bps / 10_000.0)
+            cost_fraction = np.asarray(costs, dtype=float)
         elif symbols is not None and len(symbols) == n:
             costs = []
             for s in symbols:
-                if self.is_korean_asset(s):
-                    costs.append(max(float(self.leland_cost_bps), 25.0) / 10_000.0)
-                else:
+                c_bps = self.resolve_market_cost_bps(symbol=s, market=None, default_cost_bps=self.leland_cost_bps)
+                if not self.is_korean_asset(s) and c_bps == self.leland_cost_bps:
                     costs.append(min(float(self.leland_cost_bps), 8.0) / 10_000.0)
+                else:
+                    costs.append(c_bps / 10_000.0)
             cost_fraction = np.asarray(costs, dtype=float)
         else:
             cost_fraction = np.full(n, self.leland_cost_bps / 10_000.0)  # e.g. 20 bps = 0.0020

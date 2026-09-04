@@ -1373,6 +1373,8 @@ class ExecutionOMSEngine:
         kappa: float = 1.5,
         micro_price: Optional[float] = None,
         multi_obi: Optional[Dict[str, float]] = None,
+        daily_volatility: Optional[float] = None,
+        book_depth_ratio: Optional[float] = None,
     ) -> float:
         """
         Calculates optimal limit price for Midpoint Pegged passive maker order routing.
@@ -1381,6 +1383,8 @@ class ExecutionOMSEngine:
             P_base = P_micro if micro_price is valid else P_mid
             OBI_comp = 0.50 * OBI_1 + 0.35 * OBI_5 + 0.15 * OBI_10 (if multi_obi) else OBI
             P_peg = P_base + 0.5 * spread * tanh(kappa * OBI_comp)
+        F38: Volatility- and depth-adaptive L2 OBI micro-price dynamic curvature:
+            kappa_eff = clip(1.5 * (sigma / 0.02) / sqrt(R_depth), 0.8, 3.0)
         where OBI in [-1.0, 1.0].
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
@@ -1408,11 +1412,20 @@ class ExecutionOMSEngine:
         elif obi is not None and math.isfinite(float(obi)):
             eff_obi = float(obi)
 
+        # F38: Volatility- and depth-adaptive L2 OBI micro-price dynamic curvature
+        if daily_volatility is not None or book_depth_ratio is not None:
+            sig = float(daily_volatility) if daily_volatility is not None else 0.02
+            r_depth = float(book_depth_ratio) if book_depth_ratio is not None else 1.0
+            r_depth = float(np.clip(r_depth, 0.20, 5.0))
+            kappa_eff = float(np.clip(1.5 * (sig / 0.02) / math.sqrt(r_depth), 0.8, 3.0))
+        else:
+            kappa_eff = float(kappa)
+
         is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE", "BID"]
 
         if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0:
             obi_val = float(np.clip(float(eff_obi), -1.0, 1.0))
-            peg_shift = 0.5 * spr * math.tanh(kappa * obi_val)
+            peg_shift = 0.5 * spr * math.tanh(kappa_eff * obi_val)
             peg_price = p_base + peg_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
@@ -1829,6 +1842,8 @@ class AlmgrenChrissScheduler:
         kappa: float = 1.5,
         micro_price: Optional[float] = None,
         multi_obi: Optional[Dict[str, float]] = None,
+        daily_volatility: Optional[float] = None,
+        book_depth_ratio: Optional[float] = None,
     ) -> float:
         """
         Calculates optimal limit price for Midpoint Pegged passive maker order routing.
@@ -1837,6 +1852,8 @@ class AlmgrenChrissScheduler:
             P_base = P_micro if micro_price is valid else P_mid
             OBI_comp = 0.50 * OBI_1 + 0.35 * OBI_5 + 0.15 * OBI_10 (if multi_obi) else OBI
             P_peg = P_base + 0.5 * spread * tanh(kappa * OBI_comp)
+        F38: Volatility- and depth-adaptive L2 OBI micro-price dynamic curvature:
+            kappa_eff = clip(1.5 * (sigma / 0.02) / sqrt(R_depth), 0.8, 3.0)
         where OBI in [-1.0, 1.0].
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
@@ -1864,9 +1881,18 @@ class AlmgrenChrissScheduler:
         elif obi is not None and math.isfinite(float(obi)):
             eff_obi = float(obi)
 
+        # F38: Volatility- and depth-adaptive L2 OBI micro-price dynamic curvature
+        if daily_volatility is not None or book_depth_ratio is not None:
+            sig = float(daily_volatility) if daily_volatility is not None else 0.02
+            r_depth = float(book_depth_ratio) if book_depth_ratio is not None else 1.0
+            r_depth = float(np.clip(r_depth, 0.20, 5.0))
+            kappa_eff = float(np.clip(1.5 * (sig / 0.02) / math.sqrt(r_depth), 0.8, 3.0))
+        else:
+            kappa_eff = float(kappa)
+
         if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0:
             obi_val = float(np.clip(float(eff_obi), -1.0, 1.0))
-            peg_shift = 0.5 * spr * math.tanh(kappa * obi_val)
+            peg_shift = 0.5 * spr * math.tanh(kappa_eff * obi_val)
             peg_price = p_base + peg_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
@@ -1925,14 +1951,34 @@ class GatheralMarketImpactKernel:
     @staticmethod
     def compute_optimal_gatheral_slices(
         total_quantity: int,
-        n_slices: int = 6,
+        n_slices: Optional[int] = None,
         daily_volatility: float = 0.02,
         adv: float = 1_000_000.0,
         alpha_decay_half_life: float = 10.0,
         cost_scaling_factor: Optional[float] = None,
+        order_adv_fraction: Optional[float] = None,
     ) -> List[int]:
-        """Computes slice trajectory incorporating Gatheral power-law transient impact."""
-        if total_quantity <= 0 or n_slices <= 1:
+        """
+        Computes slice trajectory incorporating Gatheral power-law transient impact.
+        F38: ADV-adaptive Gatheral slice count:
+            n_slices* = clip(round(3 + 8 * sqrt(rho_adv / 0.01)), 2, 20)
+        with intraday U-shaped volume smile weighting:
+            V_smile(t) = 1.0 + 0.6 * (2t - 1)^2.
+        """
+        if total_quantity <= 0:
+            return [0]
+
+        eff_adv = max(float(adv), 1000.0)
+        if n_slices is not None:
+            eff_n_slices = max(1, int(n_slices))
+        else:
+            # F38: Dynamic ADV-adaptive slice count
+            rho_adv = float(order_adv_fraction) if order_adv_fraction is not None else (total_quantity / eff_adv)
+            rho_adv = max(0.0, rho_adv)
+            n_slices_star = int(round(3.0 + 8.0 * math.sqrt(rho_adv / 0.01)))
+            eff_n_slices = int(np.clip(n_slices_star, 2, 20))
+
+        if eff_n_slices <= 1:
             return [total_quantity]
 
         if cost_scaling_factor is None:
@@ -1943,12 +1989,18 @@ class GatheralMarketImpactKernel:
             except Exception:
                 cost_scaling_factor = 1.0
 
-        t = np.linspace(0.1, 1.0, n_slices)
+        t = np.linspace(0.1, 1.0, eff_n_slices)
         decay_w = (1.0 / (t ** 0.5))
         # F33: When realized slippage is high (cost_scaling_factor > 1.0), soften front-loading urgency
         scale_adj = max(0.5, min(2.0, float(cost_scaling_factor)))
         urgency_bias = max(0.2, min(2.0, (10.0 / max(alpha_decay_half_life, 0.5)) / scale_adj))
-        raw_weights = decay_w ** urgency_bias
+        raw_urgency_w = decay_w ** urgency_bias
+
+        # F38: Intraday U-shaped volume smile weighting
+        t_norm = (np.arange(eff_n_slices, dtype=float) + 0.5) / float(eff_n_slices)
+        v_smile = 1.0 + 0.60 * ((2.0 * t_norm - 1.0) ** 2)
+
+        raw_weights = raw_urgency_w * v_smile
         norm_weights = raw_weights / np.sum(raw_weights)
 
         alloc = np.round(norm_weights * total_quantity).astype(int)

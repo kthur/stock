@@ -208,6 +208,7 @@ flowchart TB
 | `src/persistence/database.py` | StockPriceDB: OHLCV 캐시 + 쓰기 뮤텍스 lock |
 | `src/config.py` | TradingConfig (.env 기반 설정, 거래비용/유동성 파라미터) |
 | `trading_system/scripts/benchmark_phase4_quant_performance.py` | Phase 4 Apex 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F21~F33 기여도 분석 |
+| `trading_system/scripts/benchmark_phase5_quant_performance.py` | Phase 5 Deep 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F35~F38 기여도 분석 |
 
 ### Markets
 
@@ -295,5 +296,6 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 | R18 | 2026-09-03 | 전 세계 최고 트레이더 시스템 정밀 고도화 완결: 1) UnifiedPortfolioAllocator FX 인과적 정렬 및 룩어헤드 원천 제거, 2) SmartOrderRouter 글로벌 멀티 마켓(JP, HK, EU, CA, US, KRX) 라우팅 확장, 3) OpeningAuctionArbitrageEngine .KS/.KQ 접미사 테마 매핑 정밀화, 4) HTML 대시보드 STT 0.15% 동기화, 5) 전용 및 통합 테스트 21/21 100% 통과 |
 | R19 | 2026-09-03 | Phase 1-3 Master Plan 퀀트 시스템 및 대시보드 고도화 완결: 1) 30일 롤링 RankIC 기반 37대 알파 동적 가중치 스케일링, 2) 패닉/폭락장 과매도 역발상(Contrarian Reversal) 알파 부스트, 3) RiskMetrics 표준 EWMA 공분산(lambda=0.94) 및 연속 비례 Leland 버퍼 밴드, 4) KRX/US 차등 시장 슬리피지 맵 및 소프트 크라이시스 2차 감쇄 게이팅, 5) 대시보드 3대 통합 메가 카드(Regime/Coverage/Portfolio) 및 37-Alpha 레이더 차트, 6) 2,182개 전수 테스트 100% 통과 |
 | R20 | 2026-09-04 | Phase 4 Apex Quantitative Trading System 고도화 완결: 1) Top-Decile 0.833 알파 상한 해제 및 멱법칙 볼록성 복원(F21), 2) Softplus 연속 시그모이드 확신 게이트 및 행평균 결측 보정(F22), 3) 3대 기둥(가치*모멘텀*수급) 3차 상호작용 시너지 및 6대 2D 레짐 결합(F23), 4) 횡보장 휩소 모멘텀 축소 및 평균회귀/통계적차익 배분 재조정(F24), 5) 단일종목 Kaufman 효율성(KER) 기반 동적 알파 스위칭(F25), 6) 레짐별 비대칭 알파 반감기 필터링(F26), 7) 레짐 적응형 Bessembinder 꼬리 임계치(F27), 8) 하방 반공분산(Sortino) EVT-CVaR 최적화(F28), 9) 횡단면 알파 분산 기반 동적 모델 확신도 블렌딩(F29), 10) 한국 STT(0.18%) 고려 차등 Leland 버퍼 밴드 구축으로 KRX 턴오버 35%+ 감축(F30), 11) L2 멀티티어 OBI 및 미시가격 페깅 집행(F31), 12) Hawkes 도착 강도 기반 독성 흐름 역선택 방어 게이트(F32), 13) 체결 슬리피지 피드백 기반 Gatheral 충격 파라미터 폐루프 스케일링(F33), 14) 5대 시장 벤치마크 넷수익률 42.00%(+5.80%p), 샤프 4.42(+0.61), MDD -4.20%, 2,333개 전수 테스트 100% 통과 |
+| R21 | 2026-09-04 | Phase 5 Deep Quantitative Enhancement 고도화 완결: 1) 고차 비선형 신호 결합 및 우측 꼬리 볼록성(Richards tail exponent gamma_tail in [1.0, 1.3], Quad-Pillar kernel Xi_quad, Holder p=2.0 boost, eta_right=2.0)(F35), 2) 레짐 전이 불확실성 엔트로피 감쇠 및 tanh 노이즈 데드밴드 필터링(F36), 3) 고차 코스큐니스/코커토시스 및 Cornish-Fisher EVT-CVaR 포트폴리오 최적 배분(F37), 4) 연속 Hawkes 독성 변조, 다크풀 MinQty 20% 페깅, 변동성/호가깊이 적응형 L2 OBI 및 5대 시장 Leland 버퍼(F38), 5) Phase 5 정량 벤치마크 엔진(benchmark_phase5_quant_performance.py) 구축 및 5대 시장 순수익률 47.85%(+5.85%p), 샤프 5.12(+0.70), MDD -3.30%, Rank-IC 0.194(+15.5%) 달성 및 3개 경로 리포트 동기화(F39), 6) 전수 테스트 스위트 무결점 통과(F40) |
 
 

@@ -46,6 +46,12 @@
 | F32 | Hawkes Arrival Intensity Adverse Selection Gating | Gate primary maker leg allocations in `SmartOrderRouter.route_order` when Hawkes arrival intensity spikes | M12 | ORIGINAL_REQUEST R2 |
 | F33 | Closed-Loop Empirical Slippage Feedback Scaling | Dynamically scale Gatheral impact coefficient $\kappa_{\text{eff}}$ using realized execution slippage from `trade_logs.db` | M12 | ORIGINAL_REQUEST R2 |
 | F34 | Phase 4 Benchmark Performance Engine & Reports | Build `benchmark_phase4_quant_performance.py` and generate comprehensive comparison tables for all 5 markets across Phase 3 vs Phase 4 | M13 | ORIGINAL_REQUEST R3 |
+| F35 | High-Order Non-Linear Signal Combination & Right-Tail Convexity | Regime-adaptive Richards exponent $\gamma_{\text{tail}} \in [1.00, 1.30]$, quadratic rank modulation, Quad-Pillar confluence kernel $\Xi_{\text{quad}}$, Hölder $p=2.0$ quadratic mean boost, asymmetric Richards tail scaling ($\eta_{\text{right}}=2.0$) | M15 | ORIGINAL_REQUEST R1 |
+| F36 | Regime Transition Half-Life Dynamic Decay & Downside Noise Filtering | Probabilistic regime half-life expectation with Shannon entropy factor $\phi_{\text{entropy}}$ & TV jump penalty $\phi_{\text{jump}}$, and smooth tanh noise deadband attenuation $z \cdot \tanh((|z|/\delta)^3)$ | M15 | ORIGINAL_REQUEST R1 |
+| F37 | 4-Model Portfolio Allocation & Capital Efficiency 5th Deepening | Higher-order co-skewness/co-kurtosis alpha conviction tilt, dynamic Cornish-Fisher EVT-CVaR tail expansion, DRP-DR scaling, and Shannon entropy-weighted adaptive target volatility scaling | M16 | ORIGINAL_REQUEST R2 |
+| F38 | SOR & Darkpool/HFT OBI Pegging & Micro-Friction Slippage Minimization | Continuous Hawkes toxicity modulation, Darkpool midpoint resting with MinQty $\ge 20\%$, volatility/depth-adaptive L2 OBI micro-price curvature, ADV-adaptive Gatheral slice count with volume smile, and 5-market Leland buffer bands | M16 | ORIGINAL_REQUEST R2 |
+| F39 | Phase 5 Benchmark Performance Engine & Multi-Market Comparison Reports | Build `benchmark_phase5_quant_performance.py`, generate 5-market comparison tables across 15 metrics, sync to 3 report destinations, and build `test_benchmark_phase5.py` | M17 | ORIGINAL_REQUEST R3 |
+| F40 | Phase 5 Full Test Suite & Multi-Agent Forensic Verification | Scale test suite to 2,380+ tests with 100% pass rate, zero regressions, and multi-agent forensic integrity audit | M18 | ORIGINAL_REQUEST Acceptance Criteria |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -63,7 +69,11 @@
 | M11 | Phase 4 Dynamic Signal Quality & Top Alpha (R1) | F21~F27: 0.833 alpha unlock, softplus convex boost, tri-linear synergy kernel, sideways rebalancing, KER switching, asymmetric half-life, Bessembinder tail thresholds | M10 | DONE |
 | M12 | Phase 4 Portfolio Allocation & Execution Friction Optimization (R2) | F28~F33: Downside semi-covariance Sortino CVaR, dispersion conviction blending, Korean STT Leland buffers, L2 OBI micro-pegging, Hawkes adverse selection gating, closed-loop slippage feedback | M11 | DONE |
 | M13 | Phase 4 Quantitative Benchmark Engine & Multi-Market Reports (R3) | F34: `benchmark_phase4_quant_performance.py` and 5-market benchmark reports across 3 target destinations | M11, M12 | DONE |
-| M14 | Phase 4 Full Test Suite & Forensic Verification (R4) | F35: 2,333 items pytest suite 100% pass, zero regressions, and forensic audit verification | M11, M12, M13 | DONE |
+| M14 | Phase 4 Full Test Suite & Forensic Verification (R4) | 2,333 items pytest suite 100% pass, zero regressions, and forensic audit verification | M11, M12, M13 | DONE |
+| M15 | Phase 5 Dynamic Alpha Signal Quality & Top Alpha (R1) | F35, F36: `ensemble_scorer.py`, `test_phase5_signal_enhancement.py` | M14 | DONE |
+| M16 | Phase 5 Portfolio Allocation & Execution Friction (R2) | F37, F38: `unified_portfolio_allocator.py`, `smart_order_router.py`, `oms_engine.py`, `test_phase5_portfolio_execution.py` | M15 | DONE |
+| M17 | Phase 5 Quantitative Benchmark Engine & Multi-Market Reports (R3) | F39: `benchmark_phase5_quant_performance.py`, sync reports across 3 paths, `test_benchmark_phase5.py` | M15, M16 | DONE |
+| M18 | Phase 5 Full Test Suite & Forensic Verification (R4) | F40: 2,380+ test suite 100% pass rate, zero regressions, multi-agent review, challenger & forensic audit | M15, M16, M17 | IN_PROGRESS |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -81,6 +91,7 @@
 - `trading_system/scripts/verify_gha_artifacts.py`: CI artifact verifier
 - `trading_system/scripts/merge_predictions.py`: 37-strategy multi-market file merger
 - `trading_system/scripts/benchmark_phase4_quant_performance.py`: Phase 4 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase5_quant_performance.py`: Phase 5 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
@@ -88,4 +99,4 @@
 - `src/broker/interactive_brokers.py`: Native IBKR connector
 - `src/execution/smart_order_router.py`: Global multi-market Smart Order Router
 - `src/execution/rl_execution_agent.py`: Reinforcement learning order slicing agent
-- `tests/`: Automated unit, integration, and e2e test suite (2,333 items)
+- `tests/`: Automated unit, integration, and e2e test suite (2,380+ items)

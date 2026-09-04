@@ -27,11 +27,13 @@ class SmartOrderRouter:
         self,
         dark_probe_ratio: float = 0.40,
         maker_rebate_bps: float = 2.5,
-        taker_fee_bps: float = 1.5
+        taker_fee_bps: float = 1.5,
+        continuous_hawkes: bool = False,
     ):
         self.dark_probe_ratio = dark_probe_ratio
         self.maker_rebate_bps = maker_rebate_bps
         self.taker_fee_bps = taker_fee_bps
+        self.continuous_hawkes = bool(continuous_hawkes)
 
     def route_order(
         self,
@@ -40,13 +42,14 @@ class SmartOrderRouter:
         market_spread_bps: float = 15.0,
         hawkes_intensity: Optional[float] = None,
         baseline_intensity: float = 1.0,
+        continuous_hawkes: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Decomposes an order plan into 3-tier routing legs to optimize net execution cost.
-        F32: Hawkes Arrival Intensity Adverse Selection Gating:
-        When lambda(t) > 2.5 * mu (aggressive order arrival cluster / toxic flow),
-        reduces primary maker leg proportion from 70% to 30% and expands Tier 1 dark
-        midpoint probing to protect resting maker orders from front-running.
+        F32 & F38: Continuous Hawkes Arrival Intensity Adverse Selection Gating:
+            Gamma_toxic = clip((lambda - baseline) / (2.5 * baseline - baseline), 0, 1)
+            maker_ratio = clip(0.70 * (1 - 0.571 * Gamma_toxic), 0.30, 0.70)
+        Darkpool Midpoint Resting with Minimum Quantity (MinQty >= 20%) and fill probability.
         """
         symbol = str(order_plan.get("symbol", ""))
         action = str(order_plan.get("action", "BUY")).upper()
@@ -76,47 +79,83 @@ class SmartOrderRouter:
         else:
             eff_dark_ratio = float(self.dark_probe_ratio)
 
-        # F32: Hawkes Arrival Intensity Adverse Selection Gating
+        # F32 & F38: Hawkes Arrival Intensity Adverse Selection Gating
         hwk = hawkes_intensity if hawkes_intensity is not None else order_plan.get("hawkes_intensity")
         base_hwk = baseline_intensity if baseline_intensity is not None else float(order_plan.get("baseline_intensity", 1.0) or 1.0)
         base_hwk = max(1e-6, float(base_hwk))
 
+        # Check continuous toxicity mode
+        use_continuous = continuous_hawkes if continuous_hawkes is not None else order_plan.get("continuous_hawkes", getattr(self, "continuous_hawkes", False))
+
         is_toxic_flow = False
+        gamma_toxic = 0.0
+        maker_ratio = 0.70
         if hwk is not None:
             try:
                 hwk_f = float(hwk)
-                if math.isfinite(hwk_f) and hwk_f > 2.5 * base_hwk:
-                    is_toxic_flow = True
+                if math.isfinite(hwk_f):
+                    if use_continuous:
+                        # F38: Continuous Hawkes toxicity modulation
+                        # Gamma_toxic = clip((lambda - mu) / (2.5 * mu - mu), 0.0, 1.0)
+                        denom = 1.5 * base_hwk
+                        gamma_toxic = float(np.clip((hwk_f - base_hwk) / denom, 0.0, 1.0))
+                        # maker_ratio = clip(0.70 * (1 - 0.571 * Gamma_toxic), 0.30, 0.70)
+                        maker_ratio = float(np.clip(0.70 * (1.0 - 0.571 * gamma_toxic), 0.30, 0.70))
+                        is_toxic_flow = bool(gamma_toxic > 0.50)
+                        eff_dark_ratio = float(np.clip(eff_dark_ratio + 0.20 * gamma_toxic, eff_dark_ratio, 0.80))
+                    else:
+                        # F32 discrete step gating
+                        if hwk_f > 2.5 * base_hwk:
+                            is_toxic_flow = True
+                            gamma_toxic = 1.0
+                            maker_ratio = 0.30
+                            eff_dark_ratio = float(np.clip(max(eff_dark_ratio + 0.20, 0.60), eff_dark_ratio, 0.80))
+                        else:
+                            is_toxic_flow = False
+                            gamma_toxic = 0.0
+                            maker_ratio = 0.70
             except (ValueError, TypeError):
                 is_toxic_flow = False
-
-        if is_toxic_flow:
-            maker_ratio = 0.30
-            eff_dark_ratio = float(np.clip(max(eff_dark_ratio + 0.20, 0.60), eff_dark_ratio, 0.80))
+                gamma_toxic = 0.0
+                maker_ratio = 0.70
         else:
             maker_ratio = 0.70
 
-        # 1. Tier 1: ATS / Dark Pool Midpoint Probe Leg
+        # F38: Darkpool Fill Probability Estimation
+        p_fill_dark = float(np.clip(
+            0.35 + 0.35 * dp_score + 0.15 * ((market_spread_bps - 5.0) / 15.0) - 0.20 * gamma_toxic,
+            0.15,
+            0.85
+        ))
+
+        # 1. Tier 1: ATS / Dark Pool Midpoint Probe Leg with MinQty
         is_patient_strategy = exec_strategy in ["MIDPOINT_PEG", "PATIENT_TWAP", "DYNAMIC_VWAP"]
-        is_probe_eligible = is_patient_strategy or dp_score >= 0.30 or is_accum or is_toxic_flow
+        is_probe_eligible = is_patient_strategy or dp_score >= 0.30 or is_accum or is_toxic_flow or (gamma_toxic > 0.0)
         if ats_available and is_probe_eligible:
             dark_qty = int(total_quantity * eff_dark_ratio)
             if dark_qty > 0:
-                legs.append({
+                dark_order_type = "MIDPOINT_PEGGED_RESTING" if (is_toxic_flow or gamma_toxic > 0.50) else "MIDPOINT_IOC"
+                dark_leg: Dict[str, Any] = {
                     "venue_type": "DARK_ATS_MIDPOINT",
-                    "order_type": "MIDPOINT_IOC",
+                    "order_type": dark_order_type,
                     "quantity": dark_qty,
                     "target_price": target_price,
-                    "expected_rebate_bps": market_spread_bps / 2.0, # Saves half-spread
-                    "priority": 1
-                })
+                    "expected_rebate_bps": market_spread_bps / 2.0,  # Saves half-spread
+                    "priority": 1,
+                    "fill_probability": round(p_fill_dark, 4),
+                }
+                # F38: Attach Minimum Quantity (MinQty >= 20%) under elevated toxicity to prevent odd-lot snipes
+                if is_toxic_flow or gamma_toxic > 0.50:
+                    dark_leg["min_quantity"] = max(1, int(round(0.20 * dark_qty)))
+
+                legs.append(dark_leg)
                 rem_qty = total_quantity - dark_qty
             else:
                 rem_qty = total_quantity
         else:
             rem_qty = total_quantity
 
-        # 2. Tier 2: Primary Peg / Maker Leg (70% standard, 30% under toxic flow)
+        # 2. Tier 2: Primary Peg / Maker Leg (modulated continuously)
         if rem_qty > 0:
             maker_qty = int(rem_qty * maker_ratio) if (is_patient_strategy or is_probe_eligible) else 0
             if maker_qty > 0:
@@ -169,7 +208,9 @@ class SmartOrderRouter:
             "expected_cost_saving_bps": round(float(tot_saving if np.isfinite(tot_saving) else 0.0), 2),
             "hawkes_intensity": float(hwk) if (hwk is not None and math.isfinite(float(hwk))) else None,
             "toxic_flow_detected": is_toxic_flow,
-            "maker_ratio": round(float(maker_ratio), 2),
+            "gamma_toxic": round(float(gamma_toxic), 4),
+            "darkpool_fill_probability": round(float(p_fill_dark), 4),
+            "maker_ratio": round(float(maker_ratio), 4),
         }
 
     def determine_destination(self, symbol: str, market: Optional[str] = None) -> Dict[str, str]:

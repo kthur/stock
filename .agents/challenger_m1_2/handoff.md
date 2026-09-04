@@ -1,57 +1,145 @@
-# Milestone 1 Adversarial Challenge Report: High-Alpha Strategy Engines
+# Adversarial Verification Report — Milestone 1 (Phase 5 Deep Quantitative Enhancements)
+
+**Agent**: Challenger 2 (Roles: critic, specialist)  
+**Milestone**: Milestone 1 (Requirement R1: Features F35 & F36)  
+**Working Directory**: `d:\Finance\code\stock\.agents\challenger_m1_2`  
+**Target Review**: Worker M1 changes in `trading_system/src/ai/ensemble_scorer.py` and `tests/test_phase5_signal_enhancement.py`  
+**Verdict**: **`APPROVE`**
+
+---
 
 ## 1. Observation
-- **Scope & Targets Assessed**:
-  - `CrossAssetSpilloverEngine` (`trading_system/src/core/cross_asset_spillover.py`)
-  - `SupplyChainGNNEngine` (`trading_system/src/core/supply_chain_gnn.py`)
-  - `RangeExpansionBreakoutEngine` (`trading_system/src/core/range_expansion_breakout.py`)
-  - `StrategyRegistry` and `EnsembleScoringEngine` integration.
-- **Empirical Adversarial Stress Test Suite Developed & Executed**:
-  - Created `tests/test_r1_adversarial_stress.py` containing 14 adversarial property-based and combinatorial tests:
-    1. `TestCrossAssetSpilloverAdversarial.test_multi_market_ticker_formats_and_sector_aliases` (Mixed KRX/US tickers, 6-digit codes, `.KS`/`.KQ` extensions, Korean sector aliases).
-    2. `TestCrossAssetSpilloverAdversarial.test_extreme_macro_shocks_and_anti_overflow` (+1000% macro shocks, extreme VIX surges, overflow resistance).
-    3. `TestCrossAssetSpilloverAdversarial.test_degenerate_indicator_inputs` (NaNs, Infs, non-numeric strings, empty DataFrames).
-    4. `TestCrossAssetSpilloverAdversarial.test_pathological_prices_series` (0-variance flat prices, micro-penny stocks, sub-5-bar series).
-    5. `TestSupplyChainGNNAdversarial.test_graph_cycles_and_mutual_feedback` (Direct 2-cycles $A \leftrightarrow B$, 3-cycles $A \to B \to C \to A$, self-loops $A \to A$).
-    6. `TestSupplyChainGNNAdversarial.test_dense_complete_graph_clique` (Dense complete graph $K_6$).
-    7. `TestSupplyChainGNNAdversarial.test_extreme_flash_crash_and_hyper_surge_propagation` (99% crash vs 500% rally bullwhip propagation).
-    8. `TestSupplyChainGNNAdversarial.test_symbol_normalization_robustness` (Numeric int, `.KS` suffix, lowercase string tickers).
-    9. `TestRangeExpansionBreakoutAdversarial.test_zero_volatility_and_flatline_series` (Zero ATR, zero standard deviation flatlines).
-    10. `TestRangeExpansionBreakoutAdversarial.test_massive_wick_rejection_bull_trap` (Upper shadow spike with low CLV recognized as bearish trap $< 0.40$).
-    11. `TestRangeExpansionBreakoutAdversarial.test_nr7_inside_day_compression_boundary_variations` (NR7 and Inside Day compression combinations).
-    12. `TestRangeExpansionBreakoutAdversarial.test_missing_volume_and_single_column_input` (Missing Volume column handling).
-    13. `TestCombinatorialFuzzingMultiUniverse.test_fuzz_100_synthetic_universes_invariants` (50 synthetic market universes with randomized volatility, drift, missing indicators).
-    14. `TestLargeUniversePerformanceAndEnsembleIntegration.test_500_symbols_batch_performance_and_normalization` (500-symbol batch execution latency $< 5.0$s and `CrossSectionalScoreNormalizer` / `EnsembleScoringEngine` pipeline compatibility).
-- **Execution Verification Commands & Results**:
-  - `pytest tests/test_r1_high_alpha_strategies.py tests/test_r1_adversarial_stress.py -v` -> **24 passed, 0 failed** in 17.99s.
-  - Full suite (`pytest tests/test_phase5_registry.py tests/test_all_16_markets_31_strategies.py tests/test_r1_high_alpha_strategies.py tests/test_r1_adversarial_stress.py -v`) -> **38 passed, 0 failed** in 36.07s.
+
+### 1.1 Direct File Inspection
+1. `trading_system/src/ai/ensemble_scorer.py`:
+   - Lines 1682–1741: `apply_top_decile_convex_boost` implements Hölder $p=2.0$ quadratic mean ($M_2 = \sqrt{\frac{1}{K}\sum S_k^2}$) and regime-adaptive $\lambda_{\text{boost}} \in [0.20, 0.40]$ (Bull: 0.40, Sideways Low: 0.35, Sideways High/Bear Low: 0.25, Bear High/Crisis: 0.20), gated with continuous sigmoid and clipped strictly to $[0.0, 1.0]$.
+   - Lines 4130–4310: `compute_bilinear_cross_pillar_synergy` clusters all 37 strategies into 4 mutually exclusive pillars (`val`, `mom`, `flow`, `cat`), computes softplus excess convictions, bilinear cross-pillar synergy, tri-linear confluence ($\Xi_{\text{tri}}$), Tri-Catalyst confluence ($\Xi_{\text{tri,cat}}$), and Quad-Pillar confluence ($\Xi_{\text{quad}} = \Omega_{\text{quad}} \cdot \psi_{\text{val}}\psi_{\text{mom}}\psi_{\text{flow}}\psi_{\text{cat}}$). In `BULL_LOW_VOL`, $\Omega(\text{val}, \text{cat}) = 0.015$, with regime-adaptive caps strictly enforcing $1.040 \times \sim 1.150 \times$, and backward compatibility default cap $1.100 \times$.
+   - Lines 4318–4447: `get_regime_adaptive_bessembinder_params` and `apply_bessembinder_convex_power_law` implement Version 5 parameters ($u_{\text{thresh}} = 0.40$, $\gamma = 1.75$, $\beta = 0.55$ in Bull Low Vol) and asymmetric Richards right-tail exponent $\eta_{\text{right}} = 2.0$ for positive excess conviction ($u > 0$).
+   - Lines 4452–4570: `get_regime_adaptive_half_lives` supports continuous regime probability distributions $\pi$, normalized Shannon entropy compression $\phi_{\text{entropy}} = \exp(-0.35 H_{\text{norm}}^2)$, and total variation jump penalty $\phi_{\text{jump}} = \exp(-0.50 \max(0, d_{\text{TV}} - 0.25))$.
+   - Lines 4520–4565: `get_regime_adaptive_noise_deadband` and `apply_smooth_noise_deadband` implement $C^\infty$ hyperbolic tangent soft-thresholding $g(z) = z \cdot \tanh((|z|/\delta)^3)$ with $\delta_0 \in [0.02, 0.07]$.
+   - Lines 3240–3345: `combine_predictions` orchestrates Hölder $p=2.0$ boost, Bessembinder asymmetric scaling, noise deadband soft-thresholding, regime-adaptive Richards exponent $\gamma_{\text{tail}} \in [1.00, 1.30]$, and quadratic rank modulation $(0.60 + 0.50r + 0.50r^2)$ in Bull regimes.
+
+2. `tests/test_phase5_signal_enhancement.py`:
+   - 7 unit tests covering Features F35.1–F35.4 and F36.1–F36.3.
+
+3. `tests/test_phase5_m1_challenger2_adversarial.py`:
+   - 39 stress and oracle tests specifically covering Challenger 2 scenarios (Extreme regimes, all 0s, all 1s, 90–100% NaNs, outliers, exact regime caps, missing/partial pillars, latency benchmarking, and mathematical oracles).
+
+### 1.2 Verbatim Test Output Commands & Results
+
+1. **Adversarial Stress Suite (`tests/test_phase5_m1_challenger2_adversarial.py`)**:
+```
+.venv\Scripts\python.exe -m pytest tests/test_phase5_m1_challenger2_adversarial.py -v
+====================== 39 passed, 195 warnings in 31.36s ======================
+```
+- All 8 regimes (7 active + 1 fallback) under all zeros: PASSED [0.0, 1.0 bounds, 0 NaNs, 0 Infs]
+- All 8 regimes under all ones: PASSED [0.0, 1.0 bounds, 0 NaNs, 0 Infs]
+- Extreme NaN proportions (90%, 99%, 100% NaNs): PASSED [clean handling, 0 NaNs]
+- Extreme outliers (-1000.0, +1000.0): PASSED
+- Small universe edge cases ($N = 1, 2, 4, 5, 8$): PASSED
+- Exact regime synergy caps:
+  * `BULL_LOW_VOL`: 1.150x PASSED
+  * `BULL_HIGH_VOL`: 1.125x PASSED
+  * `SIDEWAYS_LOW_VOL`: 1.100x PASSED
+  * `SIDEWAYS_HIGH_VOL`: 1.060x PASSED
+  * `BEAR_LOW_VOL`: 1.075x PASSED
+  * `BEAR_HIGH_VOL`: 1.040x PASSED
+  * `CRISIS`: 1.040x PASSED
+  * `UNKNOWN_FALLBACK`: 1.080x PASSED
+- Backward compatibility cap ($\le 1.100$ when `regime_adaptive_cap=False`): PASSED
+- Missing & partial pillars (0 pillars = 1.000, 1 pillar = 1.000, 2 pillars = 1.015, corrupt NaNs = clean): PASSED
+- Latency overhead on 500 stocks x 37 strategies: PASSED (39.76ms pure overhead < 50ms budget)
+- Noise deadband numerical derivative $g'(z) \ge 0$ on $[-0.50, +0.50]$ and odd symmetry $g(-z) = -g(z)$: PASSED
+- Pure mathematical Jensen inequality ($M_2(x) \ge M_1(x)$ across 1,000 random vectors): PASSED
+- Probabilistic half-life degenerate inputs (empty dict, negative probs, $d_{\text{TV}} = 1.0$ max jump): PASSED
+
+2. **Full Combined Regression Test Suite (75 items)**:
+```
+.venv\Scripts\python.exe -m pytest tests/test_phase5_signal_enhancement.py tests/test_phase4_signal_enhancement.py tests/test_phase5_m1_challenger2_adversarial.py tests/test_regime_ensemble.py tests/test_adversarial_ensemble_scorer_challenger.py -v
+====================== 75 passed, 195 warnings in 46.25s ======================
+```
+- `test_phase5_signal_enhancement.py`: 7/7 passed
+- `test_phase4_signal_enhancement.py`: 8/8 passed
+- `test_phase5_m1_challenger2_adversarial.py`: 39/39 passed
+- `test_regime_ensemble.py`: 4/4 passed
+- `test_adversarial_ensemble_scorer_challenger.py`: 17/17 passed
+- **Total: 75 passed, 0 failed, 0 errors in 46.25s.**
+
+### 1.3 Latency Overhead Benchmark Results
+Empirical breakdown on 500 stocks x 37 strategies over 20 iterations:
+- `compute_bilinear_cross_pillar_synergy`: 31.39 ms
+- `apply_top_decile_convex_boost`: 8.12 ms
+- `apply_bessembinder_convex_power_law`: 0.20 ms
+- `apply_smooth_noise_deadband`: 0.06 ms
+- **Total Pure Phase 5 Mathematical Overhead**: **39.76 ms** (strictly satisfies the $< 50\text{ms}$ latency overhead constraint).
+
+---
 
 ## 2. Logic Chain
-1. **Mathematical Robustness & Anti-Overflow**:
-   - In `CrossAssetSpilloverEngine`, the logistic transformation $1 / (1 + e^{-15 \Delta})$ with `np.clip(..., 0.05, 0.95)` prevents floating-point overflow and guarantees bounded outputs even under $+1000\%$ macro factor spikes.
-2. **Graph Cycle & Topology Invariance**:
-   - In `SupplyChainGNNEngine`, message passing uses static 2-hop matrix/dictionary aggregation rather than unbounded recursion. Mutual 2-cycles ($A \leftrightarrow B$), 3-cycles, and complete cliques ($K_n$) execute in deterministic $O(V + E)$ time and propagate bullwhip shocks ($1.35\times$ downside / $0.85\times$ upside) with safety clipping to $[0.05, 0.95]$.
-3. **Boundary Conditions & Directional Asymmetry**:
-   - In `RangeExpansionBreakoutEngine`, zero-volatility inputs safely fall back to neutral scores ($0.45 \sim 0.50$) with zero division guards ($1e-8$). False breakouts / bull traps (high upper shadow + high volume + low CLV) are correctly scored bearishly ($< 0.40$), while valid NR7 expansions score $> 0.70$.
-4. **Scale & Normalization Stability**:
-   - Batch evaluation across 500 synthetic stocks across 5 markets executed cleanly in $< 1.5$s, successfully normalized via `CrossSectionalScoreNormalizer`, and integrated seamlessly into `EnsembleScoringEngine.calculate_ensemble_score`.
+
+1. **Extreme Regimes & Bounds Integrity**:
+   - Observations 1.1 and 1.2 demonstrate that across all 7 market regimes plus fallback, and under extreme inputs (all 0s, all 1s, 90–100% missing values, extreme $\pm 1000$ values, and small universes $N < 5$), output `ensemble_score` values remain strictly bounded in $[0.0, 1.0]$ with 0 NaNs and 0 Infs.
+   - The clipping at each pipeline transformation (`np.clip(..., 0.0, 1.0)`) and the fallback `fillna(0.0)` for unconfirmed signals ensure complete numerical closure.
+
+2. **Synergy Multipliers & Canonical Specification Conformance**:
+   - In `compute_bilinear_cross_pillar_synergy`, 0 or 1 active pillars evaluate to an excess conviction product of zero, yielding exactly $1.000 \times$ synergy.
+   - When only Valuation and Catalyst pillars are active in `BULL_LOW_VOL`, the synergy multiplier is $1.0 + \Omega(\text{val}, \text{cat}) = 1.0150$, matching the canonical specification $\Omega(\text{val}, \text{cat}) = 0.015$.
+   - Multi-pillar alignment produces strict monotonic synergy ordering: 4-Pillar ($1.150 \times$) > 3-Pillar > 2-Pillar > 1-Pillar ($1.000 \times$).
+   - Across all 7 regimes, `total_confluence.clip(0.0, eff_cap)` guarantees that synergy multipliers never exceed their respective regime caps ($1.040 \times$ in Crisis up to $1.150 \times$ in Bull Low Vol).
+   - When `regime_adaptive_cap=False`, the backward-compatible $1.100 \times$ cap is strictly enforced.
+
+3. **Hölder $p=2.0$ Quadratic Mean & Jensen's Inequality**:
+   - By Jensen's inequality applied to the convex function $\phi(t) = t^2$, $M_2(x) = \sqrt{\frac{1}{K}\sum x_i^2} \ge M_1(x) = \frac{1}{K}\sum x_i$ for all non-negative vectors $x \in \mathbb{R}_+^K$.
+   - The test verified this mathematical identity over 1,000 random vectors ($M_2 \ge M_1$ with 0 violations).
+   - In `apply_top_decile_convex_boost`, when an asset exhibits extreme single-factor conviction (e.g. $[0.95, 0.60, 0.60]$), $p=2.0$ preserves peak signal conviction significantly better than linear averaging ($p=1.0$), rewarding focused alpha without diluting strong signals.
+
+4. **Hyperbolic Tangent Noise Deadband Monotonicity**:
+   - The soft-thresholding function $g(z) = z \cdot \tanh((|z|/\delta)^3)$ has numerical derivative $g'(z) \ge 0$ everywhere on $[-0.50, +0.50]$ with minimum numerical difference $\ge -10^{-12}$.
+   - Because $g(z)$ is strictly increasing, it induces zero rank inversions, guaranteeing Spearman rank correlation $\rho_s = 1.0000$.
+   - Moreover, $g(-z) = -g(z)$ ensures exact odd symmetry, treating upside conviction and downside penalties symmetrically.
+
+5. **Performance Latency Verification**:
+   - On a full institutional universe of 500 stocks across all 37 strategies, the newly introduced Phase 5 operations consume 39.76 ms of CPU time.
+   - This satisfies the requirement of negligible execution latency overhead ($< 50\text{ms}$).
+
+---
 
 ## 3. Caveats
-- No implementation vulnerabilities, numerical instabilities, or memory leaks detected.
-- All engines adhere strictly to the `BaseStrategyEngine` interface contract and safe score bounds $[0.05, 0.95]$.
+
+- **Full Pipeline End-to-End Latency**: The total execution time of `combine_predictions` for 500 stocks across 37 strategies is $\sim 800\text{ms} - 1.2\text{s}$, which includes cross-sectional score normalization across 5 separate markets, multi-horizon exponential convolutional decay filtering, and DataFrame deepcopies. The Phase 5 quantitative transformations themselves account for only $39.76\text{ms}$ of this total.
+- **Single-Core CPU Benchmark**: Benchmarking was executed on the local test machine without CUDA acceleration. In production, vectorized NumPy operations scale linearly or sub-linearly with thread count.
+
+---
 
 ## 4. Conclusion
-**Verdict: APPROVE**
 
-Milestone 1 High-Alpha Strategy Engines (`CrossAssetSpilloverEngine`, `SupplyChainGNNEngine`, `RangeExpansionBreakoutEngine`) have successfully withstood all adversarial property-based, combinatorial, and boundary stress tests. The implementations are mathematically sound, resilient to pathological data, and ready for production pipeline deployment.
+All four adversarial stress scenarios and empirical requirements specified in the dispatch have been validated:
+1. **Extreme Regimes & Bounds**: Strictly bounded in $[0.0, 1.0]$ with 0 NaNs and 0 Infs across all 7 market regimes, edge cases, and missingness levels.
+2. **Quad-Pillar & Tri-Catalyst Synergy Bounds**: Strictly cap-enforced ($1.040 \times \sim 1.150 \times$), canonical $\Omega(\text{val}, \text{cat}) = 0.015$ verified, missing/partial pillars handled cleanly, and backward compatibility preserved.
+3. **Performance Benchmarking**: Phase 5 latency overhead is $39.76\text{ms}$ for 500 stocks x 37 strategies, well within the $< 50\text{ms}$ budget.
+4. **Test Suite Integrity**: 75/75 tests passed (100% pass rate) with zero regressions across Phase 4, Phase 5, and historical ensemble test suites.
+
+**Final Assessment**: **`APPROVE`**
+
+---
 
 ## 5. Verification Method
-To independently verify the test suite:
 
-```powershell
-# Run baseline tests + adversarial stress tests
-.venv\Scripts\python.exe -m pytest tests/test_r1_high_alpha_strategies.py tests/test_r1_adversarial_stress.py -v
+To independently verify all findings:
 
-# Run full integration and regression test suite
-.venv\Scripts\python.exe -m pytest tests/test_phase5_registry.py tests/test_all_16_markets_31_strategies.py tests/test_r1_high_alpha_strategies.py tests/test_r1_adversarial_stress.py -v
-```
+1. **Run full Milestone 1 adversarial and phase test suites**:
+   ```powershell
+   .venv\Scripts\python.exe -m pytest tests/test_phase5_signal_enhancement.py tests/test_phase4_signal_enhancement.py tests/test_phase5_m1_challenger2_adversarial.py -v
+   ```
+   *Expectation*: 54 passed in ~35s, 0 failed.
+
+2. **Run broader ensemble regression tests**:
+   ```powershell
+   .venv\Scripts\python.exe -m pytest tests/test_regime_ensemble.py tests/test_adversarial_ensemble_scorer_challenger.py -v
+   ```
+   *Expectation*: 21 passed in ~15s, 0 failed.
+
+3. **Inspect implementation files**:
+   - `trading_system/src/ai/ensemble_scorer.py`
+   - `tests/test_phase5_signal_enhancement.py`
+   - `tests/test_phase5_m1_challenger2_adversarial.py`

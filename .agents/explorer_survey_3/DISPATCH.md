@@ -1,20 +1,33 @@
-## 2026-08-30T13:28:15Z
+## 2026-09-04T08:38:36Z
+You are Explorer 3 for Phase 5 Deep Quantitative Enhancements.
+Your working directory is: `d:\Finance\code\stock\.agents\explorer_survey_3`
 
-You are teamwork_preview_explorer surveying R4 (OMS Precision Timing) and R5 (Test Suite & Pipeline Execution).
-Your working directory is: d:\Finance\code\stock\.agents\explorer_survey_3
-Authoritative Original Request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Project Rules: d:\Finance\code\stock\AGENTS.md
+MANDATORY FIRST STEP:
+Read the following authoritative files:
+1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (specifically header `## 2026-09-04T08:36:42Z`)
+2. `d:\Finance\code\stock\PROJECT.md`
+3. `d:\Finance\code\stock\.agents\handoff.md`
 
-Task:
-1. Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md and AGENTS.md.
-2. Investigate the codebase under d:\Finance\code\stock\src\execution\, d:\Finance\code\stock\trading_system\run_pipeline.py, and .github/workflows/.
-3. Investigate OMS execution, order generation, and precision timing engines:
-   - Confluence Entry
-   - 3-tier Scale-In Pyramiding
-   - 4-tier Trailing Stop
-   - Signal Exhaustion
-   - Order Flow Shock
-4. Investigate current tests/ directory: number of test files, total test count, pytest configuration, execution command `$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/ -v`, and current passing status.
-5. Identify integration touchpoints in run_pipeline.py and OMS order generation.
-6. Write your comprehensive findings to d:\Finance\code\stock\.agents\explorer_survey_3\survey_report.md and create a self-contained handoff report at d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md.
-7. Send a message to parent when complete.
+Your Mission:
+Investigate and formulate the technical specification for Requirement R3:
+Quantitative Benchmarking Comparison & Comprehensive Test Suite Verification Architecture (Features F39, F40).
+
+Specific Areas to Investigate:
+1. Examine `trading_system/scripts/benchmark_phase4_quant_performance.py`:
+   - How are market metrics computed across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000?
+   - What are the 15 metrics: Net Expected Return, Gross Return, Annualized Sharpe Ratio, Information Coefficient (Rank-IC & Pearson IC), Maximum Drawdown (MDD), Annualized Turnover, Trading & Friction Costs, Top-Decile Alpha Spread, Execution Slippage, Darkpool Savings, Win Rate, Profit Factor, etc.?
+   - How are Phase 4 vs Phase 3 baselines defined and compared?
+   - How should `benchmark_phase5_quant_performance.py` be architected to compare Phase 4 Baseline vs Phase 5 Enhanced across all 5 markets?
+2. Examine existing benchmark and unit tests:
+   - Inspect `tests/test_benchmark_phase4.py`, `reports/quant_benchmark_comparison_phase4.md`.
+   - Identify the design for `tests/test_benchmark_phase5.py` and report paths (`reports/quant_benchmark_comparison_phase5.md`, `trading_system/result/quant_benchmark_comparison_phase5.md`, and `reports/quant_benchmark_comparison.md`).
+3. Examine the entire test suite:
+   - Check total test count (2,351 collected tests, 2,349 passed in Phase 4 handoff).
+   - Check what pytest commands and suites exist to ensure 100% zero-regression execution across the whole repository.
+
+Deliverable:
+Write a comprehensive report to:
+`d:\Finance\code\stock\.agents\explorer_survey_3\analysis.md`
+and a summary in `d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md`.
+Include exact file paths, line numbers, benchmarking methodology, proposed comparison table schemas, and test execution roadmap.
+Then notify me via `send_message`.

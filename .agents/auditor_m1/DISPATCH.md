@@ -1,20 +1,30 @@
-## 2026-08-22T06:24:17Z
-You are auditor_m1, a teamwork_preview_auditor.
-Your working directory is d:\Finance\code\stock\.agents\auditor_m1.
-Read ORIGINAL_REQUEST.md at d:\Finance\code\stock\ORIGINAL_REQUEST.md, PROJECT.md at d:\Finance\code\stock\PROJECT.md, and worker_m1 handoff at d:\Finance\code\stock\.agents\worker_m1\handoff.md.
+## 2026-09-04T09:00:57Z
 
-TASK: Forensic Integrity Audit of Milestone 1 (Requirement R1):
-1. Audit all modified files:
-   - `trading_system/src/ai/score_normalizer.py`
-   - `trading_system/src/ai/ensemble_scorer.py`
-   - `trading_system/src/core/accruals_quality.py`, `valueup_catalyst.py`, `short_interest_squeeze.py`, `trend_efficiency.py`, `insider_buying.py`, `earnings_tone_drift.py`, `iv_skew.py`
-   - `trading_system/run_pipeline.py`
-   - `tests/test_score_normalizer.py`
-2. Check for integrity violations:
-   - No hardcoded test responses or lookup tables.
-   - No dummy/facade implementations or fake stubs.
-   - Genuine percentile rank and winsorized Z-score calculation.
-   - Authentic dynamic zero-weighting and mathematical re-normalization.
-   - Genuine test assertions in `tests/test_score_normalizer.py`.
-3. Give your authoritative binary verdict: `CLEAN` or `INTEGRITY VIOLATION` with comprehensive evidence in `d:\Finance\code\stock\.agents\auditor_m1\handoff.md`.
-Communicate your verdict via send_message.
+<USER_REQUEST>
+You are the Forensic Integrity Auditor for Milestone 1 of Phase 5 Deep Quantitative Enhancements.
+Your working directory is: `d:\Finance\code\stock\.agents\auditor_m1`
+
+MANDATORY FIRST STEP:
+Read the following authoritative files:
+1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (specifically header `## 2026-09-04T08:36:42Z`)
+2. `d:\Finance\code\stock\PROJECT.md`
+3. `d:\Finance\code\stock\.agents\orchestrator_quant_opt5\SCOPE.md`
+4. `d:\Finance\code\stock\.agents\worker_m1\handoff.md`
+
+Your Mission:
+Perform rigorous forensic integrity audit on Worker M1's implementation of Features F35 and F36 in:
+- `trading_system/src/ai/ensemble_scorer.py`
+- `tests/test_phase5_signal_enhancement.py`
+
+Integrity Checks to Conduct:
+1. Static Analysis: Verify NO hardcoded test results, test symbol branches (e.g. `if symbol == 'TEST': return 0.99`), or mock return values.
+2. Genuine Implementation: Verify that mathematical functions (Quad-Pillar kernel, Hölder quadratic mean, asymmetric Richards scaling, Shannon entropy decay, hyperbolic tangent noise deadband) implement actual calculations on dynamic inputs.
+3. Test Authenticity: Verify that tests in `tests/test_phase5_signal_enhancement.py` assert genuine algorithmic properties rather than tautologies (e.g. asserting `1 == 1` or mocking the subject under test).
+4. Runtime Execution: Run `.venv\Scripts\python.exe -m pytest tests/test_phase5_signal_enhancement.py tests/test_phase4_signal_enhancement.py -v` and inspect execution trace.
+
+Deliverable:
+Write a comprehensive audit report to:
+`d:\Finance\code\stock\.agents\auditor_m1\handoff.md`
+with an unambiguous verdict: **`CLEAN`** or **`INTEGRITY VIOLATION`**.
+Notify me via `send_message`.
+</USER_REQUEST>

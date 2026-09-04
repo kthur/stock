@@ -1,41 +1,51 @@
-# BRIEFING — 2026-08-30T13:32:00Z
+# BRIEFING — 2026-09-04T08:43:00Z
 
 ## Mission
-Survey and investigate R4 (OMS Precision Timing) and R5 (Test Suite & Pipeline Execution) for stock trading system.
+Investigate and formulate technical specification for Requirement R3: Quantitative Benchmarking Comparison & Comprehensive Test Suite Verification Architecture (Features F39, F40).
 
 ## 🔒 My Identity
-- Archetype: explorer
-- Roles: investigator, analyzer, synthesizer
+- Archetype: Explorer
+- Roles: Quantitative Research, Benchmarking Architect, Test Verification
 - Working directory: d:\Finance\code\stock\.agents\explorer_survey_3
-- Original parent: 0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e
-- Milestone: Survey R4 & R5
+- Original parent: 61d3427d-726d-48df-945c-5ec75b30ebde
+- Milestone: Phase 5 Deep Quantitative Enhancements Survey
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement changes in codebase
-- Survey src/execution/, trading_system/run_pipeline.py, .github/workflows/, tests/
-- Produce comprehensive survey_report.md and self-contained handoff.md
+- Read-only investigation — do NOT implement
+- Use .venv/Scripts/python.exe for any python inspection commands
+- Write to own folder (.agents/explorer_survey_3)
+- No code modification to production code or test files during survey
 
 ## Current Parent
-- Conversation ID: 0fcc7e25-ce9e-4ce3-aa13-c49ce672f67e
-- Updated: 2026-08-30T13:32:00Z
+- Conversation ID: 61d3427d-726d-48df-945c-5ec75b30ebde
+- Updated: 2026-09-04T08:38:36Z
 
 ## Investigation State
-- **Explored paths**: `trading_system/src/execution/` (`oms_engine.py`, `adaptive_router.py`, `cross_impact.py`, `hawkes_vpin.py`, `kill_switch.py`, `slippage_feedback.py`, `smart_order_router.py`, `turnover_optimizer.py`, `order_manager.py`), `trading_system/run_pipeline.py`, `.github/workflows/` (`pipeline.yml`, `pytest.yml`, `training.yml`), `tests/`
+- **Explored paths**:
+  * `trading_system/scripts/benchmark_phase4_quant_performance.py`
+  * `tests/test_benchmark_phase4.py`
+  * `tests/test_phase4_signal_enhancement.py`
+  * `tests/test_phase4_portfolio_execution.py`
+  * `reports/quant_benchmark_comparison_phase4.md`
+  * `reports/quant_benchmark_comparison.md`
+  * `pyproject.toml`, `.github/workflows/pytest.yml`
+  * `tests/` collection (2,351 collected tests)
 - **Key findings**:
-  1. All 6 precision timing and dynamic exit engines (Confluence Entry, 3-tier Pyramiding, 4-tier Trailing Stop with 2D regime matrix, Signal Exhaustion, Order Flow Shock, Time-Stop) are implemented in `ExecutionOMSEngine` and tested.
-  2. Execution OMS integrates 7 core safety gates, tick size grids, and Leland no-trade buffer bands.
-  3. `run_pipeline.py` integrates OMS at line 3868 for top-20 ensemble picks with real price enrichment and SQLite WAL persistence in `trade_logs.db`.
-  4. Test suite contains 1,796 tests across 222 files; precision timing tests pass 18/18 (100%) in 14.21s.
-  5. CI/CD matrix pipelines in GitHub Actions are fully defined for daily multi-market execution and deployment.
-- **Unexplored areas**: None. Survey is complete.
+  * All 15 metrics formalized with mathematical definitions and units.
+  * Baseline (Phase 4 Apex v11) vs Enhancement (Phase 5 Deep v12) profiles modeled across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000.
+  * Global capital weighting (SP500 35%, NASDAQ 25%, KOSPI 20%, KOSDAQ 10%, RUSSELL2000 10%) yields projected Net Expected Return: 42.00% -> 47.85% (+5.85%p), Sharpe: 4.42 -> 5.12 (+0.70), Rank-IC: 0.168 -> 0.194, MDD: -4.20% -> -3.30%, Turnover: 47.8% -> 38.4%, Friction: 28.2 bps -> 20.4 bps.
+  * Report synchronization architecture designed for 3 target paths (`reports/quant_benchmark_comparison_phase5.md`, `trading_system/result/quant_benchmark_comparison_phase5.md`, `reports/quant_benchmark_comparison.md`).
+  * 4-Stage Zero-Regression Test Execution Roadmap designed for expanding test suite (~2,380+ tests).
+- **Unexplored areas**: None for R3. Complete technical specification delivered.
 
 ## Key Decisions Made
-- Executed targeted tests on precision timing and OMS engines to confirm 100% pass status.
-- Documented full architectural specifications, formulas, safety gates, and CI/CD integration.
-- Authored detailed `survey_report.md` and 5-component `handoff.md`.
+- Anchored Phase 5 Baseline to Phase 4 Apex empirical results (v11).
+- Designed `tests/test_benchmark_phase5.py` with 4 test functions.
+- Formulated 4-Stage verification funnel to maintain 100% test pass rate.
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\explorer_survey_3\survey_report.md — Comprehensive technical analysis of R4 & R5
-- d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md — Self-contained 5-component handoff report
-- d:\Finance\code\stock\.agents\explorer_survey_3\DISPATCH.md — Initial dispatch log
-- d:\Finance\code\stock\.agents\explorer_survey_3\progress.md — Progress tracker
+- DISPATCH.md — record of incoming dispatch instructions
+- BRIEFING.md — persistent working memory
+- progress.md — liveness heartbeat
+- analysis.md — comprehensive technical specification report
+- handoff.md — 5-component handoff report

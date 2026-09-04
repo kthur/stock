@@ -1,20 +1,14 @@
-# Progress Log - Milestone 1
+# Progress Tracker — Worker M1
 
-Last visited: 2026-08-30T13:38:00Z
-Current status: Milestone 1 implementation and test verification complete.
+**Last visited**: 2026-09-04T08:58:00Z
+**Current Milestone**: M15 (Requirement R1: Features F35 & F36)
 
-## Completed Tasks
-- [x] Initialized DISPATCH.md and BRIEFING.md
-- [x] Read ORIGINAL_REQUEST.md, PROJECT.md, survey_report.md
-- [x] Inspected existing codebase: base_strategy.py, strategy_registry.py, ensemble_scorer.py, existing strategy modules
-- [x] Implemented `trading_system/src/core/cross_asset_spillover.py` (`CrossAssetSpilloverEngine`, `cross_asset_spillover_score`, `@register_strategy(StrategyMeta(...))`)
-- [x] Implemented `trading_system/src/core/supply_chain_gnn.py` (`SupplyChainGNNEngine`, `supply_chain_gnn_score`, `@register_strategy(StrategyMeta(...))`)
-- [x] Implemented `trading_system/src/core/range_expansion_breakout.py` (`RangeExpansionBreakoutEngine`, `range_expansion_score`, `@register_strategy(StrategyMeta(...))`)
-- [x] Updated `trading_system/src/core/strategy_registry.py` to add new modules to `core_modules` in `auto_discover()`
-- [x] Verified test pass with `tests/test_phase5_registry.py` (5/5 PASSED)
-- [x] Added and verified comprehensive test suite in `tests/test_r1_high_alpha_strategies.py` (10/10 PASSED)
-- [x] Verified zero regression with `tests/test_all_16_markets_31_strategies.py` (9/9 PASSED)
-- [x] Writing handoff.md and reporting to parent
-
-## Ongoing Tasks
-- [ ] Send completion message to parent
+## Status Checklist
+- [x] Review ORIGINAL_REQUEST.md, PROJECT.md, SCOPE.md, analysis.md, handoff.md
+- [x] Establish DISPATCH.md and BRIEFING.md
+- [x] Inspect src/ai/ensemble_scorer.py around lines 1680-1730, 3210-3310, 3810-3880, 4030-4285
+- [x] Implement Feature F35 & F36 in src/ai/ensemble_scorer.py
+- [x] Create 	ests/test_phase5_signal_enhancement.py
+- [x] Run pytest on test_phase5_signal_enhancement.py and test_phase4_signal_enhancement.py (15/15 passed)
+- [x] Run broader test suite to ensure 0 regressions (21/21 passed)
+- [x] Write handoff.md and send completion message to parent
