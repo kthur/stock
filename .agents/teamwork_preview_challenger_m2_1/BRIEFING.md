@@ -1,59 +1,54 @@
-# BRIEFING — 2026-09-01T00:24:00Z
+# BRIEFING — 2026-09-04T10:10:20+09:00
 
 ## Mission
-Adversarially challenge Milestone 2 (R2: 31-Strategy Canonical Sequence & Verification) to find bugs, stress-test verify_gha_artifacts.py and run_pipeline.py bijection, and verify test suite.
+Empirically challenge Milestone 2 portfolio and execution features (unified_portfolio_allocator, smart_order_router, oms_engine) and provide an empirical verdict (APPROVE / REQUEST_CHANGES).
 
 ## 🔒 My Identity
-- Archetype: empirical_challenger
+- Archetype: empirical challenger
 - Roles: critic, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1
-- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Milestone: M2
+- Original parent: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Milestone: Milestone 2
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code (report findings/bugs, do not silently fix)
-- Run empirical verification tests ourselves; do NOT trust claims or logs
-- Test verify_gha_artifacts.py against missing files, empty files, corrupt headers, invalid HTML panels
-- Verify strict 1..31 bijection across run_pipeline.py, AGENTS.md, SKILL.md, and verification scripts
+- Review-only — do NOT modify implementation code directly (empirical challenge, report findings)
+- Empirical challenger: must write and run verification code directly; do not trust worker's claims or logs
+- Write only to my folder: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1
 
 ## Current Parent
-- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Updated: 2026-09-01T00:24:00Z
+- Conversation ID: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Updated: not yet
 
 ## Review Scope
 - **Files to review**:
-  - `trading_system/scripts/verify_gha_artifacts.py`
-  - `trading_system/run_pipeline.py`
-  - `AGENTS.md`
-  - `PROJECT.md`
-  - `.agents/skills/gha-artifact-verifier/SKILL.md`
-  - `tests/test_verify_gha_artifacts.py`
-  - `tests/test_adversarial_verify_artifacts.py`
-- **Review criteria**:
-  - Exact 1..31 strategy bijection across all artifacts and configs
-  - Robustness of `verify_gha_artifacts.py` against edge cases (missing, empty, corrupt, invalid HTML)
-  - Full test suite execution and validation
+  - `src/risk/unified_portfolio_allocator.py`
+  - `src/execution/smart_order_router.py`
+  - `src/execution/oms_engine.py`
+- **Interface contracts**:
+  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
+  - `d:\Finance\code\stock\.agents\orchestrator_quant_opt4\SCOPE.md`
+  - `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md`
+- **Review criteria**: Empirical correctness, downside semi-cov CVaR, return dispersion model blending, market-aware Leland bands, multi-tier OBI micro-price peg, Hawkes intensity gating
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Strategy index 1..31 alignment across all files: PASSED (exact bijection confirmed)
-  - Empty / corrupt artifact handling in verify_gha_artifacts.py: PASSED (resilient, no crashes, valid=False)
-  - Under-count threshold (< 10 items) and all-zero value detection: PASSED
-  - CLI flags (--strict, --json, --result-dir, --gh-pages-dir) error reporting and exit codes: PASSED
-  - HTML panel validation edge cases (< 5 rows, only <th> headers, missing panel IDs): PASSED
-- **Vulnerabilities found**: None in core logic. Minor edge case in regex matching for recommendation rows in ensemble files with brackets in first column was identified and hardened in stress tests.
-- **Untested angles**: Live GitHub Action execution across external runners (covered in GHA pipeline integration).
+  1. Downside semi-cov CVaR: does it avoid penalizing upside volatility compared to downside volatility?
+  2. Return dispersion model blending: does low vs high alpha dispersion correctly adapt blending weights in Bull and Crisis regimes?
+  3. Market-aware Leland bands: does KRX turnover differ from US turnover under identical noise due to STT difference?
+  4. Multi-tier OBI micro-price peg: does order book asymmetry correctly impact peg pricing direction and scale?
+  5. Hawkes intensity gating: does toxic arrival burst (> 2.5 mu) activate gating/defensive mode vs calm flow?
+- **Vulnerabilities found**: [TBD]
+- **Untested angles**: [TBD]
 
 ## Loaded Skills
-- **Source**: d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md
-- **Local copy**: d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md
-- **Core methodology**: 31-strategy artifact completeness and gh-pages non-zero validation rules
+- None
 
 ## Key Decisions Made
-- Milestone 2 Verdict: APPROVE. All 31 strategies maintain strict 1..31 canonical ordering, and `verify_gha_artifacts.py` is thoroughly validated with 70 unit/adversarial tests and 181 total suite tests passing.
+- Initial setup and dispatch logged.
 
 ## Artifact Index
-- handoff.md — Final challenger evaluation report (APPROVE verdict)
-- progress.md — Liveness heartbeat
-- DISPATCH.md — Initial dispatch instructions
+- `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1\DISPATCH.md` — Dispatch log
+- `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1\progress.md` — Liveness & heartbeat
+- `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1\BRIEFING.md` — Working memory
+- `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1\handoff.md` — Final handoff report

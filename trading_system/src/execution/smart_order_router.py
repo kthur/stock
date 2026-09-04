@@ -10,6 +10,7 @@ Routes institutional orders across multi-venue liquidity pools:
 from __future__ import annotations
 
 import logging
+import math
 from typing import Dict, List, Optional, Any
 
 import numpy as np
@@ -36,10 +37,16 @@ class SmartOrderRouter:
         self,
         order_plan: Dict[str, Any],
         ats_available: bool = True,
-        market_spread_bps: float = 15.0
+        market_spread_bps: float = 15.0,
+        hawkes_intensity: Optional[float] = None,
+        baseline_intensity: float = 1.0,
     ) -> Dict[str, Any]:
         """
         Decomposes an order plan into 3-tier routing legs to optimize net execution cost.
+        F32: Hawkes Arrival Intensity Adverse Selection Gating:
+        When lambda(t) > 2.5 * mu (aggressive order arrival cluster / toxic flow),
+        reduces primary maker leg proportion from 70% to 30% and expands Tier 1 dark
+        midpoint probing to protect resting maker orders from front-running.
         """
         symbol = str(order_plan.get("symbol", ""))
         action = str(order_plan.get("action", "BUY")).upper()
@@ -69,9 +76,29 @@ class SmartOrderRouter:
         else:
             eff_dark_ratio = float(self.dark_probe_ratio)
 
+        # F32: Hawkes Arrival Intensity Adverse Selection Gating
+        hwk = hawkes_intensity if hawkes_intensity is not None else order_plan.get("hawkes_intensity")
+        base_hwk = baseline_intensity if baseline_intensity is not None else float(order_plan.get("baseline_intensity", 1.0) or 1.0)
+        base_hwk = max(1e-6, float(base_hwk))
+
+        is_toxic_flow = False
+        if hwk is not None:
+            try:
+                hwk_f = float(hwk)
+                if math.isfinite(hwk_f) and hwk_f > 2.5 * base_hwk:
+                    is_toxic_flow = True
+            except (ValueError, TypeError):
+                is_toxic_flow = False
+
+        if is_toxic_flow:
+            maker_ratio = 0.30
+            eff_dark_ratio = float(np.clip(max(eff_dark_ratio + 0.20, 0.60), eff_dark_ratio, 0.80))
+        else:
+            maker_ratio = 0.70
+
         # 1. Tier 1: ATS / Dark Pool Midpoint Probe Leg
         is_patient_strategy = exec_strategy in ["MIDPOINT_PEG", "PATIENT_TWAP", "DYNAMIC_VWAP"]
-        is_probe_eligible = is_patient_strategy or dp_score >= 0.30 or is_accum
+        is_probe_eligible = is_patient_strategy or dp_score >= 0.30 or is_accum or is_toxic_flow
         if ats_available and is_probe_eligible:
             dark_qty = int(total_quantity * eff_dark_ratio)
             if dark_qty > 0:
@@ -89,9 +116,9 @@ class SmartOrderRouter:
         else:
             rem_qty = total_quantity
 
-        # 2. Tier 2: Primary Peg / Maker Leg (70% of residual quantity)
+        # 2. Tier 2: Primary Peg / Maker Leg (70% standard, 30% under toxic flow)
         if rem_qty > 0:
-            maker_qty = int(rem_qty * 0.70) if (is_patient_strategy or is_probe_eligible) else 0
+            maker_qty = int(rem_qty * maker_ratio) if (is_patient_strategy or is_probe_eligible) else 0
             if maker_qty > 0:
                 legs.append({
                     "venue_type": "PRIMARY_EXCHANGE_MAKER",
@@ -139,7 +166,10 @@ class SmartOrderRouter:
             "primary_exchange_maker": next((leg for leg in legs if leg["venue_type"] == "PRIMARY_EXCHANGE_MAKER"), None),
             "lit_exchange_sweeper": next((leg for leg in legs if leg["venue_type"] == "LIT_EXCHANGE_SWEEPER"), None),
             "effective_dark_ratio": round(float(eff_dark_ratio), 4),
-            "expected_cost_saving_bps": round(float(tot_saving if np.isfinite(tot_saving) else 0.0), 2)
+            "expected_cost_saving_bps": round(float(tot_saving if np.isfinite(tot_saving) else 0.0), 2),
+            "hawkes_intensity": float(hwk) if (hwk is not None and math.isfinite(float(hwk))) else None,
+            "toxic_flow_detected": is_toxic_flow,
+            "maker_ratio": round(float(maker_ratio), 2),
         }
 
     def determine_destination(self, symbol: str, market: Optional[str] = None) -> Dict[str, str]:

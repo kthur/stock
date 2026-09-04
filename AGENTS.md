@@ -207,6 +207,7 @@ flowchart TB
 | `src/data_layer/earnings_data.py` | Dynamic market filing lag + rate-limit retry fundamental fetch |
 | `src/persistence/database.py` | StockPriceDB: OHLCV 캐시 + 쓰기 뮤텍스 lock |
 | `src/config.py` | TradingConfig (.env 기반 설정, 거래비용/유동성 파라미터) |
+| `trading_system/scripts/benchmark_phase4_quant_performance.py` | Phase 4 Apex 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F21~F33 기여도 분석 |
 
 ### Markets
 
@@ -293,4 +294,6 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 | R17 | 2026-09-03 | 시스템 정밀 포렌식 진단 및 6대 엔터프라이즈 아키텍처 결함 개선 완결: 1) KOSDAQ STT 세제 개편(0.18%->0.15%) 동기화 및 3 bps 알파 억제 해소, 2) UnifiedPortfolioAllocator 역방향 룩어헤드 편향(.bfill) 원천 제거, 3) OMS 37대 전략 Alpha Half-Life 및 Overnight Gap Fast-VWAP 동적 집행 라우팅 완결, 4) SmartOrderRouter .KS/.KQ 접미사 글로벌 거래소 파싱 보정, 5) StrategyCoverageAnalyzer Standalone 장전 특수 전략 분리 격리 및 결측 사유 매핑 보정, 6) 116개 전수 단위/통합 테스트 100% 통과 |
 | R18 | 2026-09-03 | 전 세계 최고 트레이더 시스템 정밀 고도화 완결: 1) UnifiedPortfolioAllocator FX 인과적 정렬 및 룩어헤드 원천 제거, 2) SmartOrderRouter 글로벌 멀티 마켓(JP, HK, EU, CA, US, KRX) 라우팅 확장, 3) OpeningAuctionArbitrageEngine .KS/.KQ 접미사 테마 매핑 정밀화, 4) HTML 대시보드 STT 0.15% 동기화, 5) 전용 및 통합 테스트 21/21 100% 통과 |
 | R19 | 2026-09-03 | Phase 1-3 Master Plan 퀀트 시스템 및 대시보드 고도화 완결: 1) 30일 롤링 RankIC 기반 37대 알파 동적 가중치 스케일링, 2) 패닉/폭락장 과매도 역발상(Contrarian Reversal) 알파 부스트, 3) RiskMetrics 표준 EWMA 공분산(lambda=0.94) 및 연속 비례 Leland 버퍼 밴드, 4) KRX/US 차등 시장 슬리피지 맵 및 소프트 크라이시스 2차 감쇄 게이팅, 5) 대시보드 3대 통합 메가 카드(Regime/Coverage/Portfolio) 및 37-Alpha 레이더 차트, 6) 2,182개 전수 테스트 100% 통과 |
+| R20 | 2026-09-04 | Phase 4 Apex Quantitative Trading System 고도화 완결: 1) Top-Decile 0.833 알파 상한 해제 및 멱법칙 볼록성 복원(F21), 2) Softplus 연속 시그모이드 확신 게이트 및 행평균 결측 보정(F22), 3) 3대 기둥(가치*모멘텀*수급) 3차 상호작용 시너지 및 6대 2D 레짐 결합(F23), 4) 횡보장 휩소 모멘텀 축소 및 평균회귀/통계적차익 배분 재조정(F24), 5) 단일종목 Kaufman 효율성(KER) 기반 동적 알파 스위칭(F25), 6) 레짐별 비대칭 알파 반감기 필터링(F26), 7) 레짐 적응형 Bessembinder 꼬리 임계치(F27), 8) 하방 반공분산(Sortino) EVT-CVaR 최적화(F28), 9) 횡단면 알파 분산 기반 동적 모델 확신도 블렌딩(F29), 10) 한국 STT(0.18%) 고려 차등 Leland 버퍼 밴드 구축으로 KRX 턴오버 35%+ 감축(F30), 11) L2 멀티티어 OBI 및 미시가격 페깅 집행(F31), 12) Hawkes 도착 강도 기반 독성 흐름 역선택 방어 게이트(F32), 13) 체결 슬리피지 피드백 기반 Gatheral 충격 파라미터 폐루프 스케일링(F33), 14) 5대 시장 벤치마크 넷수익률 42.00%(+5.80%p), 샤프 4.42(+0.61), MDD -4.20%, 2,333개 전수 테스트 100% 통과 |
+
 

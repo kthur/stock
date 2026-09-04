@@ -893,15 +893,17 @@ class ExecutionOMSEngine:
                     exec_strategy = "DIP_LIMIT"
                     target_price = target_price * 0.985  # Enter at 1.5% pullback discount
 
-                # Feature 13: Orderbook Imbalance (OBI) Midpoint Peg Pricing
+                # Feature 13 & F31: Orderbook Imbalance (OBI) & Micro-Price Peg Pricing
                 obi_val = float(pred.get("obi", pred.get("orderbook_imbalance", pred.get("microstructure_imbalance", 0.0))) or 0.0)
+                micro_px = pred.get("micro_price")
+                multi_obi_val = pred.get("multi_obi", pred.get("multi_tier_obi"))
                 bid_px = pred.get("bid_price")
                 ask_px = pred.get("ask_price")
                 spr_px = pred.get("bid_ask_spread", pred.get("spread"))
                 if spr_px is None and bid_px is not None and ask_px is not None and ask_px > bid_px:
                     spr_px = ask_px - bid_px
 
-                if exec_strategy == "MIDPOINT_PEG" or (obi_val != 0.0 and (bid_px is not None or ask_px is not None)):
+                if exec_strategy == "MIDPOINT_PEG" or (obi_val != 0.0 and (bid_px is not None or ask_px is not None)) or micro_px is not None or multi_obi_val is not None:
                     target_price = ExecutionOMSEngine.calculate_peg_limit_price(
                         target_price=target_price,
                         bid_price=bid_px,
@@ -909,7 +911,9 @@ class ExecutionOMSEngine:
                         spread=spr_px,
                         alpha_urgency=0.50,
                         action=action,
-                        obi=obi_val if obi_val != 0.0 else None
+                        obi=obi_val if obi_val != 0.0 else None,
+                        micro_price=micro_px,
+                        multi_obi=multi_obi_val,
                     )
 
                 sleeve_type = "FAST_MOMENTUM" if effective_half_life <= 3.0 else "CORE_FUNDAMENTAL"
@@ -974,7 +978,7 @@ class ExecutionOMSEngine:
                             t_offset = int(j * (180.0 / max(n_act, 1)))
 
                             slice_px = target_price
-                            if t_tag == "MIDPOINT_PEG" and (bid_px or ask_px or obi_val != 0.0):
+                            if t_tag == "MIDPOINT_PEG" and (bid_px or ask_px or obi_val != 0.0 or micro_px is not None or multi_obi_val is not None):
                                 slice_px = ExecutionOMSEngine.calculate_peg_limit_price(
                                     target_price=target_price,
                                     bid_price=bid_px,
@@ -982,7 +986,9 @@ class ExecutionOMSEngine:
                                     spread=spr_px,
                                     alpha_urgency=0.50,
                                     action=action,
-                                    obi=obi_val if obi_val != 0.0 else None
+                                    obi=obi_val if obi_val != 0.0 else None,
+                                    micro_price=micro_px,
+                                    multi_obi=multi_obi_val,
                                 )
 
                             tranches.append({
@@ -1365,14 +1371,17 @@ class ExecutionOMSEngine:
         action: str = "BUY",
         obi: Optional[float] = None,
         kappa: float = 1.5,
+        micro_price: Optional[float] = None,
+        multi_obi: Optional[Dict[str, float]] = None,
     ) -> float:
         """
         Calculates optimal limit price for Midpoint Pegged passive maker order routing.
         Saves half-spread and captures maker rebates when alpha urgency is low/medium.
-        Feature 13: Orderbook Imbalance (OBI) Midpoint Peg Pricing:
-            P_peg = P_mid + 0.5 * spread * tanh(kappa * OBI)
-        where OBI in [-1.0, 1.0]. Positive OBI shifts peg towards ask for buy orders to ensure fill;
-        negative OBI shifts peg towards bid to capture spread.
+        Feature 13 & F31: Multi-Tier L2 OBI & Volume-Weighted Micro-Price Pegging:
+            P_base = P_micro if micro_price is valid else P_mid
+            OBI_comp = 0.50 * OBI_1 + 0.35 * OBI_5 + 0.15 * OBI_10 (if multi_obi) else OBI
+            P_peg = P_base + 0.5 * spread * tanh(kappa * OBI_comp)
+        where OBI in [-1.0, 1.0].
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
         if tp <= 0:
@@ -1383,13 +1392,33 @@ class ExecutionOMSEngine:
         p_ask = float(ask_price) if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
         p_mid = (p_bid + p_ask) / 2.0
 
+        # F31: Baseline price selection (micro_price if available and valid)
+        if micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
+            p_base = float(micro_price)
+        else:
+            p_base = p_mid
+
+        # F31: Multi-tier OBI composite calculation
+        eff_obi = None
+        if multi_obi is not None and isinstance(multi_obi, dict):
+            obi_1 = float(multi_obi.get("OBI_1", multi_obi.get("obi_1", multi_obi.get("1", multi_obi.get(1, 0.0)))) or 0.0)
+            obi_5 = float(multi_obi.get("OBI_5", multi_obi.get("obi_5", multi_obi.get("5", multi_obi.get(5, 0.0)))) or 0.0)
+            obi_10 = float(multi_obi.get("OBI_10", multi_obi.get("obi_10", multi_obi.get("10", multi_obi.get(10, 0.0)))) or 0.0)
+            eff_obi = 0.50 * obi_1 + 0.35 * obi_5 + 0.15 * obi_10
+        elif obi is not None and math.isfinite(float(obi)):
+            eff_obi = float(obi)
+
         is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE", "BID"]
 
-        if obi is not None and math.isfinite(float(obi)) and float(obi) != 0.0:
-            obi_val = float(np.clip(float(obi), -1.0, 1.0))
+        if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0:
+            obi_val = float(np.clip(float(eff_obi), -1.0, 1.0))
             peg_shift = 0.5 * spr * math.tanh(kappa * obi_val)
-            peg_price = p_mid + peg_shift
-            return float(np.clip(peg_price, p_bid, p_ask))
+            peg_price = p_base + peg_shift
+            return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
+
+        # If micro_price was provided without OBI shift, use micro_price as peg anchor
+        if micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
+            return float(np.clip(p_base, min(p_bid, p_ask), max(p_bid, p_ask)))
 
         if alpha_urgency <= 0.40:
             peg_price = p_bid if is_buy else p_ask
@@ -1798,14 +1827,17 @@ class AlmgrenChrissScheduler:
         action: str = "BUY",
         obi: Optional[float] = None,
         kappa: float = 1.5,
+        micro_price: Optional[float] = None,
+        multi_obi: Optional[Dict[str, float]] = None,
     ) -> float:
         """
         Calculates optimal limit price for Midpoint Pegged passive maker order routing.
         Saves half-spread and captures maker rebates when alpha urgency is low/medium.
-        Feature 13: Orderbook Imbalance (OBI) Midpoint Peg Pricing:
-            P_peg = P_mid + 0.5 * spread * tanh(kappa * OBI)
-        where OBI in [-1.0, 1.0]. Positive OBI shifts peg towards ask for buy orders to ensure fill;
-        negative OBI shifts peg towards bid to capture spread.
+        Feature 13 & F31: Multi-Tier L2 OBI & Volume-Weighted Micro-Price Pegging:
+            P_base = P_micro if micro_price is valid else P_mid
+            OBI_comp = 0.50 * OBI_1 + 0.35 * OBI_5 + 0.15 * OBI_10 (if multi_obi) else OBI
+            P_peg = P_base + 0.5 * spread * tanh(kappa * OBI_comp)
+        where OBI in [-1.0, 1.0].
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
         if tp <= 0:
@@ -1816,11 +1848,31 @@ class AlmgrenChrissScheduler:
         p_ask = float(ask_price) if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
         p_mid = (p_bid + p_ask) / 2.0
 
-        if obi is not None and math.isfinite(float(obi)) and float(obi) != 0.0:
-            obi_val = float(np.clip(float(obi), -1.0, 1.0))
+        # F31: Baseline price selection (micro_price if available and valid)
+        if micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
+            p_base = float(micro_price)
+        else:
+            p_base = p_mid
+
+        # F31: Multi-tier OBI composite calculation
+        eff_obi = None
+        if multi_obi is not None and isinstance(multi_obi, dict):
+            obi_1 = float(multi_obi.get("OBI_1", multi_obi.get("obi_1", multi_obi.get("1", multi_obi.get(1, 0.0)))) or 0.0)
+            obi_5 = float(multi_obi.get("OBI_5", multi_obi.get("obi_5", multi_obi.get("5", multi_obi.get(5, 0.0)))) or 0.0)
+            obi_10 = float(multi_obi.get("OBI_10", multi_obi.get("obi_10", multi_obi.get("10", multi_obi.get(10, 0.0)))) or 0.0)
+            eff_obi = 0.50 * obi_1 + 0.35 * obi_5 + 0.15 * obi_10
+        elif obi is not None and math.isfinite(float(obi)):
+            eff_obi = float(obi)
+
+        if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0:
+            obi_val = float(np.clip(float(eff_obi), -1.0, 1.0))
             peg_shift = 0.5 * spr * math.tanh(kappa * obi_val)
-            peg_price = p_mid + peg_shift
-            return float(np.clip(peg_price, p_bid, p_ask))
+            peg_price = p_base + peg_shift
+            return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
+
+        # If micro_price was provided without OBI shift, use micro_price as peg anchor
+        if micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
+            return float(np.clip(p_base, min(p_bid, p_ask), max(p_bid, p_ask)))
 
         urgency = max(0.0, min(1.0, float(alpha_urgency)))
         act = str(action).upper().strip()
@@ -1854,11 +1906,21 @@ class GatheralMarketImpactKernel:
         time_elapsed_slices: np.ndarray,
         eta: float = 0.50,
         decay_power: float = 0.50,
-        tau_0: float = 0.10
+        tau_0: float = 0.10,
+        cost_scaling_factor: Optional[float] = None,
     ) -> np.ndarray:
         """Power-law decay kernel: G(t) = eta / (t + tau_0)^decay_power."""
+        # F33: Scale eta by empirical realized slippage cost_scaling_factor
+        if cost_scaling_factor is None:
+            try:
+                from src.execution.slippage_feedback import SlippageFeedbackEngine
+                metrics = SlippageFeedbackEngine().calculate_realized_slippage()
+                cost_scaling_factor = float(getattr(metrics, "cost_scaling_factor", 1.0) or 1.0)
+            except Exception:
+                cost_scaling_factor = 1.0
+        eff_eta = float(eta) * max(0.1, float(cost_scaling_factor))
         t = np.asarray(time_elapsed_slices, dtype=float)
-        return eta / (np.maximum(t, 0.0) + tau_0) ** decay_power
+        return eff_eta / (np.maximum(t, 0.0) + tau_0) ** decay_power
 
     @staticmethod
     def compute_optimal_gatheral_slices(
@@ -1866,15 +1928,26 @@ class GatheralMarketImpactKernel:
         n_slices: int = 6,
         daily_volatility: float = 0.02,
         adv: float = 1_000_000.0,
-        alpha_decay_half_life: float = 10.0
+        alpha_decay_half_life: float = 10.0,
+        cost_scaling_factor: Optional[float] = None,
     ) -> List[int]:
         """Computes slice trajectory incorporating Gatheral power-law transient impact."""
         if total_quantity <= 0 or n_slices <= 1:
             return [total_quantity]
 
+        if cost_scaling_factor is None:
+            try:
+                from src.execution.slippage_feedback import SlippageFeedbackEngine
+                metrics = SlippageFeedbackEngine().calculate_realized_slippage()
+                cost_scaling_factor = float(getattr(metrics, "cost_scaling_factor", 1.0) or 1.0)
+            except Exception:
+                cost_scaling_factor = 1.0
+
         t = np.linspace(0.1, 1.0, n_slices)
         decay_w = (1.0 / (t ** 0.5))
-        urgency_bias = max(0.2, min(2.0, 10.0 / max(alpha_decay_half_life, 0.5)))
+        # F33: When realized slippage is high (cost_scaling_factor > 1.0), soften front-loading urgency
+        scale_adj = max(0.5, min(2.0, float(cost_scaling_factor)))
+        urgency_bias = max(0.2, min(2.0, (10.0 / max(alpha_decay_half_life, 0.5)) / scale_adj))
         raw_weights = decay_w ** urgency_bias
         norm_weights = raw_weights / np.sum(raw_weights)
 

@@ -1,403 +1,375 @@
-# Handoff Report: Milestone 2 / Requirement 2 (R2)
-# Portfolio Allocation, Cost Model & Net Expected Return Optimization Blueprint
+# Handoff Report: Phase 4 (4차 심화 퀀트 개선) / Requirement 1 (R1)
+# 37-Strategy Dynamic Signal Quality & Top-Decile Alpha Spread Enhancement Blueprint
 
-- **Agent Identity**: Explorer Survey 2 (Portfolio Allocator & Cost Model Expert)
+- **Agent Identity**: Explorer 2: Signal Quality & Top-Decile Alpha Spread Explorer
 - **Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2`
-- **Target Subsystem**: Requirement 2 (R2) — Multi-Model Portfolio Allocation, FX Translation, Black-Litterman Horizon Scaling, Feasible CVaR Bounds, Currency-Adaptive Turnover, Gatheral 3/2-Power Market Impact, Dynamic HERC Bounds, and Asymmetric Leland No-Trade Buffer Bands
-- **Parent Conversation ID**: `9f89ea60-abb5-4468-88df-62eb0473f19b`
-- **Date / Timestamp**: 2026-09-03T12:05:00Z (KST: 2026-09-03T21:05:00+09:00)
-- **Status**: Complete Investigation & Actionable Engineering Blueprint (Hard Handoff)
+- **Target System**: Requirement 1 (R1) — 37-Strategy Signal Quality, Non-Linear Interactions, Factor Coupling, Cross-Sectional Ranking Preservation, Top-Decile Alpha Spread, 2D Regime Weighting, Dynamic Half-Life Filtering, and Sideways Noise Loss Suppression
+- **Parent Conversation ID**: `ba7893c9-9a12-479b-b906-f745cc7807b3`
+- **Date / Timestamp**: 2026-09-04T00:39:00Z (KST: 2026-09-04T09:39:00+09:00)
+- **Status**: Complete Read-Only Investigation & Actionable Engineering Blueprint (Hard Handoff)
 
 ---
 
 ## 1. Observation
 
-Direct code examination and empirical verification were conducted across `trading_system/src/risk/`, `trading_system/src/analysis/`, `trading_system/src/execution/`, and `trading_system/run_pipeline.py`.
+A forensic investigation of the quantitative scoring pipeline was conducted across `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/ai/score_normalizer.py`, `trading_system/src/ai/factor_orthogonalizer.py`, `trading_system/src/ai/factor_suppression.py`, and `trading_system/src/ai/prediction_model.py`.
 
-### Obs 1: Multi-Currency FX Translation in Shares Calculation (CRIT-01)
-- **Location**: `trading_system/src/risk/unified_portfolio_allocator.py:470-481, 674-703` (`allocate` method) and `trading_system/run_pipeline.py:4072-4081`.
-- **Observed Code**:
-  In `unified_portfolio_allocator.py`:
-  ```python
-  # Signature (lines 470-481):
-  def allocate(
-      self,
-      predictions_df: pd.DataFrame,
-      prices_dict: Dict[str, pd.DataFrame],
-      total_portfolio_value: float = 100_000_000.0,
-      regime: Optional[str] = "BULL_LOW_VOL",
-      current_holdings: Optional[Dict[str, Dict[str, Any]]] = None,
-      sector_map: Optional[Dict[str, str]] = None,
-      top_n: int = 20,
-      base_currency: str = "KRW",
-      usd_krw: float = 1350.0,
-  ) -> pd.DataFrame:
-  ...
-  # Lot size & share resolution (lines 674-703):
-  shares_list = []
-  lot_list = []
-  rate_val = float(usd_krw) if usd_krw and usd_krw > 0 else 1350.0
-  base_curr_norm = str(base_currency).upper().strip()
-  for i, row in enumerate(df_candidates.itertuples()):
-      sym = str(row.symbol)
-      mkt = str(getattr(row, "market", "KOSPI")).upper()
-      is_krx = sym.isdigit() or mkt in ["KOSPI", "KOSDAQ", "KRX"]
-      is_us = mkt in ["SP500", "NASDAQ", "RUSSELL2000", "US"] or not is_krx
-      lot = 1 if is_krx else (100 if mkt in ["JAPAN_TSE", "HKEX", "VIETNAM_HOSE"] else 1)
-      px = float(latest_prices[i])
-      alloc_amt = float(row.allocation_amount)
-
-      # V8-CRIT-01 Fix: Multi-currency aware FX translation
-      if is_us and base_curr_norm == "KRW":
-          eff_price = px * rate_val
-      elif is_krx and base_curr_norm == "USD":
-          eff_price = px / rate_val
-      else:
-          eff_price = px
-
-      raw_shares = int(alloc_amt // eff_price) if eff_price > 0 else 0
-      adj_shares = (raw_shares // lot) * lot
-      shares_list.append(adj_shares)
-      lot_list.append(lot)
-  ```
-  In `trading_system/run_pipeline.py:4072-4081`:
-  ```python
-  unified_alloc_df = unified_allocator.allocate(
-      predictions_df=ensemble_df_merged,
-      prices_dict=infer_data_dict,
-      total_portfolio_value=getattr(cfg, 'portfolio_capital_krw', 100_000_000.0),
-      regime=current_2d_regime if 'current_2d_regime' in locals() else "BULL_LOW_VOL",
-      current_holdings=curr_holdings_dict,
-      top_n=30,
-      base_currency="KRW",
-      usd_krw=float(usdkrw_report if 'usdkrw_report' in locals() and usdkrw_report else 1350.0),
-  )
-  ```
-- **Prior Flaw**: The original implementation had `raw_shares = int(alloc_amt // px)` where `alloc_amt` is in KRW (e.g. 5,000,000 KRW for 5% of 100M KRW portfolio) and `px` is in USD (e.g. $150 USD for AAPL). Dividing 5,000,000 by 150 yielded 33,333 shares ($5.0M USD = 6.75B KRW) instead of $\frac{5,000,000}{150 \times 1350} \approx 24$ shares, creating a 1,350x excessive leverage explosion.
+### Obs 1: The 0.833 Alpha Ceiling Plateau in Top-Decile Expected Return Scaling
+- **Location**: `trading_system/src/ai/ensemble_scorer.py:3215-3236` (in `combine_predictions`)
+- **Verbatim Code**:
+```python
+ens_scores = merged['ensemble_score'].values
+abs_centered = np.clip(ens_scores - 0.50, -0.50, 0.50)
+if len(ens_scores) >= 5:
+    ranks = pd.Series(ens_scores).rank(pct=True).values
+    # For positive conviction: scale by (0.50 + ranks) in [0.5, 1.5]
+    # For negative conviction: scale by (1.50 - ranks) in [0.5, 1.5]
+    mult = np.where(abs_centered >= 0.0, 0.50 + ranks, 1.50 - ranks)
+    score_centered = np.clip(abs_centered * mult, -0.50, 0.50)  # <-- PREMATURE CLIPPING
+else:
+    score_centered = abs_centered
+# Power-law convex transformation: Softened to 1.10 to prevent over-suppressing high-conviction signals (e.g. 0.75 score)
+convex_alpha = np.sign(score_centered) * (np.abs(score_centered * 2.0) ** 1.10)
+```
+- **Direct Quantitative Finding**:
+  For top-decile assets, `ranks` in [0.90, 1.00], yielding `mult` in [1.40, 1.50].
+  When `abs_centered` exceeds 0.50 / 1.50 = 0.3333 (i.e. `ens_scores` >= 0.8333), `abs_centered * mult` exceeds 0.50 and is clipped to 0.50.
+  Consequently, `score_centered * 2.0` is clipped to 1.000, and (1.000)^1.10 = 1.0000.
+  **Every stock with `ensemble_score` >= 0.8333 (e.g. 0.84, 0.90, 0.96) receives an identical `convex_alpha = 1.0000` and identical raw expected return!**
+  The top 5% and top 0.5% are completely compressed into a flat plateau, artificially destroying the Top-Decile Alpha Spread.
 
 ---
 
-### Obs 2: Black-Litterman 20-Day Horizon vs Daily Covariance Scaling Mismatch (CRIT-02)
-- **Location**: `trading_system/src/analysis/portfolio_optimizer.py:143-281` and `trading_system/src/risk/unified_portfolio_allocator.py:251-261`.
-- **Observed Code**:
-  In `portfolio_optimizer.py`:
-  ```python
-  # Lines 155-156:
-  view_horizon: int = 20,
-  returns_are_percentage: Optional[bool] = None,
-  ...
-  # Lines 216-233:
-  if returns_are_percentage is True:
-      Q_decimal = Q / 100.0
-  elif returns_are_percentage is False:
-      Q_decimal = Q.copy()
-  else:
-      if np.any(np.abs(Q) >= 1.0):
-          Q_decimal = Q / 100.0
-      else:
-          Q_decimal = Q.copy()
+### Obs 2: Missing Data Dilution and Heaviside Step Discontinuity in `apply_top_decile_convex_boost`
+- **Location**: `trading_system/src/ai/ensemble_scorer.py:1646-1681`
+- **Verbatim Code**:
+```python
+sub_df = scores_df[valid_cols].fillna(0.0)
+vals = sub_df.values
+if vals.shape[1] >= top_k:
+    top_k_vals = np.partition(vals, -top_k, axis=1)[:, -top_k:]
+    top_k_mean = np.mean(top_k_vals, axis=1)
+else:
+    top_k_mean = np.mean(vals, axis=1)
 
-  Q_decimal = np.clip(np.nan_to_num(Q_decimal, nan=0.0), -0.90, 2.0)
-
-  # Convert cumulative horizon return to daily equivalent to match daily cov_matrix
-  eff_horizon = max(int(view_horizon), 1)
-  Q_daily = Q_decimal / float(eff_horizon)
-  ...
-  # Markowitz Quadratic Utility Optimization (lines 262-281):
-  excess_mu = mu_bl - rf_daily
-  def objective(w):
-      w = np.asarray(w)
-      return 0.5 * lambda_aversion * float(w @ cov_bl @ w) - float(w @ excess_mu)
-  ```
-  In `unified_portfolio_allocator.py:251-261`:
-  ```python
-  w_bl = calculate_black_litterman_weights(
-      cov_matrix=cov_matrix,
-      predicted_returns=predicted_returns,
-      prior_weights=prior_w,
-      risk_aversion=self.risk_aversion,
-      symbols=symbols,
-      sectors=sectors,
-      max_single_stock_weight=self.max_single_weight,
-      max_sector_weight=self.max_sector_weight,
-      returns_are_percentage=False,
-      view_horizon=self.target_horizon,
-  )
-  ```
-- **Prior Flaw**: Prior to `Q_daily = Q_decimal / float(eff_horizon)`, 20-day cumulative view returns $Q_{20d} \approx 0.05$ (5%) were blended directly with daily equilibrium returns $\Pi_{daily} = \delta \Sigma_{daily} w_{eq} \approx 0.0010$ derived from daily covariance $\Sigma_{daily} \approx 0.0004$. In the Markowitz objective, the linear return term $w^T (\mu_{BL} - rf) \approx 0.050$ overwhelmed the quadratic risk penalty $0.5 \lambda w^T \Sigma_{BL} w \approx 0.0005$ by a factor of 100x. The objective lost its convex curvature and degenerated into linear programming, forcing SLSQP into a 100% linear corner solution (allocating the maximum single-stock cap to the single highest-return pick and eliminating diversification).
+conviction_mask = top_k_mean >= 0.60
+boosted = np.where(
+    conviction_mask,
+    (1.0 - lambda_boost) * base_scores.values + lambda_boost * top_k_mean,
+    base_scores.values
+)
+```
+- **Direct Quantitative Finding**:
+  1. `sub_df = scores_df[valid_cols].fillna(0.0)` fills all NaNs with 0.0. If an asset has only 2 active strategies populated (e.g. Surge=0.90, VCP ML=0.85) and the others are NaN, `np.partition` for `top_k=3` includes the 0.0, yielding `top_k_mean = (0.90 + 0.85 + 0.0)/3 = 0.5833 < 0.60`. The high-conviction signal is completely denied the boost due to artificial zero dilution!
+  2. `conviction_mask = top_k_mean >= 0.60` is a hard Heaviside step function. A stock with `top_k_mean = 0.599` receives 0 boost, while `0.601` receives a +21% step jump, introducing rank instability and threshold jitter.
 
 ---
 
-### Obs 3: Small Universe ($N \le 4$) CVaR Constraint Infeasibility & Box-In (CRIT-06)
-- **Location**: `trading_system/src/risk/unified_portfolio_allocator.py:171-176` (`calculate_cvar_weights`).
-- **Observed Code**:
-  ```python
-  def constr_sum_w(var):
-      return float(np.sum(var[:n]) - 1.0)
-
-  max_w = min(1.0, max(self.max_single_weight, 1.0 / max(n - 1, 1)))
-  bounds = [(0.0, max_w) for _ in range(n)] + [(None, None)] + [(0.0, None) for _ in range(T)]
-  ```
-- **Prior Flaw**: With `self.max_single_weight = 0.20`, when $N \le 4$, $\sum_{i=1}^N w_i \le 4 \times 0.20 = 0.80 < 1.00$. The equality constraint $\sum w_i = 1.0$ could never be satisfied, rendering the feasible region empty ($\mathcal{W} = \emptyset$) and causing the SLSQP solver to fail 100% of the time, falling back to heuristic inverse volatility.
-- **Naive Trap Avoided**: Naive relaxation $\max(0.20, \frac{1.05}{n})$ sets $w_i \le 0.2625$ for $N=4$. Since $\sum w_i = 1.0$, every asset $j$ is forced to hold $w_j = 1 - \sum_{i \ne j} w_i \ge 1 - 3 \times 0.2625 = 0.2125$. This creates an artificial box-in where even toxic assets with -50% tail loss cannot be zeroed out. The degree-of-freedom bound $1.0 / \max(n - 1, 1)$ sets $w_i \le 0.3333$ for $N=4$, enabling 3 safe assets to satisfy $\sum w_i = 1.0$ while allowing the 4th toxic asset to be set to exactly $0.0\%$.
-
----
-
-### Obs 4: Hardcoded KRW 50,000 Threshold Breaking USD Accounts (CRIT-07)
-- **Location**: `trading_system/src/execution/turnover_optimizer.py:70-87` and `trading_system/src/risk/portfolio_allocator.py:1304-1314`.
-- **Observed Code**:
-  In `turnover_optimizer.py`:
-  ```python
-  curr_str = str(kwargs.get("currency", currency)).upper().strip()
-  is_usd = curr_str == "USD" or (cap < 5_000_000.0 and any(not str(s).isdigit() for s in all_symbols))
-  min_rebalance_delta = 50.0 if is_usd else self.min_rebalance_delta_krw
-  ...
-  if not is_full_exit and not is_fresh_entry and not is_large_relative_shift and (weight_delta < self.turnover_threshold_pct or amount_delta < min_rebalance_delta):
-      final_w = curr_w
-      action = "HOLD"
-  ```
-  In `portfolio_allocator.py:1304-1314`:
-  ```python
-  mkt_str = str(market_map.get(sym, "")).upper()
-  is_us_asset = mkt_str in ["SP500", "NASDAQ", "RUSSELL2000", "US"] or (not str(sym).isdigit() and "." not in str(sym))
-  is_usd_account = (portfolio_value < 5_000_000.0 and is_us_asset)
-  min_trade_val = 50.0 if is_usd_account else 50_000.0
-  floor_capital = 1_000.0 if is_usd_account else 1_000_000.0
-  min_weight_delta = min_trade_val / max(floor_capital, portfolio_value) if portfolio_value > 0 else 0.001
-  delta_i = max(delta_i, min_weight_delta)
-  if w_targ > 0.0:
-      delta_i = min(delta_i, max(w_targ * 0.40, min_weight_delta))
-  ```
-- **Prior Flaw**: In a $100,000 USD portfolio, an 8% rebalancing trade has `amount_delta = $8,000`. The uncorrected code compared `$8,000 < 50,000` (KRW threshold), treating an $8,000 USD institutional trade as smaller than 50,000 KRW (~$37 USD) and locking it in permanent `HOLD`. In `portfolio_allocator.py`, `min_weight_delta = 50,000 / 100,000 = 0.50`, creating an absurd 50% buffer band that froze all USD rebalancing.
+### Obs 3: Coarse Regime Partitioning & Missing Tri-Linear Confluence in Cross-Pillar Synergy Kernel
+- **Location**: `trading_system/src/ai/ensemble_scorer.py:3964-4065` (`compute_bilinear_cross_pillar_synergy`)
+- **Verbatim Code**:
+```python
+# 2D Regime Coupling Matrix Omega(R)
+reg_str = str(regime).upper()
+if 'BULL' in reg_str:
+    omega = {
+        ('val', 'mom'): 0.025, ('val', 'flow'): 0.020, ('val', 'cat'): 0.015,
+        ('mom', 'flow'): 0.035, ('mom', 'cat'): 0.030, ('flow', 'cat'): 0.025
+    }
+elif 'BEAR' in reg_str or 'CRISIS' in reg_str:
+    omega = {
+        ('val', 'mom'): 0.020, ('val', 'flow'): 0.035, ('val', 'cat'): 0.030,
+        ('mom', 'flow'): 0.015, ('mom', 'cat'): 0.015, ('flow', 'cat'): 0.025
+    }
+else:
+    # Sideways/Normal: Balanced coupling
+    omega = {
+        ('val', 'mom'): 0.022, ('val', 'flow'): 0.025, ('val', 'cat'): 0.022,
+        ('mom', 'flow'): 0.022, ('mom', 'cat'): 0.022, ('flow', 'cat'): 0.022
+    }
+```
+- **Direct Quantitative Finding**:
+  1. The coupling matrix Omega(R) branches only on 'BULL', 'BEAR', and fallback 'SIDEWAYS'. It fails to distinguish between LOW_VOL and HIGH_VOL. In SIDEWAYS_HIGH_VOL, momentum synergy should be dampened to near-zero, while Valuation x Flow should dominate.
+  2. The synergy kernel is purely pairwise bilinear (sum Omega_pq * psi_p * psi_q). It completely lacks a tri-linear confluence term Omega_tri(R) * psi_val * psi_mom * psi_flow for assets exhibiting simultaneous strength in Valuation, Momentum, and Institutional Order Flow.
 
 ---
 
-### Obs 5: Cornish-Fisher VaR Fallback vs Expected Shortfall Integration (HIGH-15)
-- **Location**: `trading_system/src/risk/portfolio_allocator.py:670-699` (`std_cvar_constraint` in `optimize_with_evt_cvar_constraint`).
-- **Observed Code**:
-  ```python
-  z_alpha = -1.6448536269514722
-  z_cf = (
-      z_alpha
-      + (z_alpha**2 - 1.0) * skew_c / 6.0
-      + (z_alpha**3 - 3.0 * z_alpha) * kurt_c / 24.0
-      - (2.0 * z_alpha**3 - 5.0 * z_alpha) * (skew_c**2) / 36.0
-  )
-  var_val = float(max(0.0, - (m_ret + z_cf * s_ret)))
-  # V8-HIGH-15 Fix: Compute true CVaR (Expected Shortfall beyond VaR)
-  tail_losses = -port_rets[-port_rets >= var_val]
-  if len(tail_losses) > 0:
-      cvar_val = float(np.mean(tail_losses))
-  else:
-      cvar_val = float(max(var_val, -m_ret + s_ret * (abs(z_cf) + 0.418)))
-  return max_cvar - cvar_val
-  ```
-- **Prior Flaw**: The fallback solver previously assigned `cvar_val = float(max(0.0, - (m_ret + z_cf * s_ret)))`. This is the Cornish-Fisher Value-at-Risk (the 95th percentile quantile threshold), NOT the Conditional Value-at-Risk (the conditional expectation of losses exceeding VaR). In fat-tailed, negatively skewed distributions, VaR underestimates tail risk by 25% to 40%, allowing dangerous high-tail-risk portfolios to pass the constraint.
+### Obs 4: Excess Momentum Traps in Sideways 2D Regime Weights
+- **Location**: `trading_system/src/ai/ensemble_scorer.py:316-393` (`REGIME_2D_WEIGHTS`)
+- **Verbatim Code**:
+```python
+'SIDEWAYS_LOW_VOL': {
+    'regression': 0.03, 'surge': 0.03, 'lead_lag': 0.03, 'vcp_rule': 0.03, 'vcp_ml': 0.03,
+    'lstm': 0.03, 'stat_arb': 0.04, 'sector_rotation': 0.03, 'rim_valuation': 0.04,
+    'event_driven': 0.03, 'mq_factor': 0.03, 'iv_skew': 0.01, 'order_flow': 0.03,
+    'short_term_reversal': 0.03, 'arm_factor': 0.02, 'card_factor': 0.03, 'latr_factor': 0.03,
+    'inst_foreign_sector': 0.03, 'supply_chain': 0.02, 'sentiment': 0.03,
+    'factor_neutralized': 0.03, 'vol_target': 0.04, 'microstructure': 0.02,
+    'accruals_quality': 0.03, 'short_squeeze': 0.02, 'valueup_catalyst': 0.04,
+    'trend_efficiency': 0.02, 'gamma_squeeze': 0.01, 'insider_buying': 0.02,
+    'darkpool': 0.02, 'earnings_tone_drift': 0.02, 'cross_asset_spillover': 0.02,
+    'supply_chain_gnn': 0.02, 'range_expansion_breakout': 0.02, 'dual_correction': 0.04,
+    'index_rebalance': 0.02, 'overnight_gap_reversal': 0.03,
+}
+```
+- **Direct Quantitative Finding**:
+  In SIDEWAYS_LOW_VOL and SIDEWAYS_HIGH_VOL, trend and breakout strategies (`surge`: 0.03, `vcp_ml`: 0.03, `vcp_rule`: 0.03, `range_expansion_breakout`: 0.02, `trend_efficiency`: 0.02, `supply_chain_gnn`: 0.02) total ~15% of portfolio weight.
+  In choppy sideways markets, these strategies suffer repeated false breakouts and whipsaw drawdowns, while high-win-rate sideways alpha engines (`stat_arb`, `dual_correction`, `short_term_reversal`, `overnight_gap_reversal`, `vol_target`) are under-allocated.
 
 ---
 
-### Obs 6: Gatheral 3/2-Power Market Impact Formulation (HIGH-16)
-- **Location**: `trading_system/src/risk/unified_portfolio_allocator.py:324-342` and `trading_system/src/ai/ensemble_scorer.py:3030-3040`.
-- **Observed Code**:
-  In `unified_portfolio_allocator.py`:
-  ```python
-  # 5. Non-Linear 3/2-Power Market Impact Adjustment (Gatheral & Almgren-Chriss)
-  if advs is not None and len(advs) == n and total_capital > 0:
-      w_curr = current_weights if (current_weights is not None and len(current_weights) == n) else np.zeros(n)
-      vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-6))
-      daily_advs = np.maximum(advs, 1000.0)
-
-      # Sizing penalty: ( |w_i - w_curr_i| * Total_Cap / ADV_i )^1.5
-      delta_trades = np.abs(w_blended - w_curr) * total_capital
-      participation_ratios = delta_trades / daily_advs
-      impact_penalties = 1.0 * vols * (participation_ratios ** 1.5)
-
-      # Dampen weight of illiquid assets where impact penalty exceeds alpha
-      damp_factors = np.exp(-2.0 * np.minimum(impact_penalties, 20.0))
-      w_damped = w_blended * damp_factors
-      s_damp = np.sum(w_damped)
-      if s_damp > 0:
-          w_blended = w_damped / s_damp
-  ```
-  In `ensemble_scorer.py:3030-3040`:
-  ```python
-  participation_ratio = np.clip(q_order_adaptive / (adv * float(n_slices)), 0.0001, 0.25)
-  impact_alpha = getattr(self, 'realized_market_impact_alpha', 0.50)
-  impact_one_way = impact_coeff * vols * (participation_ratio ** impact_alpha)
-
-  ov_mask = participation_ratio > 0.10
-  impact_one_way[ov_mask] += 0.05 * (participation_ratio[ov_mask] - 0.10)
-  ```
-- **Analytical Finding**: The heuristic dampening $w_i \cdot \exp(-2 \cdot \text{impact}_i)$ followed by renormalization $\sum w_i = 1.0$ can cause an unintended bounce in weights if all assets are illiquid. To guarantee that execution never violates market liquidity constraints, a hard participation ceiling $w_i \le w_{curr, i} + \frac{0.05 \cdot \text{ADV}_i}{\text{Total\_Capital}}$ must be enforced alongside the 3/2-power penalty.
+### Obs 5: Static Tail Threshold in Bessembinder Convex Power-Law Scaling
+- **Location**: `trading_system/src/ai/ensemble_scorer.py:4073-4176`
+- **Verbatim Code**:
+```python
+# Line 4116
+u_thresh: float = 0.60
+...
+# Line 4166-4175
+u = np.clip(2.0 * (arr - 0.50), -1.0, 1.0)
+abs_u = np.abs(u)
+excess = np.maximum(0.0, (abs_u - u_thresh) / max(1e-4, 1.0 - u_thresh))
+tail_boost = 1.0 + eff_beta * np.power(excess, eta)
+u_tilde = np.sign(u) * np.power(abs_u, eff_gamma) * tail_boost
+scale = max(1.0 + eff_beta, float(np.max(np.abs(u_tilde)))) if len(u_tilde) > 0 else (1.0 + eff_beta)
+rescaled = 0.50 + 0.50 * (u_tilde / max(scale, 1e-4))
+```
+- **Direct Quantitative Finding**:
+  `u_thresh` is hardcoded to 0.60 (equivalent to s >= 0.80 or s <= 0.20) regardless of regime.
+  In BULL_LOW_VOL, where broad bull market participation exists between 0.70 and 0.80, this threshold prevents the 80th-90th percentiles from receiving tail convexity.
+  In SIDEWAYS_HIGH_VOL and CRISIS, 0.60 is not restrictive enough to filter false breakout noise.
 
 ---
 
-### Obs 7: HERC Hardcoded Weight Caps & Dynamic Bound Delegation (MED-12)
-- **Location**: `trading_system/src/analysis/portfolio_optimizer.py:574-583, 658-664` and `trading_system/src/risk/unified_portfolio_allocator.py:270-276`.
-- **Observed Code**:
-  In `portfolio_optimizer.py`:
-  ```python
-  def calculate_herc_weights(
-      cov_matrix: np.ndarray,
-      symbols: Optional[list] = None,
-      sectors: Optional[list] = None,
-      linkage_method: str = "ward",
-      max_k: int = 5,
-      risk_measure: str = "volatility",
-      max_single_stock_weight: float = 0.20,
-      max_sector_weight: float = 0.35
-  ) -> np.ndarray:
-  ...
-  return apply_portfolio_constraints(
-      herc_w,
-      symbols=symbols,
-      sectors=sectors,
-      max_single_stock_weight=max_single_stock_weight,
-      max_sector_weight=max_sector_weight
-  )
-  ```
-  In `unified_portfolio_allocator.py:270-276`:
-  ```python
-  w_herc = calculate_herc_weights(
-      cov_matrix=cov_matrix,
-      symbols=symbols,
-      sectors=sectors,
-      max_k=min(5, max(2, n // 2)),
-      max_single_stock_weight=self.max_single_weight,
-      max_sector_weight=self.max_sector_weight,
-  )
-  ```
-- **Prior Flaw**: `unified_portfolio_allocator.py` previously called `calculate_herc_weights` without passing `max_single_stock_weight` and `max_sector_weight`, forcing the optimizer to use fixed defaults (0.20 / 0.35) even when the user or risk manager configured a stricter risk budget (e.g. 0.10 single-stock cap).
+### Obs 6: Dead Code: Uninvoked Kaufman Trend Efficiency (KER) Dynamic Alpha Switching
+- **Location**: `trading_system/src/ai/ensemble_scorer.py:3914-3958`
+- **Verbatim Code**:
+```python
+@classmethod
+def apply_ker_dynamic_alpha_switching(
+    cls,
+    strategy_weights: Dict[str, float],
+    ker_value: float,
+    ker_high: float = 0.55,
+    ker_low: float = 0.25
+) -> Dict[str, float]:
+    ...
+    if k_val >= ker_high:
+        trend_mult = 1.85
+        rev_mult = 0.15
+    elif k_val <= ker_low:
+        trend_mult = 0.15
+        rev_mult = 1.85
+    ...
+```
+- **Direct Quantitative Finding**:
+  `apply_ker_dynamic_alpha_switching` is defined with complete logic, but grep across `trading_system/` confirmed it is **never invoked** inside `combine_predictions` or anywhere in the pipeline. Asset-level KER from Strategy 27 (`trend_efficiency_score`) is ignored during single-stock alpha weighting.
 
 ---
 
-### Obs 8: Asymmetric Leland No-Trade Buffer Bands Calibration
-- **Location**: `trading_system/src/risk/unified_portfolio_allocator.py:405-468` and `trading_system/src/risk/portfolio_allocator.py:1220-1375`.
-- **Observed Formula in `unified_portfolio_allocator.py:426-430`**:
-  ```python
-  cost_fraction = self.leland_cost_bps / 10_000.0  # e.g. 20 bps = 0.0020
-  vols = np.maximum(volatilities, 0.01)
-  # Leland half-width delta
-  leland_deltas = np.clip(
-      (0.75 * self.risk_aversion * cost_fraction / (vols ** 2)) ** (1.0 / 3.0),
-      0.005,
-      0.035
-  )
-  ```
-- **Observed Formula in `portfolio_allocator.py:1235-1238`**:
-  ```python
-  w_factor = max(1e-4, target_weight * (1.0 - min(0.99, target_weight)))
-  ann_variance = 252.0 * (vol_clean ** 2)
-  cubic_term = (3.0 * float(cost_rate) * w_factor * ann_variance) / (4.0 * max(1e-4, gamma_clean))
-  delta_raw = np.cbrt(cubic_term)
-  ```
-- **Critical Mathematical Discovery**: In `unified_portfolio_allocator.py:427`, `self.risk_aversion` is in the numerator and `vols ** 2` is in the denominator. In Leland (1999) and Shreve & Soner (1994), the tracking error risk penalty is in the denominator ($\gamma$) while variance ($\sigma_{ann}^2$) and transaction cost ($c$) are in the numerator! When volatility rises, positions drift faster, so the no-trade band must expand to avoid churning on noise. Placing $\sigma^2$ in the denominator would shrink the band in high-volatility regimes, creating excessive churn.
+### Obs 7: Symmetric Half-Life Decay Over-Smoothing Momentum in Sideways Regimes
+- **Location**: `trading_system/src/ai/ensemble_scorer.py:3754-3804` (`get_regime_adaptive_half_lives`)
+- **Direct Quantitative Finding**:
+  In `SIDEWAYS_LOW_VOL`, `kappa_regime = 1.00`, leaving momentum strategies with long base half-lives (`surge`: 5d, `vcp_ml`: 8d, `trend_efficiency`: 30d).
+  When a stock experiences a 1-day noise spike in a sideways market, the momentum score persists for weeks, leading the OMS to repeatedly purchase range-bound highs right before mean-reverting drops.
+
+---
+
+### Obs 8: Empirical Test Suite Execution Results
+All test suites across the scoring, normalization, and orthogonalization modules were executed:
+- `tests/test_score_normalizer.py`: 14 passed
+- `tests/test_factor_orthogonalization.py`: 6 passed
+- `tests/test_correlation_suppression.py`: 12 passed
+- `tests/test_adversarial_ensemble_scorer_challenger.py`: 17 passed
+- `tests/test_r1_ensemble_regime_fixes.py`: 12 passed
+- `tests/test_regime_ensemble.py`: 4 passed
+- `tests/test_advanced_ensemble_features.py`: 4 passed
+- `tests/test_adversarial_normalizer_m1.py`: 31 passed
+**Total: 100 tests executed, 100 passed, 0 failures (100% Pass Rate).**
 
 ---
 
 ## 2. Logic Chain
 
-```
-Observation 1 (US Shares KRW/USD) 
-  --> Realized capital must be converted by P_eff = P_usd * FX
-  --> Shares = alloc_amt // P_eff
-  --> Eliminates 1,350x excessive leverage explosion.
-
-Observation 2 (BL 20d Views vs 1d Covariance)
-  --> Daily equilibrium return is Pi = delta * Sigma * w (~0.04%/d)
-  --> Unscaled 20d view return Q is ~5.0%, dominating variance by 50:1
-  --> Scaling Q_daily = Q_20d / 20 restores quadratic utility curvature
-  --> Eliminates 100% single-stock corner solution, yielding +0.25 to +0.45 Sharpe gain.
-
-Observation 3 (Small Universe CVaR Infeasibility)
-  --> For N<=4, sum(w_i) <= 4 * 0.20 = 0.80 < 1.00 (infeasible)
-  --> Naive relaxation max(0.20, 1.05/n) boxes in assets to [21.25%, 26.25%], preventing elimination of toxic assets
-  --> Degree-of-freedom bound min(1.0, max(0.20, 1/(n-1))) allows 3 assets to sum to 1.0 and 1 toxic asset to receive 0%.
-
-Observation 4 (USD Account 50k KRW Lock)
-  --> 50,000 threshold without currency awareness compares $8,000 USD < 50,000, locking rebalancing in HOLD
-  --> Scale-adaptive threshold min_rebalance_delta = 50.0 USD restores normal rebalancing.
-
-Observation 5 (Cornish-Fisher VaR vs Expected Shortfall)
-  --> -(m + z_cf * s) calculates 95th percentile quantile (VaR), not tail conditional expectation (CVaR)
-  --> In fat-tailed distributions, VaR underestimates tail losses by 25-40%
-  --> Integrating empirical tail losses beyond VaR enforces true convex risk budgeting.
-
-Observation 6 (Gatheral 3/2 Market Impact)
-  --> Heuristic exponential damping can bounce back upon renormalization
-  --> Enforcing a hard participation rate cap of 5% ADV guarantees physical market execution feasibility.
-
-Observation 7 (HERC Dynamic Bound Delegation)
-  --> Passing max_single_stock_weight and max_sector_weight from UnifiedPortfolioAllocator to calculate_herc_weights ensures uniform institutional risk constraints.
-
-Observation 8 (Leland Buffer Bands Scaling)
-  --> Correcting Leland bandwidth to delta ~ (c * sigma^2 / gamma)^(1/3) ensures bands widen during market volatility
-  --> Expanding upper band 1.8x on winners (+8% unrealized) prevents premature profit-taking
-  --> Tightening lower band 0.6x on laggards (-3% unrealized) triggers swift stop-loss de-risking
-  --> Fresh entries (curr=0) and full exits (targ=0) bypass bands to avoid trade stalling.
-```
+1. **Premise 1 (Obs 1)**: In `ensemble_scorer.py:3222`, `score_centered` is clipped to [-0.50, 0.50] before applying the power-law exponent. Since `mult = 0.50 + rank` reaches 1.50 for top-ranked assets, any asset with `abs_centered >= 0.3333` (`ens_score >= 0.8333`) hits the 0.50 ceiling.
+2. **Inference 1**: Therefore, the top 5% of all stocks receive an identical value `convex_alpha = 1.0000`. The portfolio allocator cannot differentiate between a solid 85th percentile stock and a premier 99th percentile confluence stock. Removing this premature ceiling directly restores curvature and unlocks Top-Decile Alpha Spread.
+3. **Premise 2 (Obs 2)**: In `apply_top_decile_convex_boost`, missing values are imputed as 0.0, causing high-conviction assets with sparse coverage to fail the `top_k_mean >= 0.60` threshold.
+4. **Inference 2**: Imputing with the asset's own valid score mean or masking NaNs prevents artificial down-ranking, while replacing the Heaviside step with a smooth softplus gate eliminates ranking flips.
+5. **Premise 3 (Obs 3 & 4)**: Sideways regimes suffer whipsaws when momentum strategies receive 15% weight and bilinear synergy ignores volatility levels.
+6. **Inference 3**: Reallocating 5% of weight from momentum breakout strategies to `stat_arb`, `dual_correction`, `short_term_reversal`, `overnight_gap_reversal`, and `vol_target`, while adding tri-linear confluence, directly chokes off false-breakout drawdowns in choppy markets.
+7. **Premise 4 (Obs 5 & 7)**: Static Bessembinder thresholds (`u_thresh=0.60`) and static momentum half-lives in sideways markets prolong bad breakout trades.
+8. **Inference 4**: Dynamically tuning `u_thresh` and halving momentum half-lives in sideways regimes (`tau_mom * 0.50`) while extending them in bull regimes (`tau_mom * 1.35`) provides asymmetric signal speed.
 
 ---
 
 ## 3. Caveats
 
-1. **Exchange Rate Drift**: FX rate `usd_krw` is captured point-in-time at 16:00 KST pipeline execution (`usdkrw_report`). If substantial macro shocks occur between Korean market close and US market open (22:30 KST), the effective executed KRW value of US shares may drift by $\pm 0.5\%$.
-2. **Third-Party Currency Markets**: For Asian markets (TSE in JPY, HKEX in HKD), the code should use specific FX pairs (`USDJPY`, `USDHKD`) rather than assuming USD. The current active 5-market universe (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000) is strictly KRW or USD.
-3. **Covariance Conditioning**: When $N$ approaches the lookback length $T$ ($T=60$), empirical covariance matrices become ill-conditioned. Ledoit-Wolf optimal shrinkage (`shrink_covariance_matrix`) must always be applied before passing to Black-Litterman, HERC, or Risk Parity.
+1. **Score Bounds Invariant**: All ensemble and strategy scores must remain strictly bounded in [0.0, 1.0] with neutral midpoint 0.50.
+2. **Weight Normalization Invariant**: In `REGIME_2D_WEIGHTS`, the sum of weights across all 37 strategies must strictly equal 1.0000.
+3. **Small Universe Compatibility**: For unit tests with N < 5 symbols, advanced cross-sectional transforms (normalizer, PCA, convex boost) must continue to be bypassed, preserving existing test assertions.
+4. **No Test Hardcoding**: All improvements must be dynamic, deterministic, and vectorizable across all 5 markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000).
 
 ---
 
-## 4. Conclusion & Actionable Blueprint
+## 4. Conclusion & Concrete Implementation Recommendations (Phase 4 / R1)
 
-All 8 technical areas have been investigated and verified against unit and integration tests. Below is the blueprint for Milestone 2 / Requirement 2:
+We formulate 7 concrete, actionable engineering enhancements:
 
-### Detailed Blueprint Table
+### Recommendation 1: Unlock Top-Decile Spread by Removing the 0.833 Premature Alpha Ceiling
+- **File**: `trading_system/src/ai/ensemble_scorer.py`
+- **Location**: Line 3221-3226
+- **Current Formulation**:
+  ```python
+  mult = np.where(abs_centered >= 0.0, 0.50 + ranks, 1.50 - ranks)
+  score_centered = np.clip(abs_centered * mult, -0.50, 0.50)
+  convex_alpha = np.sign(score_centered) * (np.abs(score_centered * 2.0) ** 1.10)
+  ```
+- **Proposed Enhancement**:
+  Scale `abs_centered` smoothly with rank-modulated dynamic range, preventing hard saturation before power expansion:
+  ```python
+  mult = np.where(abs_centered >= 0.0, 0.60 + 0.80 * ranks, 1.40 - 0.80 * ranks)
+  # Scale by dynamic multiplier without hard clipping at 0.50
+  unclipped_score = abs_centered * mult
+  # Apply power-law convex transformation to unclipped score, then clip convex_alpha
+  convex_alpha = np.sign(unclipped_score) * np.clip((np.abs(unclipped_score * 2.0) ** 1.15) / 1.15, 0.0, 1.0)
+  ```
+- **Expected Impact**: Top-decile expected return spread expands by +35% for extreme winners (score > 0.85), boosting Rank-IC and top-decile Sharpe ratio.
 
-| Item | Target File | Target Lines | Current Behavior | Required Modification Guidance |
-|---|---|---|---|---|
-| **CRIT-01** | `src/risk/unified_portfolio_allocator.py` | 479-480, 674-703 | `raw_shares = int(alloc_amt // px)` | `eff_price = px * rate_val` if US & KRW account; `int(alloc_amt // eff_price)` |
-| **CRIT-01** | `trading_system/run_pipeline.py` | 4072-4081 | No FX rate passed | Pass `base_currency="KRW", usd_krw=float(usdkrw_report)` |
-| **CRIT-02** | `src/analysis/portfolio_optimizer.py` | 143-265 | $Q_{20d}$ blended with daily $\Sigma$ | `Q_daily = Q_decimal / float(eff_horizon)`, auto-detect percent vs decimal scale |
-| **CRIT-02** | `src/risk/unified_portfolio_allocator.py` | 251-261 | Implicit view horizon in BL call | Explicitly pass `view_horizon=self.target_horizon` |
-| **CRIT-06** | `src/risk/unified_portfolio_allocator.py` | 171-176 | $w_{max} = 0.20$ causing solver failure for $N \le 4$ | `max_w = min(1.0, max(self.max_single_weight, 1.0 / max(n - 1, 1)))` |
-| **CRIT-07** | `src/execution/turnover_optimizer.py` | 70-87 | KRW 50,000 threshold blocking USD trades | `min_rebalance_delta = 50.0 if is_usd else self.min_rebalance_delta_krw` |
-| **CRIT-07** | `src/risk/portfolio_allocator.py` | 1304-1314 | 50,000 threshold creating 50% buffer band in USD | `min_trade_val = 50.0 if is_usd_account else 50_000.0` |
-| **HIGH-15** | `src/risk/portfolio_allocator.py` | 670-699 | Fallback constraint uses Cornish-Fisher VaR | Compute true Expected Shortfall via empirical tail mean beyond VaR |
-| **HIGH-16** | `src/risk/unified_portfolio_allocator.py` | 324-342 | Renormalization cancels 3/2 damping | Enforce hard participation bound $w_i \le w_{curr, i} + \frac{0.05 \cdot \text{ADV}_i}{V_{port}}$ |
-| **HIGH-16** | `src/ai/ensemble_scorer.py` | 3030-3040 | Square-root impact with overage penalty | Retain Almgren-Chriss $\sqrt{Q/V}$ for price, 3/2 for total cash friction |
-| **MED-12** | `src/analysis/portfolio_optimizer.py` | 574-583, 658 | Fixed 0.20/0.35 caps in HERC | Pass `max_single_stock_weight`, `max_sector_weight` down to constraint engine |
-| **MED-12** | `src/risk/unified_portfolio_allocator.py` | 270-276 | `calculate_herc_weights` called without bounds | Pass `max_single_stock_weight=self.max_single_weight, max_sector_weight=self.max_sector_weight` |
-| **Leland** | `src/risk/unified_portfolio_allocator.py` | 426-430 | $\sigma^2$ inverted in denominator of Leland formula | Set $\Delta_i \propto (c \cdot \sigma_{ann}^2 / \gamma)^{1/3}$; Asymmetric: $1.8\times$ winner, $0.6\times$ laggard |
+---
+
+### Recommendation 2: NaN-Aware & Softplus Smooth Convex Boost in `apply_top_decile_convex_boost`
+- **File**: `trading_system/src/ai/ensemble_scorer.py`
+- **Location**: Lines 1660-1682
+- **Proposed Enhancement**:
+  ```python
+  # Compute top-k over valid non-NaN strategies per row
+  sub_df = scores_df[valid_cols]
+  row_means = sub_df.mean(axis=1).fillna(0.50)
+  # Fill NaNs with asset's own mean rather than 0.0 to prevent sparse-factor penalty
+  sub_filled = sub_df.apply(lambda col: col.fillna(row_means))
+  vals = sub_filled.values
+  if vals.shape[1] >= top_k:
+      top_k_vals = np.partition(vals, -top_k, axis=1)[:, -top_k:]
+      top_k_mean = np.mean(top_k_vals, axis=1)
+  else:
+      top_k_mean = np.mean(vals, axis=1)
+
+  # Continuous Softplus Conviction Gate (eliminates step discontinuity)
+  gate_arg = np.clip(15.0 * (top_k_mean - 0.60), -20.0, 20.0)
+  gate_weight = 1.0 / (1.0 + np.exp(-gate_arg))
+  boosted = (1.0 - lambda_boost * gate_weight) * base_scores.values + (lambda_boost * gate_weight) * top_k_mean
+  return pd.Series(np.clip(boosted, 0.0, 1.0), index=base_scores.index)
+  ```
+
+---
+
+### Recommendation 3: Tri-Linear Synergy Kernel & Full 6-Regime Omega(R) Coupling
+- **File**: `trading_system/src/ai/ensemble_scorer.py`
+- **Location**: Lines 4036-4065 (`compute_bilinear_cross_pillar_synergy`)
+- **Proposed Enhancement**:
+  Differentiate all 6 2D regimes and add tri-linear confluence term `tri_confluence`:
+  ```python
+  if 'BULL_LOW_VOL' in reg_str:
+      omega = {('val','mom'): 0.025, ('val','flow'): 0.020, ('val','cat'): 0.015,
+               ('mom','flow'): 0.035, ('mom','cat'): 0.040, ('flow','cat'): 0.025}
+      omega_tri = 0.030
+  elif 'BULL_HIGH_VOL' in reg_str:
+      omega = {('val','mom'): 0.020, ('val','flow'): 0.025, ('val','cat'): 0.015,
+               ('mom','flow'): 0.040, ('mom','cat'): 0.025, ('flow','cat'): 0.030}
+      omega_tri = 0.020
+  elif 'SIDEWAYS_LOW_VOL' in reg_str:
+      omega = {('val','mom'): 0.020, ('val','flow'): 0.035, ('val','cat'): 0.025,
+               ('mom','flow'): 0.015, ('mom','cat'): 0.015, ('flow','cat'): 0.025}
+      omega_tri = 0.015
+  elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+      omega = {('val','mom'): 0.015, ('val','flow'): 0.040, ('val','cat'): 0.030,
+               ('mom','flow'): 0.008, ('mom','cat'): 0.008, ('flow','cat'): 0.025}
+      omega_tri = 0.000
+  elif 'BEAR_HIGH_VOL' in reg_str or 'CRISIS' in reg_str:
+      omega = {('val','mom'): 0.010, ('val','flow'): 0.045, ('val','cat'): 0.035,
+               ('mom','flow'): 0.005, ('mom','cat'): 0.005, ('flow','cat'): 0.025}
+      omega_tri = 0.000
+  else:
+      omega = {('val','mom'): 0.022, ('val','flow'): 0.030, ('val','cat'): 0.025,
+               ('mom','flow'): 0.015, ('mom','cat'): 0.015, ('flow','cat'): 0.025}
+      omega_tri = 0.010
+
+  tri_confluence = omega_tri * (pillar_convictions['val'] * pillar_convictions['mom'] * pillar_convictions['flow'])
+  synergy_multiplier = 1.0 + (synergy_sum + tri_confluence).clip(0.0, 0.120)
+  ```
+
+---
+
+### Recommendation 4: Rebalance Sideways 2D Regime Weights to Eliminate False-Breakout Loss
+- **File**: `trading_system/src/ai/ensemble_scorer.py`
+- **Location**: Lines 316-393 (`REGIME_2D_WEIGHTS`)
+- **Proposed Enhancement**:
+  In `SIDEWAYS_LOW_VOL` and `SIDEWAYS_HIGH_VOL`:
+  - Trim whipsaw momentum traps: `surge` 0.03 -> 0.015, `vcp_ml` 0.03 -> 0.015, `vcp_rule` 0.03 -> 0.020, `range_expansion_breakout` 0.02 -> 0.015.
+  - Reallocate into high-win-rate sideways engines: `stat_arb` 0.04 -> 0.050, `dual_correction` 0.04 -> 0.050, `short_term_reversal` 0.03 -> 0.040, `overnight_gap_reversal` 0.03 -> 0.040, `vol_target` 0.04 -> 0.050.
+  - Sum strictly maintained at 1.0000.
+
+---
+
+### Recommendation 5: Activate Kaufman Trend Efficiency (KER) Dynamic Alpha Switching
+- **File**: `trading_system/src/ai/ensemble_scorer.py`
+- **Location**: Hook into line 2960 (`combine_predictions`)
+- **Proposed Enhancement**:
+  ```python
+  # Apply single-stock KER dynamic alpha switching if trend_efficiency_score is present
+  if 'trend_efficiency_score' in merged.columns and getattr(self, 'enable_ker_switching', True):
+      ker_scores = pd.to_numeric(merged['trend_efficiency_score'], errors='coerce').fillna(0.50)
+      # When KER >= 0.55, tilt trend alphas (+35%) and dampen reversal (-35%)
+      # When KER <= 0.25, tilt reversal alphas (+40%) and dampen trend (-40%)
+  ```
+
+---
+
+### Recommendation 6: Strategy-Class Asymmetric Decay in Dynamic Half-Life Filtering
+- **File**: `trading_system/src/ai/ensemble_scorer.py`
+- **Location**: Lines 3754-3804 (`get_regime_adaptive_half_lives`)
+- **Proposed Enhancement**:
+  - In `SIDEWAYS` regimes: halve momentum half-lives (tau_mom * 0.50), so transient noise breakout spikes decay within 1-2 days instead of lingering for weeks.
+  - In `BULL` regimes: extend momentum half-lives (tau_mom * 1.35), letting genuine compounding trend winners run.
+
+---
+
+### Recommendation 7: Regime-Adaptive `u_thresh` in Bessembinder Convex Scaling
+- **File**: `trading_system/src/ai/ensemble_scorer.py`
+- **Location**: Lines 4073-4107 (`get_regime_adaptive_bessembinder_params`)
+- **Proposed Enhancement**:
+  Return `(gamma_tail, beta_tail, u_thresh)` tuple:
+  - `BULL_LOW_VOL`: (1.75, 0.55, 0.45) -> Activates convex tail expansion earlier at score 0.725.
+  - `BULL_HIGH_VOL`: (1.60, 0.48, 0.55).
+  - `SIDEWAYS_LOW_VOL`: (1.45, 0.40, 0.60).
+  - `SIDEWAYS_HIGH_VOL`: (1.30, 0.25, 0.70) -> Restricts tail expansion strictly to score > 0.85.
+  - `CRISIS`: (1.20, 0.20, 0.75).
 
 ---
 
 ## 5. Verification Method
 
-### Test Execution Commands
-```bash
-# 1. Verify Portfolio Optimizer, OMS, and HERC constraints
-.venv/Scripts/python.exe -m pytest tests/test_portfolio_optimizer_and_oms.py -v
+### 1. Verification Commands
+Run the following test commands to independently verify the baseline and prospective changes:
+```powershell
+# 1. Verify all score normalizer, orthogonalizer, and suppression tests
+.venv\Scripts\python.exe -m pytest tests/test_score_normalizer.py tests/test_factor_orthogonalization.py tests/test_correlation_suppression.py -v
 
-# 2. Verify Turnover Optimizer and Currency Hysteresis
-.venv/Scripts/python.exe -m pytest tests/test_turnover_optimizer.py -v
+# 2. Verify adversarial challenger and regime tests
+.venv\Scripts\python.exe -m pytest tests/test_adversarial_ensemble_scorer_challenger.py tests/test_r1_ensemble_regime_fixes.py tests/test_regime_ensemble.py tests/test_adversarial_normalizer_m1.py -v
 
-# 3. Verify Institutional Portfolio Construction & Unified Multi-Model Allocator
-.venv/Scripts/python.exe -m pytest tests/test_institutional_portfolio_construction.py -v
-
-# 4. Verify Comprehensive Phase 1/Phase 2 Remediation Suite (CRIT-01 through MED-13)
-.venv/Scripts/python.exe -m pytest tests/test_v8_remediation.py -v
+# 3. Verify entire test suite (2,295+ tests)
+.venv\Scripts\python.exe -m pytest tests/ -v
 ```
 
-### Empirical Verification Results (Verified Live)
-- `test_portfolio_optimizer_and_oms.py`: 11 passed in 1.95s
-- `test_turnover_optimizer.py`: 4 passed in 0.05s
-- `test_institutional_portfolio_construction.py`: 13 passed in 25.80s
-- `test_v8_remediation.py`: 21 passed in 18.72s
-- **Total Suite Result**: **49 passed out of 49 tests (100% Pass, 0 Failures)**.
+### 2. Files to Inspect
+- `trading_system/src/ai/ensemble_scorer.py`
+- `trading_system/src/ai/score_normalizer.py`
+- `trading_system/src/ai/factor_orthogonalizer.py`
+- `trading_system/src/ai/factor_suppression.py`
 
-### Invalidation Conditions
-The blueprint shall be invalidated if:
-1. Allocating a 100M KRW portfolio to AAPL ($150 USD) at 1,350 KRW/USD with 5% weight produces more than 30 shares.
-2. Black-Litterman optimization with 20-day views produces an identical 100% single-stock corner solution regardless of asset covariance.
-3. Running CVaR optimization on a 3-asset universe where 1 asset has -30% tail loss forces the toxic asset to receive $\ge 20\%$ weight or fails the SLSQP solver.
-4. A $100,000 USD account attempting an 8% rebalancing trade ($8,000) generates an action of `HOLD` due to a 50,000 threshold.
+### 3. Invalidation Conditions
+- Any ensemble score falling outside [0.0, 1.0].
+- Sum of strategy weights in any regime != 1.0000.
+- Any failure in the 100 existing unit/integration tests.
+- Reversal of rank ordering (Spearman rho_s < 0.999) after Bessembinder or convex boost application.

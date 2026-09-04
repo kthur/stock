@@ -1,4 +1,4 @@
-﻿## 2026-09-03T11:56:34Z
+## 2026-09-03T11:56:34Z
 MANDATORY FIRST STEP:
 Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md and d:\Finance\code\stock\system_improvement_plan_v8.md.
 
@@ -18,3 +18,26 @@ OUTPUT:
 Write your comprehensive investigation report to d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md.
 Update d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\progress.md with timestamps.
 Send a message back to parent when complete.
+## 2026-09-04T00:33:52Z
+You are Explorer 2: Signal Quality & Top-Decile Alpha Spread Explorer.
+Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2
+Maintain progress.md in your working directory.
+
+MANDATORY FIRST STEP:
+Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md completely, especially the latest request under `## 2026-09-04T00:32:34Z` regarding R1: 37-strategy dynamic signal quality and top-decile alpha spread enhancement.
+
+Your assignment:
+1. Thoroughly investigate `src/ai/ensemble_scorer.py`, `src/ai/score_normalizer.py`, `src/ai/factor_orthogonalizer.py`, `src/ai/factor_suppression.py`, and `src/ai/prediction_model.py`.
+2. Inspect how signals from the 37 strategies are combined, normalized, orthogonalized, regime-weighted, and filtered:
+   - Non-linear interactions & factor coupling
+   - Cross-sectional ranking preservation (Percentile Rank, Winsorized Gaussian CDF, Top-Decile Alpha Spread)
+   - 2D Regime adaptive weighting (BULL, BEAR, SIDEWAYS x LOW/HIGH VOL, CRISIS) and Markov transition smoothing
+   - Dynamic half-life delay filtering and noise suppression
+3. Check existing unit and integration tests in `tests/` related to ensemble scoring and signal normalization (e.g., `tests/test_ensemble_scorer.py`, `tests/test_score_normalizer.py`, etc.). Note any edge cases or strict assertions that must be preserved.
+4. Formulate concrete, actionable implementation recommendations for Phase 4:
+   - Exactly what formulas, parameters, and algorithms to refine
+   - Specific file locations and function signatures to enhance
+   - How to maximize Top-Decile Alpha Spread and suppress noise/sideways loss without breaking backward compatibility or any existing test.
+5. Write a comprehensive, self-contained handoff report at:
+   `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md`
+and notify the caller via send_message when complete.

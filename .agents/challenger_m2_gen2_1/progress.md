@@ -1,0 +1,23 @@
+# Progress - Challenger M2 Gen2
+
+- Last visited: 2026-09-04T04:15:35Z
+- Status: Completed all empirical stress tests. Writing handoff.md.
+- Steps:
+  - [x] Create DISPATCH.md, BRIEFING.md, progress.md
+  - [x] Read mandatory files (ORIGINAL_REQUEST.md, SCOPE.md, worker_m2 handoff.md)
+  - [x] Run existing test suite `tests/test_phase4_portfolio_execution.py` (18/18 passed in 12.41s)
+  - [x] Stress-test downside semi-covariance under extreme market conditions:
+        - Rank-deficient / singular covariance matrices (N > T, identical collinear asset returns, zero variance) -> PASSED
+        - Zero downside variance (all positive returns) vs pure downside variance (all negative returns) -> PASSED
+        - Monotonicity of Sortino / downside allocation as semi_cov_weight sweeps from 0.0 to 1.0 -> PASSED
+  - [x] Stress-test dynamic model conviction blending:
+        - Extreme return dispersions (zero dispersion, massive dispersion > 10.0, negative extremes) -> PASSED
+        - Extreme regime probabilities (pure Crisis, pure Bull, pure Sideways, degenerate dicts) -> PASSED
+        - Verified weight conservation sum(w_m) = 1.0000 and non-negativity across all cases -> PASSED
+  - [x] Stress-test Leland no-trade buffers:
+        - Korean assets vs US assets under extreme volatility (0.001 to 0.50) and costs (0.1 to 500 bps) -> PASSED
+        - Verified Korean buffers are properly widened while US buffers remain narrow -> PASSED
+        - Verified boundary rebalancing and bypass logic -> PASSED
+  - [x] Run full pytest collection: 2,347 tests collected, 0 errors
+  - [ ] Write handoff.md with APPROVE verdict
+  - [ ] Notify parent via send_message

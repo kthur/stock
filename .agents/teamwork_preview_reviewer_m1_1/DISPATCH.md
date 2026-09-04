@@ -1,20 +1,26 @@
-## 2026-08-31T15:02:02Z
+## 2026-09-04T00:53:59Z
+You are Reviewer 1 for Milestone 1.
+Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1
+Maintain progress.md in your working directory.
 
-<USER_REQUEST>
-You are a Reviewer (teamwork_preview_reviewer).
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1\
-Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Project Scope path: d:\Finance\code\stock\PROJECT.md
-Worker Handoff path: d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
+MANDATORY FIRST STEP:
+Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md completely.
+Also read Worker 1's handoff report at:
+d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
+And SCOPE.md at:
+d:\Finance\code\stock\.agents\orchestrator_quant_opt4\SCOPE.md
 
-Mission: Review Milestone 1 (R1: GHA Pipeline & Model Integrity) changes.
-1. Read ORIGINAL_REQUEST.md, PROJECT.md, and the worker's changes in .github/workflows/pipeline.yml and training.yml.
-2. Review syntax, matrix definitions, caching keys/restore-keys, and release asset upload lists.
-3. Run verification tests: `pytest tests/test_model_cache_pipeline.py tests/test_database.py tests/test_prediction_model.py -v`.
-4. Provide a clear verdict (APPROVE or REQUEST_CHANGES) with rationale in your handoff.md.
-5. Write your report to d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1\review_report.md and a handoff.md.
-6. Send a message to your caller parent with your verdict and summary.
-</USER_REQUEST>
-<ADDITIONAL_METADATA>
-The current local time is: 2026-09-01T00:02:02+09:00.
-</ADDITIONAL_METADATA>
+Your Review Task:
+1. Examine `trading_system/src/ai/ensemble_scorer.py` and `tests/test_phase4_signal_enhancement.py`.
+2. Inspect the 7 implemented features (F21-F27):
+   - F21: Top-decile 0.833 alpha ceiling removal, rank-modulated dynamic scaling, power-law 1.15.
+   - F22: NaN-aware valid row-mean imputation and continuous sigmoid softplus gate in `apply_top_decile_convex_boost`.
+   - F23: Tri-linear synergy kernel & full 6-regime coupling in `compute_bilinear_cross_pillar_synergy`.
+   - F24: Sideways 2D regime weights rebalanced in `REGIME_2D_WEIGHTS` with exact sum = 1.0000.
+   - F25: Kaufman Trend Efficiency (KER) dynamic alpha switching hook in `combine_predictions`.
+   - F26: Strategy-class asymmetric half-life decay in `get_regime_adaptive_half_lives`.
+   - F27: Regime-adaptive `u_thresh` in Bessembinder convex scaling with backward-compatible sequence unpacking.
+3. Run and verify the tests:
+   `.venv\Scripts\python.exe -m pytest tests/test_phase4_signal_enhancement.py tests/test_score_normalizer.py tests/test_factor_orthogonalization.py tests/test_correlation_suppression.py tests/test_adversarial_ensemble_scorer_challenger.py tests/test_r1_ensemble_regime_fixes.py tests/test_regime_ensemble.py tests/test_advanced_ensemble_features.py tests/test_adversarial_normalizer_m1.py tests/test_m1_quant_enhancements.py -v`
+4. Formulate an objective review verdict: APPROVE or REQUEST_CHANGES.
+5. Write your handoff report to `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1\handoff.md` and notify caller via send_message.

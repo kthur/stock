@@ -1,18 +1,20 @@
-# Progress — Explorer Survey 2
+# Progress — Explorer 2: Signal Quality & Top-Decile Alpha Spread Explorer
 
-Last visited: 2026-09-03T21:03:00+09:00
+Last visited: 2026-09-04T09:38:30+09:00
 
 ## Status
-- [x] Initialized workspace and briefing
-- [x] Read ORIGINAL_REQUEST.md and system_improvement_plan_v8.md
-- [x] Investigate CRIT-01: Multi-currency FX translation in `unified_portfolio_allocator.py` & `run_pipeline.py`
-- [x] Investigate CRIT-02: Black-Litterman horizon vs daily covariance scaling mismatch
-- [x] Investigate CRIT-06: Small universe (N <= 4) CVaR upper bound constraint
-- [x] Investigate CRIT-07: Hardcoded KRW 50,000 threshold in turnover/allocator
-- [x] Investigate HIGH-15: Cornish-Fisher VaR fallback to Expected Shortfall
-- [x] Investigate HIGH-16: Gatheral 3/2-power market impact formulation
-- [x] Investigate MED-12: HERC hardcoded weight caps
-- [x] Investigate Asymmetric Leland No-Trade Buffer Bands
-- [x] Empirically verify existing tests: 49 tests passed (100% Pass, 0 Failures)
-- [x] Synthesize findings and generate handoff.md
+- [x] Initialized workspace, updated DISPATCH.md and BRIEFING.md
+- [x] Read ORIGINAL_REQUEST.md (Phase 4 / 4차 심화 퀀트 개선 R1)
+- [x] Investigate `src/ai/ensemble_scorer.py`: 37-strategy combination, non-linear interactions & factor coupling, 2D regime weights, dynamic half-life filtering
+- [x] Investigate `src/ai/score_normalizer.py`: Cross-sectional ranking preservation, Percentile Rank, Winsorized Gaussian CDF, Top-Decile Alpha Spread
+- [x] Investigate `src/ai/factor_orthogonalizer.py`: Gram-Schmidt & PCA-ZCA whitening, decorrelation behavior
+- [x] Investigate `src/ai/factor_suppression.py`: Factor noise suppression, VIF, regime conditioning
+- [x] Investigate `src/ai/prediction_model.py`: Model outputs, feature scaling, multi-horizon handling
+- [x] Inspect existing test suite in `tests/` (100 tests executed, 100% pass, 0 failures)
+- [x] Formulate concrete, actionable implementation blueprint for Phase 4 R1 (Unlocking the 0.833 Alpha Ceiling, Bessembinder adaptive u_thresh, Tri-linear Pillar Synergy, Sideways Momentum Noise Choke, Asymmetric Half-Lives, KER activation)
+- [x] Write comprehensive handoff.md
 - [x] Send handoff message to parent
+
+
+
+

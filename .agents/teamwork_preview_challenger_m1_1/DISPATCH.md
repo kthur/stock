@@ -1,13 +1,21 @@
-## 2026-08-31T15:02:02Z
-You are a Challenger (teamwork_preview_challenger).
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_1\
-Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Project Scope path: d:\Finance\code\stock\PROJECT.md
-Worker Handoff path: d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
+## 2026-09-04T00:54:00Z
+You are Challenger 1 for Milestone 1.
+Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_1
+Maintain progress.md in your working directory.
 
-Mission: Adversarially challenge Milestone 1 (R1: GHA Pipeline & Caching Integrity).
-1. Read ORIGINAL_REQUEST.md, PROJECT.md, and inspect .github/workflows/pipeline.yml, preseed.yml, training.yml.
-2. Adversarially stress test: check for missing files in artifact zips, YAML syntax breaks, cache key mismatch, or edge case failures in multi-market runs.
-3. Run tests and any adversarial verification scripts.
-4. Deliver your verdict (APPROVE or REQUEST_CHANGES) and findings in your handoff.md.
-5. Send a message to your caller parent with your verdict.
+MANDATORY FIRST STEP:
+Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md completely.
+Also read Worker 1's handoff report at:
+d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
+And SCOPE.md at:
+d:\Finance\code\stock\.agents\orchestrator_quant_opt4\SCOPE.md
+
+Your Challenger Task:
+1. Empirically challenge the new signal enhancements in `trading_system/src/ai/ensemble_scorer.py`.
+2. Test adversarial scenarios:
+   - Rank preservation under monotonic transformations (Spearman Rank correlation $\ge 0.999$).
+   - Extreme high-conviction scores (e.g. 0.85, 0.92, 0.98) to confirm top-decile differentiation without flattening.
+   - High sparsity (e.g. 35 out of 37 factors are NaN).
+   - High volatility and crisis regimes vs bull regimes to confirm appropriate alpha dampening.
+3. Formulate an empirical challenger verdict: APPROVE or REQUEST_CHANGES.
+4. Write your handoff report to `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_1\handoff.md` and notify caller via send_message.

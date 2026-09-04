@@ -32,6 +32,20 @@
 | F18 | Global Smart Order Router & RL Execution Agent | Intelligent multi-venue routing (KRX/US/Global) and Q-learning dynamic optimal order slicing agent | M9 | Institutional Execution R16 |
 | F19 | Master Plan Phase 1-3 Systemic Quant Enhancements | 30-day rolling RankIC dynamic alpha weighting, contrarian reversal alpha in crash, EWMA covariance ($\lambda=0.94$), continuous Leland bands | M10 | Quant Master Plan R19 |
 | F20 | Consolidated 3 Mega Cards Dashboard & 37-Alpha Radar | 3 Mega Cards UX architecture, 37-Alpha radar chart, column presets, stock drawer factor breakdown, and watchlist | M10 | Dashboard Modernization R19 |
+| F21 | Top-Decile Spread 0.833 Alpha Ceiling Unlock | Remove premature [-0.5, 0.5] clipping before power expansion in `combine_predictions` to restore top 5% convexity | M11 | ORIGINAL_REQUEST R1 |
+| F22 | NaN-Aware & Softplus Smooth Convex Boost | Use asset's own mean rather than 0.0 for NaNs and replace Heaviside step with continuous sigmoid gate | M11 | ORIGINAL_REQUEST R1 |
+| F23 | Tri-Linear Synergy Kernel & Full 6-Regime Coupling | Add tri-linear confluence ($\Xi_{tri}$) and differentiate LOW_VOL vs HIGH_VOL across all 6 regimes | M11 | ORIGINAL_REQUEST R1 |
+| F24 | Sideways 2D Regime Weight Rebalancing | Trim whipsaw false breakouts and reallocate to stat_arb, dual_correction, reversal | M11 | ORIGINAL_REQUEST R1 |
+| F25 | Single-Stock KER Dynamic Alpha Switching | Activate `apply_ker_dynamic_alpha_switching` in `combine_predictions` based on Kaufman efficiency | M11 | ORIGINAL_REQUEST R1 |
+| F26 | Strategy-Class Asymmetric Half-Life Filtering | Accelerate decay for momentum in sideways regimes while extending in bull regimes | M11 | ORIGINAL_REQUEST R1 |
+| F27 | Regime-Adaptive Bessembinder Tail Thresholds | Parameterize `u_thresh` by 2D regime (0.45 Bull Low Vol to 0.70 Sideways High Vol) in Bessembinder convex scaling | M11 | ORIGINAL_REQUEST R1 |
+| F28 | Downside Semi-Covariance (Sortino) EVT-CVaR Optimization | Blend `compute_downside_semi_cov` into `calculate_cvar_weights` to penalize downside risk while preserving upside runners | M12 | ORIGINAL_REQUEST R2 |
+| F29 | Dynamic Model Conviction & Return-Dispersion Blending | Modulate BL vs HERC/CVaR blend dynamically based on cross-sectional alpha dispersion | M12 | ORIGINAL_REQUEST R2 |
+| F30 | Market-Specific STT & Fee-Aware Leland Buffers | Adapt Leland buffer cost sizing by asset/market (25 bps KRX for STT, 3.5-8 bps US) to suppress Korean churn by 35%+ | M12 | ORIGINAL_REQUEST R2 |
+| F31 | Multi-Tier L2 OBI & Micro-Price Pegging | Enhance `calculate_peg_limit_price` with volume-weighted micro-price and composite multi-tier OBI (1, 5, 10 levels) | M12 | ORIGINAL_REQUEST R2 |
+| F32 | Hawkes Arrival Intensity Adverse Selection Gating | Gate primary maker leg allocations in `SmartOrderRouter.route_order` when Hawkes arrival intensity spikes | M12 | ORIGINAL_REQUEST R2 |
+| F33 | Closed-Loop Empirical Slippage Feedback Scaling | Dynamically scale Gatheral impact coefficient $\kappa_{\text{eff}}$ using realized execution slippage from `trade_logs.db` | M12 | ORIGINAL_REQUEST R2 |
+| F34 | Phase 4 Benchmark Performance Engine & Reports | Build `benchmark_phase4_quant_performance.py` and generate comprehensive comparison tables for all 5 markets across Phase 3 vs Phase 4 | M13 | ORIGINAL_REQUEST R3 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -46,6 +60,10 @@
 | M8 | World-Class Trader Alpha Upgrade | F15: Top-K concentration, fractional Kelly, tick grid rounding, and test suite expansion | M7 | DONE |
 | M9 | Institutional Ultra-Low Latency Execution Layer | F16, F17, F18: Fast LOB Engine, FIX 4.4 DMA, IBKR Connector, Global SOR, and RL Execution Agent | M8 | DONE |
 | M10 | Master Plan Phase 1-3 Quant Upgrades & 2,182 Tests | F19, F20: 30-day RankIC, EWMA Cov, 3 Mega Cards Dashboard, and 2,182 pytest suite 100% pass | M9 | DONE |
+| M11 | Phase 4 Dynamic Signal Quality & Top Alpha (R1) | F21~F27: 0.833 alpha unlock, softplus convex boost, tri-linear synergy kernel, sideways rebalancing, KER switching, asymmetric half-life, Bessembinder tail thresholds | M10 | DONE |
+| M12 | Phase 4 Portfolio Allocation & Execution Friction Optimization (R2) | F28~F33: Downside semi-covariance Sortino CVaR, dispersion conviction blending, Korean STT Leland buffers, L2 OBI micro-pegging, Hawkes adverse selection gating, closed-loop slippage feedback | M11 | DONE |
+| M13 | Phase 4 Quantitative Benchmark Engine & Multi-Market Reports (R3) | F34: `benchmark_phase4_quant_performance.py` and 5-market benchmark reports across 3 target destinations | M11, M12 | DONE |
+| M14 | Phase 4 Full Test Suite & Forensic Verification (R4) | F35: 2,333 items pytest suite 100% pass, zero regressions, and forensic audit verification | M11, M12, M13 | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -62,6 +80,7 @@
 - `src/pipeline/reporter.py`: Pipeline summary text reporter
 - `trading_system/scripts/verify_gha_artifacts.py`: CI artifact verifier
 - `trading_system/scripts/merge_predictions.py`: 37-strategy multi-market file merger
+- `trading_system/scripts/benchmark_phase4_quant_performance.py`: Phase 4 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
@@ -69,4 +88,4 @@
 - `src/broker/interactive_brokers.py`: Native IBKR connector
 - `src/execution/smart_order_router.py`: Global multi-market Smart Order Router
 - `src/execution/rl_execution_agent.py`: Reinforcement learning order slicing agent
-- `tests/`: Automated unit, integration, and e2e test suite (2,182 items)
+- `tests/`: Automated unit, integration, and e2e test suite (2,333 items)

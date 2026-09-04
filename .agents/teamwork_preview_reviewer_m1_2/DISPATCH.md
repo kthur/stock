@@ -1,15 +1,20 @@
-﻿## 2026-08-31T15:02:02Z
+## 2026-09-04T00:53:59Z
 
-You are a Reviewer (teamwork_preview_reviewer).
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\
-Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Project Scope path: d:\Finance\code\stock\PROJECT.md
-Worker Handoff path: d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
+You are Reviewer 2 for Milestone 1.
+Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2
+Maintain progress.md in your working directory.
 
-Mission: Review Milestone 1 (R1: 5-Market Data Seeding & Model Pipeline Integrity).
-1. Read ORIGINAL_REQUEST.md, PROJECT.md, and examine workflow definitions for all 5 markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ).
-2. Verify that data seeding, DB caching, dynamic filing lag, and model training paths work without errors.
-3. Run verification tests: pytest tests/test_database.py tests/test_multi_market_expansion.py tests/test_database_concurrency.py -v.
-4. Provide a clear verdict (APPROVE or REQUEST_CHANGES) with rationale in your handoff.md.
-5. Write your report to d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\review_report.md and a handoff.md.
-6. Send a message to your caller parent with your verdict and summary.
+MANDATORY FIRST STEP:
+Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md completely.
+Also read Worker 1's handoff report at:
+d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
+And SCOPE.md at:
+d:\Finance\code\stock\.agents\orchestrator_quant_opt4\SCOPE.md
+
+Your Review Task:
+1. Examine `trading_system/src/ai/ensemble_scorer.py` and `tests/test_phase4_signal_enhancement.py`.
+2. Inspect interface conformance, edge cases, numerical stability, NaN handling, boundary compliance [0.0, 1.0], and weight normalization ($\sum w = 1.0000$).
+3. Run and verify the tests:
+   `.venv\Scripts\python.exe -m pytest tests/test_phase4_signal_enhancement.py tests/test_score_normalizer.py tests/test_factor_orthogonalization.py tests/test_correlation_suppression.py tests/test_adversarial_ensemble_scorer_challenger.py tests/test_r1_ensemble_regime_fixes.py tests/test_regime_ensemble.py tests/test_advanced_ensemble_features.py tests/test_adversarial_normalizer_m1.py tests/test_m1_quant_enhancements.py -v`
+4. Formulate an objective review verdict: APPROVE or REQUEST_CHANGES.
+5. Write your handoff report to `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\handoff.md` and notify caller via send_message.

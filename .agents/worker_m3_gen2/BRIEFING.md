@@ -1,50 +1,62 @@
-# BRIEFING — 2026-06-12T16:52:16+09:00
+# BRIEFING — 2026-09-04T13:25:00+09:00
 
 ## Mission
-Implement Strategy/Scoring updates for Milestone 3 including volume expansion rules, liquidity penalties, normalized features pre-fetching, and composite scoring updates.
+Phase 4 Quantitative Benchmark Comparison Report & Phase 4 Documentation.
 
 ## 🔒 My Identity
 - Archetype: worker
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\worker_m3_gen2
-- Original parent: c9741707-d639-4b47-b772-6d9392f7597f
-- Milestone: Milestone 3 (Strategy/Scoring updates)
+- Original parent: dcd05c17-b517-427b-8133-abcdeb26cc11
+- Milestone: Milestone 3 (Benchmark Comparison & Phase 4 Documentation)
 
 ## 🔒 Key Constraints
-- CODE_ONLY network mode.
-- Write to worker_m3_gen2 directory for agent metadata, do not put source code/tests/data there.
-- Do not cheat (no hardcoded test results, facade implementations, etc.).
+- Genuine implementations, no cheating/hardcoding/facades.
+- Model benchmark after Phase 3 script cleanly.
+- Compare Baseline (Phase 3 v10) vs Target (Phase 4 v11 Apex) across 5 markets.
+- Save to reports/quant_benchmark_comparison_phase4.md, trading_system/result/quant_benchmark_comparison_phase4.md, reports/quant_benchmark_comparison.md.
+- Update AGENTS.md and PROJECT.md.
+- Run tests: tests/test_phase4_portfolio_execution.py, tests/test_phase4_signal_enhancement.py.
+- Hand off with 5-section handoff.md and send_message to parent.
 
 ## Current Parent
-- Conversation ID: c9741707-d639-4b47-b772-6d9392f7597f
-- Updated: 2026-06-12T16:52:16+09:00
+- Conversation ID: dcd05c17-b517-427b-8133-abcdeb26cc11
+- Updated: 2026-09-04T13:25:00+09:00
 
 ## Task Summary
-- **What to build**: Update strategy_engine.py to compute technical indicators with volume expansion, liquidity penalties, and target allocation scaling. Update post_market_scoring.py to pre-fetch, normalize, and score assets.
-- **Success criteria**: Correct logic for indicator computations, scaling targets, and normalized model calls. All pytest tests pass.
-- **Interface contracts**: SCOPE.md (d:\Finance\code\stock\.agents\orchestrator_gen2\SCOPE.md)
-- **Code layout**: PROJECT.md
-
-## Key Decisions Made
-- Implemented a defensive TypeError fallback inside `post_market_scoring.py` to allow compatibility with single-argument mocks and legacy signatures.
-- Used price magnitude checks (> 1000) to adjust liquidity penalty thresholds for KRW vs USD currency contexts.
-
-## Artifact Index
-- d:\Finance\code\stock\.agents\worker_m3_gen2\changes.md — Implementation report
-- d:\Finance\code\stock\.agents\worker_m3_gen2\handoff.md — Handoff report
+- **What to build**: Phase 4 benchmark evaluation script (`trading_system/scripts/benchmark_phase4_quant_performance.py`), generate benchmark comparison reports (across 3 locations), update AGENTS.md and PROJECT.md documentation.
+- **Success criteria**: Genuine simulation & benchmark script executing with exit code 0, all 5 markets evaluated, full metrics + attribution matrix, 3 markdown files written, AGENTS.md/PROJECT.md updated, test suite passing cleanly.
+- **Interface contracts**: PROJECT.md, SCOPE.md
+- **Code layout**: trading_system/scripts/, reports/, trading_system/result/, AGENTS.md, PROJECT.md
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/core/strategy_engine.py` (Modified HybridStrategyEngine, _compute_technical_indicators, analyze)
-  - `trading_system/scripts/post_market_scoring.py` (Pre-fetching, cross-sectional normalization, updated technical indicator invocation)
-  - `trading_system/tests/test_strategy_updates.py` (New file with 4 unit tests)
-- **Build status**: Pass
-- **Pending issues**: None
+  * `trading_system/scripts/benchmark_phase4_quant_performance.py` (New Phase 4 benchmark engine)
+  * `reports/quant_benchmark_comparison_phase4.md` (Generated benchmark report)
+  * `trading_system/result/quant_benchmark_comparison_phase4.md` (Generated benchmark report)
+  * `reports/quant_benchmark_comparison.md` (Generated benchmark report)
+  * `AGENTS.md` (Updated Key Files with benchmark script & Original Requirements History with R20)
+  * `PROJECT.md` (Updated Feature Inventory F21-F34, Milestones M11-M14, Code Layout with 2,333 tests)
+  * `tests/test_benchmark_phase4.py` (Unit tests for benchmark engine)
+- **Build status**: PASS (30/30 tests passed)
+- **Pending issues**: none
 
 ## Quality Status
-- **Build/test result**: Pass (5/5 tests passing)
-- **Lint status**: 0 violations
-- **Tests added/modified**: 4 new tests in `test_strategy_updates.py`
+- **Build/test result**: 30 passed in 10.71s (100% pass)
+- **Lint status**: clean (0 syntax/deprecation warnings)
+- **Tests added/modified**: `tests/test_benchmark_phase4.py` (4 tests added)
 
 ## Loaded Skills
-- None
+- None required
+
+## Key Decisions Made
+- Fully modeled benchmark script after Phase 3 reference while introducing all requested Phase 4 metrics (Total Return, Top-Decile Spread/Sharpe, Execution Slippage, Darkpool Savings, Friction Drag, Win Rate, Profit Factor).
+- Implemented full attribution breakdown reflecting both M1 (F21-F27) and M2 (F28-F33) features.
+- Generated benchmark report into all 3 requested paths simultaneously with exit code 0.
+- Synchronized documentation in AGENTS.md and PROJECT.md.
+
+## Artifact Index
+- DISPATCH.md — Assignment instructions
+- BRIEFING.md — Persistent working state
+- progress.md — Heartbeat and status
+- handoff.md — 5-section handoff report

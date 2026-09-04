@@ -1,58 +1,43 @@
-# BRIEFING — 2026-09-01T00:22:20+09:00
+# BRIEFING — 2026-09-04T10:10:40+09:00
 
 ## Mission
-Review Milestone 2 (R2: Artifact Verification & SKILL Coverage) - 31-strategy artifact verifier and skill coverage.
+Independent objective and adversarial review of Milestone 2 (Portfolio Allocation & Execution: UnifiedPortfolioAllocator, SmartOrderRouter, OMSEngine, test_phase4_portfolio_execution.py).
 
 ## 🔒 My Identity
-- Archetype: reviewer / critic
+- Archetype: reviewer-critic
 - Roles: reviewer, critic
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2\
-- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Milestone: Milestone 2 (R2)
-- Instance: 1 of 1
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2
+- Original parent: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Milestone: Milestone 2
+- Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Verify all 31 strategies and 31 HTML panels are properly checked
-- Check for integrity violations (hardcoded values, bypasses, dummy logic)
-- Provide objective review, adversarial challenge, and handoff report
+- Actively check for integrity violations: hardcoded results, facades, shortcuts, fabricated logs, self-certifying work
+- Evidence-based findings only
 
 ## Current Parent
-- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
+- Conversation ID: ba7893c9-9a12-479b-b906-f745cc7807b3
 - Updated: not yet
 
 ## Review Scope
-- **Files to review**:
-  - `trading_system/scripts/verify_gha_artifacts.py`
-  - `.agents/skills/gha-artifact-verifier/SKILL.md`
-  - `tests/test_verify_gha_artifacts.py`
-  - Worker handoff: `.agents/teamwork_preview_worker_m2/handoff.md`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `AGENTS.md`
-- **Review criteria**: Correctness, completeness (all 31 strategies & panels), robustness, error handling, test coverage, integrity.
+- **Files to review**: `src/risk/unified_portfolio_allocator.py`, `src/execution/smart_order_router.py`, `src/execution/oms_engine.py`, `tests/test_phase4_portfolio_execution.py`
+- **Interface contracts**: `d:\Finance\code\stock\.agents\orchestrator_quant_opt4\SCOPE.md`
+- **Review criteria**: Correctness, interface conformance, edge cases, numerical stability, NaN handling, backward compatibility, adversarial robustness, integrity
 
 ## Review Checklist
-- **Items reviewed**:
-  - `trading_system/scripts/verify_gha_artifacts.py` (canonical list 1..31, STRATEGY_PANEL_ALIASES, check_funcs, verify_gh_pages)
-  - `.agents/skills/gha-artifact-verifier/SKILL.md` (all 31 strategies documented in YAML and markdown table)
-  - `tests/test_verify_gha_artifacts.py` (8 test functions)
-  - `trading_system/run_pipeline.py` (STRATEGY_REGISTRY & verification_files)
-  - `AGENTS.md` (canonical strategy table, Mermaid diagram, key files)
-- **Verdict**: APPROVE
-- **Unverified claims**: None (all claims verified via independent tests and tool execution)
+- **Items reviewed**: None yet
+- **Verdict**: Pending
+- **Unverified claims**: Worker 2 handoff claims pending verification
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - Strategy count != 31 or inverted ordering (Passed, exactly 31 items verified)
-  - Missing HTML panel alias resolution (Passed, 32 panel aliases verified)
-  - Empty or corrupt files / encoding mismatch (Passed, tested & verified)
-  - Hardcoded test passes / integrity violations (None detected)
-- **Vulnerabilities found**: None
-- **Untested angles**: None
+- **Hypotheses tested**: None yet
+- **Vulnerabilities found**: None yet
+- **Untested angles**: Extreme covariance ill-conditioning, negative/zero prices/volumes, empty/single-asset universes, router broker failure cascades, OMS gate boundary conditions
 
 ## Key Decisions Made
-- Confirmed full compliance with Milestone 2 acceptance criteria.
-- Issued APPROVE verdict.
+- Initialized review environment and tracking documents.
 
 ## Artifact Index
-- `.agents/teamwork_preview_reviewer_m2_2/review_report.md` — Detailed review & challenge report
-- `.agents/teamwork_preview_reviewer_m2_2/handoff.md` — 5-component handoff report
+- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2\progress.md` — Progress tracking and heartbeat
+- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_2\handoff.md` — Final review and handoff report

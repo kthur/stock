@@ -1,67 +1,64 @@
-# BRIEFING — 2026-09-03T12:15:00Z
+# BRIEFING — 2026-09-04T01:09:55Z
 
 ## Mission
-Implement Milestone 2 / Requirement 2 (R2) Portfolio Allocation, FX Translation, Covariance Scaling, Feasible Bounds, Currency-Adaptive Turnover, Gatheral 3/2-power & Leland Buffer Bands, and OMS Liquidation Fixes.
+Implement Milestone 2 (R2 / Features F28 to F33): Advanced Portfolio Execution & Allocation enhancements (Downside Semi-Covariance EVT-CVaR, Dynamic Model Conviction Blending, Market-Specific Leland Buffer Bands, Multi-Tier L2 OBI Micro-Price Pegging, Hawkes Arrival Intensity Adverse Selection Gating, and Closed-Loop Empirical Slippage Feedback Scaling).
 
 ## 🔒 My Identity
-- Archetype: teamwork_preview_worker
-- Roles: implementer, qa, specialist
+- Archetype: worker
+- Roles: implementer, qa
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2
-- Original parent: 9f89ea60-abb5-4468-88df-62eb0473f19b
-- Milestone: Milestone 2 / Requirement 2 (R2) & OMS Fixes
+- Original parent: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Milestone: M2 (Features F28 to F33)
 
 ## 🔒 Key Constraints
-- Exclusive write ownership:
-  - src/risk/unified_portfolio_allocator.py
-  - src/analysis/portfolio_optimizer.py
-  - src/risk/portfolio_allocator.py
-  - src/execution/turnover_optimizer.py
-  - src/execution/oms_engine.py
-  - trading_system/run_pipeline.py
-- DO NOT CHEAT. All implementations must be genuine. No fake or hardcoded values.
-- Pass all specified test suites 100% with 0 failures:
-  - tests/test_institutional_portfolio_construction.py
-  - tests/test_portfolio_optimizer_and_oms.py
-  - tests/test_turnover_optimizer.py
-  - tests/test_position_lifecycle_optimization.py
-  - tests/test_v8_remediation.py
+- EXCLUSIVELY own and modify:
+  1. `trading_system/src/risk/unified_portfolio_allocator.py`
+  2. `trading_system/src/execution/smart_order_router.py`
+  3. `trading_system/src/execution/oms_engine.py`
+  4. `tests/test_phase4_portfolio_execution.py`
+- Do NOT modify any other files.
+- Integrity mandate: NO hardcoding, no dummy/facade implementations, genuine logic.
 
 ## Current Parent
-- Conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
-- Updated: 2026-09-03T12:15:00Z
+- Conversation ID: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Updated: 2026-09-04T01:09:55Z
 
 ## Task Summary
 - **What to build**:
-  1. CRIT-01: Multi-Currency FX Translation in `src/risk/unified_portfolio_allocator.py` & `run_pipeline.py`.
-  2. CRIT-02: Black-Litterman Horizon vs Covariance Scaling in `src/analysis/portfolio_optimizer.py` & `unified_portfolio_allocator.py`.
-  3. CRIT-06: Small Universe (N <= 4) CVaR Bound in `src/risk/unified_portfolio_allocator.py`.
-  4. CRIT-07: Currency-Adaptive Minimum Trade Threshold in `src/execution/turnover_optimizer.py` & `src/risk/portfolio_allocator.py`.
-  5. HIGH-15: Cornish-Fisher VaR fallback to Expected Shortfall in `src/risk/portfolio_allocator.py`.
-  6. HIGH-16: Gatheral 3/2-Power Market Impact & 5% ADV Bound in `src/risk/unified_portfolio_allocator.py`.
-  7. MED-12: HERC dynamic weight caps in `src/analysis/portfolio_optimizer.py` & `src/risk/unified_portfolio_allocator.py`.
-  8. Asymmetric Leland No-Trade Buffer Bands in `unified_portfolio_allocator.py` & `portfolio_allocator.py`.
-  9. Active Regression Fix in `src/execution/oms_engine.py` (liquidation SELL orders).
-- **Success criteria**: All 9 task objectives implemented genuinely and verified with 100% pass rate across 60 tests.
+  - F28: Downside Semi-Covariance EVT-CVaR Optimization in `unified_portfolio_allocator.py`
+  - F29: Dynamic Model Conviction & Return-Dispersion Blending in `unified_portfolio_allocator.py`
+  - F30: Market-Specific STT & Fee-Aware Leland Dynamic Buffer Bands in `unified_portfolio_allocator.py`
+  - F31: Multi-Tier L2 OBI & Volume-Weighted Micro-Price Pegging in `oms_engine.py`
+  - F32: Hawkes Arrival Intensity Adverse Selection Gating in `smart_order_router.py`
+  - F33: Closed-Loop Empirical Slippage Feedback Scaling in `unified_portfolio_allocator.py` and `oms_engine.py`
+  - Comprehensive unit/property tests in `tests/test_phase4_portfolio_execution.py`
+- **Success criteria**: All existing tests and new test suites pass with 100% pass rate.
+- **Interface contracts**: `PROJECT.md`, `SCOPE.md`
 
 ## Key Decisions Made
-- Multi-currency share calculation: converted price using point-in-time FX rate for cross-border assets.
-- Black-Litterman horizon: passed `view_horizon=self.target_horizon` into `calculate_black_litterman_weights` where view returns are normalized to daily returns ($Q_{daily} = Q / horizon$).
-- HERC parameter delegation: passed `max_single_stock_weight=self.max_single_weight` and `max_sector_weight=self.max_sector_weight`.
-- 5% ADV Hard Participation Bound: bounded weights to $|w_i - w_{curr, i}| \le \frac{0.05 \cdot ADV_i}{V_{port}}$ alongside Gatheral 3/2-power penalty.
-- Asymmetric Leland No-Trade Bands: formula updated to $(0.75 \cdot c \cdot w (1 - w) \cdot \sigma_{ann}^2 / \gamma)^{1/3}$ so bandwidth expands with volatility, with 1.8x winner expansion, 0.6x lagger contraction, and immediate bypass for new entries / full exits.
-- OMS Full Liquidation: for existing positions targeted for complete exit ($w \le 0$), adopt `current_holdings[sym]["quantity"]` directly to prevent loss of liquidation SELL orders due to price-to-capital recalculation or min lot checks.
+- F28: Blended `PortfolioAllocator.compute_downside_semi_cov` into `calculate_cvar_weights` with parametric Student-t EVT-CVaR expansion ($k_\alpha=2.40$), preserving upside momentum and boosting Sortino ratio.
+- F29: Evaluated cross-sectional alpha dispersion $\sigma(\hat{\mu})$ in `optimize_multi_model_blend`. When $\sigma(\hat{\mu}) > 0.03$ in Bull/Sideways regimes, scaled up Black-Litterman model weight ($w_{\text{BL}}^{\text{adj}} = w_{\text{BL}} \cdot (1 + 0.30 \tanh((\sigma - 0.03)/0.02))$), and boosted EVT-CVaR and HERC in high-volatility/crisis regimes, strictly renormalizing sum to 1.0000.
+- F30: Created `is_korean_asset` helper and added market-aware transaction cost sizing in `apply_leland_no_trade_buffers` ($c_i \ge 25$ bps for KRX to absorb 0.18% STT vs $c_i \le 8$ bps for US), cutting Korean churn while keeping US mega-cap execution sharp.
+- F31: Upgraded `calculate_peg_limit_price` in both `ExecutionOMSEngine` and `AlmgrenChrissScheduler` with $P_{\text{base}} = P_{\text{micro}}$ anchor and 3-tier composite OBI ($0.50 \cdot \text{OBI}_1 + 0.35 \cdot \text{OBI}_5 + 0.15 \cdot \text{OBI}_{10}$).
+- F32: Added Hawkes intensity adverse selection gating to `SmartOrderRouter.route_order`. When $\lambda(t) > 2.5 \cdot \mu$, maker ratio drops from 70% to 30% and Tier 1 dark midpoint probing expands to protect maker orders from toxic sweeps.
+- F33: Integrated closed-loop realized slippage feedback scaling $\kappa_{\text{eff}} = \kappa_0 \cdot \text{cost\_scaling\_factor} \cdot (1 - \phi_{\text{dark}})$ into `UnifiedPortfolioAllocator` and scaled $\eta$ and tranche schedules in `GatheralMarketImpactKernel`.
+
+## Artifact Index
+- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\DISPATCH.md` — Assignment instructions
+- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\progress.md` — Progress tracker and heartbeat
+- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md` — Final handoff report
+- `d:\Finance\code\stock\tests\test_phase4_portfolio_execution.py` — New unit/property test suite
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/risk/unified_portfolio_allocator.py`: Added view_horizon, HERC caps delegation, 5% ADV hard bound, and Leland variance formula correction.
-  - `trading_system/src/execution/oms_engine.py`: Set liquidation SELL order quantity directly from holding quantity.
-- **Build status**: 60 passed in 24.71s (100% Pass)
+  - `trading_system/src/risk/unified_portfolio_allocator.py`: F28 downside semi-cov CVaR, F29 return dispersion BL scaling, F30 STT-aware Leland buffers, F33 slippage feedback
+  - `trading_system/src/execution/smart_order_router.py`: F32 Hawkes intensity toxic flow gating
+  - `trading_system/src/execution/oms_engine.py`: F31 micro-price & multi-tier OBI peg pricing, F33 Gatheral empirical slippage scaling
+  - `tests/test_phase4_portfolio_execution.py`: 18 new unit/property tests
+- **Build status**: All tests passing (79/79 M2 tests, 100% pass)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: 60 passed out of 60 tests across 5 test suites.
-- **Lint status**: Clean
-- **Tests added/modified**: Verified all test cases across institutional, OMS, turnover, position lifecycle, and remediation suites.
-
-## Loaded Skills
-- None
+- **Build/test result**: 79 passed in 9.29s (100% pass rate)
+- **Lint status**: Clean compilation, 0 errors
+- **Tests added/modified**: 18 tests in `tests/test_phase4_portfolio_execution.py`

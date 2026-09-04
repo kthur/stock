@@ -1,48 +1,50 @@
-# BRIEFING — 2026-09-03T12:03:30Z
+# BRIEFING — 2026-09-04T00:37:30Z
 
 ## Mission
-Investigate and design actionable blueprint for Milestone 3 / Requirement 3 (Test Suite Verification, Fixes, and Quantitative Benchmark Framework across 5 markets).
+Investigate 4-Model portfolio allocation (UnifiedPortfolioAllocator) and execution friction / SmartOrderRouter / LOB / OBI optimization for Phase 4 implementation recommendations.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: survey_3 (Test Suite & Quantitative Benchmark Expert)
+- Roles: Portfolio Allocation & Execution Friction Explorer
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3
-- Original parent: 9f89ea60-abb5-4468-88df-62eb0473f19b
-- Milestone: Milestone 3 / Requirement 3 (R3 & Test Suite)
+- Original parent: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Milestone: Phase 4 Portfolio Allocation & Execution Friction Survey
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement changes in source code
-- Investigate test suite under `tests/` (test count, files, known failures, fragile assertions)
-- Investigate performance evaluation metrics and design benchmarking script and schema
+- Read-only investigation — do NOT implement or modify project code in src/ or tests/
+- Maintain progress.md with regular timestamps
+- 100% backward compatibility and test passing must be preserved
+- Write self-contained handoff.md following 5-component format
 
 ## Current Parent
-- Conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
-- Updated: 2026-09-03T12:03:30Z
+- Conversation ID: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Updated: 2026-09-04T00:37:30Z
 
 ## Investigation State
 - **Explored paths**:
-  - `tests/` directory (136 test files, 2,173 test cases).
-  - `tests/test_institutional_portfolio_construction.py:193` (HIGH-01 verified resolved in commit 65d7b6bc).
-  - `tests/test_position_lifecycle_optimization.py:297` (discovered active failure in `test_rebalance_liquidation_of_dropped_holdings`).
-  - `trading_system/src/execution/oms_engine.py:426-446` & `664-730` (root cause for dropped holding liquidation failure).
-  - `trading_system/src/analysis/backtest_summary.py` (missing strategies 32-37 in score columns).
-  - `trading_system/src/analysis/walk_forward_backtester.py` (Pearson IC & Spearman Rank-IC).
-  - `trading_system/src/execution/turnover_optimizer.py` (turnover reduction hysteresis & delta).
-  - `trading_system/src/risk/unified_portfolio_allocator.py` & `portfolio_optimizer.py` (BL, HERC, CVaR, Leland buffer).
-  - `trading_system/generate_report.py` & `src/pipeline/reporter.py` (report generation and formatting).
+  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (R2: 4-model allocation, SOR & darkpool/HFT OBI pegging, 2,295+ tests)
+  - `trading_system/src/risk/unified_portfolio_allocator.py` (UnifiedPortfolioAllocator, BL+HERC+RP+EVT-CVaR, Gatheral 3/2 power, Leland buffers)
+  - `trading_system/src/risk/portfolio_allocator.py` (PortfolioAllocator, Clayton copula, downside semi-covariance, EVT-GPD CVaR)
+  - `trading_system/src/execution/smart_order_router.py` (SmartOrderRouter, 3-tier dark/maker/sweeper routing, global venues)
+  - `trading_system/src/execution/oms_engine.py` (ExecutionOMSEngine, AlmgrenChrissScheduler, GatheralMarketImpactKernel, OBI midpoint pegging)
+  - `trading_system/src/core/fast_lob_engine.py` (FastOrderBookMatchingEngine, MicrosecondHawkesIntensity, ZeroCopyRingBuffer)
+  - `trading_system/src/execution/turnover_optimizer.py` (TurnoverOptimizer, currency adaptive thresholds)
+  - `trading_system/src/execution/slippage_feedback.py` (SlippageFeedbackEngine, Bayesian shrinkage, directional slippage)
+  - `tests/test_m2_portfolio_execution.py`, `tests/test_m2_quant_enhancements.py`, `tests/test_tier0_apex_quant_enhancements.py`, etc.
 - **Key findings**:
-  - Total test count: 2,173 test cases across 136 files.
-  - Known failure HIGH-01 is verified fixed (13 passed in 35s).
-  - Active test failure discovered in `test_position_lifecycle_optimization.py:297`: OMS skips liquidation order for unannotated symbols because of USD currency conversion and zero share floor.
-  - Designed clean reproducible benchmarking harness `scripts/benchmark_quant_performance.py`.
-  - Designed 3-tier schema for Quantitative Comparison Table required by R3.
-- **Unexplored areas**: None. Full scope for Milestone 3 / R3 survey completed.
+  - Full repo test suite currently contains exactly 2,295 tests, all passing.
+  - 4-Model allocator blends BL, HERC, RP, and EVT-CVaR via continuous Markov weights.
+  - Sortino can be significantly improved by integrating `PortfolioAllocator.compute_downside_semi_cov` into `calculate_cvar_weights` parametric objective.
+  - Leland no-trade buffers use a constant 20 bps cost; making this market/asset-aware (KRX 25 bps vs US 3.3 bps) will drastically cut KRX STT drag while improving US trading agility.
+  - SOR uses a 3-tier structure (dark probe -> primary maker -> lit sweeper) with OBI midpoint pegging $P_{\text{peg}} = P_{\text{mid}} + 0.5 \cdot \text{spread} \cdot \tanh(\kappa \cdot \text{OBI})$. Multi-tier L2 depth ($OBI_1, OBI_5, OBI_{10}$) and Hawkes arrival intensity can be leveraged to eliminate adverse selection.
+- **Unexplored areas**: None for this survey scope.
 
 ## Key Decisions Made
-- Adhere strictly to read-only investigation and 5-component handoff structure.
-- Provided exact line numbers, root cause, and remediation code in handoff.md.
+- Formulated 6 actionable, concrete Phase 4 implementation recommendations with exact equations, signatures, and file paths.
+- Proceeding to write `handoff.md` adhering to the mandatory 5-component report structure.
 
 ## Artifact Index
-- `handoff.md` — Comprehensive R3 & Test Suite blueprint
-- `progress.md` — Liveness heartbeat and detailed investigation steps
-- `DISPATCH.md` — Recorded incoming task dispatch
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\DISPATCH.md — Recorded dispatch prompt
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\progress.md — Liveness & progress tracker
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\BRIEFING.md — Situational awareness
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md — Comprehensive handoff report

@@ -1,84 +1,66 @@
-# BRIEFING — 2026-09-03T21:08:00+09:00
+# BRIEFING — 2026-09-04T00:40:15Z
 
 ## Mission
-Alpha Strategy Worker (Worker M1) implementing Milestone 1 / Requirement 1 (R1): 37대 전략 신호 품질 및 예측력(Alpha) 극대화, 정규화기, 직교화기, 2D 레짐 앙상블 및 전략 결함 수정/검증.
+Worker 1: M1 Signal Quality Worker - Unlock Top-Decile Spread, Smooth Softplus Convex Boost, Tri-Linear Synergy Kernel, Sideways Regime Rebalancing, KER Alpha Switching Hook, Asymmetric Half-Life Decay, and Adaptive Bessembinder u_thresh in ensemble_scorer.py.
 
 ## 🔒 My Identity
-- Archetype: teamwork_preview_worker
+- Archetype: teamwork_preview_worker_m1
 - Roles: implementer, qa, specialist
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\
-- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Milestone: Milestone 1 (R1: GHA Pipeline & Model Integrity)
-- Current Identity: Alpha Strategy Worker (Worker M1) - R1 37대 전략 신호 품질 및 예측력(Alpha) 극대화
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m1
+- Original parent: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Milestone: M1 (Signal Quality & Score Differentiation)
 
 ## 🔒 Key Constraints
-- Follow minimal change principle.
-- No dummy/facade implementations, genuine fixes only.
-- Run builds, test validations, and linting.
-- Save report.md and handoff.md in working directory.
-- Send results back to parent agent via send_message.
-- EXCLUSIVE WRITE OWNERSHIP:
-  - src/ai/score_normalizer.py
-  - src/ai/ensemble_scorer.py
-  - src/ai/factor_orthogonalizer.py
-  - src/ai/factor_suppression.py
-  - src/core/strategy_registry.py
-  - src/core/dual_correction.py
-  - src/core/arm_factor.py
-  - src/core/short_interest_squeeze.py
+- EXCLUSIVELY own and modify:
+  1. `trading_system/src/ai/ensemble_scorer.py`
+  2. `tests/test_phase4_signal_enhancement.py` (new test suite)
+- Do NOT modify any other files.
+- DO NOT CHEAT: Genuine implementations only, no hardcoded test outputs, no facade implementations.
+- Score bounds must strictly remain [0.0, 1.0].
+- Regime weights must sum to 1.0000 across all 37 strategies.
 
 ## Current Parent
-- Conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
-- Updated: 2026-09-03T21:08:00+09:00
+- Conversation ID: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Updated: not yet
 
 ## Task Summary
-- **What to build**:
-  1. Multi-Horizon Alpha Scaling & Half-Life Decay:
-     - `src/ai/ensemble_scorer.py`: Add missing strategy half-lives and score column mappings in `STRATEGY_HALF_LIVES` and `score_col_to_strat` for Strategy 35 (`dual_correction`: 4.0d), Strategy 37 (`overnight_gap_reversal`: 0.5d), Strategy 36 (`index_rebalance_score`: 15.0d).
-     - `src/ai/ensemble_scorer.py:1771`: Scale maximum expected return denominator adaptively by horizon: E_max(h) = 0.20 * sqrt(h / 20.0).
-  2. Cross-Sectional Normalization (`src/ai/score_normalizer.py`):
-     - `winsorized_zscore`: add inactive 0-score block isolation for N >= 4 (MED-09) matching `rank_percentile`.
-     - Support sector neutralization if `sector_col` is provided.
-  3. 2D Regime, Orthogonalization & Consensus Alpha:
-     - `src/ai/factor_orthogonalizer.py`: preserve_consensus_pc1=True by default (CRIT-11).
-     - `src/ai/ensemble_scorer.py`: enable_coverage_shrinkage=True by default (HIGH-10).
-     - `src/ai/factor_suppression.py`: CLUSTER_MAP includes strategies 35, 36, 37 (HIGH-08).
-     - `src/ai/ensemble_scorer.py`: US ticker dot regex for STT fee calculation handles .B correctly (HIGH-11).
-  4. Strategy Defects Remediation:
-     - `src/core/strategy_registry.py` & `src/core/dual_correction.py`: verify metadata consistency is_standalone=False and sum=1.0000 (MED-08).
-     - `src/core/arm_factor.py`: return np.nan on missing data instead of 0.50 (MED-04).
-     - `src/core/short_interest_squeeze.py`: return np.nan on missing data (HIGH-12).
-  5. Verification: pytest suite 100% pass.
-  6. Write handoff.md, update progress.md, message parent.
-- **Success criteria**: All objectives implemented, zero regression, all tests pass.
-- **Interface contracts**: PROJECT.md / ORIGINAL_REQUEST.md
+- **What to build**: 7 signal quality & mathematical enhancements in `ensemble_scorer.py`:
+  1. Unlock top-decile spread (remove premature 0.50 clip, dynamic rank multiplier, power-law exponent).
+  2. NaN-aware & softplus smooth convex boost (asset valid mean imputation, continuous sigmoid gate).
+  3. Tri-linear synergy kernel & full 6-regime coupling (val*mom*flow confluence).
+  4. Sideways 2D regime weight rebalancing (trim momentum traps, boost stat-arb/dual correction/etc, sum=1.0000).
+  5. Kaufman Trend Efficiency (KER) dynamic alpha switching hook in `combine_predictions`.
+  6. Strategy-class asymmetric decay in half-life filtering (halve mom in sideways, extend in bull).
+  7. Regime-adaptive `u_thresh` in Bessembinder convex scaling (0.45 to 0.75).
+  8. Comprehensive test suite in `tests/test_phase4_signal_enhancement.py`.
+- **Success criteria**: All existing and new tests pass cleanly, top decile spread unlocked > 0.833, math correct.
 
 ## Key Decisions Made
-- Follow minimal change principle and respect exclusive write permissions strictly.
+- Implemented `BessembinderParams` subclass with bytecode inspection `__iter__` to maintain 100% backward compatibility with legacy 2-variable unpacking (`gamma, beta = ...`) while supporting new 3-element unpacking (`gamma, beta, u_thresh = ...`).
+- In `combine_predictions`, removed premature `[-0.50, 0.50]` clipping of centered scores and applied rank-modulated scaling with power-law exponent 1.15 to unlock top-decile score differentiation above 0.833.
+- In `apply_top_decile_convex_boost`, replaced naive 0.0 imputation with asset row-mean imputation and replaced the Heaviside step with a continuous sigmoid gate (`slope=15.0, midpoint=0.60`).
+- Rebalanced `SIDEWAYS_LOW_VOL` and `SIDEWAYS_HIGH_VOL` 37-strategy weights (trimming momentum by 0.080 and boosting sideways engines by 0.080) with exact sum = 1.0000.
+- Implemented tri-linear synergy bonus (`val * mom * flow`) differentiated across all 6 2D regimes + CRISIS.
+- Implemented asymmetric momentum decay halving in sideways regimes and extension in bull regimes with strict regime monotonicity.
+- Created unit and property tests in `tests/test_phase4_signal_enhancement.py` verifying mathematical invariants, monotonicity, and boundary compliance.
 
 ## Artifact Index
-- `.agents/teamwork_preview_worker_m1/DISPATCH.md` — Worker assignment prompt
-- `.agents/teamwork_preview_worker_m1/BRIEFING.md` — Working state & memory
-- `.agents/teamwork_preview_worker_m1/progress.md` — Liveness & task progress tracker
-- `.agents/teamwork_preview_worker_m1/handoff.md` — 5-component handoff report
+- `trading_system/src/ai/ensemble_scorer.py` — Target implementation file
+- `tests/test_phase4_signal_enhancement.py` — Target test suite file
+- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\progress.md` — Progress tracker
+- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md` — Handoff report
 
 ## Change Tracker
 - **Files modified**:
-  - `src/ai/score_normalizer.py`: added inactive 0-score block isolation for N >= 4 (MED-09) to winsorized_zscore, added sector neutralization support (sector_col) with fallback hierarchy.
-  - `src/ai/ensemble_scorer.py`: added Strategy 35 (dual_correction: 4.0d), Strategy 36 (index_rebalance: 15.0d), Strategy 37 (overnight_gap_reversal: 0.5d) to STRATEGY_HALF_LIVES and score_col_to_strat; scaled reg_score denominator by horizon E_max(h) = 0.20 * sqrt(h/20); enabled enable_coverage_shrinkage=True by default shrinking towards cross-sectional mean (HIGH-10); preserved consensus PC1 in FactorOrthogonalizerEngine; passed sector_col to normalize_scores; verified US ticker dot regex.
-  - `src/ai/factor_orthogonalizer.py`: set preserve_consensus_pc1=True by default in __init__ and _pca_zca_symmetric (CRIT-11).
-  - `src/ai/factor_suppression.py`: verified CLUSTER_MAP contains strategies 35, 36, 37.
-  - `src/core/strategy_registry.py`: verified StrategyMeta is_standalone=False consistency.
-  - `src/core/dual_correction.py`: set is_standalone=False explicitly.
-  - `src/core/arm_factor.py`: updated missing data handling to return np.nan instead of 0.50 (MED-04) and added calculate_scores alias.
-  - `src/core/short_interest_squeeze.py`: updated missing data handling to return np.nan even for single symbol missing data (HIGH-12) and supported fundamentals_dict kwargs.
-- **Build status**: PASS (64/64 pytest tests passed in 38.87s, 31/31 adversarial normalizer tests passed in 30.58s)
+  - `trading_system/src/ai/ensemble_scorer.py`: Features F21 to F27 implementations
+  - `tests/test_phase4_signal_enhancement.py`: Comprehensive test suite (8 tests)
+- **Build status**: PASS (123/123 tests pass, 100% pass rate)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (100% passed across test_score_normalizer.py, test_correlation_suppression.py, test_adversarial_ensemble_scorer_challenger.py, test_v8_remediation.py, test_adversarial_normalizer_m1.py)
-- **Lint status**: Clean
-- **Tests added/modified**: Verified all test suites pass with 0 failures
+- **Build/test result**: PASS (8/8 in test_phase4_signal_enhancement.py; 123/123 across all related suites)
+- **Lint status**: 0 syntax/compilation errors
+- **Tests added/modified**: `tests/test_phase4_signal_enhancement.py` (8 new comprehensive tests)
 
 ## Loaded Skills
-- None required for this code modification milestone.
+- None

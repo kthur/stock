@@ -1,48 +1,48 @@
-# BRIEFING — 2026-09-01T00:22:00+09:00
+# BRIEFING — 2026-09-04T10:10:50+09:00
 
 ## Mission
-Review Milestone 2 (R2: 31-Strategy Canonical Sequence Unification).
+Objective review and adversarial challenge of Milestone 2 (Features F28-F33) implemented by Worker 2.
 
 ## 🔒 My Identity
-- Archetype: reviewer
+- Archetype: reviewer & critic
 - Roles: reviewer, critic
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\
-- Original parent: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Milestone: Milestone 2 (R2)
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1
+- Original parent: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Milestone: Milestone 2
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Evidence-based review with adversarial integrity checking
-- Check for hardcoded results, dummy implementations, bypassed tasks
+- Check for integrity violations (hardcoded results, facades, shortcuts, fabricated verifications)
+- Must produce evidence-based assessment with APPROVE or REQUEST_CHANGES verdict
+- Must communicate via send_message to parent
 
 ## Current Parent
-- Conversation ID: b672d6c7-56c6-40df-9cff-af49d8b4ec1c
-- Updated: 2026-09-01T00:22:00+09:00
+- Conversation ID: ba7893c9-9a12-479b-b906-f745cc7807b3
+- Updated: 2026-09-04T10:10:50+09:00
 
 ## Review Scope
 - **Files to review**:
-  - `trading_system/run_pipeline.py` (STRATEGY_REGISTRY, verification_files)
-  - `AGENTS.md`
-  - `trading_system/scripts/verify_gha_artifacts.py` (all 31 strategies, panel aliases, 31-column matrix)
-  - `.agents/skills/gha-artifact-verifier/SKILL.md`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`
-- **Review criteria**: correctness, canonical 31-strategy sequence alignment (1 to 31), test pass, integrity checks
+  - `trading_system/src/risk/unified_portfolio_allocator.py`
+  - `trading_system/src/execution/smart_order_router.py`
+  - `trading_system/src/execution/oms_engine.py`
+  - `tests/test_phase4_portfolio_execution.py`
+- **Features**: F28 (CVaR downside semi-covariance Sortino), F29 (return dispersion dynamic blend), F30 (Leland buffer fee-aware bands), F31 (multi-tier L2 OBI micro-price pegging), F32 (Hawkes adverse selection gating), F33 (closed-loop slippage scaling in Gatheral impact)
+- **Interface contracts**: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`, `d:\Finance\code\stock\.agents\orchestrator_quant_opt4\SCOPE.md`, `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md`
+- **Review criteria**: Correctness, quantitative rigor, edge case handling, integrity, performance.
 
 ## Review Checklist
-- **Items reviewed**: `run_pipeline.py`, `AGENTS.md`, `verify_gha_artifacts.py`, `SKILL.md`, `test_verify_gha_artifacts.py`, `test_score_normalizer.py`, `test_strategy_correlation_monitor.py`
-- **Verdict**: APPROVE
-- **Unverified claims**: None
+- **Items reviewed**: [Pending initial inspection]
+- **Verdict**: Pending
+- **Unverified claims**: Worker 2 claims regarding F28-F33 implementation and test suite results
 
 ## Attack Surface
-- **Hypotheses tested**: Checked for fake/hardcoded results, missing aliases, broken regex parsers, panel omission.
-- **Vulnerabilities found**: None.
-- **Untested angles**: All major paths tested with 125 automated unit and integration tests.
+- **Hypotheses tested**: [Pending]
+- **Vulnerabilities found**: [Pending]
+- **Untested angles**: Extreme market scenarios, empty books, zero dispersion, matrix singularity, adverse Hawkes conditions
 
 ## Key Decisions Made
-- Confirmed Strategy 30 = `darkpool` and Strategy 31 = `earnings_tone_drift` canonical alignment across all layers.
-- Issued verdict: APPROVE.
+- Initiating structured review workflow starting from original specifications and worker handoff.
 
 ## Artifact Index
-- `review_report.md` — Detailed review report
-- `handoff.md` — 5-component handoff report
+- `handoff.md` — Final review and challenge report

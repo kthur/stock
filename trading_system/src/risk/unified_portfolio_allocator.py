@@ -307,12 +307,18 @@ class UnifiedPortfolioAllocator:
         lambda_alpha: float = 0.50,
         cov_matrix: Optional[np.ndarray] = None,
         regime: Optional[Union[str, int, Dict[str, float]]] = None,
+        use_downside_semi_cov: bool = True,
+        semi_cov_weight: float = 0.35,
     ) -> np.ndarray:
         """
         Rockafellar & Uryasev (2000) Convex Conditional Value-at-Risk (CVaR) Minimization
         with Alpha-Tilt (Mean-CVaR Optimization) and Parametric EVT-CVaR Tail-Stressed Integration.
         When tail-stressed covariance is available, utilizes parametric Student-t EVT tail modeling
         to prevent extreme small-sample estimation variance under short lookback windows (T <= 60).
+        F28: Downside Semi-Covariance (Sortino) EVT-CVaR Optimization:
+        Blends downside semi-covariance (Sigma^-) into effective covariance:
+            Sigma_effective = (1 - lambda_semi) * Sigma_tail + lambda_semi * Sigma^-
+        penalizing only downside deviations while preserving upside momentum.
         """
         n = returns_df.shape[1]
         T = returns_df.shape[0]
@@ -357,16 +363,41 @@ class UnifiedPortfolioAllocator:
 
         max_w = min(1.0, max(self.max_single_weight, 1.0 / max(n - 1, 1)))
 
-        # Feature 10: Parametric EVT-CVaR using Tail-Stressed Covariance Matrix
+        # Feature 10 & F28: Parametric EVT-CVaR using Tail-Stressed & Downside Semi-Covariance Matrix
         # Prevents extreme sample underestimation when lookback window T is short (T <= 60)
-        if cov_matrix is not None and cov_matrix.shape == (n, n) and np.all(np.isfinite(cov_matrix)):
+        eff_base_cov = cov_matrix
+        if eff_base_cov is None and returns_df is not None and returns_df.shape[0] >= 5 and returns_df.shape[1] == n:
+            try:
+                eff_base_cov = returns_df.cov().values
+            except Exception:
+                eff_base_cov = None
+
+        if eff_base_cov is not None and eff_base_cov.shape == (n, n) and np.all(np.isfinite(eff_base_cov)):
             try:
                 # Student-t EVT heavy-tail Cornish-Fisher CVaR expansion multiplier
                 # For nu=5 degrees of freedom at alpha=0.95, k_alpha approx 2.40 (vs Gaussian 2.06)
                 k_alpha = 2.40 if alpha >= 0.95 else 2.10
 
+                # F28: Construct effective covariance with downside semi-covariance
+                eff_cov = eff_base_cov
+                if use_downside_semi_cov and returns_df is not None and len(returns_df) >= 5:
+                    try:
+                        from src.risk.portfolio_allocator import PortfolioAllocator
+                        semi_cov = PortfolioAllocator.compute_downside_semi_cov(
+                            returns_matrix=returns_df.values,
+                            base_cov=eff_base_cov,
+                            target_return=0.0,
+                            shrinkage_intensity=0.20
+                        )
+                        if semi_cov is not None and semi_cov.shape == (n, n) and np.all(np.isfinite(semi_cov)):
+                            lam_semi = float(np.clip(semi_cov_weight, 0.0, 1.0))
+                            eff_cov = (1.0 - lam_semi) * eff_base_cov + lam_semi * semi_cov
+                    except Exception as e_semi:
+                        logger.debug(f"[EVT-CVaR Downside Semi-Cov] Fallback to base cov: {e_semi}")
+                        eff_cov = eff_base_cov
+
                 def obj_evt_cvar(w):
-                    port_var = float(w @ cov_matrix @ w)
+                    port_var = float(w @ eff_cov @ w)
                     port_std = math.sqrt(max(1e-8, port_var))
                     cvar_est = k_alpha * port_std
                     if has_alpha:
@@ -460,6 +491,7 @@ class UnifiedPortfolioAllocator:
         factor_loadings: Optional[Any] = None,
         alpha_half_lives: Optional[Union[np.ndarray, Dict[str, float], float]] = None,
         darkpool_scores: Optional[Union[np.ndarray, Dict[str, float]]] = None,
+        cost_scaling_factor: Optional[float] = None,
     ) -> np.ndarray:
         """
         Continuous 4-Model Regime-Adaptive Multi-Model Blending:
@@ -474,6 +506,40 @@ class UnifiedPortfolioAllocator:
 
         # Feature 9: Continuous Markov 4-Model Dynamic Blending
         blend_cfg = self.compute_dynamic_regime_blend_weights(regime)
+
+        # F29: Dynamic Model Conviction & Return-Dispersion Blending
+        if predicted_returns is not None and len(predicted_returns) == n:
+            p_rets = np.asarray(predicted_returns, dtype=float)
+            if np.any(np.abs(p_rets) >= 1.0):
+                p_rets = p_rets / 100.0
+            alpha_disp = float(np.nanstd(p_rets))
+
+            reg_str = ""
+            if isinstance(regime, dict):
+                reg_str = " ".join([str(k).upper() for k, v in regime.items() if float(v) > 0.15])
+            elif regime:
+                reg_str = str(regime).upper()
+
+            is_crisis = "CRISIS" in reg_str
+            is_high_vol = "HIGH_VOL" in reg_str
+            is_bull_or_sideways = ("BULL" in reg_str or "SIDEWAYS" in reg_str) and not is_crisis
+
+            # When dispersion is high (sigma(mu) > 0.03) in Bull or Sideways regimes, scale up Black-Litterman:
+            # w_BL^adj = w_BL * (1.0 + 0.30 * tanh((sigma(mu) - 0.03) / 0.02))
+            if is_bull_or_sideways and alpha_disp > 0.03 and blend_cfg.get("bl", 0.0) > 0:
+                bl_scale = 1.0 + 0.30 * math.tanh((alpha_disp - 0.03) / 0.02)
+                blend_cfg["bl"] *= bl_scale
+
+            # In high volatility or crisis, boost EVT-CVaR and HERC to preserve capital
+            if is_crisis or is_high_vol:
+                cvar_boost = 0.20 if is_crisis else 0.10
+                herc_boost = 0.15 if is_crisis else 0.10
+                blend_cfg["cvar"] += cvar_boost
+                blend_cfg["herc"] += herc_boost
+
+            tot_b = sum(blend_cfg.values())
+            if tot_b > 0:
+                blend_cfg = {k: float(v / tot_b) for k, v in blend_cfg.items()}
 
         # 1. Model A: Black-Litterman Conviction (with CAPM Equilibrium Market-Cap Priors)
         w_bl = np.full(n, 1.0 / n)
@@ -551,7 +617,9 @@ class UnifiedPortfolioAllocator:
                     predicted_returns=predicted_returns,
                     lambda_alpha=0.50,
                     cov_matrix=tail_cov if tail_cov is not None else cov_matrix,
-                    regime=regime
+                    regime=regime,
+                    use_downside_semi_cov=True,
+                    semi_cov_weight=0.35,
                 )
             except Exception as e:
                 logger.debug(f"[CVaR] Failed, fallback: {e}")
@@ -637,10 +705,24 @@ class UnifiedPortfolioAllocator:
             # Sizing participation ratio for the entire gap: delta_trades / daily_advs
             gap_adv_ratios = delta_trades / daily_advs
 
-            # Feature 11: Dark-Pool Adjusted Gatheral 3/2-Power Market Impact
-            # kappa_eff = kappa_0 * (1.0 - phi_dark)
+            # Feature 11 & F33: Dark-Pool Adjusted Gatheral 3/2-Power Market Impact with Slippage Scaling
+            # kappa_eff = kappa_0 * cost_scaling_factor * (1.0 - phi_dark)
             # phi_dark = min(0.60, 1.2 * darkpool_score)
             kappa_0 = 1.0
+            slippage_cost_scale = float(cost_scaling_factor) if cost_scaling_factor is not None else 1.0
+            if cost_scaling_factor is None:
+                try:
+                    from src.execution.slippage_feedback import SlippageFeedbackEngine
+                    slip_engine = SlippageFeedbackEngine()
+                    slip_metrics = slip_engine.calculate_realized_slippage()
+                    if slip_metrics and hasattr(slip_metrics, "cost_scaling_factor"):
+                        slippage_cost_scale = float(slip_metrics.cost_scaling_factor or 1.0)
+                    elif slip_metrics and hasattr(slip_metrics, "recommended_market_impact_multiplier"):
+                        slippage_cost_scale = float(slip_metrics.recommended_market_impact_multiplier or 1.0)
+                except Exception as e_slip:
+                    logger.debug(f"[UnifiedPortfolioAllocator] Slippage feedback query exception: {e_slip}")
+                    slippage_cost_scale = 1.0
+
             if darkpool_scores is not None:
                 if isinstance(darkpool_scores, dict):
                     dp_arr = np.array([float(darkpool_scores.get(s, 0.0) or 0.0) for s in symbols], dtype=float)
@@ -650,9 +732,9 @@ class UnifiedPortfolioAllocator:
                     dp_arr = np.zeros(n, dtype=float)
                 dp_arr = np.nan_to_num(dp_arr, nan=0.0)
                 phi_dark = np.minimum(0.60, 1.2 * np.maximum(0.0, dp_arr))
-                kappa_eff = kappa_0 * (1.0 - phi_dark)
+                kappa_eff = kappa_0 * slippage_cost_scale * (1.0 - phi_dark)
             else:
-                kappa_eff = np.full(n, kappa_0, dtype=float)
+                kappa_eff = np.full(n, kappa_0 * slippage_cost_scale, dtype=float)
 
             kappa_eff = np.maximum(kappa_eff, 0.20)
 
@@ -746,6 +828,17 @@ class UnifiedPortfolioAllocator:
         scaled_weights = weights * effective_alloc
         return scaled_weights, effective_alloc
 
+    @staticmethod
+    def is_korean_asset(symbol: str) -> bool:
+        """Determines if a symbol represents a Korean asset (subject to 0.18% STT)."""
+        s = str(symbol).strip().upper()
+        if s.endswith(".KS") or s.endswith(".KQ"):
+            return True
+        base = s.split(".")[0]
+        if base.isdigit() and len(base) == 6:
+            return True
+        return False
+
     def apply_leland_no_trade_buffers(
         self,
         target_weights: np.ndarray,
@@ -754,6 +847,8 @@ class UnifiedPortfolioAllocator:
         unrealized_returns: Optional[np.ndarray] = None,
         rebalance_mode: Optional[str] = None,
         use_asymmetric_bands: bool = True,
+        asset_cost_bps: Optional[Union[np.ndarray, List[float]]] = None,
+        symbols: Optional[List[str]] = None,
     ) -> np.ndarray:
         """
         Volatility-Normalized Asymmetric Leland Dynamic No-Trade Buffer Bands:
@@ -764,6 +859,10 @@ class UnifiedPortfolioAllocator:
         - Laggards (z < 0): lower band smoothly tightens down to 0.6x for prompt de-risking.
         - Boundary Rebalancing: when weight breaches band, rebalances to boundary (L_i or U_i) rather
           than full target, minimizing unnecessary turnover and market impact while controlling tracking error.
+        F30: Market-Specific STT & Fee-Aware Leland Dynamic Buffer Bands:
+          - If symbols is provided: sets c_i = max(leland_cost_bps, 25.0) bps for Korean assets (.KS, .KQ, 6-digit)
+            to incorporate Korea's 0.18% STT, and c_i = min(leland_cost_bps, 8.0) bps for US assets.
+          - If asset_cost_bps is provided: directly uses custom per-asset bps.
         Delta_i = ( 3/4 * Cost_i * w_i * (1 - w_i) * sigma_ann^2 / gamma )^(1/3)
         """
         n = len(target_weights)
@@ -771,17 +870,37 @@ class UnifiedPortfolioAllocator:
             return target_weights
 
         mode = (rebalance_mode or getattr(self, "rebalance_mode", "boundary")).lower()
-        cost_fraction = self.leland_cost_bps / 10_000.0  # e.g. 20 bps = 0.0020
+
+        # F30: Resolve per-asset transaction cost fraction c_i
+        if asset_cost_bps is not None:
+            ac_arr = np.asarray(asset_cost_bps, dtype=float)
+            if len(ac_arr) == n:
+                cost_fraction = ac_arr / 10_000.0
+            elif len(ac_arr) == 1:
+                cost_fraction = np.full(n, float(ac_arr[0]) / 10_000.0)
+            else:
+                cost_fraction = np.full(n, self.leland_cost_bps / 10_000.0)
+        elif symbols is not None and len(symbols) == n:
+            costs = []
+            for s in symbols:
+                if self.is_korean_asset(s):
+                    costs.append(max(float(self.leland_cost_bps), 25.0) / 10_000.0)
+                else:
+                    costs.append(min(float(self.leland_cost_bps), 8.0) / 10_000.0)
+            cost_fraction = np.asarray(costs, dtype=float)
+        else:
+            cost_fraction = np.full(n, self.leland_cost_bps / 10_000.0)  # e.g. 20 bps = 0.0020
+
         vols = np.maximum(volatilities, 0.005)
         ann_variance = 252.0 * (vols ** 2)
         gamma = max(1e-4, float(self.risk_aversion))
         w_factor = np.maximum(1e-4, target_weights * (1.0 - np.minimum(0.99, target_weights)))
-        # Leland half-width delta (typically 0.5% ~ 3.5%): Delta_i proportional to (c * sigma_ann^2 / gamma)^(1/3)
+        # Leland half-width delta (typically 0.5% ~ 4.5%): Delta_i proportional to (c_i * sigma_ann^2 / gamma)^(1/3)
         cubic_term = (0.75 * cost_fraction * w_factor * ann_variance) / gamma
         leland_deltas = np.clip(
             np.cbrt(cubic_term),
             0.005,
-            0.035
+            0.045
         )
 
         realized_w = np.copy(target_weights)
@@ -1012,7 +1131,7 @@ class UnifiedPortfolioAllocator:
 
         w_final = self.apply_leland_no_trade_buffers(
             w_scaled, current_weights, volatilities=vols, unrealized_returns=unrealized_rets,
-            rebalance_mode=rebalance_mode
+            rebalance_mode=rebalance_mode, symbols=valid_symbols
         )
 
         # Step 4: Compute shares, lot sizes, and allocation amounts

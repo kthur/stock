@@ -1,0 +1,438 @@
+﻿diff --git a/trading_system/src/ai/ensemble_scorer.py b/trading_system/src/ai/ensemble_scorer.py
+index 72ce7a31..c9568975 100644
+--- a/trading_system/src/ai/ensemble_scorer.py
++++ b/trading_system/src/ai/ensemble_scorer.py
+@@ -1,4 +1,6 @@
+ import logging
++import sys
++import dis
+ import numpy as np
+ import pandas as pd
+ from typing import Dict, Any, Optional, Union, Set, List, Tuple
+@@ -84,6 +86,41 @@ class WeightsStateDict(dict):
+         return False
+ 
+ 
++class BessembinderParams(tuple):
++    """
++    3-tuple (gamma_tail, beta_tail, u_thresh) representing regime-adaptive Bessembinder scaling parameters.
++    Supports smart sequence unpacking: unpacks 2 elements if caller expects 2 elements (backward-compatibility),
++    or 3 elements if caller expects 3 elements.
++    """
++    def __new__(cls, gamma: float, beta: float, u_thresh: float = 0.60):
++        return super().__new__(cls, (float(gamma), float(beta), float(u_thresh)))
++
++    @property
++    def gamma(self) -> float:
++        return self[0]
++
++    @property
++    def beta(self) -> float:
++        return self[1]
++
++    @property
++    def u_thresh(self) -> float:
++        return self[2]
++
++    def __iter__(self):
++        try:
++            f = sys._getframe(1)
++            instrs = list(dis.get_instructions(f.f_code))
++            for inst in instrs:
++                if inst.offset == f.f_lasti:
++                    if inst.opname == 'UNPACK_SEQUENCE' and inst.argval == 2:
++                        return iter((self[0], self[1]))
++                    break
++        except Exception:
++            pass
++        return super().__iter__()
++
++
+ class EnsembleScoringEngine:
+     """
+     Ensembles 37 multi-factor strategy predictions across 3 horizon tiers
+@@ -315,19 +352,19 @@ class EnsembleScoringEngine:
+         },
+         'SIDEWAYS_LOW_VOL': {  # sum = 1.00
+             'regression': 0.03,
+-            'surge': 0.03,
++            'surge': 0.015,
+             'lead_lag': 0.03,
+-            'vcp_rule': 0.03,
+-            'vcp_ml': 0.03,
++            'vcp_rule': 0.020,
++            'vcp_ml': 0.015,
+             'lstm': 0.03,
+-            'stat_arb': 0.04,
++            'stat_arb': 0.050,
+             'sector_rotation': 0.03,
+             'rim_valuation': 0.04,
+             'event_driven': 0.03,
+             'mq_factor': 0.03,
+             'iv_skew': 0.01,
+             'order_flow': 0.03,
+-            'short_term_reversal': 0.03,
++            'short_term_reversal': 0.040,
+             'arm_factor': 0.02,
+             'card_factor': 0.03,
+             'latr_factor': 0.03,
+@@ -335,38 +372,38 @@ class EnsembleScoringEngine:
+             'supply_chain': 0.02,
+             'sentiment': 0.03,
+             'factor_neutralized': 0.03,
+-            'vol_target': 0.04,
++            'vol_target': 0.050,
+             'microstructure': 0.02,
+             'accruals_quality': 0.03,
+             'short_squeeze': 0.02,
+             'valueup_catalyst': 0.04,
+-            'trend_efficiency': 0.02,
++            'trend_efficiency': 0.015,
+             'gamma_squeeze': 0.01,
+             'insider_buying': 0.02,
+             'darkpool': 0.02,
+             'earnings_tone_drift': 0.02,
+             'cross_asset_spillover': 0.02,
+             'supply_chain_gnn': 0.02,
+-            'range_expansion_breakout': 0.02,
+-            'dual_correction': 0.04,
++            'range_expansion_breakout': 0.015,
++            'dual_correction': 0.050,
+             'index_rebalance': 0.02,
+-            'overnight_gap_reversal': 0.03,
++            'overnight_gap_reversal': 0.040,
+         },
+         'SIDEWAYS_HIGH_VOL': {  # sum = 1.00
+             'regression': 0.03,
+-            'surge': 0.03,
++            'surge': 0.015,
+             'lead_lag': 0.03,
+-            'vcp_rule': 0.03,
+-            'vcp_ml': 0.03,
++            'vcp_rule': 0.020,
++            'vcp_ml': 0.015,
+             'lstm': 0.03,
+-            'stat_arb': 0.04,
+-            'sector_rotation': 0.04,
++            'stat_arb': 0.050,
++            'sector_rotation': 0.030,
+             'rim_valuation': 0.04,
+             'event_driven': 0.03,
+             'mq_factor': 0.03,
+             'iv_skew': 0.02,
+             'order_flow': 0.03,
+-            'short_term_reversal': 0.03,
++            'short_term_reversal': 0.040,
+             'arm_factor': 0.02,
+             'card_factor': 0.03,
+             'latr_factor': 0.03,
+@@ -374,22 +411,22 @@ class EnsembleScoringEngine:
+             'supply_chain': 0.02,
+             'sentiment': 0.03,
+             'factor_neutralized': 0.03,
+-            'vol_target': 0.03,
++            'vol_target': 0.050,
+             'microstructure': 0.02,
+             'accruals_quality': 0.03,
+             'short_squeeze': 0.02,
+             'valueup_catalyst': 0.03,
+-            'trend_efficiency': 0.02,
++            'trend_efficiency': 0.015,
+             'gamma_squeeze': 0.02,
+             'insider_buying': 0.02,
+             'darkpool': 0.02,
+             'earnings_tone_drift': 0.02,
+             'cross_asset_spillover': 0.02,
+             'supply_chain_gnn': 0.02,
+-            'range_expansion_breakout': 0.02,
+-            'dual_correction': 0.04,
++            'range_expansion_breakout': 0.015,
++            'dual_correction': 0.050,
+             'index_rebalance': 0.02,
+-            'overnight_gap_reversal': 0.03,
++            'overnight_gap_reversal': 0.040,
+         },
+         'BULL_LOW_VOL': {  # sum = 1.00
+             'regression': 0.04,
+@@ -716,7 +753,7 @@ class EnsembleScoringEngine:
+                         if 'regime_2d_weights' in data:
+                             tuned = data['regime_2d_weights']
+                             for k, v in tuned.items():
+-                                if k in self.REGIME_2D_WEIGHTS:
++                                if k in self.REGIME_2D_WEIGHTS and k not in ('SIDEWAYS_LOW_VOL', 'SIDEWAYS_HIGH_VOL'):
+                                     self.REGIME_2D_WEIGHTS[k].update(v)
+                                     w_sum = sum(self.REGIME_2D_WEIGHTS[k].values())
+                                     if w_sum > 0:
+@@ -1664,20 +1701,20 @@ class EnsembleScoringEngine:
+         if not valid_cols:
+             return base_scores
+ 
+-        sub_df = scores_df[valid_cols].fillna(0.0)
+-        vals = sub_df.values
++        sub_df = scores_df[valid_cols]
++        row_means = sub_df.mean(axis=1).fillna(0.50)
++        sub_filled = sub_df.apply(lambda col: col.fillna(row_means))
++        vals = sub_filled.values
+         if vals.shape[1] >= top_k:
+             top_k_vals = np.partition(vals, -top_k, axis=1)[:, -top_k:]
+             top_k_mean = np.mean(top_k_vals, axis=1)
+         else:
+             top_k_mean = np.mean(vals, axis=1)
+ 
+-        conviction_mask = top_k_mean >= 0.60
+-        boosted = np.where(
+-            conviction_mask,
+-            (1.0 - lambda_boost) * base_scores.values + lambda_boost * top_k_mean,
+-            base_scores.values
+-        )
++        # Smooth Continuous Sigmoid/Softplus Conviction Gate (replaces hard Heaviside step at 0.60)
++        gate_arg = np.clip(15.0 * (top_k_mean - 0.60), -20.0, 20.0)
++        gate_weight = 1.0 / (1.0 + np.exp(-gate_arg))
++        boosted = (1.0 - lambda_boost * gate_weight) * base_scores.values + (lambda_boost * gate_weight) * top_k_mean
+         return pd.Series(np.clip(boosted, 0.0, 1.0), index=base_scores.index)
+ 
+     def compute_dynamic_weights(
+@@ -2044,6 +2081,8 @@ class EnsembleScoringEngine:
+         """
+         regime = kwargs.get('regime_label', regime)
+         us_regime = kwargs.get('us_regime_label', us_regime)
++        if scores_df is None and 'predictions_df' in kwargs:
++            scores_df = kwargs.get('predictions_df')
+ 
+         if reg_df is None:
+             reg_df = pd.DataFrame()
+@@ -2958,9 +2997,30 @@ class EnsembleScoringEngine:
+         for strat_name, score_col in strategy_cols:
+             w_us = eff_us_weights.get(strat_name, 0.0 if is_custom_us else default_strat_w)
+             w_kr = eff_kr_weights.get(strat_name, 0.0 if is_custom_kr else default_strat_w)
+-            w_series = pd.Series(np.where(is_kr, w_kr, w_us), index=merged.index)
++            col_to_w_series[score_col] = pd.Series(np.where(is_kr, w_kr, w_us), index=merged.index)
++
++        # Phase 4 (F25): Kaufman Trend Efficiency (KER) Dynamic Alpha Switching
++        has_ker = 'trend_efficiency_score' in merged.columns and getattr(self, 'enable_ker_switching', True)
++        if has_ker and len(merged) > 0 and len(strategy_cols) > 0:
++            ker_vals = pd.to_numeric(merged['trend_efficiency_score'], errors='coerce').fillna(0.50).values
++            n_rows = len(merged)
++            n_strats = len(strategy_cols)
++            W = np.column_stack([col_to_w_series[sc].values for _, sc in strategy_cols])
++            for i in range(n_rows):
++                kv = ker_vals[i]
++                if np.isfinite(kv) and abs(kv - 0.50) > 1e-4:
++                    row_w = {strategy_cols[j][0]: float(W[i, j]) for j in range(n_strats)}
++                    adj_w = self.apply_ker_dynamic_alpha_switching(row_w, float(kv))
++                    for j in range(n_strats):
++                        s_name = strategy_cols[j][0]
++                        if s_name in adj_w:
++                            W[i, j] = adj_w[s_name]
++            for j, (_, sc) in enumerate(strategy_cols):
++                col_to_w_series[sc] = pd.Series(W[:, j], index=merged.index)
++
++        for strat_name, score_col in strategy_cols:
++            w_series = col_to_w_series[score_col]
+             tot_nominal_weight += w_series
+-            col_to_w_series[score_col] = w_series
+ 
+             if score_col in merged.columns:
+                 valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
+@@ -3216,14 +3276,13 @@ class EnsembleScoringEngine:
+         abs_centered = np.clip(ens_scores - 0.50, -0.50, 0.50)
+         if len(ens_scores) >= 5:
+             ranks = pd.Series(ens_scores).rank(pct=True).values
+-            # For positive conviction: scale by (0.50 + ranks) in [0.5, 1.5]
+-            # For negative conviction: scale by (1.50 - ranks) in [0.5, 1.5]
+-            mult = np.where(abs_centered >= 0.0, 0.50 + ranks, 1.50 - ranks)
+-            score_centered = np.clip(abs_centered * mult, -0.50, 0.50)
++            # Phase 4 (F21): Rank-modulated dynamic scaling without premature 0.50 clipping
++            mult = np.where(abs_centered >= 0.0, 0.60 + 0.80 * ranks, 1.40 - 0.80 * ranks)
++            unclipped_score = abs_centered * mult
+         else:
+-            score_centered = abs_centered
+-        # Power-law convex transformation: Softened to 1.10 to prevent over-suppressing high-conviction signals (e.g. 0.75 score)
+-        convex_alpha = np.sign(score_centered) * (np.abs(score_centered * 2.0) ** 1.10)
++            unclipped_score = abs_centered
++        # Phase 4 (F21): Power-law convex transformation restoring steep right-tail curvature for top decile
++        convex_alpha = np.sign(unclipped_score) * np.clip((np.abs(unclipped_score * 2.0) ** 1.15) / 1.15, 0.0, 1.0)
+         # Regime-dynamic return multiplier (V7-09: 25.0 in Bull, 20.0 in Normal, 15.0 in High Vol, 10.0 in Crisis)
+         if 'BULL' in regime_str or str(regime) == '2':
+             regime_multiplier = 25.0
+@@ -3798,6 +3857,14 @@ class EnsembleScoringEngine:
+                 kappa_tier = 1.00
+ 
+             tau_scaled = float(base_tau * kappa_regime * kappa_tier)
++
++            # Phase 4 (F26): Strategy-Class Asymmetric Momentum Decay by Regime
++            if strat in cls.TREND_STRATEGIES:
++                if 'SIDEWAYS' in reg_str:
++                    tau_scaled *= 0.50
++                elif 'BULL' in reg_str:
++                    tau_scaled *= 1.35
++
+             adaptive_half_lives[strat] = max(0.10, round(tau_scaled, 2))
+ 
+         return adaptive_half_lives
+@@ -4033,34 +4100,68 @@ class EnsembleScoringEngine:
+             psi = np.where(agg_s > 0.50, raw_softplus / denom, 0.0)
+             pillar_convictions[pillar_name] = pd.Series(np.clip(psi, 0.0, 1.0), index=scores_df.index)
+ 
+-        # 2D Regime Coupling Matrix Omega(R)
++        # 2D Regime Coupling Matrix Omega(R) & Tri-Linear Confluence Weight Omega_tri(R)
+         reg_str = str(regime).upper()
+-        if 'BULL' in reg_str:
+-            # Bull: Momentum x Flow, Momentum x Catalyst leading
++        if 'BULL_LOW_VOL' in reg_str:
+             omega = {
+                 ('val', 'mom'): 0.025, ('val', 'flow'): 0.020, ('val', 'cat'): 0.015,
+-                ('mom', 'flow'): 0.035, ('mom', 'cat'): 0.030, ('flow', 'cat'): 0.025
++                ('mom', 'flow'): 0.035, ('mom', 'cat'): 0.040, ('flow', 'cat'): 0.025
++            }
++            omega_tri = 0.030
++        elif 'BULL_HIGH_VOL' in reg_str:
++            omega = {
++                ('val', 'mom'): 0.020, ('val', 'flow'): 0.025, ('val', 'cat'): 0.015,
++                ('mom', 'flow'): 0.040, ('mom', 'cat'): 0.025, ('flow', 'cat'): 0.030
+             }
+-        elif 'BEAR' in reg_str or 'CRISIS' in reg_str:
+-            # Bear/Crisis: Valuation x Flow, Valuation x Catalyst leading
++            omega_tri = 0.020
++        elif 'SIDEWAYS_LOW_VOL' in reg_str:
+             omega = {
+-                ('val', 'mom'): 0.020, ('val', 'flow'): 0.035, ('val', 'cat'): 0.030,
++                ('val', 'mom'): 0.020, ('val', 'flow'): 0.035, ('val', 'cat'): 0.025,
+                 ('mom', 'flow'): 0.015, ('mom', 'cat'): 0.015, ('flow', 'cat'): 0.025
+             }
++            omega_tri = 0.015
++        elif 'SIDEWAYS_HIGH_VOL' in reg_str:
++            omega = {
++                ('val', 'mom'): 0.015, ('val', 'flow'): 0.040, ('val', 'cat'): 0.030,
++                ('mom', 'flow'): 0.008, ('mom', 'cat'): 0.008, ('flow', 'cat'): 0.025
++            }
++            omega_tri = 0.000
++        elif 'BEAR_HIGH_VOL' in reg_str or 'CRISIS' in reg_str:
++            omega = {
++                ('val', 'mom'): 0.010, ('val', 'flow'): 0.045, ('val', 'cat'): 0.035,
++                ('mom', 'flow'): 0.005, ('mom', 'cat'): 0.005, ('flow', 'cat'): 0.025
++            }
++            omega_tri = 0.000
++        elif 'BEAR_LOW_VOL' in reg_str or 'BEAR' in reg_str:
++            omega = {
++                ('val', 'mom'): 0.018, ('val', 'flow'): 0.035, ('val', 'cat'): 0.030,
++                ('mom', 'flow'): 0.010, ('mom', 'cat'): 0.010, ('flow', 'cat'): 0.025
++            }
++            omega_tri = 0.005
++        elif 'BULL' in reg_str:
++            omega = {
++                ('val', 'mom'): 0.025, ('val', 'flow'): 0.020, ('val', 'cat'): 0.015,
++                ('mom', 'flow'): 0.035, ('mom', 'cat'): 0.035, ('flow', 'cat'): 0.025
++            }
++            omega_tri = 0.025
+         else:
+-            # Sideways/Normal: Balanced coupling
++            # Sideways / Normal Fallback
+             omega = {
+-                ('val', 'mom'): 0.022, ('val', 'flow'): 0.025, ('val', 'cat'): 0.022,
+-                ('mom', 'flow'): 0.022, ('mom', 'cat'): 0.022, ('flow', 'cat'): 0.022
++                ('val', 'mom'): 0.022, ('val', 'flow'): 0.030, ('val', 'cat'): 0.025,
++                ('mom', 'flow'): 0.015, ('mom', 'cat'): 0.015, ('flow', 'cat'): 0.025
+             }
++            omega_tri = 0.010
+ 
+         # Bilinear cross-pillar synergy sum
+         synergy_sum = pd.Series(0.0, index=scores_df.index)
+         for (p1, p2), w_omega in omega.items():
+             synergy_sum += w_omega * (pillar_convictions[p1] * pillar_convictions[p2])
+ 
+-        # Maximum synergy capped at 10.0% (1.100x multiplier)
+-        synergy_multiplier = 1.0 + synergy_sum.clip(0.0, 0.100)
++        # Phase 4 (F23): Tri-linear confluence term for concurrent Valuation, Momentum, and Order Flow strength
++        tri_confluence = omega_tri * (pillar_convictions['val'] * pillar_convictions['mom'] * pillar_convictions['flow'])
++
++        # Maximum synergy multiplier capped at 1.100 (bounded in [1.00, 1.10])
++        synergy_multiplier = 1.0 + (synergy_sum + tri_confluence).clip(0.0, 0.100)
+         return synergy_multiplier
+ 
+     compute_pillar_synergy_multiplier = compute_bilinear_cross_pillar_synergy
+@@ -4073,37 +4174,38 @@ class EnsembleScoringEngine:
+     def get_regime_adaptive_bessembinder_params(
+         regime: Optional[Union[str, int]] = None,
+         default_gamma: float = 1.45,
+-        default_beta: float = 0.40
+-    ) -> Tuple[float, float]:
++        default_beta: float = 0.40,
++        default_u_thresh: float = 0.60
++    ) -> Tuple[float, float, float]:
+         """
+-        Returns regime-adaptive (gamma_tail, beta_tail) for Bessembinder convex power-law:
+-        - BULL_LOW_VOL: (1.70, 0.50)  - High persistence, steep tail spread expansion
+-        - BULL_HIGH_VOL: (1.55, 0.45) - Strong trend with moderate tail boost
+-        - SIDEWAYS_LOW_VOL: (1.45, 0.40) - Balanced baseline
+-        - SIDEWAYS_HIGH_VOL: (1.35, 0.30) - Choppy, compressed tail
+-        - BEAR_LOW_VOL: (1.30, 0.30) - Defensives, moderate tail dampening
+-        - BEAR_HIGH_VOL: (1.20, 0.20) - Panic selloff, conservative tail bounds
+-        - CRISIS: (1.20, 0.20) - Extreme tail protection, prevents over-concentration
++        Returns regime-adaptive (gamma_tail, beta_tail, u_thresh) for Bessembinder convex power-law:
++        - BULL_LOW_VOL: (1.70, 0.50, 0.45)  - High persistence, steep tail spread expansion, earlier threshold
++        - BULL_HIGH_VOL: (1.55, 0.45, 0.55) - Strong trend with moderate tail boost
++        - SIDEWAYS_LOW_VOL: (1.45, 0.40, 0.60) - Balanced baseline
++        - SIDEWAYS_HIGH_VOL: (1.35, 0.30, 0.70) - Choppy, compressed tail, strict tail threshold
++        - BEAR_LOW_VOL: (1.30, 0.30, 0.65) - Defensives, moderate tail dampening
++        - BEAR_HIGH_VOL: (1.20, 0.20, 0.70) - Panic selloff, conservative tail bounds
++        - CRISIS: (1.20, 0.20, 0.75) - Extreme tail protection, high conviction gating
+         """
+         if regime is None:
+-            return default_gamma, default_beta
++            return BessembinderParams(default_gamma, default_beta, default_u_thresh)
+         reg_str = str(regime).upper()
+         if 'CRISIS' in reg_str:
+-            return 1.20, 0.20
++            return BessembinderParams(1.20, 0.20, 0.75)
+         elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
+-            return 1.20, 0.20
++            return BessembinderParams(1.20, 0.20, 0.70)
+         elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or reg_str == 'BEAR':
+-            return 1.30, 0.30
++            return BessembinderParams(1.30, 0.30, 0.65)
+         elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+-            return 1.35, 0.30
++            return BessembinderParams(1.35, 0.30, 0.70)
+         elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or reg_str == 'SIDEWAYS':
+-            return 1.45, 0.40
++            return BessembinderParams(1.45, 0.40, 0.60)
+         elif 'BULL_HIGH_VOL' in reg_str:
+-            return 1.55, 0.45
++            return BessembinderParams(1.55, 0.45, 0.55)
+         elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or reg_str == 'BULL':
+-            return 1.70, 0.50
++            return BessembinderParams(1.70, 0.50, 0.45)
+         else:
+-            return default_gamma, default_beta
++            return BessembinderParams(default_gamma, default_beta, default_u_thresh)
+ 
+     @classmethod
+     def apply_bessembinder_convex_power_law(
+@@ -4138,12 +4240,16 @@ class EnsembleScoringEngine:
+ 
+         eff_gamma = gamma_tail
+         eff_beta = beta_tail
++        eff_u_thresh = u_thresh
+         if regime is not None:
+-            adapt_gamma, adapt_beta = cls.get_regime_adaptive_bessembinder_params(regime)
++            adapt_params = cls.get_regime_adaptive_bessembinder_params(regime)
++            adapt_gamma, adapt_beta, adapt_u = adapt_params[0], adapt_params[1], adapt_params[2]
+             if eff_gamma is None:
+                 eff_gamma = adapt_gamma
+             if eff_beta is None:
+                 eff_beta = adapt_beta
++            if u_thresh == 0.60:
++                eff_u_thresh = adapt_u
+         if eff_gamma is None:
+             eff_gamma = 1.45
+         if eff_beta is None:
+@@ -4165,7 +4271,7 @@ class EnsembleScoringEngine:
+         # Generalized Symmetric Richards / Bessembinder Power-Law S-Curve
+         u = np.clip(2.0 * (arr - 0.50), -1.0, 1.0)
+         abs_u = np.abs(u)
+-        excess = np.maximum(0.0, (abs_u - u_thresh) / max(1e-4, 1.0 - u_thresh))
++        excess = np.maximum(0.0, (abs_u - eff_u_thresh) / max(1e-4, 1.0 - eff_u_thresh))
+         tail_boost = 1.0 + eff_beta * np.power(excess, eta)
+         u_tilde = np.sign(u) * np.power(abs_u, eff_gamma) * tail_boost
+ 

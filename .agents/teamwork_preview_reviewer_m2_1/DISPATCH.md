@@ -1,15 +1,31 @@
-## 2026-08-31T15:19:39Z
+## 2026-09-04T01:10:20Z
+<USER_REQUEST>
+You are Reviewer 1 for Milestone 2.
+Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1
+Maintain progress.md in your working directory.
 
-You are a Reviewer (teamwork_preview_reviewer).
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\
-Original Request path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Project Scope path: d:\Finance\code\stock\PROJECT.md
-Worker Handoff path: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md
+MANDATORY FIRST STEP:
+Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md completely.
+Also read Worker 2's handoff report at:
+d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md
+And SCOPE.md at:
+d:\Finance\code\stock\.agents\orchestrator_quant_opt4\SCOPE.md
 
-Mission: Review Milestone 2 (R2: 31-Strategy Canonical Sequence Unification).
-1. Read ORIGINAL_REQUEST.md, PROJECT.md, and M2 Worker handoff.
-2. Review changes made in trading_system/run_pipeline.py (STRATEGY_REGISTRY, verification_files), AGENTS.md, trading_system/scripts/verify_gha_artifacts.py (all 31 strategies, panel aliases, 31-column matrix), and .agents/skills/gha-artifact-verifier/SKILL.md.
-3. Run verification tests: `pytest tests/test_verify_gha_artifacts.py tests/test_strategy_correlation_monitor.py tests/test_score_normalizer.py -v`.
-4. Provide a clear verdict (APPROVE or REQUEST_CHANGES) with detailed rationale in your handoff.md.
-5. Write your report to d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\review_report.md and a handoff.md.
-6. Send a message to your caller parent with your verdict and summary.
+Your Review Task:
+1. Examine code modifications in:
+   - `trading_system/src/risk/unified_portfolio_allocator.py`
+   - `trading_system/src/execution/smart_order_router.py`
+   - `trading_system/src/execution/oms_engine.py`
+   - `tests/test_phase4_portfolio_execution.py`
+2. Inspect Features F28 to F33:
+   - F28: Downside semi-covariance Sortino EVT-CVaR in `calculate_cvar_weights`
+   - F29: Dynamic return-dispersion model blending in `optimize_multi_model_blend`
+   - F30: Market-specific STT fee-aware Leland buffer bands in `apply_leland_no_trade_buffers` (KRX >= 25 bps, US <= 8 bps)
+   - F31: Multi-tier L2 OBI composite and volume-weighted micro-price pegging in `calculate_peg_limit_price`
+   - F32: Hawkes arrival intensity adverse selection maker gating in `route_order`
+   - F33: Closed-loop empirical slippage scaling in Gatheral impact calculation
+3. Run and verify the tests:
+   `.venv\Scripts\python.exe -m pytest tests/test_phase4_portfolio_execution.py tests/test_m2_portfolio_execution.py tests/test_m2_quant_enhancements.py tests/test_tier0_apex_quant_enhancements.py tests/test_fast_lob_engine.py tests/test_turnover_optimizer.py tests/test_slippage_feedback.py tests/test_institutional_portfolio_construction.py -v`
+4. Formulate an objective review verdict: APPROVE or REQUEST_CHANGES.
+5. Write your handoff report to `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1\handoff.md` and notify caller via send_message.
+</USER_REQUEST>
