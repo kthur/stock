@@ -48,7 +48,7 @@ Multi-factor quantitative trading system for 5 markets (SP500, NASDAQ, RUSSELL20
 |---|------|-------|-------------|--------|
 | M1 | 37-Strategy Dynamic Alpha Weights & Nonlinear Factor Coupling | F01, F02, F03, F04, F05, F06, F07, F08 | None | DONE |
 | M2 | Portfolio 4-Model Dynamic Blending & Darkpool/HFT OMS Optimization | F09, F10, F11, F12, F13, F14 | M1 | DONE |
-| M3 | Quantitative Benchmark Comparison & Regression Verification | F15, F16, F17 | M1, M2 | IN_PROGRESS |
+| M3 | Quantitative Benchmark Comparison & Regression Verification | F15, F16, F17 | M1, M2 | DONE |
 
 ## Interface Contracts
 
