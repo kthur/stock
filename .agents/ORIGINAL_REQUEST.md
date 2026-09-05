@@ -359,4 +359,40 @@ Integrity mode: development
 - [ ] 기존 2,750+ 단위/통합 테스트 스위트 100% 합격 및 회귀 결함 0건 유지
 - [ ] 12차 개선 전후 15대 핵심 지표를 일목요연하게 대조한 종합 표(Table) 보고서 및 동기화 마크다운 리포트 생성
 
+## 2026-09-05T13:47:02Z
 
+풀 팀(Full Team) — 알파 시그널, 리스크 배분, 미시구조 OMS, 퀀트 검증의 4개 전문 역할로 분업 수행
+
+글로벌 5대 주식 시장(KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)을 대상으로 시스템의 수익률과 샤프 지수를 체계적으로 개선하기 위해 다변화 알파 결합, 포트폴리오 적응형 리스크 배분, 오더북(L3) 마이크로구조 주문 집행을 고도화하고, 개선 결과를 검증하여 구조화된 비교표로 출력합니다.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. 37대 다변화 전략 다이나믹 알파 신호 고도화
+다차원 팩터 간 얽힘 해소, 극단적 신뢰 구간 알파 자본 집중을 위한 순위 변조(Rank Modulation), 비돌파 미세 노이즈 제거를 위한 고차 쌍곡선 데드밴드 필터링을 개선하여 Rank-IC와 선형 예측력을 향상시킵니다.
+
+### R2. 포트폴리오 리스크 예산 및 적응형 최적 자산 배분
+4대 배분 모델(Black-Litterman, HERC, Risk Parity, EVT-CVaR)의 정보기하학적 바리센터 블렌딩과 고차 큐뮬런트 전개 기반 초응집(Super-Coherent) 꼬리위험(EVaR) 예산화를 고도화하여 최대 낙폭(MDD)을 극단적으로 압축하고 샤프 비율을 극대화합니다.
+
+### R3. 마이크로구조 L3 오더북 집행(OMS/SOR) 및 마찰비용 최소화
+오더북(L3) 큐 가속도 유체역학 모델을 강화하고, 다크풀 선제 라우팅(ATS) 및 독성 흐름에 연동된 선제적 마이크로 틱 셰이딩(Preemptive Tick Shading)을 적용하여 체결 슬리피지와 총 거래 마찰비용을 최소화합니다.
+
+### R4. 5대 시장 실증 퀀트 벤치마크 및 결과 표 출력
+5대 시장(S&P 500, NASDAQ, RUSSELL 2000, KOSPI, KOSDAQ) 대상 15대 핵심 퀀트 지표에 대한 엄격한 벤치마크 평가를 수행하고, 3대 표준 표([표 1] 15대 종합 지표 비교표, [표 2] 5대 시장별 성과표, [표 3] 전략 팩터 기여도표)를 생성하여 리포트에 동기화하고 사용자에게 출력합니다.
+
+## Acceptance Criteria
+
+### 1. Performance Targets (5-Market Aggregate Portfolio)
+- [ ] Net Expected Return: 연환산 순수익률 기준 이전 버전 대비 유의미한 상향 개선 달성 (목표: >= 95.0% 이상 유지 및 상회)
+- [ ] Annualized Sharpe Ratio: 연환산 샤프 지수 기준 목표 달성 (목표: >= 12.0 이상 유지 및 상회)
+- [ ] Maximum Drawdown (MDD): 하방 꼬리위험의 극단적 압축 (목표: <= -0.18% 이내 엄격 통제)
+- [ ] Trading & Friction Costs: 거래 마찰비용 극소화 (목표: <= 0.6 bps 이내)
+- [ ] Execution Slippage: 체결 슬리피지 극소화 (목표: <= 0.05 bps 이내)
+- [ ] Top-Decile Alpha Spread: 상위 10% 우수 종목 스프레드 확대 (목표: >= 65.0% 이상)
+
+### 2. Verification & Deliverables
+- [ ] 15대 퀀트 지표 비교표([표 1]), 5대 시장별 성과표([표 2]), 전략 팩터 기여도표([표 3])가 온전히 작성되어 출력될 것
+- [ ] 전용 단위/통합 테스트 스위트가 작성되고 기존 기능에 대한 회귀 없이 100% 통과할 것
+- [ ] 벤치마크 리포트 파일(`reports/quant_benchmark_comparison*.md`)이 정상적으로 갱신 및 동기화될 것

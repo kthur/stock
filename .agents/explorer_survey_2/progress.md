@@ -1,16 +1,21 @@
-# Progress — Explorer 2 (Portfolio & Execution Slippage)
+# Progress — explorer_survey_2
 
-- Status: Completed
-- Current step: Handoff and parent notification
-- Last visited: 2026-09-04T08:43:10Z
+Last visited: 2026-09-05T13:52:30Z
 
-## Log
-- Initialized DISPATCH.md and BRIEFING.md
-- Read ORIGINAL_REQUEST.md (header 2026-09-04T08:36:42Z), PROJECT.md, and handoff.md
-- Ran and verified existing tests (`test_phase4_portfolio_execution.py`, `test_unified_portfolio_engine.py`)
-- Conducted deep forensic analysis of `unified_portfolio_allocator.py`, `portfolio_allocator.py`, `smart_order_router.py`, `oms_engine.py`, `slippage_feedback.py`
-- Formulated technical specification for F37 (Higher-order co-moments, DRP-DR scaling, Shannon entropy vol targeting, GPD tail index)
-- Formulated technical specification for F38 (Continuous Hawkes toxicity, Darkpool MinQty, Adaptive OBI curvature, ADV slice count & U-shaped volume smile, 5-market granular Leland buffer bands)
-- Generated full report: `analysis.md`
-- Generated 5-component handoff report: `handoff.md`
-- Updated BRIEFING.md
+## Status
+Investigation completed. Survey report and handoff report successfully generated.
+
+## Steps
+- [x] Received dispatch message and created DISPATCH.md, BRIEFING.md, progress.md
+- [x] Inspect `trading_system/src/risk/unified_portfolio_allocator.py`
+- [x] Inspect `trading_system/src/risk/portfolio_allocator.py`
+- [x] Inspect `trading_system/src/analysis/portfolio_optimizer.py`
+- [x] Inspect `trading_system/src/risk/risk_manager.py`
+- [x] Inspect Phase 10..15 benchmark scripts and previous phase implementations
+- [x] Analyze 4-model blending (BL, HERC, RP, EVT-CVaR) and Information-Geometric Barycenters
+- [x] Analyze High-Order Cumulant Expansion based Super-Coherent Tail Risk (EVaR) Budgeting
+- [x] Analyze Covariance Shrinkage, Leland Buffer Bands, MDD control mechanisms
+- [x] Synthesize findings, line numbers, mathematical formulations, and proposed upgrades
+- [x] Write `survey_report.md`
+- [x] Write `handoff.md`
+- [ ] Notify parent via `send_message`

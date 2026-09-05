@@ -1,47 +1,50 @@
-# BRIEFING — 2026-09-04T08:43:45Z
+# BRIEFING — 2026-09-05T13:54:00Z
 
 ## Mission
-Investigate and formulate the technical specification for Requirement R1: 37-Strategy Dynamic Alpha Signal Quality & Top Alpha Identification 5th Maximization (Features F35, F36) in Phase 5.
+Investigate alpha signal enhancement, multidimensional factor unentanglement, rank modulation, and hyperbolic deadband filtering across 37 strategies to reach Top-Decile Alpha Spread >= 65.0% and enhanced Rank-IC.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: investigation, synthesis
+- Roles: Alpha Signal and Dynamic Ensemble Scoring investigation
 - Working directory: d:\Finance\code\stock\.agents\explorer_survey_1
-- Original parent: 61d3427d-726d-48df-945c-5ec75b30ebde
-- Milestone: Phase 5 R1 Survey (Features F35, F36)
+- Original parent: d931201d-0a7c-467d-aa86-b8c347efc6e7
+- Milestone: Full Team Alpha Signal & Dynamic Ensemble Scoring Exploration (Phase 13 Omnipresent / Phase 14 / R1)
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
-- Base all findings on direct code inspection and project documents
-- Follow 5-component handoff report standard
-- Maintain strict monotonic rank order and compatibility with 2,351+ existing tests
+- Target Top-Decile Alpha Spread >= 65.0% and enhanced Rank-IC
+- Investigate src/ai/ensemble_scorer.py, src/ai/score_normalizer.py, src/ai/factor_orthogonalizer.py, src/ai/factor_suppression.py, trading_system/src/ai/ensemble_scorer.py
+- Output detailed survey report to survey_report.md and handoff.md in working directory
+- Communicate back to parent via send_message
 
 ## Current Parent
-- Conversation ID: 61d3427d-726d-48df-945c-5ec75b30ebde
-- Updated: 2026-09-04T08:43:45Z
+- Conversation ID: d931201d-0a7c-467d-aa86-b8c347efc6e7
+- Updated: 2026-09-05T13:54:00Z
 
 ## Investigation State
 - **Explored paths**:
-  - `trading_system/src/ai/ensemble_scorer.py` (lines 1680-1760, 2865-3340, 3810-4283)
-  - `trading_system/src/ai/score_normalizer.py` (lines 1-282)
-  - `trading_system/src/ai/factor_suppression.py` (lines 1-150)
-  - `trading_system/src/ai/factor_orthogonalizer.py` (lines 1-120)
-  - `tests/test_phase4_signal_enhancement.py` (verified 8/8 tests pass)
-  - `tests/test_benchmark_phase4.py` and `trading_system/scripts/benchmark_phase4_quant_performance.py`
+  - `trading_system/src/ai/ensemble_scorer.py` (378KB, 7411 lines)
+  - `trading_system/src/ai/score_normalizer.py` (282 lines)
+  - `trading_system/src/ai/factor_orthogonalizer.py` (592 lines)
+  - `trading_system/src/ai/factor_suppression.py` (752 lines)
+  - `trading_system/run_pipeline.py` (lines 2600-2760, 3465-3530)
+  - `trading_system/scripts/benchmark_phase15_quant_performance.py` & `reports/quant_benchmark_comparison_phase15.md`
+  - `tests/test_benchmark_phase15.py`, `tests/test_factor_orthogonalization.py`, `tests/test_correlation_suppression.py`
 - **Key findings**:
-  - Phase 4 unlocked the 0.833 alpha ceiling via removing premature [-0.5, 0.5] clipping before power expansion.
-  - Phase 5 F35 formulated: Regime-adaptive Richards exponent $\gamma_{\text{tail}}(R) \in [1.00, 1.30]$, quadratic rank modulation ($0.60 + 0.50r + 0.50r^2$), Quad-Pillar confluence kernel $\Xi_{\text{quad}} = \Omega_{\text{quad}} \cdot \psi_{\text{val}} \psi_{\text{mom}} \psi_{\text{flow}} \psi_{\text{cat}}$ (cap up to 1.15x), Hölder $p=2.0$ quadratic mean top-$k$ boosting, asymmetric Richards tail scaling ($\eta_{\text{right}} = 2.0, u_{\text{thresh}} = 0.40$).
-  - Phase 5 F36 formulated: Transition entropy decay $\phi_{\text{entropy}}$ & TV jump penalty $\phi_{\text{jump}}$ on probabilistic half-life expectation, and smooth hyperbolic tangent noise deadzone filter $z \cdot \tanh((|z|/\delta_{\text{noise}})^3)$ squashing $>85\%$ of near-0.50 Brownian noise.
-  - Strict monotonic rank order $\rho_s = 1.0000$ mathematically proven for all proposed transformations.
-- **Unexplored areas**: None for Requirement R1 survey scope.
+  - Phase 15 implementation includes 10th-order rank modulation $g_{\text{v15}}(r) = 0.50 + 0.90 r \exp(\gamma_{\text{top}} r^{10})$, 24th-order tetracosagonal deadband ($\alpha=24.0$), and NCQFT Moyal-Weyl Star Product coupling.
+  - Critical Bug 1: `run_pipeline.py` line 3473 calls `calculate_ensemble_score()` without `version`, defaulting to `version=5` (legacy quadratic rank modulation and cubic deadband).
+  - Critical Bug 2: `ensemble_scorer.py` line 4597 hardcodes `version=13` when calling `apply_smooth_noise_deadband`, preventing $\alpha=24.0$ from executing even when `version=15` is specified.
+  - Proposed enhancements: Fix version plumbing, upgrade to 11th/12th-order hyper-convex modulation $g_{\text{v16}}(r)$, 30th-order triacontagonal deadband, and adaptive spectral preservation in PCA-ZCA whitening.
+- **Unexplored areas**: Execution OMS and Portfolio Allocator internals (handled by peer subagents).
 
 ## Key Decisions Made
-- Authored comprehensive Phase 5 R1 technical specification and analysis report at `d:\Finance\code\stock\.agents\explorer_survey_1\analysis.md`.
-- Authored self-contained 5-component handoff report at `d:\Finance\code\stock\.agents\explorer_survey_1\handoff.md`.
+- Fully documented all mathematical formulas from Phase 6 through Phase 15.
+- Executed unit and benchmark tests (22 passed) to verify regression safety and baseline metrics.
+- Compiled exhaustive survey report to `d:\Finance\code\stock\.agents\explorer_survey_1\survey_report.md`.
 
 ## Artifact Index
 - `d:\Finance\code\stock\.agents\explorer_survey_1\DISPATCH.md` — Dispatch log
-- `d:\Finance\code\stock\.agents\explorer_survey_1\BRIEFING.md` — Working memory
-- `d:\Finance\code\stock\.agents\explorer_survey_1\progress.md` — Liveness heartbeat
-- `d:\Finance\code\stock\.agents\explorer_survey_1\analysis.md` — Comprehensive Phase 5 R1 analysis report
+- `d:\Finance\code\stock\.agents\explorer_survey_1\BRIEFING.md` — Persistent context
+- `d:\Finance\code\stock\.agents\explorer_survey_1\progress.md` — Heartbeat progress
+- `d:\Finance\code\stock\.agents\explorer_survey_1\survey_report.md` — Detailed survey report
 - `d:\Finance\code\stock\.agents\explorer_survey_1\handoff.md` — 5-component handoff report

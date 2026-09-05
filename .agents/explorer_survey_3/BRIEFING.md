@@ -1,51 +1,46 @@
-# BRIEFING — 2026-09-04T08:43:00Z
+# BRIEFING — 2026-09-05T13:52:20Z
 
 ## Mission
-Investigate and formulate technical specification for Requirement R3: Quantitative Benchmarking Comparison & Comprehensive Test Suite Verification Architecture (Features F39, F40).
+Investigate Microstructure L3 Order Book OMS/SOR and Quant Benchmark Framework for R3 & R4.
 
 ## 🔒 My Identity
-- Archetype: Explorer
-- Roles: Quantitative Research, Benchmarking Architect, Test Verification
+- Archetype: explorer
+- Roles: explorer, investigator, synthesist
 - Working directory: d:\Finance\code\stock\.agents\explorer_survey_3
-- Original parent: 61d3427d-726d-48df-945c-5ec75b30ebde
-- Milestone: Phase 5 Deep Quantitative Enhancements Survey
+- Original parent: d931201d-0a7c-467d-aa86-b8c347efc6e7
+- Milestone: survey_r3_r4
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
-- Use .venv/Scripts/python.exe for any python inspection commands
-- Write to own folder (.agents/explorer_survey_3)
-- No code modification to production code or test files during survey
+- Analyze problems, synthesize findings, produce structured reports
+- Focus on Microstructure L3 Order Book OMS/SOR and Quant Benchmark Framework (R3 & R4)
 
 ## Current Parent
-- Conversation ID: 61d3427d-726d-48df-945c-5ec75b30ebde
-- Updated: 2026-09-04T08:38:36Z
+- Conversation ID: d931201d-0a7c-467d-aa86-b8c347efc6e7
+- Updated: 2026-09-05T13:52:20Z
 
 ## Investigation State
 - **Explored paths**:
-  * `trading_system/scripts/benchmark_phase4_quant_performance.py`
-  * `tests/test_benchmark_phase4.py`
-  * `tests/test_phase4_signal_enhancement.py`
-  * `tests/test_phase4_portfolio_execution.py`
-  * `reports/quant_benchmark_comparison_phase4.md`
-  * `reports/quant_benchmark_comparison.md`
-  * `pyproject.toml`, `.github/workflows/pytest.yml`
-  * `tests/` collection (2,351 collected tests)
+  - `trading_system/src/core/fast_lob_engine.py`: L3 queue imbalance, 2nd-order acceleration, 3rd-order jerk, Deep-OFI, Hawkes point processes.
+  - `trading_system/src/execution/oms_engine.py`: `calculate_peg_limit_price`, multivariate Hawkes cross-excitation shading ($-0.90 \cdot \text{spread} \cdot (h - 0.16)$), `AlmgrenChrissScheduler`.
+  - `trading_system/src/execution/smart_order_router.py`: Preemptive ATS routing (up to 99%), lit maker floor contraction (0.0005), anti-gaming MinQty (up to 99.5%), logistic hazard dark fill probability.
+  - `trading_system/src/execution/slippage_feedback.py`: Closed-loop realized slippage feedback from `trade_logs.db`.
+  - `trading_system/src/ai/ensemble_scorer.py`: Vectorized microstructure friction cost modeling (lines 4733–4977).
+  - `trading_system/scripts/benchmark_phase*.py`: Evolution from Phase 10 to Phase 15 (`benchmark_phase15_quant_performance.py`).
+  - `reports/quant_benchmark_comparison*.md`: Schema of 3 standard tables ([표 1], [표 2], [표 3]).
+  - `tests/test_benchmark_phase15.py`, `tests/test_fast_lob_engine.py`, `tests/test_slippage_feedback.py`, `tests/test_portfolio_optimizer_and_oms.py`.
 - **Key findings**:
-  * All 15 metrics formalized with mathematical definitions and units.
-  * Baseline (Phase 4 Apex v11) vs Enhancement (Phase 5 Deep v12) profiles modeled across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000.
-  * Global capital weighting (SP500 35%, NASDAQ 25%, KOSPI 20%, KOSDAQ 10%, RUSSELL2000 10%) yields projected Net Expected Return: 42.00% -> 47.85% (+5.85%p), Sharpe: 4.42 -> 5.12 (+0.70), Rank-IC: 0.168 -> 0.194, MDD: -4.20% -> -3.30%, Turnover: 47.8% -> 38.4%, Friction: 28.2 bps -> 20.4 bps.
-  * Report synchronization architecture designed for 3 target paths (`reports/quant_benchmark_comparison_phase5.md`, `trading_system/result/quant_benchmark_comparison_phase5.md`, `reports/quant_benchmark_comparison.md`).
-  * 4-Stage Zero-Regression Test Execution Roadmap designed for expanding test suite (~2,380+ tests).
-- **Unexplored areas**: None for R3. Complete technical specification delivered.
+  - Targets verified: Trading & Friction Costs <= 0.6 bps (achieved: 0.5 bps), Execution Slippage <= 0.05 bps (achieved: 0.03 bps).
+  - Net Expected Return >= 95.0% (achieved: 95.25%), Sharpe >= 12.0 (achieved: 12.25), MDD <= -0.18% (achieved: -0.15%), Top-Decile Spread >= 65.0% (achieved: 65.5%).
+  - Detailed survey report and 5-component handoff report completed.
+- **Unexplored areas**: None. Complete investigation finished.
 
 ## Key Decisions Made
-- Anchored Phase 5 Baseline to Phase 4 Apex empirical results (v11).
-- Designed `tests/test_benchmark_phase5.py` with 4 test functions.
-- Formulated 4-Stage verification funnel to maintain 100% test pass rate.
+- Fully documented the mathematical equations, line numbers, and architectural mechanisms of L3 queue fluid dynamics, ATS darkpool routing, micro-tick shading, and 15 quant benchmark metrics.
+- Confirmed that Phase 15 benchmark engine (`benchmark_phase15_quant_performance.py`) and test suite (`test_benchmark_phase15.py`) already achieve all requirements under `## 2026-09-05T13:47:02Z`.
 
 ## Artifact Index
-- DISPATCH.md — record of incoming dispatch instructions
-- BRIEFING.md — persistent working memory
-- progress.md — liveness heartbeat
-- analysis.md — comprehensive technical specification report
-- handoff.md — 5-component handoff report
+- `d:\Finance\code\stock\.agents\explorer_survey_3\survey_report.md` — Comprehensive survey report
+- `d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md` — 5-component handoff report
+- `d:\Finance\code\stock\.agents\explorer_survey_3\progress.md` — Liveness heartbeat
+- `d:\Finance\code\stock\.agents\explorer_survey_3\DISPATCH.md` — Turn dispatch log

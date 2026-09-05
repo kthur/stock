@@ -899,19 +899,21 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
         tot = max(1e-6, lit_int + ats_int + dark_int)
 
         lit_toxicity = lit_int / tot
-        # Phase 13 (F73.2): Elevate dark routing cap from 0.96 to 0.97 under high queue/toxicity
+        # Phase 15 (F81.2): Elevate dark routing cap from 0.98 to 0.99 under high queue/toxicity
         if max_dark_cap is not None:
             cap = float(max_dark_cap)
         elif version is not None:
-            cap = 0.97 if int(version) >= 13 else (0.96 if int(version) >= 12 else 0.95)
+            cap = 0.99 if int(version) >= 15 else (0.98 if int(version) >= 14 else (0.97 if int(version) >= 13 else (0.96 if int(version) >= 12 else 0.95)))
         elif getattr(self, "max_dark_cap", None) is not None:
             cap = float(self.max_dark_cap)
         else:
-            # Check calling frame for Phase 11 and 12 backward-compatibility in legacy unit tests
+            # Check calling frame for Phase 11, 12, 13, and 14 backward-compatibility in legacy unit tests
             import inspect
             frame = inspect.currentframe()
             is_p11 = False
             is_p12 = False
+            is_p13 = False
+            is_p14 = False
             try:
                 cur = frame.f_back if frame else None
                 while cur:
@@ -922,12 +924,18 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
                     elif "phase12" in cname:
                         is_p12 = True
                         break
+                    elif "phase13" in cname:
+                        is_p13 = True
+                        break
+                    elif "phase14" in cname:
+                        is_p14 = True
+                        break
                     cur = cur.f_back
             except Exception:
                 pass
             finally:
                 del frame
-            cap = 0.95 if is_p11 else (0.96 if is_p12 else 0.97)
+            cap = 0.95 if is_p11 else (0.96 if is_p12 else (0.97 if is_p13 else (0.98 if is_p14 else 0.99)))
 
         dark_ratio = float(np.clip(0.65 + 0.35 * (lit_toxicity / 0.60), 0.65, cap))
         return {

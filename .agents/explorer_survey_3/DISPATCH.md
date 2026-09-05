@@ -1,33 +1,9 @@
-## 2026-09-04T08:38:36Z
-You are Explorer 3 for Phase 5 Deep Quantitative Enhancements.
-Your working directory is: `d:\Finance\code\stock\.agents\explorer_survey_3`
+## 2026-09-05T13:48:47Z
 
-MANDATORY FIRST STEP:
-Read the following authoritative files:
-1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (specifically header `## 2026-09-04T08:36:42Z`)
-2. `d:\Finance\code\stock\PROJECT.md`
-3. `d:\Finance\code\stock\.agents\handoff.md`
-
-Your Mission:
-Investigate and formulate the technical specification for Requirement R3:
-Quantitative Benchmarking Comparison & Comprehensive Test Suite Verification Architecture (Features F39, F40).
-
-Specific Areas to Investigate:
-1. Examine `trading_system/scripts/benchmark_phase4_quant_performance.py`:
-   - How are market metrics computed across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000?
-   - What are the 15 metrics: Net Expected Return, Gross Return, Annualized Sharpe Ratio, Information Coefficient (Rank-IC & Pearson IC), Maximum Drawdown (MDD), Annualized Turnover, Trading & Friction Costs, Top-Decile Alpha Spread, Execution Slippage, Darkpool Savings, Win Rate, Profit Factor, etc.?
-   - How are Phase 4 vs Phase 3 baselines defined and compared?
-   - How should `benchmark_phase5_quant_performance.py` be architected to compare Phase 4 Baseline vs Phase 5 Enhanced across all 5 markets?
-2. Examine existing benchmark and unit tests:
-   - Inspect `tests/test_benchmark_phase4.py`, `reports/quant_benchmark_comparison_phase4.md`.
-   - Identify the design for `tests/test_benchmark_phase5.py` and report paths (`reports/quant_benchmark_comparison_phase5.md`, `trading_system/result/quant_benchmark_comparison_phase5.md`, and `reports/quant_benchmark_comparison.md`).
-3. Examine the entire test suite:
-   - Check total test count (2,351 collected tests, 2,349 passed in Phase 4 handoff).
-   - Check what pytest commands and suites exist to ensure 100% zero-regression execution across the whole repository.
-
-Deliverable:
-Write a comprehensive report to:
-`d:\Finance\code\stock\.agents\explorer_survey_3\analysis.md`
-and a summary in `d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md`.
-Include exact file paths, line numbers, benchmarking methodology, proposed comparison table schemas, and test execution roadmap.
-Then notify me via `send_message`.
+**Mission**: Investigate existing codebase regarding R3 & R4:
+- L3 order book queue acceleration fluid dynamics model in src/execution/oms_engine.py, src/execution/smart_order_router.py, src/core/fast_lob_engine.py, src/execution/almgren_chriss.py, src/execution/slippage_feedback.py.
+- Darkpool preemptive routing (ATS) and toxic order flow preemptive micro-tick shading.
+- Check how trading friction costs and execution slippage are computed and controlled (Targets: Trading & Friction Costs <= 0.6 bps, Execution Slippage <= 0.05 bps).
+- Investigate the benchmark scripts and reports: check trading_system/scripts/benchmark_phase*.py (look for the latest ones like phase12, phase13, phase14, phase15, etc.), reports/quant_benchmark_comparison*.md, and existing test suites in tests/.
+- Identify what benchmark script should be created or enhanced, how 15 key quant metrics across the 5 markets are computed, and the schema of the 3 standard tables ([표 1] 15대 종합 지표 비교표, [표 2] 5대 시장별 성과표, [표 3] 전략 팩터 기여도표).
+- Write your detailed report to d:\Finance\code\stock\.agents\explorer_survey_3\survey_report.md and complete with handoff.md.

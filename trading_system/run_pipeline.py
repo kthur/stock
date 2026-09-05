@@ -3515,7 +3515,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         overnight_gap_df=overnight_gap_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20,
-        prices_dict=infer_data_dict if 'infer_data_dict' in locals() else None
+        prices_dict=infer_data_dict if 'infer_data_dict' in locals() else None,
+        version=15
     )
 
     # Pre-Market Overnight Gap Shifter calibration for KRX markets
