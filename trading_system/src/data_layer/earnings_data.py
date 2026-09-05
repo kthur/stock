@@ -7,6 +7,7 @@ import pandas as pd
 import yfinance as yf
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, retry_if_exception_type
 from src.utils.rate_limiter import get_global_rate_limiter
+import os
 import asyncio
 import aiohttp
 from datetime import datetime
@@ -623,6 +624,18 @@ def fetch_and_store_fundamentals_batch(
         except Exception as e:
             logger.warning(f"Failed to load fundamental cache metadata: {e}")
 
+    # Allow environment override for forcing fundamental re-fetch
+    if not force_refetch and os.environ.get("FORCE_FUNDAMENTAL_REFETCH", "false").lower() == "true":
+        force_refetch = True
+        logger.info("FORCE_FUNDAMENTAL_REFETCH active: bypassing cache for fundamental fetching.")
+
+    valid_bps_symbols = None
+    if hasattr(storage, 'get_symbols_with_valid_bps'):
+        try:
+            valid_bps_symbols = storage.get_symbols_with_valid_bps()
+        except Exception as e:
+            logger.debug(f"Failed to query valid bps symbols from storage: {e}")
+
     expiry_days = 90
     try:
         from src.config import TradingConfig
@@ -642,13 +655,17 @@ def fetch_and_store_fundamentals_batch(
 
     for sym in symbols:
         if not force_refetch and sym in meta_cache:
-            try:
-                last_fetched = datetime.strptime(meta_cache[sym], "%Y-%m-%d")
-                if (current_time - last_fetched).days < expiry_days:
-                    skipped += 1
-                    continue
-            except Exception:
-                pass
+            # If the DB already has valid positive BPS or Book Value for this symbol, respect the cache window.
+            # If BPS is missing / 0.0 (e.g. from legacy incomplete fetches), do NOT skip so modern parser re-fetches it.
+            has_valid_bps = (sym in valid_bps_symbols) if (valid_bps_symbols is not None and len(valid_bps_symbols) > 0) else False
+            if has_valid_bps:
+                try:
+                    last_fetched = datetime.strptime(meta_cache[sym], "%Y-%m-%d")
+                    if (current_time - last_fetched).days < expiry_days:
+                        skipped += 1
+                        continue
+                except Exception:
+                    pass
         to_fetch.append(sym)
 
     if skipped > 0:

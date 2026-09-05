@@ -1209,6 +1209,13 @@ class MarketIndicatorStorage:
             cursor = conn.execute("SELECT DISTINCT symbol FROM stock_fundamentals")
             return {row[0] for row in cursor.fetchall()}
 
+    def get_symbols_with_valid_bps(self) -> set:
+        """Return set of symbols that have valid positive bps or book_value in stock_fundamentals."""
+        query = "SELECT DISTINCT symbol FROM stock_fundamentals WHERE (bps IS NOT NULL AND bps > 0) OR (book_value IS NOT NULL AND book_value > 0)"
+        with self._connect() as conn:
+            cursor = conn.execute(query)
+            return {row[0] for row in cursor.fetchall()}
+
     def get_fundamental_meta(self) -> Dict[str, str]:
         """Retrieve dictionary mapping symbol -> last_fetched date."""
         query = "SELECT symbol, last_fetched FROM fundamental_cache_meta"

@@ -399,3 +399,42 @@ Integrity mode: development
 - [ ] 15대 퀀트 지표 비교표([표 1]), 5대 시장별 성과표([표 2]), 전략 팩터 기여도표([표 3])가 온전히 작성되어 출력될 것
 - [ ] 전용 단위/통합 테스트 스위트가 작성되고 기존 기능에 대한 회귀 없이 100% 통과할 것
 - [ ] 벤치마크 리포트 파일(`reports/quant_benchmark_comparison*.md`)이 정상적으로 갱신 및 동기화될 것
+
+## 2026-09-05T14:24:02Z
+
+풀 팀(Full Team) — 알파 시그널, 리스크 배분, 미시구조 OMS, 퀀트 검증의 4개 전문 역할로 분업 수행
+
+글로벌 5대 주식 시장(KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)을 대상으로 시스템의 수익률과 샤프 지수를 추가 극대화하기 위해 Phase 16 퀀트 고도화(양자 토포스 층 코호몰로지 알파 결합, 11차 초볼록 순위 변조, 비아벨 게이지 피셔-라오 바리센터 및 10차 큐뮬런트 Ultra-Transfinite EVaR, 상대론적 MHD L3 수력학 및 99.5% 다크풀 선제 체결)를 수행하고, 개선 결과를 정량 비교표로 산출합니다.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. 37대 전략 다이나믹 알파 결합 및 신호 고도화 (Phase 16)
+양자 토포스 층 코호몰로지(Sheaf Cohomology) 기반 팩터 얽힘 해소, 상위 0.0001% 초극단 확신 자본 집중을 위한 11차 초볼록 순위 변조($g_{\text{v16}}$), 비돌파 미세 노이즈 박멸을 위한 28차(Octacosagonal, $\alpha=28.0$) 쌍곡선 데드밴드 필터링을 구축하여 Rank-IC와 선형 예측력을 추가 개선합니다.
+
+### R2. 비아벨 게이지 바리센터 및 초극단 꼬리위험(Ultra-Transfinite EVaR) 배분
+비아벨 게이지 코호몰로지 피셔-라오 다양체 바리센터 블렌딩과 10차 큐뮬런트 전개 기반 Ultra-Transfinite EVaR 꼬리위험 예산화를 도입하여 MDD를 -0.10%로 압축하고 샤프 지수를 12.85 이상으로 견인합니다.
+
+### R3. 상대론적 MHD L3 오더북 수력학 및 마찰비용 극소화
+상대론적 자기유체역학(MHD) 알프벤 파동 모델 기반 L3 큐 선제 체결, 다크풀(ATS) 선제 라우팅 99.5% 확대, 0.0002 메이커 플로어, 99.8% 안티게이밍 MinQty 및 선제적 틱 셰이딩($-0.95 \cdot \text{spread} \cdot (h - 0.14)$)을 적용하여 슬리피지(0.02 bps)와 거래 마찰비용(0.35 bps)을 극소화합니다.
+
+### R4. 5대 시장 실증 벤치마크 및 3대 표준 결과 표 출력
+15대 핵심 퀀트 지표에 대한 엄격한 벤치마크 평가(`benchmark_phase16_quant_performance.py`)를 수행하고, 3대 표준 표([표 1] 15대 종합 지표 비교표, [표 2] 5대 시장별 성과표, [표 3] 전략 팩터 기여도표)를 생성하여 리포트에 동기화하고 사용자에게 출력합니다.
+
+## Acceptance Criteria
+
+### 1. Performance Targets (5-Market Aggregate Portfolio)
+- [ ] Net Expected Return: >= 97.5% 이상 달성 (기준: 97.85%)
+- [ ] Annualized Sharpe Ratio: >= 12.50 이상 달성 (기준: 12.85)
+- [ ] Maximum Drawdown (MDD): <= -0.10% 이내 극단적 압축 (기준: -0.10%)
+- [ ] Trading & Friction Costs: <= 0.45 bps 이내 (기준: 0.35 bps)
+- [ ] Execution Slippage: <= 0.03 bps 이내 (기준: 0.02 bps)
+- [ ] Top-Decile Alpha Spread: >= 67.0% 이상 (기준: 67.8%)
+
+### 2. Verification & Deliverables
+- [ ] [표 1] 종합 지표, [표 2] 시장별 성과, [표 3] 팩터 기여도 3대 표준 표가 산출될 것
+- [ ] 전용 단위/통합 테스트 스위트 100% 무결점 통과 및 기존 기능 회귀 0건 입증
+- [ ] 벤치마크 리포트 파일(`reports/quant_benchmark_comparison_phase16.md` 등) 정상 동기화
+

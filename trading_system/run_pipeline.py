@@ -1917,11 +1917,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             all_symbols = debug_symbols
         logger.info(f"[DEBUG MODE] Sampled {len(all_symbols)} symbols across {len(set(universe['market']))} markets for fast pipeline dry run")
 
-    # Do not start inference fundamentals thread when skipping inference
-    # (avoids orphaned non-daemon thread that would keep the process alive after early return)
+    # Inference fundamentals fetch
+    # In PRESEED_MODE, we also fetch fundamentals so that the preseeded DB artifact contains full BPS/ROE
+    preseed_mode = os.environ.get("PRESEED_MODE", "false").lower() == "true"
     t2 = None
-    if all_symbols and not cfg.skip_inference:
-        t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "inference"), daemon=True)
+    if all_symbols and (not cfg.skip_inference or preseed_mode):
+        t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "preseed" if preseed_mode else "inference"), daemon=True)
         t2.start()
 
     # Prefetch inference data in batches to optimize performance
@@ -1974,6 +1975,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
 
     # If skip-inference is enabled, stop pipeline here (only fetch and cache data)
     if cfg.skip_inference:
+        if t2 is not None:
+            logger.info("PRESEED_MODE: Waiting for background fundamentals preseed to finish before exiting...")
+            t2.join()
         logger.info("SKIP_INFERENCE is enabled. Pipeline completed successfully after caching data.")
         try:
             storage.close()

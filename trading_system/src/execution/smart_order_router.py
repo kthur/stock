@@ -84,7 +84,8 @@ class SmartOrderRouter:
         qi_accel = qi_acceleration if qi_acceleration is not None else order_plan.get("qi_acceleration")
         cross_tox = cross_asset_toxicity if cross_asset_toxicity is not None else order_plan.get("cross_asset_toxicity")
 
-        is_phase15 = (v_eff >= 15)
+        is_phase16 = (v_eff >= 16)
+        is_phase15 = is_phase16 or (v_eff >= 15)
         is_phase14 = is_phase15 or (v_eff >= 14)
         is_phase13 = is_phase14 or (v_eff >= 13)
         is_phase12 = is_phase13 or (v_eff >= 12)
@@ -108,14 +109,19 @@ class SmartOrderRouter:
         else:
             eff_dark_ratio = float(self.dark_probe_ratio)
 
-        # F50, F54, F58, F61, F65, F69, F73, F77 & F81: Lit Queue Imbalance & Acceleration Preemption (preemptively route up to 75% / 85% / 88% / 92% / 95% / 96% / 97% / 98% / 99% to dark ATS)
+        # F50, F54, F58, F61, F65, F69, F73, F77, F81 & F85: Lit Queue Imbalance & Acceleration Preemption (preemptively route up to 75% / 85% / 88% / 92% / 95% / 96% / 97% / 98% / 99% / 99.5% to dark ATS)
         if qi is not None or qi_accel is not None:
             qi_f = float(qi) if (qi is not None and math.isfinite(float(qi))) else 0.0
             qi_aligned = qi_f if action in ["BUY", "BID", "LONG"] else -qi_f
             a_f = float(qi_accel) if (qi_accel is not None and math.isfinite(float(qi_accel))) else 0.0
             a_aligned = a_f if action in ["BUY", "BID", "LONG"] else -a_f
 
-            if is_phase15 and (qi_aligned > 0.10 or a_aligned > 0.03):
+            if is_phase16 and (qi_aligned > 0.08 or a_aligned > 0.02):
+                eff_dark_ratio = float(np.clip(
+                    eff_dark_ratio + 0.38 * max(0.0, qi_aligned) + 0.28 * math.tanh(max(0.0, a_aligned)),
+                    self.dark_probe_ratio, 0.995
+                ))
+            elif is_phase15 and (qi_aligned > 0.10 or a_aligned > 0.03):
                 eff_dark_ratio = float(np.clip(
                     eff_dark_ratio + 0.35 * max(0.0, qi_aligned) + 0.26 * math.tanh(max(0.0, a_aligned)),
                     self.dark_probe_ratio, 0.99
@@ -179,7 +185,10 @@ class SmartOrderRouter:
         if g_dir is not None:
             gamma_toxic = float(np.clip(float(g_dir), 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase15 and gamma_toxic > 0.80:
+            if is_phase16 and gamma_toxic > 0.80:
+                # F85.2: Relativistic MHD Alfven Wave L3 preemption contracts lit maker floor to 0.0002
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.999714 * gamma_toxic), 0.0002, 0.70))
+            elif is_phase15 and gamma_toxic > 0.80:
                 # F81.2: QCD Asymptotic Freedom L3 preemption contracts lit maker floor to 0.0005
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.99928 * gamma_toxic), 0.0005, 0.70))
             elif is_phase14 and gamma_toxic > 0.80:
@@ -209,7 +218,7 @@ class SmartOrderRouter:
             else:
                 # F44: Modulate maker_ratio down to 0.20 when directional toxic flow is present
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.7143 * gamma_toxic), 0.20, 0.70))
-            max_dark_cap = 0.99 if is_phase15 else (0.98 if is_phase14 else (0.97 if is_phase13 else (0.96 if is_phase12 else (0.95 if is_phase11 else (0.92 if is_phase10 else (0.88 if is_phase9 else 0.80))))))
+            max_dark_cap = 0.995 if is_phase16 else (0.99 if is_phase15 else (0.98 if is_phase14 else (0.97 if is_phase13 else (0.96 if is_phase12 else (0.95 if is_phase11 else (0.92 if is_phase10 else (0.88 if is_phase9 else 0.80)))))))
             eff_dark_ratio = float(np.clip(eff_dark_ratio + 0.20 * gamma_toxic, eff_dark_ratio, max_dark_cap))
         elif h_buy is not None or h_sell is not None:
             hb_val = float(h_buy) if (h_buy is not None and math.isfinite(float(h_buy))) else base_hwk
@@ -222,7 +231,9 @@ class SmartOrderRouter:
                 gamma_raw = (hb_val - base_hwk) / (1.5 * base_hwk) - 0.35 * min(0.0, delta_dir)
             gamma_toxic = float(np.clip(gamma_raw, 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase15 and gamma_toxic > 0.80:
+            if is_phase16 and gamma_toxic > 0.80:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.999714 * gamma_toxic), 0.0002, 0.70))
+            elif is_phase15 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.99928 * gamma_toxic), 0.0005, 0.70))
             elif is_phase14 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.99857 * gamma_toxic), 0.001, 0.70))
@@ -240,13 +251,13 @@ class SmartOrderRouter:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.8571 * gamma_toxic), 0.10, 0.70))
             else:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.7143 * gamma_toxic), 0.20, 0.70))
-            max_dark_cap = 0.99 if is_phase15 else (0.98 if is_phase14 else (0.97 if is_phase13 else (0.96 if is_phase12 else (0.95 if is_phase11 else (0.92 if is_phase10 else (0.88 if is_phase9 else 0.80))))))
+            max_dark_cap = 0.995 if is_phase16 else (0.99 if is_phase15 else (0.98 if is_phase14 else (0.97 if is_phase13 else (0.96 if is_phase12 else (0.95 if is_phase11 else (0.92 if is_phase10 else (0.88 if is_phase9 else 0.80)))))))
             eff_dark_ratio = float(np.clip(eff_dark_ratio + 0.20 * gamma_toxic, eff_dark_ratio, max_dark_cap))
         elif hwk is not None:
             try:
                 hwk_f = float(hwk)
                 if math.isfinite(hwk_f):
-                    max_dark_cap = 0.99 if is_phase15 else (0.98 if is_phase14 else (0.97 if is_phase13 else (0.96 if is_phase12 else (0.95 if is_phase11 else (0.92 if is_phase10 else (0.88 if is_phase9 else 0.80))))))
+                    max_dark_cap = 0.995 if is_phase16 else (0.99 if is_phase15 else (0.98 if is_phase14 else (0.97 if is_phase13 else (0.96 if is_phase12 else (0.95 if is_phase11 else (0.92 if is_phase10 else (0.88 if is_phase9 else 0.80)))))))
                     if use_continuous:
                         # F38: Continuous Hawkes toxicity modulation
                         denom = 1.5 * base_hwk
@@ -277,7 +288,9 @@ class SmartOrderRouter:
             g_cross = float(np.clip(float(cross_tox), 0.0, 1.0))
             gamma_toxic = float(np.clip(0.65 * gamma_toxic + 0.35 * g_cross, 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase15 and gamma_toxic > 0.80:
+            if is_phase16 and gamma_toxic > 0.80:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.999714 * gamma_toxic), 0.0002, 0.70))
+            elif is_phase15 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.99928 * gamma_toxic), 0.0005, 0.70))
             elif is_phase14 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.99857 * gamma_toxic), 0.001, 0.70))
@@ -296,10 +309,12 @@ class SmartOrderRouter:
             elif is_phase7 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.8571 * gamma_toxic), 0.10, 0.70))
 
-        # F44, F50, F54, F58, F61, F65, F69, F73, F77 & F81: Anti-Gaming Dynamic MinQty (adapting up to 99.5% in F81)
+        # F44, F50, F54, F58, F61, F65, F69, F73, F77, F81 & F85: Anti-Gaming Dynamic MinQty (adapting up to 99.8% in F85)
         min_ratio = 0.20
         if is_toxic_flow or gamma_toxic > 0.50 or dp_score >= 0.60:
-            if is_phase15 and (gamma_toxic > 0.35 or is_accum):
+            if is_phase16 and (gamma_toxic > 0.30 or is_accum):
+                min_ratio = float(np.clip(0.20 + 0.75 * gamma_toxic + 0.60 * dp_score, 0.20, 0.998))
+            elif is_phase15 and (gamma_toxic > 0.35 or is_accum):
                 min_ratio = float(np.clip(0.20 + 0.70 * gamma_toxic + 0.55 * dp_score, 0.20, 0.995))
             elif is_phase14 and (gamma_toxic > 0.40 or is_accum):
                 min_ratio = float(np.clip(0.20 + 0.65 * gamma_toxic + 0.50 * dp_score, 0.20, 0.99))
