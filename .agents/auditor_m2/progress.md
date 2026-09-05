@@ -1,18 +1,15 @@
 # Progress — Forensic Integrity Auditor M2
 
-- **Status**: Audit investigation, test execution, and adversarial stress testing complete
-- **Last visited**: 2026-09-04T18:55:30+09:00
-- **Current Step**: Documenting findings in BRIEFING.md and generating final handoff.md report
+- **Status**: Milestone 2 (Phase 8 Sovereign Quantitative Architecture) Forensic Integrity Audit COMPLETE
+- **Last visited**: 2026-09-05T02:38:00Z
+- **Current Step**: Generating final handoff.md report
 - **Test Results**:
-  - `test_phase5_portfolio_execution.py`: 17 passed (100%)
-  - `test_phase4_portfolio_execution.py`: 17 passed (100%)
-  - `test_unified_portfolio_engine.py`: 26 passed (100%)
-  - Combined portfolio suite: 60 passed in 10.29s (0 failed)
-  - Regression suites (`test_v8_remediation.py`, `test_fix_and_ibkr_broker.py`): 27 passed in 10.45s (0 failed)
-  - Cross-milestone suite (`test_phase5_signal_enhancement.py`): 7 passed in 10.91s (0 failed)
+  - `tests/test_phase8_portfolio_execution.py`: 10 passed in 15.86s (100%)
+  - Regression suites (`test_phase7_portfolio_execution.py`, `test_phase6_portfolio_execution.py`): 31 passed in 18.06s (100%)
 - **Integrity Findings**:
-  - Prohibited patterns (hardcoding, facades, mocks, fabricated results): NONE FOUND (CLEAN)
-  - Mathematical integrity: Verified co-skewness/kurtosis, Hill GPD index, Cornish-Fisher CVaR, DRP-DR scaling, Shannon regime entropy, continuous Hawkes, MinQty darkpool resting, adaptive OBI curvature, ADV slice smile, 5-market Leland bands.
-  - Test authenticity: Verified genuine mathematical invariants and properties across all 17 tests.
+  - Prohibited patterns (hardcoding, facades, cheats, mock bypasses, fabricated results): NONE FOUND (VERDICT: CLEAN)
+  - Mathematical integrity: Verified R-Vine copula 3-tree decomposition, Information Entropy Parity (IEP), downside Sortino cascade drag, Euler CCVaR headroom redistribution, Level-3 queue acceleration ($d^2\text{QI}/dt^2$), Taylor predictive micro-price, composite cross-asset toxicity peg shading, and SOR dark preemption up to 85% / maker contraction to 0.05 / MinQty to 75%.
+  - Bit-level parity: 100% bit-level parity between `ExecutionOMSEngine` and `AlmgrenChrissScheduler` verified.
 - **Adversarial Critic Finding**:
-  - Identified edge-case vulnerability in `smart_order_router.py`: `maker_ratio` UnboundLocalError when `hawkes_intensity` is non-finite (`nan`/`inf`).
+  - Edge cases (NaNs, Infs, zero/negative dt, extreme inputs) evaluated empirically; all guarded safely with bounded defaults.
+

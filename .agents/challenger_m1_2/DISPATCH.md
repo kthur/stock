@@ -1,25 +1,29 @@
-# DISPATCH — Challenger M1-2
+# DISPATCH: Challenger 2 (M1 Empirical Verifier)
 
-**Task**: Quantitative Spread Expansion & Noise Deadband Challenge for Milestone 1 (F41 & F42).
-**Authoritative Reference**: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (see ## 2026-09-04T13:40:12Z)
-**Worker Handoff**: `d:\Finance\code\stock\.agents\worker_m1\handoff.md`
-**Target Files**:
-- `src/ai/ensemble_scorer.py`
-- `src/ai/factor_suppression.py`
+## Working Directory
+`d:\Finance\code\stock\.agents\challenger_m1_2`
 
-**Objectives**:
-1. Adversarially challenge the top-decile alpha spread claim: does Version 6 expand top-decile spread by $\ge 15\%$ compared to Phase 5 across 500-stock randomized portfolios?
-2. Adversarially challenge the noise deadband claim: does asymmetric kurtosis deadband squash $\ge 90\%$ of noise for $|z| \le 0.010$ while preserving $\ge 98.5\%$ of conviction signals for $|z| \ge 0.150$?
-3. Verify Markov half-life elasticity: do microstructure signals decay faster than fundamental signals under regime transitions?
-4. Execute empirical tests via Python.
-5. Report verdict (CONFIRM / REJECT) with quantitative test metrics in `d:\Finance\code\stock\.agents\challenger_m1_2\handoff.md`.
+## References
+- `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (Section ## 2026-09-05T02:15:24Z)
+- `d:\Finance\code\stock\.agents\worker_m1_signal\handoff.md`
 
-## 2026-09-04T14:17:17Z
-You are challenger_m1_2.
-Your working directory is: d:\Finance\code\stock\.agents\challenger_m1_2\
-Read d:\Finance\code\stock\.agents\challenger_m1_2\DISPATCH.md and d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (mandatory).
-Read d:\Finance\code\stock\.agents\worker_m1\handoff.md.
-Adversarially challenge top-decile spread expansion (>= 15% vs Phase 5), noise deadband squashing (>= 90% for |z| <= 0.010), and signal transmission (>= 98.5% for |z| >= 0.150).
-Run empirical verification tests.
-Deliver your challenger report and verdict (CONFIRM or REJECT) to: d:\Finance\code\stock\.agents\challenger_m1_2\handoff.md
-Send completion message back to parent.
+## Task
+11: Empirically stress-test Features F51 and F52:
+12: 1. Verify multi-market stress across SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ under all 6 market regimes (BULL_LOW_VOL, BULL_HIGH_VOL, SIDEWAYS_LOW_VOL, SIDEWAYS_HIGH_VOL, BEAR_LOW_VOL, BEAR_HIGH_VOL, CRISIS).
+13: 2. Check that scores strictly lie in $[0.0, 1.0]$ with 0 NaNs and 0 Infs.
+14: 3. Check that top 1% spread under $g_{\text{v8}}(r)$ expands by $\ge 30\%$ relative to linear/quartic baselines.
+15: 4. Execute tests and report verdict (APPROVE or REQUEST_CHANGES) in `d:\Finance\code\stock\.agents\challenger_m1_2\handoff.md`.
+
+## 2026-09-05T02:32:10Z
+You are Challenger 2 for Milestone 1 (Signal & Alpha Architecture).
+Your working directory is: d:\Finance\code\stock\.agents\challenger_m1_2
+
+MANDATORY: Read ORIGINAL_REQUEST.md at:
+d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Read DISPATCH.md at:
+d:\Finance\code\stock\.agents\challenger_m1_2\DISPATCH.md
+Read Worker M1's handoff report at:
+d:\Finance\code\stock\.agents\worker_m1_signal\handoff.md
+
+Empirically challenge multi-market stress (5 markets x 6 regimes), score bounds [0.0, 1.0], 0 NaNs/Infs, and top 1% spread expansion under g_v8(r).
+Write your handoff report with verdict (APPROVE or REQUEST_CHANGES) to `d:\Finance\code\stock\.agents\challenger_m1_2\handoff.md` and send a message back to the orchestrator.

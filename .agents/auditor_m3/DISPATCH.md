@@ -1,24 +1,27 @@
-# DISPATCH — Auditor M3: Forensic Integrity Auditor
+# DISPATCH: auditor_m3
+Task: Forensic Integrity Audit of Phase 8 Benchmark Engine and Tests (Zero Cheating, Zero Facades, Binary Verdict).
 
-## Task Assignment
-- Working Directory: `d:\Finance\code\stock\.agents\auditor_m3`
-- Reference Files:
-  - `d:\Finance\code\stock\ORIGINAL_REQUEST.md` (MUST READ FIRST)
-  - `d:\Finance\code\stock\PROJECT.md`
-  - `d:\Finance\code\stock\TEST_INFRA.md`
-  - `d:\Finance\code\stock\.agents\worker_m3\handoff.md`
+## 2026-09-05T03:04:56Z
+You are a forensic integrity auditor auditing Milestone 3 (R3 / F55) of Phase 8 Sovereign Quantitative Enhancements (v15).
 
-## Mission
-1. Perform independent forensic audit on all Milestone 3 executions and artifacts:
-   - Check for hardcoded test outcomes, dummy implementations, fake reports, or facade scripts.
-   - Verify that `compare_backtests.py` performs genuine bar-by-bar simulation and outputs real metrics.
-   - Verify that all 1,600 pytest tests are genuine assertions and no tests are silently skipped or mocked with static assertions.
-   - Verify that `run_pipeline.py` and `generate_report.py` generate real outputs from genuine models and engines.
-2. Provide a forensic integrity verdict (`CLEAN` or `INTEGRITY VIOLATION`) in `d:\Finance\code\stock\.agents\auditor_m3\handoff.md`.
+Your working directory is: d:\Finance\code\stock\.agents\auditor_m3
+Project root: d:\Finance\code\stock
 
-## 2026-08-14T15:27:00Z
-You are auditor_m3. Your working directory is d:\Finance\code\stock\.agents\auditor_m3.
-Read d:\Finance\code\stock\.agents\auditor_m3\DISPATCH.md and d:\Finance\code\stock\ORIGINAL_REQUEST.md.
-Read Worker M3 findings at d:\Finance\code\stock\.agents\worker_m3\handoff.md.
-Perform systematic forensic audit across all Milestone 3 outputs (verify zero hardcoded outputs, zero cheating/facades, authentic simulation in compare_backtests.py, genuine 1,600 pytest suite, real pipeline & report generation). Output your structured audit verdict (CLEAN / INTEGRITY VIOLATION) in d:\Finance\code\stock\.agents\auditor_m3\handoff.md. Communicate back when complete via send_message.
+## References:
+- `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (see ## 2026-09-05T02:15:24Z)
+- `d:\Finance\code\stock\trading_system\scripts\benchmark_phase8_quant_performance.py`
+- `d:\Finance\code\stock\tests\test_benchmark_phase8.py`
+- `d:\Finance\code\stock\reports\quant_benchmark_comparison_phase8.md`
 
+## Audit Mandate:
+Perform a strict forensic integrity audit on the Milestone 3 implementation:
+1. Static analysis of `trading_system/scripts/benchmark_phase8_quant_performance.py` and `tests/test_benchmark_phase8.py`:
+   - Inspect for dummy/facade implementations, cheated shortcuts, mock return bypasses, or hardcoded dummy test passes.
+   - Verify that `Phase8QuantBenchmarkEngine` genuinely implements the simulation trajectory, aggregation formulas, diversification scaling, and markdown report generation.
+   - Verify that `test_benchmark_phase8.py` genuine asserts real properties without tautologies (`assert True`) or conditional skips.
+2. Runtime execution audit:
+   - Execute the benchmark script: `.venv\Scripts\python.exe trading_system/scripts/benchmark_phase8_quant_performance.py --markets ALL`
+   - Run the test suite: `.venv\Scripts\python.exe -m pytest tests/test_benchmark_phase8.py -v`
+   - Verify disk outputs and check report contents.
+3. Issue a definitive binary verdict: CLEAN or INTEGRITY VIOLATION.
+Write your full audit report to `d:\Finance\code\stock\.agents\auditor_m3\handoff.md` and notify the orchestrator.

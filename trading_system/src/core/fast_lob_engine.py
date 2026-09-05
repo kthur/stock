@@ -453,13 +453,14 @@ class FastOrderBookMatchingEngine:
         p_mid = 0.5 * (p_b1 + p_a1)
         l3_micro_price = p_mid + 0.5 * spread * qi_l3
 
-        # F54.1: Level-3 Queue Imbalance Acceleration (d^2QI/dt^2)
+        # F54.1 & F58.1: Level-3 Queue Imbalance Acceleration (d^2QI/dt^2) and 3rd-order Jerk (d^3QI/dt^3)
         t_now = float(timestamp_sec) if (timestamp_sec is not None and math.isfinite(float(timestamp_sec))) else time.time()
         with self._lock:
             self._qi_history.append((t_now, qi_l3))
 
             qi_velocity = 0.0
             qi_acceleration = 0.0
+            qi_jerk = 0.0
 
             if len(self._qi_history) >= 2:
                 t0, q0 = self._qi_history[-1]
@@ -475,20 +476,62 @@ class FastOrderBookMatchingEngine:
                     dt_mid = max(1e-4, 0.5 * (dt1 + dt2))
                     qi_acceleration = float(np.clip((v0 - v1) / dt_mid, -50.0, 50.0))
 
+                    if len(self._qi_history) >= 4:
+                        t3, q3 = self._qi_history[-4]
+                        dt3 = max(1e-4, t2 - t3)
+                        v2 = (q2 - q3) / dt3
+                        dt_mid1 = max(1e-4, 0.5 * (dt2 + dt3))
+                        a1 = (v1 - v2) / dt_mid1
+                        dt_jerk = max(1e-4, 0.5 * (dt_mid + dt_mid1))
+                        qi_jerk = float(np.clip((qi_acceleration - a1) / dt_jerk, -100.0, 100.0))
+
+        # Level 1..5 Deep-OFI (Feature F58.1)
+        deep_ofi_weights = [math.exp(-0.6 * k) for k in range(min(5, max(len(bids), len(asks))))]
+        deep_ofi_num = 0.0
+        deep_ofi_den = 0.0
+        for k in range(len(deep_ofi_weights)):
+            b_vol = bids[k]["volume"] if k < len(bids) else 0.0
+            a_vol = asks[k]["volume"] if k < len(asks) else 0.0
+            w_k = deep_ofi_weights[k]
+            deep_ofi_num += w_k * (b_vol - a_vol)
+            deep_ofi_den += w_k * (b_vol + a_vol)
+        deep_ofi = float(np.clip(deep_ofi_num / max(1e-6, deep_ofi_den), -1.0, 1.0)) if deep_ofi_den > 0 else 0.0
+
         # Predictive Taylor Expansion Micro-Price
         tau_lead = 0.10  # 100ms predictive horizon
         qi_pred = float(np.clip(qi_l3 + tau_lead * qi_velocity + 0.5 * (tau_lead ** 2) * qi_acceleration, -1.0, 1.0))
         accel_micro_price = p_mid + 0.5 * spread * qi_pred
+
+        # Feature F58.1: 3rd-order Taylor Expansion Micro-Price with Deep-OFI
+        tau3 = (tau_lead ** 3) / 6.0
+        qi_pred_v9 = float(np.clip(
+            qi_l3 + tau_lead * qi_velocity + 0.5 * (tau_lead ** 2) * qi_acceleration + tau3 * qi_jerk + 0.15 * deep_ofi,
+            -1.0, 1.0
+        ))
+        jerk_micro_price = p_mid + 0.5 * spread * qi_pred_v9
 
         return {
             "l3_queue_imbalance": round(qi_l3, 4),
             "l3_micro_price": round(l3_micro_price, 4),
             "qi_velocity": round(qi_velocity, 4),
             "qi_acceleration": round(qi_acceleration, 4),
+            "qi_jerk": round(qi_jerk, 4),
+            "deep_ofi": round(deep_ofi, 4),
             "accelerated_l3_micro_price": round(accel_micro_price, 4),
+            "jerk_micro_price": round(jerk_micro_price, 4),
             "weighted_bid_depth": round(w_bid_tot, 4),
             "weighted_ask_depth": round(w_ask_tot, 4),
         }
+
+    def compute_deep_ofi_jerk_microprice(
+        self,
+        depth: int = 5,
+        timestamp_sec: Optional[float] = None
+    ) -> Dict[str, float]:
+        """Convenience method for Feature F58.1 Deep-OFI and 3rd-order Taylor micro-price."""
+        return self.compute_l3_queue_imbalance(levels=depth, timestamp_sec=timestamp_sec)
+
+    compute_l3_fragmentation_adjusted_imbalance = compute_l3_queue_imbalance
 
 
 class MicrosecondHawkesIntensity:

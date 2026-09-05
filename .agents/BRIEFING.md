@@ -1,7 +1,7 @@
-# BRIEFING — 2026-09-04T13:40:12Z
+# BRIEFING — 2026-09-05T03:18:41Z
 
 ## Mission
-6th deep quantitative enhancement to maximize Net Expected Return, Sharpe Ratio, and Information Coefficient (Rank-IC) across 37 strategies in 5 markets, 4-model adaptive portfolio allocation, level-3 LOB micro-price pegging & darkpool liquidity capture execution friction reduction, and comprehensive quantitative comparison table report.
+Fix GitHub Pages dashboard menu click unresponsiveness, market category corruption (69 abnormal category buttons) in Ensemble TOP list, and outdated 34-strategy labels (update to 37 strategies) in trading system and reports.
 
 ## 🔒 My Identity
 - Archetype: sentinel
@@ -25,44 +25,48 @@
 - Orchestrator (Phase 6 Gen 2): 50f1a6ac-db69-4f79-9fec-0df831df4b17
 - Orchestrator (Phase 6 Gen 3): 8d2e253c-56b3-4154-b549-f2e1a5a8ac1a
 - Victory Auditor (Phase 6): 0106b7f1-d527-476d-8419-c7e068d01144
+- Orchestrator (Phase 7): e1532581-bf40-4631-af87-80cf978d298b (Terminated - Gate 1 Passed)
+- Orchestrator (Phase 7 Gen 2): completed (commit fe3417bd)
+- Victory Auditor (Phase 7): verified
+- Orchestrator (Phase 8 Gen 1): daeeeeae-7a82-4f27-ad74-9e1b4f6614df (Terminated - M1 & M2 passed & audited CLEAN)
+- Orchestrator (Phase 8 Gen 2): ac97d9f7-8147-408b-8c6b-782b10a303b1 (Terminated - M3 passed & audited CLEAN)
+- Victory Auditor (Phase 8): 21a5b8b5-b756-4d6f-8a12-9221f1e45a66 (VICTORY CONFIRMED)
+- Orchestrator (SWE Dashboard Fix): 8e22ecc4-82df-4e01-9c45-fc3dc5400468
+- Victory Auditor (SWE Dashboard Fix): 95961d3f-eb33-48d8-867e-d37240e156ee
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
 
 ## User Context
-- **Last user request**: 6차 심화 퀀트 개선 (R1: 37대 전략 다변화 알파 신호 결합 및 극단값 신뢰도 스케일링 6차 극대화, R2: 4-Model 포트폴리오 적응형 배분 및 L3 오더북 체결 마찰비용 최소화 6차 심화, R3: 5대 시장 전후 정량 비교 표 작성 및 2,442+ 테스트 100% 통과 유지).
+- **Last user request**: Fix GitHub Pages dashboard menu click unresponsiveness, market category corruption (69 abnormal category buttons like 'Acquisition', 'Corp', '1') in the Ensemble TOP list, and outdated 34-strategy labels (updating to 37 strategies) in the Korean & US stock automated trading system.
 - **Pending clarifications**: none
 - **Delivered results**:
-  - `system_improvement_plan_v8.md`: 1,781-line master engineering improvement plan for 37 strategies across 5 markets.
-  - `reports/quant_benchmark_comparison_phase2.md`: Phase 2 quantitative benchmark report.
-  - `reports/quant_benchmark_comparison_phase3.md`: Phase 3 quantitative benchmark report.
-  - `reports/quant_benchmark_comparison_phase4.md`: Phase 4 quantitative benchmark report.
-  - `reports/quant_benchmark_comparison_phase5.md`: Phase 5 Deep quantitative benchmark report (verified).
-  - `reports/quant_benchmark_comparison_phase6.md`: Phase 6 Apex quantitative benchmark report (verified).
+  - `trading_system/merge_predictions.py` (robust 8/10-col token parsing & signed returns regex)
+  - `trading_system/generate_report.py` (strict market whitelist & signed returns regex & tab click event handling)
+  - `trading_system/src/ai/ensemble_scorer.py` (37-strategy sync)
+  - `trading_system/run_pipeline.py` (dynamic header length for 37 strategies)
+  - `gh-pages/index.html` (regenerated dashboard)
+  - `trading_system/scripts/verify_edge_cdp.py` (Edge CDP browser automation)
 
 ## Project Status
 - **Phase**: complete
-- **Active Orchestrator**: none (completed)
-- **Working Directory**: d:\Finance\code\stock\.agents\orchestrator_quant_opt6_gen3
-- **Progress Cron**: terminated
-- **Liveness Cron**: terminated
+- **Active Orchestrator**: none (cleaned up)
+- **Active Victory Auditor**: none (cleaned up)
+- **Working Directory**: d:\Finance\code\stock\.agents
+- **Progress Cron**: inactive (cancelled)
+- **Liveness Cron**: inactive (cancelled)
 
 ## Victory Audit Status
 - **Triggered**: yes
-- **Auditor ID**: 0106b7f1-d527-476d-8419-c7e068d01144
 - **Verdict**: VICTORY CONFIRMED
 - **Retry count**: 0
 
 ## Artifact Index
 - d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md — Authoritative record of user intent
-- d:\Finance\code\stock\system_improvement_plan_v8.md — Comprehensive improvement plan deliverable
-- d:\Finance\code\stock\reports\quant_benchmark_comparison_phase2.md — Phase 2 quantitative benchmark report
-- d:\Finance\code\stock\reports\quant_benchmark_comparison_phase3.md — Phase 3 quantitative benchmark report (verified)
-- d:\Finance\code\stock\reports\quant_benchmark_comparison_phase4.md — Phase 4 Apex quantitative benchmark report (verified)
-- d:\Finance\code\stock\reports\quant_benchmark_comparison_phase5.md — Phase 5 Deep quantitative benchmark report (verified)
-- d:\Finance\code\stock\reports\quant_benchmark_comparison_phase6.md — Phase 6 Apex quantitative benchmark report (verified)
-- d:\Finance\code\stock\trading_system\result\quant_benchmark_comparison_phase6.md — Synchronized benchmark report
-- d:\Finance\code\stock\reports\quant_benchmark_comparison.md — Synchronized benchmark report
-- d:\Finance\code\stock\.agents\orchestrator_quant_opt6_gen3\handoff.md — Orchestrator Phase 6 completion handoff report
-- d:\Finance\code\stock\.agents\victory_auditor_phase6\audit_report.md — Independent post-victory audit report (CLEAN / CONFIRMED)
+- d:\Finance\code\stock\trading_system\merge_predictions.py — Target file for R1
+- d:\Finance\code\stock\trading_system\generate_report.py — Target file for R1, R2, R3
+- d:\Finance\code\stock\trading_system\run_pipeline.py — Target file for R3
+- d:\Finance\code\stock\src\ai\ensemble_scorer.py — Target file for R3
+- d:\Finance\code\stock\gh-pages\index.html — Target dashboard artifact for R2, R3
+

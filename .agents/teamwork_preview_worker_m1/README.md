@@ -1,2 +1,2 @@
-# Worker M1 Working Directory
-Target: Domain 1 (V5-01 ~ V5-06)
+# Working Directory for teamwork_preview_worker_m1
+Milestone: M1 (Implementation)

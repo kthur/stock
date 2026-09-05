@@ -84,7 +84,8 @@ class SmartOrderRouter:
         qi_accel = qi_acceleration if qi_acceleration is not None else order_plan.get("qi_acceleration")
         cross_tox = cross_asset_toxicity if cross_asset_toxicity is not None else order_plan.get("cross_asset_toxicity")
 
-        is_phase8 = (v_eff >= 8) or (qi_accel is not None) or (cross_tox is not None)
+        is_phase9 = (v_eff >= 9)
+        is_phase8 = is_phase9 or (v_eff >= 8) or (qi_accel is not None) or (cross_tox is not None)
         is_phase7 = is_phase8 or (v_eff >= 7) or (qi is not None) or (arr_imb is not None)
 
         legs: List[Dict[str, Any]] = []
@@ -101,14 +102,19 @@ class SmartOrderRouter:
         else:
             eff_dark_ratio = float(self.dark_probe_ratio)
 
-        # F50 & F54: Lit Queue Imbalance & Acceleration Preemption (preemptively route up to 75% / 85% to dark ATS)
+        # F50, F54 & F58: Lit Queue Imbalance & Acceleration Preemption (preemptively route up to 75% / 85% / 88% to dark ATS)
         if qi is not None or qi_accel is not None:
             qi_f = float(qi) if (qi is not None and math.isfinite(float(qi))) else 0.0
             qi_aligned = qi_f if action in ["BUY", "BID", "LONG"] else -qi_f
             a_f = float(qi_accel) if (qi_accel is not None and math.isfinite(float(qi_accel))) else 0.0
             a_aligned = a_f if action in ["BUY", "BID", "LONG"] else -a_f
 
-            if is_phase8 and (qi_aligned > 0.40 or a_aligned > 0.20):
+            if is_phase9 and (qi_aligned > 0.35 or a_aligned > 0.15):
+                eff_dark_ratio = float(np.clip(
+                    eff_dark_ratio + 0.18 * max(0.0, qi_aligned) + 0.12 * math.tanh(max(0.0, a_aligned)),
+                    self.dark_probe_ratio, 0.88
+                ))
+            elif is_phase8 and (qi_aligned > 0.40 or a_aligned > 0.20):
                 eff_dark_ratio = float(np.clip(
                     eff_dark_ratio + 0.15 * max(0.0, qi_aligned) + 0.10 * math.tanh(max(0.0, a_aligned)),
                     self.dark_probe_ratio, 0.85
@@ -137,7 +143,10 @@ class SmartOrderRouter:
         if g_dir is not None:
             gamma_toxic = float(np.clip(float(g_dir), 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase8 and gamma_toxic > 0.80:
+            if is_phase9 and gamma_toxic > 0.80:
+                # F58.2: Quantum Walk Grover diffusion contracts lit maker floor to 0.03
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.9571 * gamma_toxic), 0.03, 0.70))
+            elif is_phase8 and gamma_toxic > 0.80:
                 # F54: Extreme directional toxicity contracts lit maker floor to 0.05
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.9286 * gamma_toxic), 0.05, 0.70))
             elif is_phase7 and gamma_toxic > 0.80:
@@ -199,15 +208,19 @@ class SmartOrderRouter:
             g_cross = float(np.clip(float(cross_tox), 0.0, 1.0))
             gamma_toxic = float(np.clip(0.65 * gamma_toxic + 0.35 * g_cross, 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase8 and gamma_toxic > 0.80:
+            if is_phase9 and gamma_toxic > 0.80:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.9571 * gamma_toxic), 0.03, 0.70))
+            elif is_phase8 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.9286 * gamma_toxic), 0.05, 0.70))
             elif is_phase7 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.8571 * gamma_toxic), 0.10, 0.70))
 
-        # F44, F50 & F54: Anti-Gaming Dynamic MinQty (adapting between 20% and 50% in F44, 60% in F50, up to 75% in F54)
+        # F44, F50, F54 & F58: Anti-Gaming Dynamic MinQty (adapting up to 80% in F58)
         min_ratio = 0.20
         if is_toxic_flow or gamma_toxic > 0.50 or dp_score >= 0.60:
-            if is_phase8 and (gamma_toxic > 0.70 or is_accum):
+            if is_phase9 and (gamma_toxic > 0.65 or is_accum):
+                min_ratio = float(np.clip(0.20 + 0.40 * gamma_toxic + 0.25 * dp_score, 0.20, 0.80))
+            elif is_phase8 and (gamma_toxic > 0.70 or is_accum):
                 min_ratio = float(np.clip(0.20 + 0.35 * gamma_toxic + 0.20 * dp_score, 0.20, 0.75))
             elif is_phase7 and (gamma_toxic > 0.70 or is_accum):
                 min_ratio = float(np.clip(0.20 + 0.30 * gamma_toxic + 0.15 * dp_score, 0.20, 0.60))
@@ -415,4 +428,52 @@ class SmartOrderRouter:
             routed = self.route_order(plan, ats_available=ats_available)
             routed_batch.append(routed)
         return routed_batch
+
+    def quantum_walk_grover_routing(
+        self,
+        venues: List[str],
+        depths: List[float],
+        costs_bps: List[float],
+        steps: int = 2
+    ) -> Dict[str, float]:
+        """
+        Phase 9 (F58.2): Quantum Walk Grover Diffusion ATS Routing.
+        Applies a discrete-time quantum walk Grover coin operator G = 2|s><s| - I
+        over venue states (Lit, ATS, Darkpool, Internal) to amplify amplitude
+        toward the venue with maximum liquidity depth and lowest friction cost.
+        """
+        n = len(venues)
+        if n == 0:
+            return {}
+        if n == 1:
+            return {venues[0]: 1.0}
+
+        # Initialize uniform amplitude state |s> = sum (1/sqrt(n)) |i>
+        state = np.ones(n, dtype=float) / math.sqrt(n)
+
+        # Oracle phase inversion based on attractiveness score: depth / cost
+        scores = np.array([depths[i] / max(0.5, costs_bps[i]) for i in range(n)], dtype=float)
+        best_idx = int(np.argmax(scores))
+
+        # Determine optimal Grover rotations to avoid over-rotation: R = max(1, round(pi/4 * sqrt(n)))
+        r_opt = max(1, int(round((math.pi / 4.0) * math.sqrt(n))))
+        eff_steps = min(max(1, steps), r_opt)
+
+        # Grover iteration:
+        for _ in range(eff_steps):
+            # Oracle: invert phase of marked (best) venue
+            state[best_idx] = -state[best_idx]
+            # Diffusion operator G = 2 * mean(state) - state
+            mean_amp = np.mean(state)
+            state = 2.0 * mean_amp - state
+
+        # Probability distribution P(i) = |state[i]|^2, normalized
+        probs = np.square(state)
+        sum_p = np.sum(probs)
+        if sum_p > 0:
+            probs = probs / sum_p
+        else:
+            probs = np.ones(n) / n
+
+        return {venues[i]: float(probs[i]) for i in range(n)}
 

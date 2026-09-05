@@ -1,20 +1,17 @@
-## 2026-09-04T00:53:59Z
-
-You are Reviewer 2 for Milestone 1.
+## 2026-09-04T23:39:25Z
+You are Reviewer 2 for Milestone 1 (Features F47 & F48) of Phase 7 Zenith Quantitative Enhancements (v14).
 Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2
-Maintain progress.md in your working directory.
-
-MANDATORY FIRST STEP:
-Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md completely.
-Also read Worker 1's handoff report at:
-d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
-And SCOPE.md at:
-d:\Finance\code\stock\.agents\orchestrator_quant_opt4\SCOPE.md
-
-Your Review Task:
-1. Examine `trading_system/src/ai/ensemble_scorer.py` and `tests/test_phase4_signal_enhancement.py`.
-2. Inspect interface conformance, edge cases, numerical stability, NaN handling, boundary compliance [0.0, 1.0], and weight normalization ($\sum w = 1.0000$).
-3. Run and verify the tests:
-   `.venv\Scripts\python.exe -m pytest tests/test_phase4_signal_enhancement.py tests/test_score_normalizer.py tests/test_factor_orthogonalization.py tests/test_correlation_suppression.py tests/test_adversarial_ensemble_scorer_challenger.py tests/test_r1_ensemble_regime_fixes.py tests/test_regime_ensemble.py tests/test_advanced_ensemble_features.py tests/test_adversarial_normalizer_m1.py tests/test_m1_quant_enhancements.py -v`
-4. Formulate an objective review verdict: APPROVE or REQUEST_CHANGES.
-5. Write your handoff report to `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\handoff.md` and notify caller via send_message.
+Project root: d:\Finance\code\stock
+Authoritative user request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (see ## 2026-09-04T23:18:21Z). You MUST read this file first.
+Also read:
+- d:\Finance\code\stock\.agents\orchestrator_quant_opt7\PROJECT.md
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md
+- d:\Finance\code\stock\src\ai\ensemble_scorer.py
+- d:\Finance\code\stock\src\ai\factor_suppression.py
+- d:\Finance\code\stock\tests\test_phase7_signal_enhancement.py
+Task:
+Perform an independent quantitative and adversarial review:
+1. Check numerical stability and edge cases: near-zero scores, NaN handling, boundary inputs, extreme volatility (d_TV -> 1.0), and unconditioned symmetry (f(-z) = -f(z)).
+2. Verify top-decile alpha spread expansion: verify that quartic rank modulation and tensor synergy steepen the right tail as intended without negative derivatives.
+3. Run the test suite: .venv\Scripts\pytest.exe tests/test_phase7_signal_enhancement.py tests/test_phase6_m1_challenger1_adversarial.py tests/test_phase6_m1_challenger2_adversarial.py -v.
+4. Deliver an explicit verdict: APPROVE or REQUEST_CHANGES in your handoff report at d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\handoff.md.

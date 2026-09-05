@@ -1385,6 +1385,9 @@ class ExecutionOMSEngine:
         qi_acceleration: Optional[float] = None,
         cross_asset_toxicity: Optional[float] = None,
         version: int = 6,
+        qi_jerk: Optional[float] = None,
+        deep_ofi: Optional[float] = None,
+        **kwargs
     ) -> float:
         """
         Phase 6 (F44), Phase 7 (F50) & Phase 8 (F54) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
@@ -1488,7 +1491,15 @@ class ExecutionOMSEngine:
             accel_tox_damp = max(0.0, 1.0 - 0.90 * gamma_composite)
             accel_shift = direction * 0.20 * spr * math.tanh(0.80 * a_val) * accel_tox_damp
 
-        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, accel shift, or arrival imbalance was active
+        # 8. Queue Imbalance 3rd-Order Jerk & Deep-OFI Peg Shift (Phase 9 F58.1)
+        jerk_shift = 0.0
+        if int(version) >= 9:
+            j_val = float(qi_jerk) if (qi_jerk is not None and math.isfinite(float(qi_jerk))) else float(kwargs.get("qi_jerk", 0.0))
+            d_ofi = float(deep_ofi) if (deep_ofi is not None and math.isfinite(float(deep_ofi))) else float(kwargs.get("deep_ofi", 0.0))
+            jerk_tox_damp = max(0.0, 1.0 - 0.95 * gamma_composite)
+            jerk_shift = direction * spr * (0.10 * math.tanh(0.50 * j_val) + 0.15 * math.tanh(1.20 * d_ofi)) * jerk_tox_damp
+
+        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, accel shift, jerk shift, or arrival imbalance was active
         if (
             (l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0)
             or (micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0)
@@ -1496,9 +1507,10 @@ class ExecutionOMSEngine:
             or q_shift != 0.0
             or shade_shift != 0.0
             or accel_shift != 0.0
+            or jerk_shift != 0.0
             or del_lam is not None
         ):
-            peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift
+            peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift + jerk_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
         # Fallback to urgency interpolation between bid and ask
@@ -1921,6 +1933,9 @@ class AlmgrenChrissScheduler:
         qi_acceleration: Optional[float] = None,
         cross_asset_toxicity: Optional[float] = None,
         version: int = 6,
+        qi_jerk: Optional[float] = None,
+        deep_ofi: Optional[float] = None,
+        **kwargs
     ) -> float:
         """
         Phase 6 (F44), Phase 7 (F50) & Phase 8 (F54) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
@@ -2024,7 +2039,15 @@ class AlmgrenChrissScheduler:
             accel_tox_damp = max(0.0, 1.0 - 0.90 * gamma_composite)
             accel_shift = direction * 0.20 * spr * math.tanh(0.80 * a_val) * accel_tox_damp
 
-        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, accel shift, or arrival imbalance was active
+        # 8. Queue Imbalance 3rd-Order Jerk & Deep-OFI Peg Shift (Phase 9 F58.1)
+        jerk_shift = 0.0
+        if int(version) >= 9:
+            j_val = float(qi_jerk) if (qi_jerk is not None and math.isfinite(float(qi_jerk))) else float(kwargs.get("qi_jerk", 0.0))
+            d_ofi = float(deep_ofi) if (deep_ofi is not None and math.isfinite(float(deep_ofi))) else float(kwargs.get("deep_ofi", 0.0))
+            jerk_tox_damp = max(0.0, 1.0 - 0.95 * gamma_composite)
+            jerk_shift = direction * spr * (0.10 * math.tanh(0.50 * j_val) + 0.15 * math.tanh(1.20 * d_ofi)) * jerk_tox_damp
+
+        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, accel shift, jerk shift, or arrival imbalance was active
         if (
             (l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0)
             or (micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0)
@@ -2032,9 +2055,10 @@ class AlmgrenChrissScheduler:
             or q_shift != 0.0
             or shade_shift != 0.0
             or accel_shift != 0.0
+            or jerk_shift != 0.0
             or del_lam is not None
         ):
-            peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift
+            peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift + jerk_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
         # Fallback to urgency interpolation between bid and ask

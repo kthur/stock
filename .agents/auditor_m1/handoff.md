@@ -1,13 +1,13 @@
-# Forensic Integrity Audit Report — Phase 6 Milestone 1 (Features F41 & F42)
+# Forensic Integrity Audit Report — Phase 8 Milestone 1 (Signal & Alpha Architecture)
 
 **Work Product**:
-- `trading_system/src/ai/factor_suppression.py` (Feature F41.1)
-- `trading_system/src/ai/ensemble_scorer.py` (Features F41 & F42)
-- `tests/test_phase6_signal_enhancement.py` (Phase 6 Test Suite)  
+- `trading_system/src/ai/ensemble_scorer.py` (Features F51.1, F51.2, F52.1, F52.2)
+- `trading_system/src/ai/factor_suppression.py` (Feature F52.2)
+- `tests/test_phase8_signal_enhancement.py` (Phase 8 Signal Enhancement Test Suite)  
 **Profile**: General Project / Forensic Auditor  
-**Integrity Mode**: Development Mode (from `ORIGINAL_REQUEST.md` header `## 2026-09-04T13:40:12Z`)  
+**Integrity Mode**: Development Mode (from `ORIGINAL_REQUEST.md` header `## 2026-09-05T02:15:24Z`)  
 **Auditor**: Forensic Integrity Auditor (`auditor_m1`)  
-**Date**: 2026-09-04T23:25:00+09:00  
+**Date**: 2026-09-05T11:36:00+09:00  
 **Verdict**: **`CLEAN`**
 
 ---
@@ -16,86 +16,177 @@
 
 ### 1.1 Source Code Forensic Inspection
 
-#### A. `trading_system/src/ai/factor_suppression.py` (Lines 9–45)
-- **Quint-Pillar Economic Decomposition (`QuintPillarMap`, `QUINT_PILLAR_MAP`)**:
-  - Implements `QuintPillarMap` dictionary subclass supporting dual key indexing: short keys (`'val'`, `'mom'`, `'flow'`, `'cat'`, `'net'`) and canonical formal cluster names (`'VAL_QUAL'`, `'MOM_TREND'`, `'MICRO_FLOW'`, `'CORP_CAT'`, `'NETWORK_MACRO'`).
-  - Partitioning across all 37 strategies without omission or overlap:
-    * `val` (6): `rim_valuation`, `valueup_catalyst`, `accruals_quality`, `arm_factor`, `factor_neutralized`, `regression`
-    * `mom` (9): `surge`, `vcp_ml`, `trend_efficiency`, `sector_rotation`, `range_expansion`, `mq_factor`, `lead_lag`, `vcp_rule`, `lstm`
-    * `flow` (9): `order_flow`, `inst_foreign_sector`, `darkpool`, `microstructure`, `overnight_gap`, `stat_arb`, `iv_skew`, `short_term_reversal`, `vol_target`
-    * `cat` (6): `event_driven`, `sentiment`, `short_squeeze`, `gamma_squeeze`, `insider_buying`, `earnings_tone_drift`
-    * `net` (7): `supply_chain`, `supply_chain_gnn`, `cross_asset_spillover`, `dual_correction`, `index_rebalance`, `card_factor`, `latr_factor`
-  - Total: 6 + 9 + 9 + 6 + 7 = 37 strategies. Mutually exclusive and collectively exhaustive.
-  - Exposed at module level (`QUINT_PILLAR_MAP`) and class level (`RegimeFactorSuppressionEngine.QUINT_PILLAR_MAP`).
+#### A. `trading_system/src/ai/factor_suppression.py`
+1. **Dynamic Alpha Base Exponent (Lines 66–87)**:
+   ```python
+   base_alpha = float(alpha_pos)
+   if 'CRISIS' in reg_str:
+       chi_bear = 1.40
+       eff_alpha_neg = base_alpha if alpha_neg is None else float(alpha_neg)
+       eff_alpha_pos = base_alpha
+   ```
+   - Replaced previous hardcoded `5.0` default in `apply_quintic_hyperbolic_deadband` with dynamic `base_alpha = float(alpha_pos)`.
+   - Now cleanly accommodates septic exponent $\alpha = 7.0$ for Phase 8 without breaking regime scaling.
+2. **Feature F52.2: Asymmetric Septic Wavelet Deadband (Lines 105–128)**:
+   ```python
+   def apply_asymmetric_wavelet_deadband(
+       scores_centered: Union[pd.Series, np.ndarray],
+       delta_noise: float = 0.045,
+       delta_neg: Optional[float] = None,
+       alpha_pos: float = 7.0,
+       alpha_neg: Optional[float] = None,
+       regime: Optional[Union[str, int]] = None
+   ) -> Union[pd.Series, np.ndarray]:
+       return apply_quintic_hyperbolic_deadband(
+           scores_centered=scores_centered,
+           delta_noise=delta_noise,
+           delta_neg=delta_neg,
+           alpha_pos=alpha_pos,
+           alpha_neg=alpha_neg,
+           regime=regime
+       )
+   ```
+   - Invokes hyperbolic tangent soft-thresholding with septic exponent $\alpha = 7.0$:
+     $$z_{\text{denoised}} = z \cdot \tanh\left(\left(\frac{|z|}{\delta_{\text{eff}}(z)}\right)^7\right)$$
+   - Exactly suppresses $99.997\%$ of near-zero noise ($|z| \le 0.010$), reducing noise leakage to $<0.003\%$ ($>20\times$ reduction vs Phase 7 quintic deadband), while transmitting $100.000\%$ of conviction signals ($|z| \ge 0.150$).
 
 #### B. `trading_system/src/ai/ensemble_scorer.py`
-1. **BessembinderParams Version 6 Extension (Lines 89–160)**:
-   - Extended `BessembinderParams` to support bilateral attributes: `beta_right`, `beta_left`, `u_thresh_right`, `u_thresh_left`, `eta_right`, `eta_left`.
-   - Bytecode-level inspection (`sys._getframe(1)` and `dis.get_instructions`) ensures backward-compatible tuple unpacking for both 2-element (`gamma, beta`) and 3-element (`gamma, beta, u_thresh`) callers.
-2. **Feature F41.1: Quint-Pillar High-Order Tensor Synergy Kernel (Lines 4448–4676)**:
-   - Implemented `compute_quint_pillar_tensor_synergy`:
-     * Computes individual pillar convictions $\psi_p = \text{softplus}(\kappa (s_p - 0.50)) / \text{denom}$ with $\kappa=8.0$.
-     * Evaluates 2nd-order (10 bilinear pair products), 3rd-order (10 trilinear triplet products), 4th-order (5 quadruplet products), and 5th-order (1 quintuplet hyper-confluence product) contractions = 26 analytical terms.
-     * Regime-adaptive synergy caps scale up to **1.180x** (`reg_cap = 0.180`, $w_{\text{quint}}=0.060$) in `BULL_LOW_VOL` and throttle down to $\le \mathbf{1.040x}$ (`reg_cap = 0.040`, $w_{\text{tri}}=w_{\text{quad}}=w_{\text{quint}}=0$) in `CRISIS`.
-     * Exposed alias `compute_pillar_synergy_multiplier = compute_quint_pillar_tensor_synergy`.
-3. **Feature F41.2: Adaptive Hölder $p(R)$-Norm Top-Decile Boost & Dispersion Gating (Lines 1735–1809)**:
-   - Upgraded `apply_top_decile_convex_boost` to support adaptive Hölder exponent $p(R) \in [1.25, 2.50]$:
-     * `BULL_LOW_VOL`: 2.50, `BULL_HIGH_VOL`: 2.25, `SIDEWAYS_LOW_VOL`: 2.00, `SIDEWAYS_HIGH_VOL`: 1.75, `BEAR_LOW_VOL`: 1.80, `BEAR_HIGH_VOL`: 1.50, `CRISIS`: 1.25.
-     * Generalized mean $M_p = (\frac{1}{K} \sum s_k^p)^{1/p}$ computed via vectorized numpy power expressions.
-     * Dispersion-adaptive sigmoid conviction gate: $\theta_{\text{gate}}(\sigma_{\text{cross}}) = \text{clip}(0.60 - 0.40(\sigma_{\text{cross}} - 0.12), 0.55, 0.65)$ with $\text{gate\_weight} = \frac{1}{1 + \exp(-16(M_p - \theta_{\text{gate}}))}$.
-4. **Feature F41.3: Bilateral Asymmetric Richards S-Curve Version 6 (Lines 4683–4855)**:
-   - Parameter matrix defined across all 7 regimes in `get_regime_adaptive_bessembinder_params` (`version=6`):
-     * `BULL_LOW_VOL`: $(\gamma=1.85, \beta_{\text{right}}=0.60, u_{\text{th,right}}=0.38, \beta_{\text{left}}=0.35, u_{\text{th,left}}=0.60, \eta_{\text{right}}=2.40, \eta_{\text{left}}=1.40)$
-     * `CRISIS`: $(\gamma=1.20, \beta_{\text{right}}=0.20, u_{\text{th,right}}=0.78, \beta_{\text{left}}=0.50, u_{\text{th,left}}=0.45, \eta_{\text{right}}=1.50, \eta_{\text{left}}=2.00)$
-   - `apply_bessembinder_convex_power_law`: calculates independent bilateral right/left tail boosts:
-     $\text{tail\_boost\_right} = 1 + \beta_{\text{right}} \cdot \text{excess}_{\text{right}}^{\eta_{\text{right}}}$ and $\text{tail\_boost\_left} = 1 + \beta_{\text{left}} \cdot \text{excess}_{\text{left}}^{\eta_{\text{left}}}$.
-   - Preserves strict rank monotonicity ($\rho_s = 1.0000$) through monotonic piece-wise convex mapping.
-5. **Feature F42.1: Continuous-Time Markov Stationary Distribution Divergence (Lines 3940–4102)**:
-   - Defined ergodic stationary distribution `PI_STATIONARY = {'BULL_LOW_VOL': 0.20, 'BULL_HIGH_VOL': 0.15, 'SIDEWAYS_LOW_VOL': 0.25, 'SIDEWAYS_HIGH_VOL': 0.15, 'BEAR_LOW_VOL': 0.12, 'BEAR_HIGH_VOL': 0.08, 'CRISIS': 0.05}`.
-   - Defined 4-tier strategy class elasticity `STRATEGY_ELASTICITY_CLASSES` ($\nu_A = 1.30, \nu_B = 1.00, \nu_C = 0.75, \nu_D = 0.40$).
-   - Calculates KL divergence $D_{\text{KL}}(\pi \,\|\, \pi_\infty) = \sum \pi_m \ln(\frac{\pi_m}{\pi_{\infty, m}})$ and divergence damping $\phi_{\text{KL}} = \exp(-0.25 \max(0, D_{\text{KL}}))$.
-   - Effective half-life: $\tau_k^*(\pi) = \max(0.10, \text{round}(\text{expected} \cdot (\phi_{\text{entropy}} \phi_{\text{jump}} \phi_{\text{KL}})^{\nu_k}, 2))$.
-6. **Feature F42.2: Asymmetric Kurtosis-Adaptive Noise Deadband (Lines 4944–5045)**:
-   - Bilateral threshold mapping: $\delta^+ \in [0.020, 0.070]$, $\delta^- = \delta^+ \cdot \chi_{\text{bear}}$ where $\chi_{\text{bear}} = 1.40$ in `CRISIS` and $1.00$ in `BULL_LOW_VOL`.
-   - Kurtosis-adaptive exponent $\alpha^-(R) \in [3.0, 4.0]$ ($4.0$ in `CRISIS`, $3.0$ in `BULL_LOW_VOL`).
-   - Soft-thresholding: $z_{\text{denoised}} = z \cdot \tanh((|z| / \delta_{\text{eff}})^{\alpha_{\text{eff}}})$.
-   - Strict odd symmetry $g(-z) = -g(z)$ maintained when `regime is None`.
-7. **Pipeline Integration & Version Compatibility (Lines 2170, 3265–3405)**:
-   - `combine_predictions`: `version` defaults to `5` for complete backward compatibility with Phase 5/Phase 4 regression suites; when `version >= 6`, activates quint-pillar tensor synergy, adaptive Hölder boost, bilateral Richards v6, cubic rank modulation ($0.60 + 0.30r + 0.30r^2 + 0.55r^3$), and asymmetric noise deadband.
+1. **Feature F51.1: Information Geometry Riemannian Geodesic 5-Pillar Synergy (Lines 4866–4885)**:
+   ```python
+   if version >= 8:
+       p_vals = np.array([p_val.values, p_mom.values, p_flow.values, p_cat.values, p_net.values])  # shape (5, N)
+       p_sum = np.sum(p_vals, axis=0, keepdims=True)
+       p_norm = (p_vals + 1e-6) / (p_sum + 5e-6)  # Probability Simplex S^4
+
+       # Bhattacharyya Affinity BC(p, p0) with uninformative prior p0 = 0.20
+       bc = np.sum(np.sqrt(0.20 * p_norm), axis=0)
+       bc_clipped = np.clip(bc, 0.0, 1.0)
+       d_riemann = np.arccos(bc_clipped)  # Fisher-Rao geodesic arc distance on S^4
+
+       h_riemann = np.exp(-2.40 * np.square(d_riemann))
+       p_mean = np.mean(p_vals, axis=0)
+       harmony_factor = pd.Series(
+           1.0 + 0.30 * h_riemann * (p_mean > 0.38).astype(float),
+           index=scores_df.index
+       )
+       total_confluence = raw_confluence * harmony_factor
+   ```
+   - Maps 5-pillar conviction vector $p \in \Delta^4$ isometrically to unit 4-sphere $\mathbb{S}^4$ via Fisher information metric.
+   - Evaluates Bhattacharyya affinity with uniform prior $p_0 = (0.20, 0.20, 0.20, 0.20, 0.20)$ and computes great-circle geodesic arc distance $d_R(p, p_0) = \arccos(\text{BC}(p, p_0))$.
+   - Harmonious 5-pillar multi-conviction assets ($d_R \approx 0$) receive up to $1.30\times$ harmony boost, while unbalanced single-pillar spikes collapse toward $1.00\times$.
+   - Triplet multipliers boosted: `('val', 'mom', 'flow'): 1.50x`, `('flow', 'cat', 'net'): 1.25x` (Lines 4826–4831).
+   - Bull Low Vol regime cap expanded from $0.220$ to **$0.250$** ($1.250\times$ ceiling) while preserving strict Crisis cap at $\le \mathbf{0.040}$ ($1.040\times$).
+2. **Feature F51.2: Hyperexponential Convex Rank Modulation across Regimes (Lines 5210–5239, 3506–3518)**:
+   - Implemented `get_regime_adaptive_gamma_top(regime, version=8)` returning $\gamma_{\text{top}} \in [0.20, 0.85]$:
+     * `CRISIS`: 0.20, `BEAR_HIGH_VOL`: 0.25, `BEAR_LOW_VOL`: 0.35, `SIDEWAYS_HIGH_VOL`: 0.45, `SIDEWAYS_LOW_VOL`: 0.55, `BULL_HIGH_VOL`: 0.70, `BULL_LOW_VOL`: 0.85.
+   - Integrated into `combine_predictions`:
+     ```python
+     if int(version) >= 8:
+         gamma_top = self.get_regime_adaptive_gamma_top(regime, version=version)
+         mult = np.where(
+             z_denoised >= 0.0,
+             0.50 + 0.65 * ranks * np.exp(gamma_top * (ranks ** 3)),
+             1.40 - 0.80 * ranks
+         )
+     ```
+   - Analytical properties: $g(r) = r \cdot \exp(\gamma_{\text{top}} \cdot r^3)$ is $C^\infty$, strictly monotonically increasing ($g'(r) = (1 + 3\gamma r^3)\exp(\gamma r^3) > 0$), and strictly convex ($g''(r) \ge 0$).
+   - Top 1% alpha spread expands by $+44.2\%$ in `BULL_LOW_VOL` vs Phase 7 quartic baseline.
+3. **Feature F52.1: Hurst Fractional Jump-Diffusion Scaling (Lines 1272–1280, 4229–4239)**:
+   - In `get_base_weights`:
+     ```python
+     if int(version) >= 8:
+         hurst = float(kwargs.get('hurst_exponent', kwargs.get('hurst', 0.50)))
+         hurst_scaled = float(np.power(max(1e-4, 2.0 * hurst), 1.5))
+         j_frac = float(np.clip(j_regime * hurst_scaled, 0.0, 1.0))
+         blend_jump = min(0.85, 0.65 * j_frac)
+     ```
+   - In `get_regime_adaptive_half_lives`: Markov departure penalty scaling modulated with $h_{\text{scale}} = (2H)^{0.5}$.
+   - Exact continuity at $H = 0.50$ ($(2 \cdot 0.50)^{1.5} = 1.0$). At $H = 0.70$, jump transition accelerates by $\sim 1.656\times$; at $H = 0.35$, choppy noise jumps are dampened by $>40\%$.
+4. **Feature F52.2: Septic Deadband Integration (Lines 5316–5326, 5393–5414)**:
+   - In `apply_smooth_noise_deadband`, `version >= 8` automatically maps default $\alpha_{\text{pos}} \in (3.0, 5.0)$ to $7.0$.
+   - Exposed direct classmethod alias `apply_asymmetric_wavelet_deadband`.
 
 ---
 
 ### 1.2 Prohibited Patterns & Static Analysis Checks
 
-| Check | Search Scope | Result | Details |
+| Check | Target Files | Result | Evidence / Details |
 |---|---|---|---|
-| **Hardcoded Test Results** | `ensemble_scorer.py`, `factor_suppression.py` | **PASS (0 matches)** | No hardcoded return values, lookup dictionaries of test outputs, or pre-computed constants. |
-| **Facade Implementations** | `ensemble_scorer.py`, `factor_suppression.py` | **PASS (0 matches)** | All 5 enhancement functions execute genuine numpy/scipy/pandas vector math on dynamic inputs. |
-| **Fabricated Outputs** | Entire workspace | **PASS (0 matches)** | No pre-populated result artifacts, static test logs, or spoofed outputs. |
-| **Symbol/Test Bypasses** | `ensemble_scorer.py`, `factor_suppression.py` | **PASS (0 matches)** | Scanned for `if 'SYM'`, `if symbol ==`, `if 'ASSET'`. Zero test symbol branches found. |
-| **Self-Certifying Tests** | `test_phase6_signal_enhancement.py` | **PASS (0 matches)** | No `assert True`, `assert 1 == 1`, or circular tautologies. All 6 tests assert mathematical invariants. |
+| **Hardcoded Test Results** | `ensemble_scorer.py`, `factor_suppression.py` | **PASS (0 matches)** | No hardcoded test outputs, pre-computed return arrays, or PASS strings. |
+| **Facade Implementations** | `ensemble_scorer.py`, `factor_suppression.py` | **PASS (0 matches)** | All routines execute dynamic NumPy/Pandas vector arithmetic with genuine mathematical transformations. |
+| **Fabricated Verification Outputs** | Entire workspace | **PASS (0 matches)** | No pre-populated test logs, fake artifact files, or spoofed outputs. |
+| **Test Symbol Bypasses** | `ensemble_scorer.py`, `factor_suppression.py` | **PASS (0 matches)** | Scanned for `if 'ASSET'`, `if 'SYM'`, `if symbol ==`. Zero symbol branching logic detected. |
+| **Self-Certifying Tests** | `test_phase8_signal_enhancement.py` | **PASS (0 matches)** | No `assert True` or circular references. All 6 tests assert mathematical invariants dynamically computed from inputs. |
+| **Execution Delegation** | `ensemble_scorer.py`, `factor_suppression.py` | **PASS (0 matches)** | Pure Python, NumPy, SciPy, and Pandas implementation. No third-party binary delegation. |
 
 ---
 
-### 1.3 Test Suite Authenticity Analysis (`tests/test_phase6_signal_enhancement.py`)
+### 1.3 Test Suite Authenticity Analysis (`tests/test_phase8_signal_enhancement.py`)
 
-- `test_feature_41_1_quint_pillar_tensor_synergy_kernel`: Asserts disjoint 5-pillar partitioning covering all 37 strategies; asserts strict multi-pillar synergy hierarchy ($5 > 4 > 3 > 2 > 1 == 1.00\times$); proves cap reaches $>1.150$ and $\le 1.180$ in Bull Low Vol; proves cap restriction $\le 1.040$ in Crisis.
-- `test_feature_41_2_adaptive_holder_p_norm_boost`: Proves Jensen's inequality analytically on extreme conviction vectors ($M_{2.5} > M_{2.0} > M_{1.0}$); verifies regime ordering ($p_{\text{bull}} > p_{\text{crisis}}$); proves $[0.0, 1.0]$ bounds and factor dispersion gating.
-- `test_feature_41_3_asymmetric_richards_v6_scaling_and_monotonicity`: Asserts parameter matrix across all 7 regimes; verifies backward-compatible sequence unpacking; proves $\ge 15\%$ top-decile return spread expansion vs Phase 5; proves strict rank monotonicity ($\rho_s = 1.0000$) across 101 continuous points.
-- `test_feature_42_1_markov_stationary_divergence_and_class_elasticity`: Verifies stationary distribution $\pi_\infty$; proves divergence damping $\phi_{\text{KL}}$; verifies Class A microstructure ($\nu=1.30$) decay ratio is strictly faster than Class D fundamental ($\nu=0.40$); verifies $\tau \ge 0.10$d floor.
-- `test_feature_42_2_asymmetric_kurtosis_noise_deadband`: Asserts bilateral threshold scaling ($\delta^- = 1.40 \delta^+$ in Crisis); verifies $>90\%$ noise squashing for $|z| \le 0.010$; verifies $>98.5\%$ signal transmission for $|z| \ge 0.150$; verifies negative noise in Crisis is dampened more than positive signal; proves strict rank monotonicity ($\rho_s = 1.0000$) across 201 points.
-- `test_feature_42_3_multi_market_randomized_stress_all_regimes`: Fuzzes 30 random assets across 5 global markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ) and all 7 regimes under Version 6 pipeline execution; verifies 0 NaNs, 0 Infs, $[0.0, 1.0]$ score bounds, and finite non-negative expected returns.
+- `test_feature_51_1_riemannian_manifold_geodesic_5pillar_mapping`:
+  * Validates disjoint 5-pillar partitioning covering all 37 strategies ($6+9+9+6+7=37$).
+  * Fuzzes synthetic multi-factor dataframe with 12 assets across different pillar conviction configurations.
+  * Asserts strict multi-pillar synergy hierarchy ($5 > 4 > 3 > 2 > 1 == 1.00\times$).
+  * Proves economic triplet advantage: core triplet `(val, mom, flow)` exceeds secondary `(cat, net, val)`.
+  * Verifies balanced 5-pillar asset receives higher harmony factor than single-pillar unbalanced asset.
+  * Validates regime cap expansion in `BULL_LOW_VOL` ($> 1.220$ and $\le 1.25001$) and strict preservation in `CRISIS` ($\le 1.04001$).
+- `test_feature_51_2_hyperexponential_convex_rank_modulation`:
+  * Verifies `get_regime_adaptive_gamma_top` returns exact regime values in $[0.20, 0.85]$.
+  * Tests continuous grid of 100 points ($r \in [0.01, 1.0]$) to confirm monotonicity ($g'(r) > 0$) and convexity ($g''(r) \ge 0$).
+  * Proves top 1% alpha spread expansion exceeds $25\%$ vs Phase 7 quartic baseline ($+44.2\%$ target).
+  * Validates `combine_predictions` integration with 25 synthetic assets under `version=8`, confirming zero NaNs and monotonic ranking of positive expected returns.
+- `test_feature_52_1_hurst_fractional_jump_diffusion_regime_weights`:
+  * Validates simplex sum invariant $\sum w_i = 1.0000$ and non-negativity $w_i \ge 0$.
+  * Verifies fractional scaling: $H=0.50$ baseline, $H=0.70$ trend boost ($\sim 1.656\times$), $H=0.35$ chop attenuation ($>40\%$).
+  * Verifies `get_regime_adaptive_half_lives` under `version=8` maintains valid bounds ($\tau \ge 0.10$d).
+- `test_feature_52_2_septic_wavelet_noise_deadband_9999_suppression`:
+  * Measures noise leakage at $|z| = 0.010$, proving leakage $\le 0.003\%$ ($99.997\%$ noise suppression) and $>18\times$ reduction vs Phase 7.
+  * Proves high conviction signal transmission at $|z| = 0.150$ is $\ge 99.999\%$ ($100.000\%$).
+  * Proves exact odd symmetry $f(-z) = -f(z)$ across 201 grid points ($<10^{-12}$ error).
+  * Validates strict rank monotonicity with Spearman rank correlation $\rho_s = 1.0000$.
+- `test_feature_52_3_multi_market_5market_stress_v8`:
+  * Executes `combine_predictions` across 5 global markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ) and all 7 regimes (35 combinations).
+  * Asserts 0 NaNs, 0 Infs, $[0.0, 1.0]$ score bounds, and valid expected return outputs.
+- `test_feature_52_4_version_backward_compatibility_invariants`:
+  * Verifies cap hierarchy: $\text{Cap}(v8) = 1.250 > \text{Cap}(v7) = 1.220 > \text{Cap}(v6) = 1.180$.
+  * Verifies deadband squashing progression: $d(v8) < d(v7) < d(v6)$ at $|z| = 0.010$.
+  * Verifies strict deterministic reproducibility across repeated calls.
 
 ---
 
-### 1.4 Empirical Runtime Execution Evidence
+### 1.4 Independent Empirical Runtime Execution Evidence
 
-#### Phase 6, Phase 5, and Phase 4 Signal Enhancement Suites
+#### Run 1: Milestone 1 Test Suite
 Command:
 ```powershell
-.venv\Scripts\python.exe -m pytest tests/test_phase6_signal_enhancement.py tests/test_phase5_signal_enhancement.py tests/test_phase4_signal_enhancement.py -v
+.venv\Scripts\python.exe -m pytest tests/test_phase8_signal_enhancement.py -v
 ```
-Verbatim execution trace (Task 71):
+Verbatim execution output:
+```text
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0 -- D:\Finance\code\stock\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Finance\code\stock
+configfile: pyproject.toml
+plugins: anyio-4.14.0, dash-2.18.2, cov-7.1.0, github-actions-annotate-failures-0.4.2
+collecting ... collected 6 items
+
+tests/test_phase8_signal_enhancement.py::test_feature_51_1_riemannian_manifold_geodesic_5pillar_mapping PASSED [ 16%]
+tests/test_phase8_signal_enhancement.py::test_feature_51_2_hyperexponential_convex_rank_modulation PASSED [ 33%]
+tests/test_phase8_signal_enhancement.py::test_feature_52_1_hurst_fractional_jump_diffusion_regime_weights PASSED [ 50%]
+tests/test_phase8_signal_enhancement.py::test_feature_52_2_septic_wavelet_noise_deadband_9999_suppression PASSED [ 66%]
+tests/test_phase8_signal_enhancement.py::test_feature_52_3_multi_market_5market_stress_v8 PASSED [ 83%]
+tests/test_phase8_signal_enhancement.py::test_feature_52_4_version_backward_compatibility_invariants PASSED [100%]
+
+============================= 6 passed in 39.78s ==============================
+```
+
+#### Run 2: Regression Suite (Phase 7 Signal & Score Normalizer)
+Command:
+```powershell
+.venv\Scripts\python.exe -m pytest tests/test_phase7_signal_enhancement.py tests/test_score_normalizer.py -v
+```
+Verbatim execution output:
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0 -- D:\Finance\code\stock\.venv\Scripts\python.exe
@@ -105,37 +196,37 @@ configfile: pyproject.toml
 plugins: anyio-4.14.0, dash-2.18.2, cov-7.1.0, github-actions-annotate-failures-0.4.2
 collecting ... collected 21 items
 
-tests/test_phase6_signal_enhancement.py::test_feature_41_1_quint_pillar_tensor_synergy_kernel PASSED [  4%]
-tests/test_phase6_signal_enhancement.py::test_feature_41_2_adaptive_holder_p_norm_boost PASSED [  9%]
-tests/test_phase6_signal_enhancement.py::test_feature_41_3_asymmetric_richards_v6_scaling_and_monotonicity PASSED [ 14%]
-tests/test_phase6_signal_enhancement.py::test_feature_42_1_markov_stationary_divergence_and_class_elasticity PASSED [ 19%]
-tests/test_phase6_signal_enhancement.py::test_feature_42_2_asymmetric_kurtosis_noise_deadband PASSED [ 23%]
-tests/test_phase6_signal_enhancement.py::test_feature_42_3_multi_market_randomized_stress_all_regimes PASSED [ 28%]
-tests/test_phase5_signal_enhancement.py::test_feature_35_1_top_decile_spread_expansion_and_monotonicity PASSED [ 33%]
-tests/test_phase5_signal_enhancement.py::test_feature_35_2_quad_pillar_synergy_kernel PASSED [ 38%]
-tests/test_phase5_signal_enhancement.py::test_feature_35_3_holder_p2_convex_boost PASSED [ 42%]
-tests/test_phase5_signal_enhancement.py::test_feature_35_4_asymmetric_bessembinder_scaling PASSED [ 47%]
-tests/test_phase5_signal_enhancement.py::test_feature_36_1_probabilistic_half_life_entropy_penalty PASSED [ 52%]
-tests/test_phase5_signal_enhancement.py::test_feature_36_2_tanh_noise_deadband PASSED [ 57%]
-tests/test_phase5_signal_enhancement.py::test_feature_36_3_random_stress_universe_all_regimes PASSED [ 61%]
-tests/test_phase4_signal_enhancement.py::test_feature_1_top_decile_spread_unlocked PASSED [ 66%]
-tests/test_phase4_signal_enhancement.py::test_feature_2_nan_aware_and_softplus_convex_boost PASSED [ 71%]
-tests/test_phase4_signal_enhancement.py::test_feature_3_trilinear_synergy_and_full_6_regime_coupling PASSED [ 76%]
-tests/test_phase4_signal_enhancement.py::test_feature_4_sideways_2d_regime_weight_rebalancing PASSED [ 80%]
-tests/test_phase4_signal_enhancement.py::test_feature_5_ker_dynamic_alpha_switching_hook PASSED [ 85%]
-tests/test_phase4_signal_enhancement.py::test_feature_6_asymmetric_half_life_decay PASSED [ 90%]
-tests/test_phase4_signal_enhancement.py::test_feature_7_regime_adaptive_bessembinder_params PASSED [ 95%]
-tests/test_phase4_signal_enhancement.py::test_property_score_bounds_and_completeness PASSED [100%]
+tests/test_phase7_signal_enhancement.py::test_feature_47_1_economically_weighted_trilinear_tensors_and_pillar_harmony PASSED [  4%]
+tests/test_phase7_signal_enhancement.py::test_feature_47_2_bull_low_vol_cap_expansion_and_crisis_preservation PASSED [  9%]
+tests/test_phase7_signal_enhancement.py::test_feature_47_3_merton_jump_diffusion_regime_transition_mixture PASSED [ 14%]
+tests/test_phase7_signal_enhancement.py::test_feature_48_1_directional_markov_departure_penalty PASSED [ 19%]
+tests/test_phase7_signal_enhancement.py::test_feature_48_2_true_quintic_deadband_noise_reduction_and_odd_symmetry PASSED [ 23%]
+tests/test_phase7_signal_enhancement.py::test_feature_48_3_quartic_rank_modulation_and_alpha_expansion PASSED [ 28%]
+tests/test_phase7_signal_enhancement.py::test_feature_48_4_multi_market_stress_and_v6_backward_compatibility PASSED [ 33%]
+tests/test_score_normalizer.py::TestCrossSectionalScoreNormalizer::test_percentile_rank_basic PASSED [ 38%]
+tests/test_score_normalizer.py::TestCrossSectionalScoreNormalizer::test_winsorized_zscore_basic PASSED [ 42%]
+tests/test_score_normalizer.py::TestCrossSectionalScoreNormalizer::test_uniform_variance_across_heterogeneous_distributions PASSED [ 47%]
+tests/test_score_normalizer.py::TestCrossSectionalScoreNormalizer::test_market_grouping_and_fallbacks PASSED [ 52%]
+tests/test_score_normalizer.py::TestCrossSectionalScoreNormalizer::test_edge_cases PASSED [ 57%]
+tests/test_score_normalizer.py::TestStrategyEnginesPurge050::test_accruals_quality_returns_nan_on_missing_fundamentals PASSED [ 61%]
+tests/test_score_normalizer.py::TestStrategyEnginesPurge050::test_valueup_catalyst_returns_nan_on_missing_data PASSED [ 66%]
+tests/test_score_normalizer.py::TestStrategyEnginesPurge050::test_short_interest_squeeze_returns_nan_on_missing_data PASSED [ 71%]
+tests/test_score_normalizer.py::TestStrategyEnginesPurge050::test_trend_efficiency_returns_nan_on_insufficient_prices PASSED [ 76%]
+tests/test_score_normalizer.py::TestStrategyEnginesPurge050::test_insider_buying_returns_nan_on_missing_filings PASSED [ 80%]
+tests/test_score_normalizer.py::TestStrategyEnginesPurge050::test_earnings_tone_drift_returns_nan_on_missing_transcripts PASSED [ 85%]
+tests/test_score_normalizer.py::TestStrategyEnginesPurge050::test_iv_skew_returns_nan_on_missing_data PASSED [ 90%]
+tests/test_score_normalizer.py::TestDynamicWeightRenormalization::test_missing_strategy_zero_weighted_and_renormalized PASSED [ 95%]
+tests/test_score_normalizer.py::TestDynamicWeightRenormalization::test_strictly_preserves_nan_in_raw_columns PASSED [100%]
 
-============================= 21 passed in 45.89s =============================
+============================= 21 passed in 29.05s =============================
 ```
 
-#### Adversarial Challenger Regression Suite
+#### Run 3: Adversarial Challenger and Phase 7 Benchmark Suites
 Command:
 ```powershell
-.venv\Scripts\python.exe -m pytest tests/test_adversarial_ensemble_scorer_challenger.py -v
+.venv\Scripts\python.exe -m pytest tests/test_adversarial_ensemble_scorer_challenger.py tests/test_benchmark_phase7.py -v
 ```
-Verbatim execution trace (Task 95):
+Verbatim execution output:
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0 -- D:\Finance\code\stock\.venv\Scripts\python.exe
@@ -143,68 +234,92 @@ cachedir: .pytest_cache
 rootdir: D:\Finance\code\stock
 configfile: pyproject.toml
 plugins: anyio-4.14.0, dash-2.18.2, cov-7.1.0, github-actions-annotate-failures-0.4.2
-collecting ... collected 17 items
+collecting ... collected 22 items
 
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_calibrators_across_all_31_strategies_normal_and_extreme PASSED [  5%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_calibrators_corrupted_and_mismatched_inputs PASSED [ 11%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_calibrators_identical_score_distributions PASSED [ 17%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_calibrators_single_class_zero_variance_labels PASSED [ 23%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_compute_ece_and_brier_adversarial PASSED [ 29%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_correlation_suppression_and_orthogonalization_penalty_sum_to_one PASSED [ 35%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_dynamic_sharpe_weighting_extreme_distributions PASSED [ 41%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_end_to_end_ensemble_score_bounds_and_completeness PASSED [ 47%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_macro_overrides_sum_to_one PASSED [ 52%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_extreme_nans_and_sparse_missingness PASSED [ 58%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_n_less_than_k PASSED [ 64%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_rank_deficient_and_fully_collinear_31_strategies PASSED [ 70%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_scale_and_performance PASSED [ 76%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_single_asset_and_minimal_samples PASSED [ 82%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_zero_variance_and_constant_columns PASSED [ 88%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_regime_weights_sum_to_one_all_regimes PASSED [ 94%]
-tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_vix_overrides_sum_to_one PASSED [100%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_calibrators_across_all_31_strategies_normal_and_extreme PASSED [  4%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_calibrators_corrupted_and_mismatched_inputs PASSED [  9%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_calibrators_identical_score_distributions PASSED [ 13%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_calibrators_single_class_zero_variance_labels PASSED [ 18%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_compute_ece_and_brier_adversarial PASSED [ 22%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_correlation_suppression_and_orthogonalization_penalty_sum_to_one PASSED [ 27%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_dynamic_sharpe_weighting_extreme_distributions PASSED [ 31%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_end_to_end_ensemble_score_bounds_and_completeness PASSED [ 36%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_macro_overrides_sum_to_one PASSED [ 40%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_extreme_nans_and_sparse_missingness PASSED [ 45%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_n_less_than_k PASSED [ 50%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_rank_deficient_and_fully_collinear_31_strategies PASSED [ 54%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_scale_and_performance PASSED [ 59%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_single_asset_and_minimal_samples PASSED [ 63%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_orthogonalization_zero_variance_and_constant_columns PASSED [ 68%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_regime_weights_sum_to_one_all_regimes PASSED [ 72%]
+tests/test_adversarial_ensemble_scorer_challenger.py::TestAdversarialEnsembleScorerChallenger::test_vix_overrides_sum_to_one PASSED [ 77%]
+tests/test_benchmark_phase7.py::test_benchmark_profiles_completeness PASSED [ 81%]
+tests/test_benchmark_phase7.py::test_benchmark_engine_run_all PASSED     [ 86%]
+tests/test_benchmark_phase7.py::test_markdown_report_generation PASSED   [ 90%]
+tests/test_benchmark_phase7.py::test_benchmark_subset_markets PASSED     [ 95%]
+tests/test_benchmark_phase7.py::test_synchronized_report_files_exist PASSED [100%]
 
-============================= 17 passed in 24.60s =============================
+============================= 22 passed in 30.88s =============================
 ```
 
 ---
 
 ## 2. Logic Chain
 
-1. **Premise 1 (Integrity Ground Truth)**: Under `ORIGINAL_REQUEST.md` (Integrity mode: development), the work product must contain authentic implementation logic, must not fabricate outputs, must not hardcode test assertions, and must not employ facade methods or mock bypasses.
-2. **Premise 2 (Empirical Source Code Verification)**: Line-by-line inspection and AST grep analysis of `trading_system/src/ai/factor_suppression.py` and `trading_system/src/ai/ensemble_scorer.py` proved that Features F41 and F42 are realized through dynamic vectorized mathematical routines: Quint-Pillar 26-term tensor contractions, adaptive Hölder $p(R)$-norm $M_p$ with factor dispersion gating, bilateral asymmetric Richards S-curve version 6, continuous Markov KL stationary divergence damping $\phi_{\text{KL}}$, 4-tier strategy elasticity, and asymmetric kurtosis-adaptive noise deadband.
-3. **Premise 3 (Test Authenticity Verification)**: Inspection of `tests/test_phase6_signal_enhancement.py` demonstrated that all 6 tests assert real mathematical invariants: rank correlation $\rho_s = 1.0000$, spread expansion $\ge 15\%$, multi-pillar synergy hierarchy ($5 > 4 > 3 > 2 > 1 == 1.00\times$), noise squashing $>90\%$, signal transmission $>98.5\%$, and bounded domain $[0.0, 1.0]$. No self-certifying tautologies or mocks are present.
-4. **Premise 4 (Runtime Validation & Regression Free)**: Direct execution of pytest suites verified 100% pass rates across Phase 6, Phase 5, and Phase 4 signal enhancement tests (21/21 passed in 45.89s) and adversarial ensemble tests (17/17 passed in 24.60s) with zero regressions.
-5. **Conclusion**: All empirical and static forensic checks have passed without a single integrity violation.
+1. **Premise 1 (Ground Truth Alignment)**:
+   - `ORIGINAL_REQUEST.md` (header `## 2026-09-05T02:15:24Z`) specifies Requirement R1: 37-strategy Riemannian manifold geodesic synergy mapping on $\mathbb{S}^4$, hyperexponential convex rank modulation $g(r) = r \exp(\gamma_{\text{top}} r^3)$, Hurst exponent fractional jump-diffusion mixture, and asymmetric noise deadband filtering to suppress $99.99\%$ of noise. Integrity mode is **Development Mode**.
+2. **Premise 2 (Zero Hardcoding & Zero Facades)**:
+   - Static search over modified files (`trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/ai/factor_suppression.py`) confirms that neither hardcoded test results nor dummy facades exist.
+   - All newly introduced functions execute real algebraic computations:
+     * $d_R(p, p_0) = \arccos(\text{clip}(\sum \sqrt{0.20 \cdot p_k}, 0, 1))$ is derived directly from Fisher-Rao geometry on the multinomial simplex.
+     * $g(r) = r \exp(\gamma_{\text{top}} r^3)$ evaluates numpy exponential power curves with analytically proven positivity of first and second derivatives.
+     * $J_{\text{frac}} = \text{clip}(J_{\text{regime}} \cdot (2H)^{1.5}, 0, 1)$ implements fractional long-memory persistence without lookup tables.
+     * $z \tanh((|z|/\delta)^7)$ executes exact septic hyperbolic soft-thresholding.
+3. **Premise 3 (Test Authenticity & Independence)**:
+   - `tests/test_phase8_signal_enhancement.py` constructs varied synthetic datasets and asserts dynamically on structural properties (partition completeness, Jensen's inequality, first and second derivative bounds, odd symmetry within $10^{-12}$, Spearman rank correlation $\rho = 1.0000$, and simplex sum invariants). No mock return values or test tautologies are present.
+4. **Premise 4 (Empirical Runtime Execution)**:
+   - The test suite was independently executed from source using `.venv\Scripts\python.exe -m pytest`.
+   - Results: 6/6 tests passed in `test_phase8_signal_enhancement.py` (39.78s), 21/21 passed in regression suite (29.05s), 22/22 passed in adversarial suite (30.88s).
+   - Zero test failures, zero regressions, and zero NaN/Inf outputs across all 5 equity markets and 7 regimes.
+5. **Conclusion**:
+   - Every requirement under Milestone 1 (R1) is authentically satisfied without integrity shortcuts or prohibited patterns.
 
 ---
 
 ## 3. Caveats
 
-- **Wall-Clock Latency Benchmark Variance in `test_phase5_m1_challenger2_adversarial.py`**: A pre-existing test from Phase 5 (`test_scenario3_performance_benchmark_500_stocks_37_strategies`) asserts that 20 iterations of 4 combined operations across 500 stocks x 37 columns take `< 50.0ms`. Under Windows thread scheduling and CPU thermal throttling during heavy parallel test executions, observed latency was ~59.86ms. This reflects local CPU execution jitter against a micro-benchmark threshold, not an algorithmic defect or integrity issue. Worker M1 made no modifications to this file.
-- **Backward-Compatible Default in `combine_predictions`**: `combine_predictions` defaults to `version=5` to prevent breaking existing Phase 4/Phase 5 regression baselines. Version 6 features are explicitly enabled by passing `version=6`.
-- **Scope Boundary**: This audit is strictly scoped to Phase 6 Milestone 1 (Features F41 & F42 in `ensemble_scorer.py`, `factor_suppression.py`, and `test_phase6_signal_enhancement.py`). Subsequent milestones (M2 Portfolio Allocation/Execution, M3 Benchmarking) are out of scope for this report.
+- **Scope Boundary**: This audit strictly evaluates Milestone 1 (Signal & Alpha Architecture: Features F51.1, F51.2, F52.1, F52.2). Milestone 2 (Portfolio Allocation & Execution OMS: R-Vine copula, L3 order queue acceleration) is verified under a separate audit workflow.
+- **Simulation Duration**: Multi-market fuzzing across 5 markets $\times$ 7 regimes takes $\approx 40$ seconds due to comprehensive matrix evaluation, but scales well within CI timeouts.
+- No other caveats.
 
 ---
 
 ## 4. Conclusion
 
-**Verdict: `CLEAN`**
-
-Worker M1's implementation of Features F41 and F42 in `trading_system/src/ai/factor_suppression.py` and `trading_system/src/ai/ensemble_scorer.py`, validated by `tests/test_phase6_signal_enhancement.py`, is authentic, mathematically sound, free of hardcoded bypasses or facade implementations, and 100% compliant with the integrity standards of `ORIGINAL_REQUEST.md`.
+- **Verdict**: **`CLEAN`**
+- Worker M1's deliverables in `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/ai/factor_suppression.py`, and `tests/test_phase8_signal_enhancement.py` demonstrate genuine, rigorous mathematical implementations.
+- All integrity checks passed with zero violations.
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce and verify this audit verdict from `d:\Finance\code\stock`:
+To independently reproduce and verify this audit:
 
-```powershell
-# 1. Run Phase 6, Phase 5, and Phase 4 signal enhancement test suites
-.venv\Scripts\python.exe -m pytest tests/test_phase6_signal_enhancement.py tests/test_phase5_signal_enhancement.py tests/test_phase4_signal_enhancement.py -v
-
-# 2. Run adversarial challenger regression test suite
-.venv\Scripts\python.exe -m pytest tests/test_adversarial_ensemble_scorer_challenger.py -v
-```
-
-Expected result: 21 passed in ~46s for suite 1; 17 passed in ~25s for suite 2, with 0 failures and 0 errors.
-
+1. **Run Milestone 1 Suite**:
+   ```powershell
+   .venv\Scripts\python.exe -m pytest tests/test_phase8_signal_enhancement.py -v
+   ```
+2. **Run Backward-Compatibility Regression Suites**:
+   ```powershell
+   .venv\Scripts\python.exe -m pytest tests/test_phase7_signal_enhancement.py tests/test_score_normalizer.py -v
+   .venv\Scripts\python.exe -m pytest tests/test_adversarial_ensemble_scorer_challenger.py tests/test_benchmark_phase7.py -v
+   ```
+3. **Inspect Key Implementation Locations**:
+   - `trading_system/src/ai/ensemble_scorer.py`:
+     * Fisher-Rao Geodesic 5-Pillar Synergy: lines 4866–4885
+     * Triplet Multipliers & Bull Low Vol Cap: lines 4707–4714, 4826–4831
+     * Hyperexponential Convex Rank Modulation: lines 3506–3518, 5210–5239
+     * Hurst Fractional Jump-Diffusion: lines 1272–1280, 4229–4239
+   - `trading_system/src/ai/factor_suppression.py`:
+     * Asymmetric Septic Wavelet Deadband: lines 66–87, 105–128

@@ -1,22 +1,26 @@
-# DISPATCH — Reviewer M3-2: Pytest Suite & Pipeline Dashboard Reviewer
+﻿## 2026-09-05T03:04:56Z
 
-## Task Assignment
-- Working Directory: `d:\Finance\code\stock\.agents\reviewer_m3_2`
-- Reference Files:
-  - `d:\Finance\code\stock\ORIGINAL_REQUEST.md` (MUST READ FIRST)
-  - `d:\Finance\code\stock\PROJECT.md`
-  - `d:\Finance\code\stock\TEST_INFRA.md`
-  - `d:\Finance\code\stock\.agents\worker_m3\handoff.md`
+You are an independent reviewer reviewing Milestone 3 (R3 / F55) of Phase 8 Sovereign Quantitative Enhancements (v15).
 
-## Mission
-1. Review the full pytest regression suite execution (1,600 tests passed).
-2. Review `trading_system/run_pipeline.py` execution artifacts and `gh-pages/index.html` dashboard compilation and structure across all 5 markets and 23 strategies.
-3. Verify `verify_gha_artifacts.py` verification outputs.
-4. Output your structured review and final verdict (`APPROVE` or `REQUEST_CHANGES`) in `d:\Finance\code\stock\.agents\reviewer_m3_2\handoff.md`.
+Your working directory is: d:\Finance\code\stock\.agents\reviewer_m3_2
+Project root: d:\Finance\code\stock
 
-## 2026-08-14T15:26:57Z
-Received dispatch message:
-You are reviewer_m3_2. Your working directory is d:\Finance\code\stock\.agents\reviewer_m3_2.
-Read d:\Finance\code\stock\.agents\reviewer_m3_2\DISPATCH.md and d:\Finance\code\stock\ORIGINAL_REQUEST.md.
-Read Worker M3 findings at d:\Finance\code\stock\.agents\worker_m3\handoff.md.
-Review the 1,600 pytest regression suite, pipeline execution, and gh-pages/index.html dashboard across 5 markets and 23 strategies. Output your structured review and verdict (APPROVE / REQUEST_CHANGES) in d:\Finance\code\stock\.agents\reviewer_m3_2\handoff.md. Communicate back when complete via send_message.
+## References:
+- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (see ## 2026-09-05T02:15:24Z)
+- d:\Finance\code\stock\.agents\worker_m3_bench\handoff.md
+- d:\Finance\code\stock\trading_system\scripts\benchmark_phase8_quant_performance.py
+- d:\Finance\code\stock\tests\test_benchmark_phase8.py
+
+## Review Task:
+1. Examine report generation and destination synchronization across all 3 paths:
+   - eports/quant_benchmark_comparison_phase8.md
+   - 	rading_system/result/quant_benchmark_comparison_phase8.md
+   - eports/quant_benchmark_comparison.md
+2. Verify backward compatibility: ensure historical benchmark tests pass without error:
+   - Run .venv\Scripts\python.exe -m pytest tests/test_benchmark_phase6.py tests/test_benchmark_phase7.py tests/test_benchmark_phase8.py -v
+3. Verify edge cases:
+   - Market subset handling (e.g. --markets KOSPI,SP500).
+   - Normalization of market keys, handling of missing/invalid markets.
+   - Deterministic reproducibility with random seed.
+4. Document findings and issue a clear verdict: APPROVE or REQUEST_CHANGES.
+Write your handoff report to d:\Finance\code\stock\.agents\reviewer_m3_2\handoff.md and send a message upon completion.

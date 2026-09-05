@@ -1,26 +1,35 @@
-# DISPATCH — Forensic Auditor M1
+# DISPATCH: Forensic Auditor (M1 Integrity Verifier)
 
-**Task**: Forensic Integrity Audit for Phase 6 Milestone 1 (F41 & F42).
-**Authoritative Reference**: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (see ## 2026-09-04T13:40:12Z)
-**Worker Handoff**: `d:\Finance\code\stock\.agents\worker_m1\handoff.md`
-**Target Files**:
-- `src/ai/ensemble_scorer.py`
-- `src/ai/factor_suppression.py`
-- `tests/test_phase6_signal_enhancement.py`
+## Working Directory
+`d:\Finance\code\stock\.agents\auditor_m1`
 
-## Forensic Audit Protocol
-Perform an uncompromising integrity verification across:
-1. Static Analysis: Examine AST and source diffs for hardcoded returns, fake mock tables, bypass flags, or dummy branches that return pre-baked numbers.
-2. Logic Authenticity: Verify that tensor synergy contractions, Hölder p-norm, Richards Version 6 power law, Markov KL divergence, and asymmetric deadband calculations actually execute mathematical operations at runtime.
-3. Test Authenticity: Check that `test_phase6_signal_enhancement.py` does not contain tautological assertions (`assert True`), dummy mocks, or test-skipping tricks.
-4. Report binary verdict: **CLEAN** or **INTEGRITY VIOLATION** with detailed forensic evidence in `d:\Finance\code\stock\.agents\auditor_m1\handoff.md`.
+## References
+- `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (Section ## 2026-09-05T02:15:24Z)
+- `d:\Finance\code\stock\.agents\worker_m1_signal\handoff.md`
+- `d:\Finance\code\stock\AGENTS.md`
 
-## 2026-09-04T14:17:17Z
-You are auditor_m1.
-Your working directory is: d:\Finance\code\stock\.agents\auditor_m1\
-Read d:\Finance\code\stock\.agents\auditor_m1\DISPATCH.md and d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (mandatory).
-Read d:\Finance\code\stock\.agents\worker_m1\handoff.md.
-Perform an uncompromising forensic audit across AST, runtime math, and test validity for cheating, dummy implementations, or hardcoded answers.
-Run tests and verify.
-Deliver your binary audit verdict (CLEAN or INTEGRITY VIOLATION) to: d:\Finance\code\stock\.agents\auditor_m1\handoff.md
-Send completion message back to parent.
+## Task
+Perform independent Forensic Integrity Audit on Milestone 1:
+1. Inspect files modified by Worker M1:
+   - `trading_system/src/ai/ensemble_scorer.py`
+   - `trading_system/src/ai/factor_suppression.py`
+   - `tests/test_phase8_signal_enhancement.py`
+2. Systematic Integrity Checks:
+   - Verify that all implementations are genuine and not hardcoded.
+   - Check for dummy/facade implementations, hardcoded test return values, or shortcuts.
+   - Verify that tests genuinely exercise the production code and assert on dynamic calculations.
+
+## 2026-09-05T02:32:10Z
+You are Forensic Auditor for Milestone 1 (Signal & Alpha Architecture).
+Your working directory is: d:\Finance\code\stock\.agents\auditor_m1
+
+MANDATORY: Read ORIGINAL_REQUEST.md at:
+d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Read DISPATCH.md at:
+d:\Finance\code\stock\.agents\auditor_m1\DISPATCH.md
+Read Worker M1's handoff report at:
+d:\Finance\code\stock\.agents\worker_m1_signal\handoff.md
+
+Perform forensic integrity checks on `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/ai/factor_suppression.py`, and `tests/test_phase8_signal_enhancement.py`.
+Verify no hardcoding, facade mocks, or cheating.
+Write your handoff report with binary verdict (CLEAN or INTEGRITY VIOLATION) to `d:\Finance\code\stock\.agents\auditor_m1\handoff.md` and send a message back to the orchestrator.

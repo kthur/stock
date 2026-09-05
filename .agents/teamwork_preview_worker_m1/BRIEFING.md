@@ -1,66 +1,65 @@
-# BRIEFING — 2026-09-04T00:40:15Z
+# BRIEFING — 2026-09-04T23:38:35Z
 
 ## Mission
-Worker 1: M1 Signal Quality Worker - Unlock Top-Decile Spread, Smooth Softplus Convex Boost, Tri-Linear Synergy Kernel, Sideways Regime Rebalancing, KER Alpha Switching Hook, Asymmetric Half-Life Decay, and Adaptive Bessembinder u_thresh in ensemble_scorer.py.
+Implement Phase 7 Zenith Quantitative Enhancements (Milestone 1, Features F47 & F48): Dynamic Alpha Signal Synergy & Right-Tail Confidence 7th Deepening across `factor_suppression.py` and `ensemble_scorer.py`, verify with comprehensive tests.
 
 ## 🔒 My Identity
-- Archetype: teamwork_preview_worker_m1
+- Archetype: implementer, qa, specialist
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m1
-- Original parent: ba7893c9-9a12-479b-b906-f745cc7807b3
-- Milestone: M1 (Signal Quality & Score Differentiation)
+- Original parent: e1532581-bf40-4631-af87-80cf978d298b
+- Milestone: Milestone 1 (M1) — Dynamic Alpha Signal Synergy & Right-Tail Confidence 7th Deepening (Features F47 & F48)
 
 ## 🔒 Key Constraints
-- EXCLUSIVELY own and modify:
-  1. `trading_system/src/ai/ensemble_scorer.py`
-  2. `tests/test_phase4_signal_enhancement.py` (new test suite)
-- Do NOT modify any other files.
-- DO NOT CHEAT: Genuine implementations only, no hardcoded test outputs, no facade implementations.
-- Score bounds must strictly remain [0.0, 1.0].
-- Regime weights must sum to 1.0000 across all 37 strategies.
+- DO NOT CHEAT. All implementations must be genuine.
+- Exclusive file write ownership:
+  * `trading_system/src/ai/ensemble_scorer.py` (and `src/ai/ensemble_scorer.py` if present / symlink)
+  * `trading_system/src/ai/factor_suppression.py` (and `src/ai/factor_suppression.py` if present / symlink)
+  * `tests/test_phase7_signal_enhancement.py`
+  * `.agents/teamwork_preview_worker_m1/`
+- Zero regressions on Phase 6 tests and backward compatibility when `version <= 6`.
+- Fully pass all 7 comprehensive Phase 7 test cases and Phase 6 test suites.
 
 ## Current Parent
-- Conversation ID: ba7893c9-9a12-479b-b906-f745cc7807b3
-- Updated: not yet
+- Conversation ID: e1532581-bf40-4631-af87-80cf978d298b
+- Updated: 2026-09-04T23:38:35Z
 
 ## Task Summary
-- **What to build**: 7 signal quality & mathematical enhancements in `ensemble_scorer.py`:
-  1. Unlock top-decile spread (remove premature 0.50 clip, dynamic rank multiplier, power-law exponent).
-  2. NaN-aware & softplus smooth convex boost (asset valid mean imputation, continuous sigmoid gate).
-  3. Tri-linear synergy kernel & full 6-regime coupling (val*mom*flow confluence).
-  4. Sideways 2D regime weight rebalancing (trim momentum traps, boost stat-arb/dual correction/etc, sum=1.0000).
-  5. Kaufman Trend Efficiency (KER) dynamic alpha switching hook in `combine_predictions`.
-  6. Strategy-class asymmetric decay in half-life filtering (halve mom in sideways, extend in bull).
-  7. Regime-adaptive `u_thresh` in Bessembinder convex scaling (0.45 to 0.75).
-  8. Comprehensive test suite in `tests/test_phase4_signal_enhancement.py`.
-- **Success criteria**: All existing and new tests pass cleanly, top decile spread unlocked > 0.833, math correct.
-
-## Key Decisions Made
-- Implemented `BessembinderParams` subclass with bytecode inspection `__iter__` to maintain 100% backward compatibility with legacy 2-variable unpacking (`gamma, beta = ...`) while supporting new 3-element unpacking (`gamma, beta, u_thresh = ...`).
-- In `combine_predictions`, removed premature `[-0.50, 0.50]` clipping of centered scores and applied rank-modulated scaling with power-law exponent 1.15 to unlock top-decile score differentiation above 0.833.
-- In `apply_top_decile_convex_boost`, replaced naive 0.0 imputation with asset row-mean imputation and replaced the Heaviside step with a continuous sigmoid gate (`slope=15.0, midpoint=0.60`).
-- Rebalanced `SIDEWAYS_LOW_VOL` and `SIDEWAYS_HIGH_VOL` 37-strategy weights (trimming momentum by 0.080 and boosting sideways engines by 0.080) with exact sum = 1.0000.
-- Implemented tri-linear synergy bonus (`val * mom * flow`) differentiated across all 6 2D regimes + CRISIS.
-- Implemented asymmetric momentum decay halving in sideways regimes and extension in bull regimes with strict regime monotonicity.
-- Created unit and property tests in `tests/test_phase4_signal_enhancement.py` verifying mathematical invariants, monotonicity, and boundary compliance.
-
-## Artifact Index
-- `trading_system/src/ai/ensemble_scorer.py` — Target implementation file
-- `tests/test_phase4_signal_enhancement.py` — Target test suite file
-- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\progress.md` — Progress tracker
-- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md` — Handoff report
+- **What to build**:
+  1. `factor_suppression.py`: `apply_quintic_hyperbolic_deadband(z, delta, alpha=5.0)` with true $C^\infty$ quintic soft-thresholding $z \cdot \tanh((|z|/\delta)^5)$, reducing near-zero noise leakage to ~0.054%.
+  2. `ensemble_scorer.py`:
+     - `compute_quint_pillar_tensor_synergy`: add `version: int = 6` default; for `version >= 7`, apply 1.40x boost on core trilinear `('val', 'mom', 'flow')`, 1.20x boost on `('flow', 'cat', 'net')`, calculate Pillar Harmony Regularizer $H_{\text{pillar}} = \exp(-1.20 \cdot CV_\psi^2)$, expand `BULL_LOW_VOL` cap to 0.220 (1.220x multiplier), preserve `CRISIS` cap at 0.040 (1.040x multiplier), preserve strict 5 > 4 > 3 > 2 > 1 hierarchy.
+     - `combine_predictions`: forward `version=version` to `compute_quint_pillar_tensor_synergy`, and apply Quartic Rank Modulation $g_{\text{v7}}(r) = 0.60 + 0.25 r + 0.25 r^2 + 0.40 r^3 + 0.35 r^4$ when `version >= 7`.
+     - `get_base_weights`: add `version: int = 6` default; for `version >= 7` and $d_{TV} > 0.25$, apply Merton Jump-Diffusion mixture: $w_{\text{Zenith}}^* = (1 - 0.60 J_{\text{regime}}) w_{\text{diffusion}} + 0.60 J_{\text{regime}} W_{2D}(R_{\text{jump}})$.
+     - `get_regime_adaptive_half_lives`: when `version >= 7`, calculate Net Volatility Shift $S_{\text{vol}} = \Pi_{t, \text{high}} - 0.43$ and modulate $\kappa_{\text{Markov}}(S_{\text{vol}}) = \text{clip}(0.25(1 + 0.80 \max(0, S_{\text{vol}})), 0.25, 0.45)$, preserving exact Phase 6 half-lives when $S_{\text{vol}} \le 0$ or `version <= 6`.
+     - `apply_smooth_noise_deadband`: integrate `apply_quintic_hyperbolic_deadband` for `version >= 7`, aliasing as classmethod.
+  3. `tests/test_phase7_signal_enhancement.py`: 7 comprehensive test cases.
+- **Success criteria**:
+  - All unit/integration tests pass cleanly (7/7 Phase 7 passed).
+  - Zero regression on existing Phase 6 test suites (45/45 Phase 6 passed).
+- **Interface contracts**: PROJECT.md and Explorer 1-3 reports.
+- **Code layout**: Root `tests/` and `trading_system/src/`.
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/ai/ensemble_scorer.py`: Features F21 to F27 implementations
-  - `tests/test_phase4_signal_enhancement.py`: Comprehensive test suite (8 tests)
-- **Build status**: PASS (123/123 tests pass, 100% pass rate)
-- **Pending issues**: None
+  * `trading_system/src/ai/factor_suppression.py`: added `apply_quintic_hyperbolic_deadband` with quintic-hyperbolic tangent filter.
+  * `trading_system/src/ai/ensemble_scorer.py`: added Merton jump-diffusion base weights mixture, directional Markov departure penalty, economically-weighted trilinear tensors, pillar harmony regularizer, bull low vol cap expansion to 0.220, quartic rank modulation in Bull, and quintic deadband integration.
+  * `tests/test_phase7_signal_enhancement.py`: added 7 comprehensive unit and stress tests.
+- **Build status**: PASS (52/52 tests passing in 31.79s).
+- **Pending issues**: None.
 
 ## Quality Status
-- **Build/test result**: PASS (8/8 in test_phase4_signal_enhancement.py; 123/123 across all related suites)
-- **Lint status**: 0 syntax/compilation errors
-- **Tests added/modified**: `tests/test_phase4_signal_enhancement.py` (8 new comprehensive tests)
+- **Build/test result**: PASS (7/7 Phase 7 tests + 45/45 Phase 6 tests = 52 passed).
+- **Lint status**: 0 syntax/compilation errors across all modified modules.
+- **Tests added/modified**: `tests/test_phase7_signal_enhancement.py` (7 tests).
 
-## Loaded Skills
-- None
+## Key Decisions Made
+- `version: int = 6` default preserved on `compute_quint_pillar_tensor_synergy`, `get_base_weights`, `apply_smooth_noise_deadband`, `get_regime_adaptive_bessembinder_params`, `get_regime_adaptive_gamma_tail`, and `compute_dynamic_weights_from_sharpe` to guarantee 100% backward compatibility for all legacy tests.
+- Forwarded `version=version` explicitly from `combine_predictions` to activate Phase 7 features whenever `version=7` is requested.
+
+## Artifact Index
+- `.agents/teamwork_preview_worker_m1/DISPATCH.md` — Assignment instructions
+- `.agents/teamwork_preview_worker_m1/BRIEFING.md` — Agent memory
+- `.agents/teamwork_preview_worker_m1/progress.md` — Progress tracker and heartbeat
+- `.agents/teamwork_preview_worker_m1/handoff.md` — Final handoff report
+- `tests/test_phase7_signal_enhancement.py` — Phase 7 M1 feature test suite

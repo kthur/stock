@@ -1,65 +1,62 @@
-# BRIEFING — 2026-08-15T00:33:00+09:00
+# BRIEFING — 2026-09-05T03:09:00Z
 
 ## Mission
-Adversarially and empirically verify pipeline output artifacts in `trading_system/result/` and `gh-pages/index.html` (HTML structure, 24 panels, no unrendered template tags, verify_gha_artifacts.py execution, table data integrity, and coverage/ensemble text reports).
+Empirically challenge and verify Milestone 3 (R3 / F55) of Phase 8 Sovereign Quantitative Enhancements (v15): Institutional capital weighting arithmetic, subset normalization, diversification factor, and multi-path file synchronization.
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: empirical-challenger
 - Roles: critic, specialist
 - Working directory: d:\Finance\code\stock\.agents\challenger_m3_2
-- Original parent: eb3de486-afc7-4b61-a4f0-821a54db0c1a
-- Milestone: Milestone 3 / R3 (Pipeline Artifacts & Dashboard Challenger)
-- Instance: Challenger M3-2
+- Original parent: ac97d9f7-8147-408b-8c6b-782b10a303b1
+- Milestone: Phase 8 Milestone 3 (R3 / F55)
+- Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code
-- Run empirical verification and stress testing directly via code/scripts
-- Write final report to `report.md` and `handoff.md`
-- Communicate via `send_message` upon completion
+- Review-only — do NOT modify implementation code unless creating standalone test harnesses outside .agents
+- All test/verification code must be executed empirically using .venv\Scripts\python.exe
+- .agents/ holds only metadata (plans, progress, handoffs) — no tests or source code in .agents/
+- Deliver verdict: APPROVE or REJECT with reproducible evidence
 
 ## Current Parent
-- Conversation ID: eb3de486-afc7-4b61-a4f0-821a54db0c1a
-- Updated: 2026-08-15T00:33:00+09:00
+- Conversation ID: ac97d9f7-8147-408b-8c6b-782b10a303b1
+- Updated: 2026-09-05T03:09:00Z
 
 ## Review Scope
 - **Files to review**:
-  - `trading_system/result/` (all prediction files, `ensemble_predictions.txt`, `strategy_data_coverage_report.txt`, `portfolio_allocation.txt`, `backtest_summary.json`)
-  - `gh-pages/index.html`
-  - `trading_system/scripts/verify_gha_artifacts.py`
-  - `trading_system/generate_report.py`
-  - `trading_system/tests/test_report_generator_hrp.py`
-  - `trading_system/tests/test_kst_and_coverage_reasoning.py`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `TEST_INFRA.md`
+  - `trading_system/scripts/benchmark_phase8_quant_performance.py`
+  - `tests/test_benchmark_phase8.py`
+  - `reports/quant_benchmark_comparison_phase8.md`
+  - `trading_system/result/quant_benchmark_comparison_phase8.md`
+  - `reports/quant_benchmark_comparison.md`
+- **Interface contracts**:
+  - `ORIGINAL_REQUEST.md` (## 2026-09-05T02:15:24Z)
 - **Review criteria**:
-  1. Integrity of `trading_system/result/` output artifacts.
-  2. HTML structure of `gh-pages/index.html`: exactly 24+ tab panels, no unrendered template tags (`{{...}}`), valid parsing, no broken table markup.
-  3. `verify_gha_artifacts.py` execution & report generator test suite pass.
-  4. Consistency of `strategy_data_coverage_report.txt` and `ensemble_predictions.txt`.
-
-## Loaded Skills
-- **Source**: `d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md`
-- **Local copy**: `d:\Finance\code\stock\.agents\skills\gha-artifact-verifier\SKILL.md`
-- **Core methodology**: Verifies GHA artifact integrity and non-zero validity across all 23 multi-factor strategies and HTML dashboard.
+  - Single-market weighting and subset normalization sum to 1.0
+  - Cross-market diversification factor (0.88) applied to multi-market MDD
+  - Byte-level / SHA256 synchronization across all 3 file paths
+  - Resilience when destination output directories do not exist
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. Frontend glitch scan for unrendered Jinja tags `{{...}}`, JS interpolation `${...}`, `NaN%`, `None%`, `undefined`. (PASS: 0 violations)
-  2. DOM structure and tab panels in `gh-pages/index.html`. (PASS: 28 tab panels discovered and validated)
-  3. Prediction text file population in `trading_system/result/`. (PASS: 23/23 strategy prediction text files present with non-zero bytes)
-  4. Standardized KST timestamp formatting in coverage and ensemble text reports. (PASS)
-- **Vulnerabilities found**: None.
-- **Untested angles**: Live browser rendering (verified via static HTML DOM parser and test suites).
+  - Subset weight normalization sum invariant (tolerance 1e-12) across all 31 non-empty market combinations: PASSED (31/31)
+  - Single-market metric identity between by_market and aggregate: PASSED
+  - Cross-market diversification factor (0.88) on multi-market MDD: PASSED
+  - CLI multi-path synchronization and SHA256 byte-level identity: PASSED (SHA256=0ca45621404837c4a88f502a9d4213a82af38e0c17c25f6b3949a560342dae9a)
+  - Resilience on nonexistent output path: PASSED (mkdir parents=True, exist_ok=True)
+- **Vulnerabilities found**:
+  - None in Phase 8 benchmark implementation (`benchmark_phase8_quant_performance.py` or `tests/test_benchmark_phase8.py`).
+  - Note: Peer test file `tests/test_benchmark_phase8_challenger_invariants.py` had a syntax error in line 1 due to malformed quotes from a concurrent agent. Standalone phase 8 tests and adversarial tests run cleanly.
+- **Untested angles**: All requirements within M3 scope thoroughly empirically challenged.
+
+## Loaded Skills
+- None required directly
 
 ## Key Decisions Made
-- Executed dedicated empirical test harness `.agents/challenger_m3_2/test_empirical_artifact_verifier.py`.
-- Ran report generator unit tests (16/16 passed).
-- Confirmed zero template glitches in 834 KB `gh-pages/index.html`.
-- Approved Milestone 3 / R3 artifacts and dashboard (Verdict: APPROVE).
+- Executed standalone adversarial verification suite `tests/test_adversarial_phase8_quant_benchmark.py` testing single markets, arbitrary subsets, combinatorial 31 subsets, multi-path sha256 synchronization, and directory resilience. All passed.
+- Verdict: APPROVE.
 
 ## Artifact Index
-- `.agents/challenger_m3_2/DISPATCH.md` — Dispatch record
-- `.agents/challenger_m3_2/BRIEFING.md` — Persistent briefing memory
-- `.agents/challenger_m3_2/progress.md` — Progress tracker
-- `.agents/challenger_m3_2/test_empirical_artifact_verifier.py` — Dedicated empirical verifier script
-- `.agents/challenger_m3_2/report.md` — Comprehensive empirical challenger report
-- `.agents/challenger_m3_2/handoff.md` — 5-component handoff report
+- DISPATCH.md — incoming instructions
+- progress.md — execution heartbeat
+- BRIEFING.md — persistent situational awareness
+- handoff.md — final 5-component handoff report

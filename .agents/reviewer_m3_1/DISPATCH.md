@@ -1,22 +1,25 @@
-# DISPATCH — Reviewer M3-1: Quantitative Logic & Backtest Reviewer
+## 2026-09-05T03:04:56Z
 
-## Task Assignment
-- Working Directory: `d:\Finance\code\stock\.agents\reviewer_m3_1`
-- Reference Files:
-  - `d:\Finance\code\stock\ORIGINAL_REQUEST.md` (MUST READ FIRST)
-  - `d:\Finance\code\stock\PROJECT.md`
-  - `d:\Finance\code\stock\TEST_INFRA.md`
-  - `d:\Finance\code\stock\.agents\worker_m3\handoff.md`
+You are an independent reviewer reviewing Milestone 3 (R3 / F55) of Phase 8 Sovereign Quantitative Enhancements (v15).
 
-## Mission
-1. Objectively and adversarially review the backtest execution and results reported by Worker M3.
-2. Verify that `scripts/compare_backtests.py` and unit tests `tests/test_backtest.py` and `tests/test_cpcv_stress_tester.py` operate without lookahead bias, with proper market friction and correct drawdown calculations.
-3. Review `trading_system/scripts/backtest_comparison_results.csv` and mathematical consistency.
-4. Output your structured review and final verdict (`APPROVE` or `REQUEST_CHANGES`) in `d:\Finance\code\stock\.agents\reviewer_m3_1\handoff.md`.
+Your working directory is: d:\Finance\code\stock\.agents\reviewer_m3_1
+Project root: d:\Finance\code\stock
 
-## 2026-08-14T15:26:57Z
-You are reviewer_m3_1. Your working directory is d:\Finance\code\stock\.agents\reviewer_m3_1.
-Read d:\Finance\code\stock\.agents\reviewer_m3_1\DISPATCH.md and d:\Finance\code\stock\ORIGINAL_REQUEST.md.
-Read Worker M3 findings at d:\Finance\code\stock\.agents\worker_m3\handoff.md.
-Review backtest execution, mathematical consistency, lookahead-free simulation, and transaction cost modeling. Output your structured review and verdict (APPROVE / REQUEST_CHANGES) in d:\Finance\code\stock\.agents\reviewer_m3_1\handoff.md. Communicate back when complete via send_message.
+## References:
+- `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (see ## 2026-09-05T02:15:24Z)
+- `d:\Finance\code\stock\.agents\worker_m3_bench\handoff.md`
+- `d:\Finance\code\stock\trading_system\scripts\benchmark_phase8_quant_performance.py`
+- `d:\Finance\code\stock\tests\test_benchmark_phase8.py`
 
+## Review Task:
+1. Examine `trading_system/scripts/benchmark_phase8_quant_performance.py` and `tests/test_benchmark_phase8.py`.
+2. Verify mathematical consistency and correctness of:
+   - 15 core quantitative metrics in `QuantitativeMetrics`.
+   - 5 operating markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) and canonical institutional capital weights (35/25/20/10/10).
+   - Strategic Factor Attribution Matrix for Features F51 through F54.
+   - Overall 5-market aggregate targets (Gross 64.95%, Net 64.05%, Total 64.80%, Sharpe 7.14, Rank-IC 0.262, MDD -1.50%, Turnover 18.2%, Friction 6.2 bps, Top Spread 42.8%, Win Rate 91.4%, Profit Factor 6.82).
+3. Execute verification:
+   - Run `.venv\Scripts\python.exe -m pytest tests/test_benchmark_phase8.py -v`
+   - Run `.venv\Scripts\python.exe trading_system/scripts/benchmark_phase8_quant_performance.py --markets ALL`
+4. Document findings and issue a clear verdict: APPROVE or REQUEST_CHANGES.
+Write your handoff report to `d:\Finance\code\stock\.agents\reviewer_m3_1\handoff.md` and send a message upon completion.

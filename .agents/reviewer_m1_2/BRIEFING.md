@@ -1,7 +1,7 @@
-# BRIEFING — 2026-09-04T14:22:00Z
+# BRIEFING — 2026-09-05T02:32:10Z
 
 ## Mission
-Conduct independent code, interface conformance, numerical stability, backward compatibility, and adversarial quantitative review of Worker M1's Phase 6 Milestone 1 implementation (Features F41 & F42: Quint-Pillar Tensor Synergy, Adaptive Hölder Boost, Bilateral Asymmetric Richards S-Curve, Markov Stationary Divergence Half-Life, Asymmetric Noise Deadband) in `trading_system/src/ai/ensemble_scorer.py` and `trading_system/src/ai/factor_suppression.py`.
+Conduct independent code, interface conformance, numerical stability, backward compatibility, and adversarial quantitative review of Worker M1's Phase 8 Milestone 1 implementation (Features F51 & F52: Riemannian Manifold Geodesic 5-Pillar Synergy, Hyperexponential Convex Rank Modulation, Hurst Fractional Jump-Diffusion Mixture, Asymmetric Septic Wavelet Noise Deadband) in `trading_system/src/ai/ensemble_scorer.py` and `trading_system/src/ai/factor_suppression.py`.
 
 ## 🔒 My Identity
 - Archetype: reviewer_critic
@@ -12,6 +12,7 @@ Conduct independent code, interface conformance, numerical stability, backward c
 - Instance: 2 of 2
 - Phase 6 Milestone: Milestone 1 Phase 6 Deep Quantitative Enhancements (Features F41 & F42)
 - Current parent: cb4888d0-b14d-471f-b555-422c2a30d7c0
+- Phase 8 Milestone: Milestone 1 Phase 8 Sovereign Signal & Alpha Architecture (Features F51 & F52)
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
@@ -20,55 +21,52 @@ Conduct independent code, interface conformance, numerical stability, backward c
 - Issue explicit verdict: APPROVE or REQUEST_CHANGES
 
 ## Current Parent
-- Conversation ID: cb4888d0-b14d-471f-b555-422c2a30d7c0
-- Updated: 2026-09-04T14:17:17Z
+- Conversation ID: daeeeeae-7a82-4f27-ad74-9e1b4f6614df
+- Updated: 2026-09-05T02:32:10Z
 
 ## Review Scope
 - **Files to review**:
-  * `trading_system/src/ai/factor_suppression.py`
   * `trading_system/src/ai/ensemble_scorer.py`
-  * `tests/test_phase6_signal_enhancement.py`
-  * `tests/test_regime_ensemble.py`
+  * `trading_system/src/ai/factor_suppression.py`
+  * `tests/test_phase8_signal_enhancement.py`
   * `tests/test_adversarial_ensemble_scorer_challenger.py`
 - **Interface contracts**:
-  * `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (## 2026-09-04T13:40:12Z)
-  * `d:\Finance\code\stock\.agents\worker_m1\handoff.md`
-- **Review criteria**: Interface conformance, backward compatibility (tuple unpacking, default versioning), numerical stability, rank monotonicity, regression safety, zero integrity violations.
+  * `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (Section ## 2026-09-05T02:15:24Z)
+  * `d:\Finance\code\stock\.agents\worker_m1_signal\handoff.md`
+- **Review criteria**: Interface conformance, backward compatibility, numerical stability, rank monotonicity ($g'(r) > 0$), extreme inputs ($p_k=0, 1$, $H \to 0, 1$), zero division protection, zero integrity violations.
 
 ## Review Checklist
 - **Items reviewed**:
-  * `trading_system/src/ai/factor_suppression.py`:
-    - `QUINT_PILLAR_MAP`: Disjoint partitioning of 37 strategies across 5 canonical pillars (`val`: 6, `mom`: 9, `flow`: 9, `cat`: 6, `net`: 7). Verified disjoint and exhaustive.
   * `trading_system/src/ai/ensemble_scorer.py`:
-    - `BessembinderParams`: Smart bytecode-aware sequence unpacking (2-element vs 3-element unpacking verified).
-    - `compute_quint_pillar_tensor_synergy`: 2nd, 3rd, 4th, 5th order contractions, regime-adaptive synergy scaling up to 1.180x in Bull and capped at 1.040x in Crisis.
-    - `apply_top_decile_convex_boost`: Adaptive Hölder exponent $p(R) \in [1.25, 2.50]$ and dispersion gating.
-    - `get_regime_adaptive_bessembinder_params`: Version 6 bilateral parameters across all 7 regimes.
-    - `apply_bessembinder_convex_power_law`: Bilateral asymmetric Richards S-curve with strict rank preservation ($\rho_s = 1.0000$).
-    - `get_regime_adaptive_half_lives`: Markov stationary KL divergence $\phi_{\text{KL}}$ against $\pi_\infty$, transition entropy, TV jump, and 4-tier strategy elasticity ($\nu_A=1.30$ to $\nu_D=0.40$).
-    - `apply_smooth_noise_deadband`: Bilateral thresholds and kurtosis-adaptive tanh soft-thresholding.
-    - `combine_predictions`: `version=5` default for backward compatibility, Version 6 activation under `version >= 6`.
-  * Tests:
-    - `tests/test_phase6_signal_enhancement.py` (6 tests passed)
-    - `tests/test_regime_ensemble.py` (4 tests passed)
+    - `compute_quint_pillar_tensor_synergy`: Fisher-Rao geodesic arc distance $d_R$, Riemannian harmony regularizer $H_{\text{Riemann}} = \exp(-2.40 d_R^2)$, core triplet 1.50x boost, Bull Low Vol cap 0.250, Crisis cap 0.040.
+    - `get_regime_adaptive_gamma_top`: $\gamma_{\text{top}} \in [0.20, 0.85]$ across 7 regimes.
+    - `combine_predictions`: Hyperexponential rank modulation $0.50 + 0.65 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^3)$ preserving monotonicity ($dg/dr > 0$).
+    - `get_base_weights`: Hurst fractional jump-diffusion scaling $J_{\text{frac}} = \text{clip}(J_{\text{regime}} \cdot (2H)^{1.5}, 0, 1)$.
+    - `get_regime_adaptive_half_lives`: Markov penalty scaled by $(2H)^{0.5}$.
+  * `trading_system/src/ai/factor_suppression.py`:
+    - `apply_asymmetric_wavelet_deadband`: Septic $\alpha = 7.0$ soft-thresholding $z \cdot \tanh((|z|/\delta)^7)$.
+    - `apply_quintic_hyperbolic_deadband`: Backward compatibility under versions 6 and 7 preserved.
+  * Test suites:
+    - `tests/test_phase8_signal_enhancement.py` (6 tests passed)
     - `tests/test_adversarial_ensemble_scorer_challenger.py` (17 tests passed)
-    - Phase 5, Phase 4 suites regression passing.
+    - Custom adversarial edge stress suite (5/5 passed)
 - **Verdict**: APPROVE
-- **Unverified claims**: None (all claims verified empirically and mathematically)
+- **Unverified claims**: None (all claims mathematically and empirically validated)
 
 ## Attack Surface
 - **Hypotheses tested**:
-  * BessembinderParams tuple unpacking: both 2-tuple (`g, b = params`) and 3-tuple (`g, b, u = params`) verified working.
-  * Extreme inputs (NaNs, Infs, empty arrays, constant values): verified safe handling and bounds in $[0.0, 1.0]$.
-  * Single asset and small universes ($N < 5$): verified clean pass-through.
-  * Invalid/negative regime probabilities: verified robust normalization and safe $\tau \ge 0.10$d floor.
-  * Rank monotonicity: verified $\rho_s = 1.0000$ across continuous spectrum for Richards S-curve and noise deadband.
-- **Vulnerabilities found**: No integrity violations or critical vulnerabilities.
+  * Zero and extreme pillar inputs: $p_k = 0 \to 1.0000$ baseline; $p_k = 1 \to 1.2500$ cap; single pillar spikes receive zero harmony boost.
+  * Simplex normalization stability: $\sum p_k = 1.00000$ invariant strictly preserved across scale extremes $[0, 10^6]$ with zero division protection.
+  * Rank modulation monotonicity: Analytical $g'(r) = (1+3\gamma r^3)\exp(\gamma r^3) > 0$ and discrete Spearman $\rho_s = 1.0000000$ confirmed across all 7 regimes.
+  * Hurst boundary conditions: $H \in [-1.0, 10.0]$ safely clamped, producing non-negative weights summing to 1.0000 and valid half-lives $\ge 0.10$.
+  * Septic deadband edge cases: Odd symmetry, zero leakage at $|z| \le 0.010$ (<0.003%), full transmission at $|z| \ge 0.150$ (>99.999%), $\rho_s = 1.0000000$.
+- **Vulnerabilities found**: None. Zero integrity violations.
 - **Untested angles**: None within Milestone 1 scope.
 
 ## Key Decisions Made
 - Confirmed zero integrity violations (no shortcuts, no facades, no hardcoded results).
-- Confirmed backward compatibility: default `version=5` in `combine_predictions` protects all legacy callers and tests.
+- Verified full backward compatibility for `version <= 7`.
+- Verified mathematical correctness, numerical stability, and robustness under adversarial inputs.
 - Issued APPROVE verdict.
 
 ## Artifact Index

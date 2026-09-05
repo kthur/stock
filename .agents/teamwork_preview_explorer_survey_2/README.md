@@ -1,2 +1,2 @@
-# Survey Explorer 2 Working Directory
-Target: Domain 3 Part A (V5-13 ~ V5-23)
+# Working Directory for teamwork_preview_explorer_survey_2
+Role: Portfolio & Execution Explorer

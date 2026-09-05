@@ -1,63 +1,50 @@
-# BRIEFING — 2026-09-04T00:36:20Z
+# BRIEFING — 2026-09-05T08:24:00Z
 
 ## Mission
-Read-only investigation: Survey benchmark reports from Phases 1, 2, 3, identify exact metrics, evaluation formulas, comparison tables, test scripts/runners, and define requirements for Phase 4 benchmark comparison reports across all 5 target markets.
+Deep code-level investigation of Phase 7 Zenith Enhancement (v14) R1:
+1. 37-strategy 5-pillar cross-tensor synergy & jump-diffusion regime transition weights.
+2. Markov normal distribution departure penalty & adaptive noise deadband fine-tuning under volatility regimes.
+3. Formulations, signatures, modifications, impact analysis, and backwards-compatibility preservation for 2,536+ tests.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: benchmark-analyst, report-surveyor
+- Roles: signal-synergy-analyst, quant-surveyor
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
-- Original parent: ba7893c9-9a12-479b-b906-f745cc7807b3
-- Milestone: Phase 4 Benchmark & Prior Phase Survey
+- Original parent: e1532581-bf40-4631-af87-80cf978d298b
+- Milestone: Phase 7 Zenith Quantitative Enhancements (v14) R1 Deep Survey
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement or modify source code
+- Read-only investigation — do NOT implement
 - File operations restricted to own directory (.agents/teamwork_preview_explorer_survey_1)
-- Write comprehensive handoff.md and send_message to parent when complete
+- Backward compatibility: 2,536+ existing tests must pass with 0 regressions
 
 ## Current Parent
-- Conversation ID: ba7893c9-9a12-479b-b906-f745cc7807b3
-- Updated: not yet
+- Conversation ID: e1532581-bf40-4631-af87-80cf978d298b
+- Updated: 2026-09-05T08:24:00Z
 
 ## Investigation State
 - **Explored paths**:
-  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (all historical requests up to 2026-09-04T00:32:34Z)
-  - `reports/quant_benchmark_comparison_phase3.md`
-  - `reports/quant_benchmark_comparison_phase2.md`
-  - `reports/quant_benchmark_comparison.md`
-  - `trading_system/result/quant_benchmark_comparison.md`
-  - `trading_system/result/quant_benchmark_comparison_phase2.md`
-  - `trading_system/result/quant_benchmark_comparison_phase3.md`
-  - `trading_system/scripts/benchmark_quant_performance.py` (Phase 1 engine)
-  - `trading_system/scripts/benchmark_phase2_quant_performance.py` (Phase 2 script)
-  - `trading_system/scripts/benchmark_phase3_quant_performance.py` (Phase 3 engine)
-  - `tests/test_m1_quant_enhancements.py`, `tests/test_m2_quant_enhancements.py`, `tests/run_m1_challenger_stress_benchmark.py`
-  - Pytest suite collection: exactly 2,295 tests collected and passing
+  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
+  - `.agents/orchestrator_quant_opt6_gen3/handoff.md`
+  - `trading_system/src/ai/ensemble_scorer.py`
+  - `trading_system/src/ai/factor_suppression.py`
+  - `trading_system/src/ai/score_normalizer.py`
+  - `tests/test_phase6_signal_enhancement.py` (6/6 passing in 19.6s)
+  - `tests/test_phase6_m1_challenger1_adversarial.py` & `challenger2` (39/39 passing in 29.8s)
 - **Key findings**:
-  - Exact progression across phases (v7 -> v8 -> v9 -> v10 -> v11):
-    * Net Expected Return: 16.80% (v7) -> 26.20% (v8) -> 31.45% (v9) -> 36.20% (v10) -> target ~40.50-41.50% (v11)
-    * Sharpe Ratio: 1.82 (v7) -> 2.68 (v8) -> 3.25 (v9) -> 3.81 (v10) -> target ~4.30-4.45 (v11)
-    * Rank-IC: 0.048 (v7) -> 0.086 (v8) -> 0.114 (v9) -> 0.141 (v10) -> target ~0.165-0.175 (v11)
-    * MDD: -16.40% (v7) -> -9.80% (v8) -> -7.20% (v9) -> -5.60% (v10) -> target ~ -4.30% to -4.50% (v11)
-    * Annualized Turnover: 185.0% (v7) -> 108.5% (v8) -> 78.2% (v9) -> 63.5% (v10) -> target ~52.0% (v11)
-    * Friction/Slippage Drag: 142.5 bps (v7) -> 84.2 bps (v8) -> 56.4 bps (v9) -> 40.0 bps (v10) -> target ~30.0 bps (v11)
-    * Darkpool Savings: 0 bps (v7, v8, v9) -> 9.2 bps (v10) -> target ~13.5 bps (v11)
-    * Profit Factor: 1.65 (v7) -> 2.38 (v8) -> 2.85 (v9) -> 3.42 (v10) -> target ~3.95 (v11)
-    * Calmar Ratio: 1.02 (v7) -> 2.67 (v8) -> 4.37 (v9) -> 6.46 (v10) -> target ~9.40 (v11)
-  - 5-market capital weighting: SP500 35%, NASDAQ 25%, KOSPI 20%, KOSDAQ 10%, RUSSELL2000 10%.
-  - Required report paths:
-    1. `reports/quant_benchmark_comparison_phase4.md`
-    2. `trading_system/result/quant_benchmark_comparison_phase4.md`
-    3. `reports/quant_benchmark_comparison.md`
-    (and optionally `trading_system/result/quant_benchmark_comparison.md`)
-  - Full suite baseline: 2,295 tests (0 regressions allowed).
-- **Unexplored areas**: None within survey scope.
+  1. `compute_quint_pillar_tensor_synergy` (lines 4457-4687): 37 strategies across 5 pillars (`val`, `mom`, `flow`, `cat`, `net`). Can be upgraded with economic triplet weighting ($\Omega_{\text{tri}}$), Pillar Harmony Regularizer ($\mathcal{H}_{\text{pillar}}$), and expanding Bull Low Vol cap from 0.180 to 0.220 (1.220x).
+  2. Jump-Diffusion Regime Transition Base Weights: Merton jump mixture blending continuous diffusion weights with target regime weights upon jump detection ($d_{TV} > 0.25$).
+  3. Markov Stationary Departure Penalty: Directional volatility skew $S_{\text{vol}}$ scaling $\kappa_{\text{Markov}} \in [0.25, 0.45]$ to prevent stale signals during high-vol shocks.
+  4. True Quintic Hyperbolic Deadband: $z \cdot \tanh((|z|/\delta)^5)$ in `factor_suppression.py` and `ensemble_scorer.py`, cutting near-zero leakage 22-fold.
+  5. Version 7 Bilateral Richards S-curve with quartic rank modulation $g_{\text{v7}}(r) = 0.60 + 0.25r + 0.25r^2 + 0.40r^3 + 0.35r^4$, expanding Top-Decile alpha spread by +18% to +22%.
+- **Unexplored areas**: None within R1 survey scope.
 
 ## Key Decisions Made
-- All quantitative benchmark comparison data, formulas, metrics, architecture attribution schemas, and test harnesses systematically indexed and ready for handoff report synthesis.
+- All mathematical formulations, exact code signatures, target lines, and zero-regression safeguards designed and documented in `survey_report.md`.
 
 ## Artifact Index
 - DISPATCH.md — Recorded dispatch instructions
 - BRIEFING.md — Working memory and context
 - progress.md — Heartbeat and step tracking
-- handoff.md — Comprehensive 5-component survey handoff report
+- survey_report.md — Comprehensive technical investigation and formula design
+- handoff.md — 5-component handoff report

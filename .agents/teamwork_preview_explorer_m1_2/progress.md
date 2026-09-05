@@ -1,12 +1,11 @@
-# Progress — Milestone 1 Investigation
+# Progress Log
 
-Last visited: 2026-08-31T14:57:45Z
-
-- [x] Initialized DISPATCH.md, BRIEFING.md, and progress.md
-- [x] Read ORIGINAL_REQUEST.md and PROJECT.md
-- [x] Inspected download_db.py, preseed_data.py, src/persistence/database.py, src/data_layer/indicator_storage.py, src/data_layer/earnings_data.py
-- [x] Analyzed 5 markets seeding/caching in GHA and local runs
-- [x] Checked edge cases (dynamic filing lag, Azure blob token stripping, SQLite WAL locks/concurrency)
-- [x] Ran unit and concurrency tests (`tests/test_database.py`, `tests/test_database_concurrency.py`, `tests/test_multi_market_expansion.py`) — 100% passed (23/23)
-- [x] Drafted comprehensive report.md and handoff.md
-- [x] Send completion message to parent
+Last visited: 2026-09-04T23:28:30Z
+Status: Completed detailed code investigation and implementation strategy for F47 (Jump-Diffusion) and F48 (Markov Penalty).
+Current step: Generating handoff report and updating BRIEFING.md.
+Completed:
+- Verified existing Phase 6 test suite (6/6 passed).
+- Formulated exact mathematical equations and parameter ranges for F47 and F48.
+- Specified exact code replacement chunks for `get_base_weights` and `get_regime_adaptive_half_lives` in `trading_system/src/ai/ensemble_scorer.py`.
+- Formulated test verification cases ensuring strict Phase 6 backwards compatibility (`version <= 6`) and invariant enforcement for `version >= 7`.
+- Delivered `exploration_report.md`.

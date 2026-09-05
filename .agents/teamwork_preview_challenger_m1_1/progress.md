@@ -1,28 +1,16 @@
-# Progress — Challenger 1 (Milestone 1)
+# Progress Log — Challenger 1 (Milestone 1)
 
-Last visited: 2026-09-04T01:01:00Z
+Last visited: 2026-09-04T23:45:30Z
 
-## Status
-Empirical adversarial testing completed. Verdict formulated: APPROVE (with Optimization Recommendation).
-
-## Tasks
-- [x] Create DISPATCH.md and BRIEFING.md
-- [x] Read MANDATORY FIRST STEP documents:
-  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
-  - `d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md`
-  - `d:\Finance\code\stock\.agents\orchestrator_quant_opt4\SCOPE.md`
-- [x] Inspect Worker 1 changes in `trading_system/src/ai/ensemble_scorer.py`
-- [x] Write empirical challenger stress-test suite (`tests/test_adversarial_m1_challenger.py`):
-  - [x] Rank preservation under monotonic transformations (Spearman Rank correlation $\ge 0.999$)
-  - [x] Extreme high-conviction scores (0.85, 0.92, 0.98) top-decile differentiation without flattening
-  - [x] High sparsity (35 out of 37 factors NaN & all-NaN handling)
-  - [x] High volatility & crisis regimes vs bull regimes alpha dampening
-  - [x] Kaufman Trend Efficiency (KER) dynamic switching with adversarial / corrupted inputs
-  - [x] Tri-linear synergy kernel & 6-regime coupling edge cases
-  - [x] BessembinderParams smart sequence unpacking in all Python calling conventions
-  - [x] Numerical boundaries (0.0, 0.5, 1.0) & large universe scaling (1,000 stocks)
-- [x] Execute empirical tests via `.venv\Scripts\python.exe`:
-  - 26/26 tests passed (8 Phase 4 baseline tests + 18 new adversarial challenger tests)
-- [x] Formulate verdict: **APPROVE** (with actionable recommendation regarding asymptotic soft-bounding)
-- [ ] Write handoff report `handoff.md`
-- [ ] Send message to orchestrator parent
+- [x] Received dispatch from user/parent and initialized DISPATCH.md
+- [x] Initialized BRIEFING.md and loaded context from PROJECT.md, ORIGINAL_REQUEST.md, worker handoff.md
+- [x] Inspected source code in 	rading_system/src/ai/ensemble_scorer.py and 	rading_system/src/ai/factor_suppression.py
+- [x] Constructed adversarial stress test suite in 	ests/test_phase7_m1_challenger1_adversarial.py
+- [x] Executed empirical tests across 21 test cases:
+  - 12/12 Merton Jump-Diffusion boundary tests PASSED (d_TV = 0.0, 0.25000, 0.25001, 1.0, simplex invariants, continuity)
+  - 3/4 Deadband tests PASSED (unconditioned [10^-6, 10^-2] noise elimination >= 99.9%, high signal [0.15, 1.0] transmission 100%, numerical extremes)
+  - 1/4 Deadband test FAILED (	est_all_regimes_conditioned_deadband in BEAR_LOW_VOL due to eff_alpha_neg = 4.0 leaking 0.1176% > 0.1000%)
+  - 4/4 Pillar Harmony Regularizer tests PASSED (all-zero, all-one, single-pillar, 2,000 MC draws)
+  - 1/1 Full pipeline combine_predictions extreme adversarial stress test PASSED (zero NaNs, non-negative return)
+- [x] Identified exact root cause, mathematical violation, and recommended code fix
+- [x] Compiling 5-component handoff report with verdict REQUEST_CHANGES

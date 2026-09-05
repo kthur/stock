@@ -1,7 +1,7 @@
-# BRIEFING — 2026-09-04T18:32:45+09:00
+# BRIEFING — 2026-09-05T02:35:00Z
 
 ## Mission
-Adversarial stress-testing and empirical validation of Phase 5 Milestone 1 changes (convex alpha scaling, adaptive entropy-regularized regime confidence, and associated tests).
+Adversarial stress-testing and empirical validation of Phase 8 Milestone 1 changes (Features F51 and F52: Fisher-Rao Riemannian manifold geodesic 5-pillar synergy, hyperexponential convex rank modulation, Hurst fractional jump-diffusion regime weights, and asymmetric septic wavelet noise deadband).
 
 ## 🔒 My Identity
 - Archetype: EMPIRICAL CHALLENGER
@@ -10,51 +10,50 @@ Adversarial stress-testing and empirical validation of Phase 5 Milestone 1 chang
 - Original parent: 61d3427d-726d-48df-945c-5ec75b30ebde
 - Current parent (Phase 6): cb4888d0-b14d-471f-b555-422c2a30d7c0
 - Phase 6 Milestone: Milestone 1 (Phase 6 Milestone 1: Requirement R1 - Features F41 & F42)
+- Phase 8 Parent: daeeeeae-7a82-4f27-ad74-9e1b4f6614df
+- Phase 8 Milestone: Milestone 1 (Signal & Alpha Architecture: Features F51 & F52)
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code (report findings/failures)
 - Empirical validation required: write and execute tests, stress harnesses, and oracles
 - No source/test files in .agents/
-- Report verdict explicitly: CONFIRM or REJECT
+- Report verdict explicitly: APPROVE or REQUEST_CHANGES
 - Adversarially challenge rank monotonicity (rho_s == 1.0000) and boundary behavior of Hölder p-norm and Version 6 Richards S-curve under extreme market simulations
+- Adversarially challenge Fisher-Rao distance numerical stability, BC clipping, rank monotonicity under hyperexponential modulation across 1,000 assets, and septic noise deadband attenuation ratio
 
 ## Current Parent
-- Conversation ID: cb4888d0-b14d-471f-b555-422c2a30d7c0
-- Updated: 2026-09-04T23:17:17+09:00
+- Conversation ID: daeeeeae-7a82-4f27-ad74-9e1b4f6614df
+- Updated: 2026-09-05T02:32:10Z
 
 ## Review Scope
-- **Files to review**: `trading_system/src/ai/factor_suppression.py`, `trading_system/src/ai/ensemble_scorer.py`, `tests/test_phase6_signal_enhancement.py`
-- **Interface contracts**: `PROJECT.md`, `SCOPE.md`, `ORIGINAL_REQUEST.md` (2026-09-04T13:40:12Z)
-- **Review criteria**: Rank monotonicity ($\rho_s == 1.0000$), Hölder p-norm boundary conditions ($p=1.25, 2.00, 2.50$), Bilateral Richards S-curve Version 6 boundary behavior, Markov stationary divergence, Kurtosis noise deadband.
+- **Files to review**: `trading_system/src/ai/factor_suppression.py`, `trading_system/src/ai/ensemble_scorer.py`, `tests/test_phase8_signal_enhancement.py`
+- **Interface contracts**: `ORIGINAL_REQUEST.md` (2026-09-05T02:15:24Z), `DISPATCH.md`
+- **Review criteria**:
+  1. Fisher-Rao distance numerical stability under roundoff errors (BC clipping, arccos NaN prevention, degenerate distributions).
+  2. Rank monotonicity and preservation under hyperexponential modulation across random permutations of 1,000 assets and all regimes.
+  3. Noise deadband attenuation ratio: at |z| = 0.010, assert leakage <= 0.010% (>=99.99% suppression), high-conviction transmission >= 99.999% at |z| >= 0.150.
+  4. Regime branch ordering and edge-case robustness.
 
 ## Key Decisions Made
-- Executed Worker M1 test suite `tests/test_phase6_signal_enhancement.py` (6/6 passed in 26.06s).
-- Implemented and executed adversarial stress harness `tests/test_phase6_m1_challenger1_adversarial.py` (27 tests across 9 categories).
-- Confirmed strict rank monotonicity ($\rho_s == 1.0000$) across 6 distributions and 7 regimes.
-- Confirmed Hölder generalized mean boundary behavior and Jensen's inequality across 1,000 trials.
-- Discovered and empirically reproduced critical branch ordering defect at lines 4567–4588 in `trading_system/src/ai/ensemble_scorer.py`: `elif 'BEAR_LOW_VOL' in reg_str or 'BEAR' in reg_str:` precedes `BEAR_HIGH_VOL`, rendering `BEAR_HIGH_VOL` unreachable dead code and inflating the synergy cap from 0.045 to 0.085 (+88.9%).
-- Delivered formal verdict: **REJECT** pending Worker M1 branch reordering.
+- Verified Worker M1's test suite `tests/test_phase8_signal_enhancement.py` (6/6 passed in 42.15s).
+- Designing dedicated adversarial test suite `tests/test_phase8_m1_challenger1_adversarial.py` targeting mathematical edge cases, precision limits, and stress scenarios.
 
 ## Artifact Index
 - handoff.md — Verification and adversarial challenge report
 - progress.md — Liveness and step tracking
 - DISPATCH.md — Dispatch log with UTC timestamp
-- tests/test_phase6_m1_challenger1_adversarial.py — Empirical challenge test suite
+- tests/test_phase8_m1_challenger1_adversarial.py — Empirical challenge test suite
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. Rank monotonicity ($\rho_s == 1.0000$) under Uniform, Gaussian, Cauchy, Pareto, Beta, Micro-scale distributions -> CONFIRMED.
-  2. Pointwise first derivative $\Delta y > 0$ on uniform grid -> CONFIRMED.
-  3. Hölder $p(R)$-norm boundary behaviors ($p=1.25$ to $2.50$, zero/uniform/spike vectors, Jensen's inequality) -> CONFIRMED.
-  4. Extreme market simulations (Flash crash 95/5, Meme squeeze 90/10, complete freeze 0.50, bimodal polarization 0.01/0.99) -> CONFIRMED.
-  5. Markov stationary KL divergence and kurtosis noise deadband -> CONFIRMED.
-  6. Quint-pillar tensor synergy regime-specific caps and zero leakage -> FAILED on BEAR_HIGH_VOL due to branch order shadowing.
-- **Vulnerabilities found**:
-  - Defect in `trading_system/src/ai/ensemble_scorer.py` lines 4567–4588: `BEAR_HIGH_VOL` branch is shadowed by `'BEAR' in reg_str` in `BEAR_LOW_VOL` condition, causing `reg_cap` to inflate to 0.085 instead of 0.045.
-- **Untested angles**:
-  - Full pipeline backtest execution across multi-year historical data (deferred to Integration milestone).
+  1. Fisher-Rao geodesic distance: Does BC > 1.0000000000000002 trigger NaN without clipping? Does clipping at 1.0 prevent NaNs? Does uniform prior p0=(0.2, 0.2, 0.2, 0.2, 0.2) give exact 0.0 distance?
+  2. Degenerate distributions in Fisher-Rao: What if p = 0 (all pillars 0)? What if p is an extreme single spike (1, 0, 0, 0, 0)? Does harmony_factor protect against noise?
+  3. Hyperexponential rank modulation: Is g_v8(r) strictly monotonic (rho == 1.0000, discrete diffs > 0) across 1,000 assets drawn from Uniform, Normal, Cauchy, Pareto, Bimodal distributions?
+  4. Alpha spread expansion: Does gamma_top in [0.20, 0.85] expand top decile spread by >= 25% without rank distortion?
+  5. Septic deadband attenuation: Is leakage <= 0.003% (suppression >= 99.997%) at |z| = 0.010? Is high-conviction signal >= 99.999% transmitted at |z| >= 0.150? Is odd symmetry exact?
+  6. Hurst fractional jump-diffusion: Does H in [0.05, 0.95] strictly maintain simplex sum == 1.0000 and non-negativity?
+- **Vulnerabilities found**: [To be evaluated during empirical tests]
+- **Untested angles**: Execution OMS L3 queue acceleration (Milestone 2 scope).
 
 ## Loaded Skills
 None
-
-

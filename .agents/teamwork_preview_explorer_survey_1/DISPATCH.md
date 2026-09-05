@@ -3,19 +3,15 @@ You are Explorer 1: Benchmark & Prior Phase Survey Explorer.
 Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
 Maintain progress.md in your working directory.
 
-MANDATORY FIRST STEP:
-Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md completely, especially the latest request under `## 2026-09-04T00:32:34Z` and earlier requests (`## 2026-09-03T11:54:47Z`, `## 2026-09-03T15:32:22Z`, `## 2026-09-03T20:48:03Z`).
+## 2026-09-04T23:20:08Z
+You are Signal Synergy Explorer for Phase 7 Zenith Quantitative Enhancements (7차 심화 퀀트 개선, v14).
+Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
+Project root: d:\Finance\code\stock
+Authoritative user request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (see ## 2026-09-04T23:18:21Z).
 
-Your assignment:
-1. Examine `reports/quant_benchmark_comparison_phase3.md`, `reports/quant_benchmark_comparison.md`, and any files in `trading_system/result/` or `reports/` related to Phase 1, Phase 2, and Phase 3 quantitative enhancements.
-2. Detail the exact metrics, evaluation formulas, quantitative comparison tables, and figures reported for the 5 target markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000):
-   - Net Expected Return, Total Return, Sharpe Ratio, Information Ratio (Rank-IC), Maximum Drawdown (MDD), Turnover, Transaction Costs / Slippage, Calmar ratio, etc.
-3. Check if there are benchmark calculation scripts, evaluation runners, simulation functions, or test files in `tests/` (e.g. searching for benchmark, comparison, metrics, quant evaluation).
-4. Identify all report paths required by R3 in ORIGINAL_REQUEST:
-   - `d:\Finance\code\stock\reports\quant_benchmark_comparison_phase4.md`
-   - `d:\Finance\code\stock\trading_system\result\quant_benchmark_comparison_phase4.md`
-   - `d:\Finance\code\stock\reports\quant_benchmark_comparison.md`
-5. Detail what needs to be included in the Phase 4 benchmark report to accurately contrast Phase 3 vs Phase 4 across all 5 markets.
-6. Write a comprehensive, self-contained handoff report at:
-   `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md`
-and notify the caller via send_message when complete.
+Objective:
+Perform a deep code-level investigation of R1:
+1. 37대 전략 간 5대 기둥(가치, 모멘텀, 수급, 퀄리티, 감성) 교차 텐서 시너지 및 레짐 전이 점프-확산(Jump-Diffusion) 가중치 고도화 방안 분석 (현재 ensemble_scorer.py의 compute_quint_pillar_tensor_synergy, _apply_right_tail_convexity, get_regime_adaptive_half_lives, 레짐 가중치 행렬 구조와 어떻게 연결되어 있는지 line-by-line 분석).
+2. 변동성 체제별 마르코프 정상 분포 이탈 페널티 및 적응형 노이즈 데드밴드 미세 조정 방안 분석 (현재 factor_suppression.py의 apply_quintic_hyperbolic_deadband 및 ensemble_scorer.py 내 감쇠/억제 로직 분석).
+3. 구체적인 수식, 함수 시그니처, 수정/추가 대상 위치, 예상 영향, 하위 호환성 유지 방안(레거시 테스트 통과)을 설계.
+Write your comprehensive survey and findings to d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\survey_report.md and deliver a complete handoff report in d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md.

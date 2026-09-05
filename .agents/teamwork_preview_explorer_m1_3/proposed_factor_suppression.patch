@@ -1,0 +1,69 @@
+--- trading_system/src/ai/factor_suppression.py
++++ trading_system/src/ai/factor_suppression.py
+@@ -4,3 +4,3 @@
+-from typing import Dict, List, Tuple, Optional, Any
++from typing import Dict, List, Tuple, Optional, Any, Union
+ 
+@@ -42,3 +42,48 @@
+ })
+ 
++
++def apply_quintic_hyperbolic_deadband(
++    scores_centered: Union[pd.Series, np.ndarray],
++    delta_noise: float = 0.045,
++    delta_neg: Optional[float] = None,
++    alpha_pos: float = 5.0,
++    alpha_neg: Optional[float] = None,
++    regime: Optional[Union[str, int]] = None
++) -> Union[pd.Series, np.ndarray]:
++    """
++    Phase 7 Zenith (F48.2): Smooth C^infinity Quintic-Hyperbolic Tangent Deadband Filter:
++        z_denoised = z * tanh((|z| / delta_eff(z))^alpha_eff(z))
++    With true quintic exponent (alpha = 5.0), squashes >99.9% of near-zero noise (|z| <= 0.010)
++    reducing noise leakage down to ~0.05% (a 22-fold reduction vs cubic deadband),
++    while transmitting 100.0% of high conviction signals (|z| >= 0.150) with strict rank
++    monotonicity (Spearman rho == 1.0000) and exact odd symmetry when unconditioned.
++    """
++    is_series = isinstance(scores_centered, pd.Series)
++    z = scores_centered.values if is_series else np.asarray(scores_centered, dtype=np.float64)
++
++    reg_str = str(regime).upper() if regime is not None else ''
++    if 'CRISIS' in reg_str:
++        chi_bear = 1.40
++        eff_alpha_neg = 5.0 if alpha_neg is None else alpha_neg
++        eff_alpha_pos = 5.0
++    elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
++        chi_bear = 1.35
++        eff_alpha_neg = 5.0 if alpha_neg is None else alpha_neg
++        eff_alpha_pos = alpha_pos
++    elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or 'BEAR' in reg_str:
++        chi_bear = 1.20
++        eff_alpha_neg = 4.0 if alpha_neg is None else alpha_neg
++        eff_alpha_pos = alpha_pos
++    elif 'SIDEWAYS_HIGH_VOL' in reg_str:
++        chi_bear = 1.15
++        eff_alpha_neg = 4.5 if alpha_neg is None else alpha_neg
++        eff_alpha_pos = alpha_pos
++    else:
++        chi_bear = 1.00
++        eff_alpha_neg = alpha_pos if alpha_neg is None else alpha_neg
++        eff_alpha_pos = alpha_pos
++
++    safe_delta_pos = max(1e-6, float(delta_noise))
++    safe_delta_neg = max(1e-6, float(delta_neg)) if delta_neg is not None else (safe_delta_pos * chi_bear)
++
++    is_neg = (z < 0.0)
++    delta_eff = np.where(is_neg, safe_delta_neg, safe_delta_pos)
++    alpha_eff = np.where(is_neg, eff_alpha_neg, eff_alpha_pos)
++
++    abs_z = np.abs(z)
++    ratio = np.clip(abs_z / delta_eff, 0.0, 50.0)
++    arg = np.clip(np.power(ratio, alpha_eff), 0.0, 50.0)
++    denoised = z * np.tanh(arg)
++
++    if is_series:
++        return pd.Series(denoised, index=scores_centered.index)
++    return denoised
++
++
+ def solve_single_stage_entropy_allocation(

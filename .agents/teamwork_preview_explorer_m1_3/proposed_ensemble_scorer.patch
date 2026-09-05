@@ -1,0 +1,119 @@
+--- trading_system/src/ai/ensemble_scorer.py
++++ trading_system/src/ai/ensemble_scorer.py
+@@ -17,1 +17,1 @@
+-from .factor_suppression import RegimeFactorSuppressionEngine
++from .factor_suppression import RegimeFactorSuppressionEngine, apply_quintic_hyperbolic_deadband
+@@ -3388,6 +3388,10 @@
+         # Feature F36.2 & F42.2: Smooth Hyperbolic Tangent Noise Deadband Soft-Thresholding
+         delta_noise = self.get_regime_adaptive_noise_deadband(regime, regime_probs=regime_probs)
+-        if int(version) >= 6:
+-            z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime)
+-            gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=6)
++        if int(version) >= 7:
++            z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime, version=7)
++            gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=7)
++        elif int(version) >= 6:
++            z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime, version=6)
++            gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=6)
+         else:
+             z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, alpha_pos=3.0, alpha_neg=3.0)
+@@ -3399,5 +3403,9 @@
+             reg_str = str(regime).upper()
+             if 'BULL' in reg_str or str(regime) == '2':
+-                if int(version) >= 6:
++                if int(version) >= 7:
++                    # Feature F48.3: Quartic rank modulation in Bull regimes: steepens convexity for top percentiles
++                    # g_v7(r) = 0.60 + 0.25*r + 0.25*r^2 + 0.40*r^3 + 0.35*r^4
++                    mult = np.where(z_denoised >= 0.0, 0.60 + 0.25 * ranks + 0.25 * (ranks ** 2) + 0.40 * (ranks ** 3) + 0.35 * (ranks ** 4), 1.40 - 0.80 * ranks)
++                elif int(version) >= 6:
+                     # Cubic rank modulation in Bull regimes: steepens convexity for top percentiles
+                     mult = np.where(z_denoised >= 0.0, 0.60 + 0.30 * ranks + 0.30 * (ranks ** 2) + 0.55 * (ranks ** 3), 1.40 - 0.80 * ranks)
+@@ -4732,4 +4740,22 @@
+ 
++        if int(version) >= 7:
++            if 'CRISIS' in reg_str:
++                return BessembinderParams(1.20, 0.20, 0.78, beta_left=0.50, u_thresh_left=0.45, eta_right=1.50, eta_left=2.00)
++            elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
++                return BessembinderParams(1.25, 0.20, 0.70, beta_left=0.45, u_thresh_left=0.50, eta_right=1.60, eta_left=1.90)
++            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or reg_str == 'BEAR':
++                return BessembinderParams(1.35, 0.30, 0.65, beta_left=0.40, u_thresh_left=0.55, eta_right=1.80, eta_left=1.80)
++            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
++                return BessembinderParams(1.40, 0.32, 0.65, beta_left=0.35, u_thresh_left=0.65, eta_right=1.85, eta_left=1.70)
++            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or reg_str == 'SIDEWAYS':
++                return BessembinderParams(1.60, 0.46, 0.52, beta_left=0.35, u_thresh_left=0.60, eta_right=2.10, eta_left=1.60)
++            elif 'BULL_HIGH_VOL' in reg_str:
++                return BessembinderParams(1.85, 0.58, 0.42, beta_left=0.35, u_thresh_left=0.60, eta_right=2.35, eta_left=1.50)
++            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
++                return BessembinderParams(2.10, 0.68, 0.35, beta_left=0.35, u_thresh_left=0.60, eta_right=2.60, eta_left=1.40)
++            else:
++                return BessembinderParams(default_gamma, default_beta, default_u_thresh, beta_left=0.35, u_thresh_left=0.60, eta_right=2.00, eta_left=1.60)
++
+         if int(version) >= 6:
+             if 'CRISIS' in reg_str:
+@@ -4916,4 +4942,20 @@
+ 
++        if int(version) >= 7:
++            if 'CRISIS' in reg_str or 'BEAR_HIGH_VOL' in reg_str:
++                return 1.00
++            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or ('BEAR' in reg_str and 'LOW_VOL' in reg_str):
++                return 1.10
++            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
++                return 1.16
++            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or 'SIDEWAYS' in reg_str:
++                return 1.22
++            elif 'BULL_HIGH_VOL' in reg_str:
++                return 1.30
++            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
++                return 1.42
++            elif 'BEAR' in reg_str:
++                return 1.08
++            else:
++                return 1.25
++
+         if int(version) >= 6:
+             if 'CRISIS' in reg_str or 'BEAR_HIGH_VOL' in reg_str:
+@@ -5014,3 +5056,4 @@
+         alpha_pos: float = 3.0,
+         alpha_neg: Optional[float] = None,
+-        regime: Optional[Union[str, int]] = None
++        regime: Optional[Union[str, int]] = None,
++        version: int = 6
+     ) -> Union[pd.Series, np.ndarray]:
+         """
++        Feature F36.2, F42.2 & F48.2: Asymmetric Kurtosis-Adaptive Noise Deadband:
++        z_denoised = z * tanh((|z| / delta_eff(z))^alpha_eff(z))
++        Under version >= 7: Activates true C^infinity quintic exponent (alpha = 5.0),
++        squashing >99.9% of near-zero noise with 0.05% leakage.
+         """
++        if int(version) >= 7:
++            eff_alpha = 5.0 if alpha_pos == 3.0 else alpha_pos
++            return apply_quintic_hyperbolic_deadband(
++                scores_centered=scores_centered,
++                delta_noise=delta_noise,
++                delta_neg=delta_neg,
++                alpha_pos=eff_alpha,
++                alpha_neg=alpha_neg,
++                regime=regime
++            )
++
+         is_series = isinstance(scores_centered, pd.Series)
+@@ -5060,0 +5120,18 @@
++    @classmethod
++    def apply_quintic_hyperbolic_deadband(
++        cls,
++        scores_centered: Union[pd.Series, np.ndarray],
++        delta_noise: float = 0.045,
++        delta_neg: Optional[float] = None,
++        alpha_pos: float = 5.0,
++        alpha_neg: Optional[float] = None,
++        regime: Optional[Union[str, int]] = None
++    ) -> Union[pd.Series, np.ndarray]:
++        """Direct alias to apply_quintic_hyperbolic_deadband in factor_suppression."""
++        return apply_quintic_hyperbolic_deadband(
++            scores_centered=scores_centered,
++            delta_noise=delta_noise,
++            delta_neg=delta_neg,
++            alpha_pos=alpha_pos,
++            alpha_neg=alpha_neg,
++            regime=regime
++        )

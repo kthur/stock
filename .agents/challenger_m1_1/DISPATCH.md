@@ -1,26 +1,31 @@
-# DISPATCH — Challenger M1-1
+# DISPATCH: Challenger 1 (M1 Empirical Verifier)
 
-**Task**: Empirical Stress Testing & Rank Monotonicity Challenge for Milestone 1 (F41 & F42).
-**Authoritative Reference**: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (see ## 2026-09-04T13:40:12Z)
-**Worker Handoff**: `d:\Finance\code\stock\.agents\worker_m1\handoff.md`
-**Target Files**:
-- `src/ai/ensemble_scorer.py`
-- `src/ai/factor_suppression.py`
+## Working Directory
+`d:\Finance\code\stock\.agents\challenger_m1_1`
 
-**Objectives**:
-1. Adversarially challenge the mathematical claim that Bilateral Asymmetric Richards S-Curve (Version 6) strictly preserves rank monotonicity ($\rho_s \equiv 1.0000$) across all 7 market regimes under randomized, extreme, and edge-case inputs.
-2. Stress test Hölder generalized mean under boundary parameters ($p=1.25, 2.00, 2.50$, zero vectors, uniform vectors, extreme single-factor spikes).
-3. Execute empirical verification scripts via Python:
-   `.venv\Scripts\python.exe -m pytest tests/test_phase6_signal_enhancement.py -v`
-4. Report verdict (CONFIRM / REJECT) with empirical evidence in `d:\Finance\code\stock\.agents\challenger_m1_1\handoff.md`.
+## References
+- `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (Section ## 2026-09-05T02:15:24Z)
+- `d:\Finance\code\stock\.agents\worker_m1_signal\handoff.md`
 
-## 2026-09-04T14:17:17Z
-You are challenger_m1_1.
-Your working directory is: d:\Finance\code\stock\.agents\challenger_m1_1\
-Read d:\Finance\code\stock\.agents\challenger_m1_1\DISPATCH.md and d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (mandatory).
-Read d:\Finance\code\stock\.agents\worker_m1\handoff.md.
-Adversarially challenge rank monotonicity (rho_s == 1.0000) and boundary behavior of Hölder p-norm and Version 6 Richards S-curve under extreme market simulations.
-Run tests:
-.venv\Scripts\python.exe -m pytest tests/test_phase6_signal_enhancement.py -v
-Deliver your challenger report and verdict (CONFIRM or REJECT) to: d:\Finance\code\stock\.agents\challenger_m1_1\handoff.md
-Send completion message back to parent.
+## Task
+Empirically stress-test Features F51 and F52:
+1. Write adversarial test harness to verify:
+   - Numerical stability of $\arccos(\text{clip}(\text{BC}, 0.0, 1.0))$ under floating-point roundoff errors ($\text{BC} = 1.0000000000000002$).
+   - Rank preservation under hyperexponential modulation across random permutations of 1,000 assets.
+   - Noise deadband attenuation ratio at $|z| = 0.010$: assert leakage $\le 0.010\%$ ($99.99\%$ noise suppression).
+2. Execute tests and report verdict (APPROVE or REQUEST_CHANGES) in `d:\Finance\code\stock\.agents\challenger_m1_1\handoff.md`.
+
+## 2026-09-05T02:32:10Z
+You are Challenger 1 for Milestone 1 (Signal & Alpha Architecture).
+Your working directory is: d:\Finance\code\stock\.agents\challenger_m1_1
+
+MANDATORY: Read ORIGINAL_REQUEST.md at:
+d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Read DISPATCH.md at:
+d:\Finance\code\stock\.agents\challenger_m1_1\DISPATCH.md
+Read Worker M1's handoff report at:
+d:\Finance\code\stock\.agents\worker_m1_signal\handoff.md
+
+Empirically challenge F51 and F52 (Fisher-Rao distance numerical stability, rank monotonicity under hyperexponential modulation, noise deadband attenuation ratio).
+Write your handoff report with verdict (APPROVE or REQUEST_CHANGES) to `d:\Finance\code\stock\.agents\challenger_m1_1\handoff.md` and send a message back to the orchestrator.
+

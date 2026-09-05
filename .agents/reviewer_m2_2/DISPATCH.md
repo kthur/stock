@@ -1,18 +1,35 @@
-﻿## 2026-08-30T13:57:00Z
-Review Milestone 2: Ensemble Meta-Learner & Dynamic 2D/3D Regime Weighting Enhancement.
-Working Directory: d:\Finance\code\stock\.agents\reviewer_m2_2
-Authoritative Original Request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Project Blueprint: d:\Finance\code\stock\PROJECT.md
-Worker Handoff: d:\Finance\code\stock\.agents\worker_m2\handoff.md
-Project Rules: d:\Finance\code\stock\AGENTS.md
+# DISPATCH: Reviewer 2 (M2 Allocation & Execution Architecture)
 
-Task:
-1. Review all code changes made by Worker M2:
-   - `trading_system/src/ai/ensemble_scorer.py`
-   - `trading_system/src/ai/factor_suppression.py`
-   - `trading_system/src/ai/meta_ensemble_learner.py`
-   - `tests/test_cross_market_meta_stacking.py`
-2. Independently verify architectural integration with `CrossSectionalScoreNormalizer`, `FactorOrthogonalizerEngine` (PCA-ZCA whitening), `RegimeFactorSuppressionEngine`, and `MetaEnsembleLearner`.
-3. Run tests using `$env:PYTHONPATH="trading_system;trading_system/src;."; .venv\Scripts\pytest.exe tests/test_adversarial_regime_sharpe_m2.py tests/test_challenger_m2_empirical_stress.py tests/test_correlation_suppression.py tests/test_cross_market_meta_stacking.py -v`.
-4. Produce a detailed review report at `d:\Finance\code\stock\.agents\reviewer_m2_2\review_report.md` and handoff at `d:\Finance\code\stock\.agents\reviewer_m2_2\handoff.md` with an explicit verdict: APPROVE or REQUEST_CHANGES.
-5. Send a message to parent when complete.
+## Working Directory
+`d:\Finance\code\stock\.agents\reviewer_m2_2`
+
+## References
+- `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (Section ## 2026-09-05T02:15:24Z)
+- `d:\Finance\code\stock\.agents\worker_m2_allocation\handoff.md`
+- `d:\Finance\code\stock\AGENTS.md`
+
+## Task
+Independently review Milestone 2 (Features F53 & F54):
+1. Review implementation across all 4 modified files.
+2. Adversarially challenge edge cases:
+   - Zero returns matrix, single asset returns, identical asset returns in R-Vine copula.
+   - Rapid queue cancellation runs and clock jitter in $d^2\text{QI}/dt^2$ calculation.
+   - Extreme cross-asset toxicity ($\gamma_{\text{cross}} = 1.0$) peg limit price behavior.
+   - Regression suites: verify backward compatibility with versions 4, 5, 6, 7.
+3. Run tests: `.venv\Scripts\python.exe -m pytest tests/test_phase8_portfolio_execution.py tests/test_phase4_portfolio_execution.py tests/test_phase5_portfolio_execution.py tests/test_phase6_portfolio_execution.py tests/test_phase7_portfolio_execution.py -q`.
+4. Write verdict (APPROVE or REQUEST_CHANGES) to `d:\Finance\code\stock\.agents\reviewer_m2_2\handoff.md`.
+
+## 2026-09-05T02:33:13Z
+You are Reviewer 2 for Milestone 2 (Allocation & Execution Architecture).
+Your working directory is: d:\Finance\code\stock\.agents\reviewer_m2_2
+
+MANDATORY: Read ORIGINAL_REQUEST.md at:
+d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Read DISPATCH.md at:
+d:\Finance\code\stock\.agents\reviewer_m2_2\DISPATCH.md
+Read Worker M2's handoff report at:
+d:\Finance\code\stock\.agents\worker_m2_allocation\handoff.md
+
+Review implementation across all 4 modified files and challenge edge cases.
+Run tests via `.venv\Scripts\python.exe -m pytest tests/test_phase8_portfolio_execution.py tests/test_phase4_portfolio_execution.py tests/test_phase5_portfolio_execution.py tests/test_phase6_portfolio_execution.py tests/test_phase7_portfolio_execution.py -q`.
+Write your handoff report with verdict (APPROVE or REQUEST_CHANGES) to `d:\Finance\code\stock\.agents\reviewer_m2_2\handoff.md` and send a message back to the orchestrator.
