@@ -90,7 +90,8 @@ trading_system/models/*.joblib
 temp_model.json
 
 # Pipeline output files
-trading_system/result/
+trading_system/result/*
+!trading_system/result/quant_benchmark_comparison_phase6.md
 
 # Test artifacts
 *.pdf

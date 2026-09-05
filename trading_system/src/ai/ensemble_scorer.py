@@ -97,6 +97,11 @@ class BessembinderParams(tuple):
     or 3 elements if caller expects 3 elements.
     Phase 6 Version 6 adds properties: beta_right, beta_left, u_thresh_right, u_thresh_left, eta_right, eta_left.
     """
+    _beta_left: float
+    _u_thresh_left: float
+    _eta_right: float
+    _eta_left: float
+
     def __new__(
         cls,
         gamma: float,
@@ -116,39 +121,39 @@ class BessembinderParams(tuple):
 
     @property
     def gamma(self) -> float:
-        return self[0]
+        return float(self[0])
 
     @property
     def beta(self) -> float:
-        return self[1]
+        return float(self[1])
 
     @property
     def beta_right(self) -> float:
-        return self[1]
+        return float(self[1])
 
     @property
     def beta_left(self) -> float:
-        return getattr(self, '_beta_left', self[1])
+        return float(getattr(self, '_beta_left', self[1]))
 
     @property
     def u_thresh(self) -> float:
-        return self[2]
+        return float(self[2])
 
     @property
     def u_thresh_right(self) -> float:
-        return self[2]
+        return float(self[2])
 
     @property
     def u_thresh_left(self) -> float:
-        return getattr(self, '_u_thresh_left', self[2])
+        return float(getattr(self, '_u_thresh_left', self[2]))
 
     @property
     def eta_right(self) -> float:
-        return getattr(self, '_eta_right', 2.0)
+        return float(getattr(self, '_eta_right', 2.0))
 
     @property
     def eta_left(self) -> float:
-        return getattr(self, '_eta_left', 1.6)
+        return float(getattr(self, '_eta_left', 1.6))
 
     def __iter__(self):
         try:
@@ -1199,7 +1204,7 @@ class EnsembleScoringEngine:
             total_p = sum(norm_probs.values())
             if total_p > 1e-12:
                 norm_probs = {k: v / total_p for k, v in norm_probs.items()}
-                blended = {}
+                blended: Dict[str, float] = {}
 
                 if has_2d:
                     for rk, prob in norm_probs.items():
@@ -1218,7 +1223,7 @@ class EnsembleScoringEngine:
 
                     # Feature F47: Merton Jump-Diffusion Regime Transition Base Weight Mixture (version >= 7)
                     if int(version) >= 7:
-                        prior_p = prev_regime_probs
+                        prior_p: Any = prev_regime_probs
                         if prior_p is None and hasattr(self, '_prev_regime_probs') and isinstance(self._prev_regime_probs, dict):
                             prior_p = self._prev_regime_probs.get('global')
 
@@ -1334,8 +1339,8 @@ class EnsembleScoringEngine:
                 w = dict(self.REGIME_2D_WEIGHTS[regime_str])
             elif "CRISIS" in regime_str:
                 w = dict(self.REGIME_2D_WEIGHTS["CRISIS"])
-            elif str(regime).isdigit() and int(regime) in self.REGIME_WEIGHTS:
-                w = dict(self.REGIME_WEIGHTS[int(regime)])
+            elif isinstance(regime, (int, str)) and str(regime).isdigit() and int(str(regime)) in self.REGIME_WEIGHTS:
+                w = dict(self.REGIME_WEIGHTS[int(str(regime))])
             elif isinstance(regime, int) and regime in self.REGIME_WEIGHTS:
                 w = dict(self.REGIME_WEIGHTS[regime])
             else:
@@ -1463,7 +1468,7 @@ class EnsembleScoringEngine:
         pruning_threshold: Optional[float] = -0.50,
         smooth_downside_mode: bool = False,
         market: str = "global",
-        regime_probs: Optional[Dict[str, float]] = None,
+        regime_probs: Optional[Dict[Union[str, int], float]] = None,
         enable_tv_smoothing: Optional[bool] = None,
         factor_autocorr_dict: Optional[Dict[str, float]] = None,
         version: int = 6,
@@ -1481,7 +1486,7 @@ class EnsembleScoringEngine:
         weighting until real history exists.
         """
         version = int(kwargs.get('version', version))
-        prev_probs = self._prev_regime_probs.get(market) if hasattr(self, '_prev_regime_probs') and isinstance(self._prev_regime_probs, dict) else None
+        prev_probs: Any = self._prev_regime_probs.get(market) if hasattr(self, '_prev_regime_probs') and isinstance(self._prev_regime_probs, dict) else None
         base_weights = self.get_base_weights(
             regime,
             vix_val=vix_val,
@@ -3489,7 +3494,8 @@ class EnsembleScoringEngine:
         abs_centered = np.clip(ens_scores - 0.50, -0.50, 0.50)
 
         # Feature F36.2 & F42.2 & F48.2 & F52.2: Smooth Hyperbolic Tangent Noise Deadband Soft-Thresholding
-        delta_noise = self.get_regime_adaptive_noise_deadband(regime, regime_probs=regime_probs)
+        _dn = self.get_regime_adaptive_noise_deadband(regime, regime_probs=regime_probs)
+        delta_noise = float(_dn[0]) if isinstance(_dn, tuple) else float(_dn)
         if int(version) >= 8:
             z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime, version=8)
             gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=8)
@@ -4259,7 +4265,8 @@ class EnsembleScoringEngine:
             }
 
         # Discrete single regime fallback
-        return cls._compute_single_regime_half_lives(regime)
+        reg_param: Union[int, str] = regime if isinstance(regime, (int, str)) else str(regime)
+        return cls._compute_single_regime_half_lives(reg_param)
 
     @classmethod
     def apply_exponential_decay_filter(
@@ -4920,7 +4927,7 @@ class EnsembleScoringEngine:
         default_beta: float = 0.40,
         default_u_thresh: float = 0.60,
         version: int = 4
-    ) -> Tuple[float, float, float]:
+    ) -> BessembinderParams:
         """
         Returns regime-adaptive (gamma_tail, beta_tail, u_thresh) for Bessembinder convex power-law:
         Version 4 (Phase 4 baseline):
@@ -5105,22 +5112,21 @@ class EnsembleScoringEngine:
             return np.clip(rescaled, 0.0, 1.0)
 
         # Version 4 / 5 Legacy Branch
-        eff_gamma = gamma_tail
-        eff_beta = beta_tail
-        eff_u_thresh = u_thresh
+        eff_gamma_v4: Optional[float] = gamma_tail
+        eff_beta_v4: Optional[float] = beta_tail
+        eff_u_thresh_v4: float = float(u_thresh)
         if regime is not None:
-            adapt_params = cls.get_regime_adaptive_bessembinder_params(regime, version=version)
-            adapt_gamma, adapt_beta, adapt_u = adapt_params[0], adapt_params[1], adapt_params[2]
-            if eff_gamma is None:
-                eff_gamma = adapt_gamma
-            if eff_beta is None:
-                eff_beta = adapt_beta
+            adapt_params_v4 = cls.get_regime_adaptive_bessembinder_params(regime, version=version)
+            adapt_gamma, adapt_beta, adapt_u = float(adapt_params_v4[0]), float(adapt_params_v4[1]), float(adapt_params_v4[2])
+            if eff_gamma_v4 is None:
+                eff_gamma_v4 = adapt_gamma
+            if eff_beta_v4 is None:
+                eff_beta_v4 = adapt_beta
             if u_thresh == 0.60:
-                eff_u_thresh = adapt_u
-        if eff_gamma is None:
-            eff_gamma = 1.45
-        if eff_beta is None:
-            eff_beta = 0.40
+                eff_u_thresh_v4 = adapt_u
+        eff_gamma = float(eff_gamma_v4 if eff_gamma_v4 is not None else 1.45)
+        eff_beta = float(eff_beta_v4 if eff_beta_v4 is not None else 0.40)
+        eff_u_thresh = float(eff_u_thresh_v4)
 
         u = np.clip(2.0 * (arr - 0.50), -1.0, 1.0)
         abs_u = np.abs(u)
@@ -5141,7 +5147,7 @@ class EnsembleScoringEngine:
 
         scale = max(1.0 + eff_beta, float(np.max(np.abs(u_tilde)))) if len(u_tilde) > 0 else (1.0 + eff_beta)
         rescaled = 0.50 + 0.50 * (u_tilde / max(scale, 1e-4))
-        return np.clip(rescaled, 0.0, 1.0)
+        return np.asarray(np.clip(rescaled, 0.0, 1.0), dtype=float)
 
     @classmethod
     def get_regime_adaptive_gamma_tail(
@@ -5335,8 +5341,14 @@ class EnsembleScoringEngine:
                 regime=regime
             )
 
-        is_series = isinstance(scores_centered, pd.Series)
-        z = scores_centered.values if is_series else np.asarray(scores_centered, dtype=np.float64)
+        if isinstance(scores_centered, pd.Series):
+            z = scores_centered.values
+            series_index = scores_centered.index
+            is_series = True
+        else:
+            z = np.asarray(scores_centered, dtype=np.float64)
+            series_index = None
+            is_series = False
 
         reg_str = str(regime).upper() if regime is not None else ''
         if 'CRISIS' in reg_str:
@@ -5367,8 +5379,8 @@ class EnsembleScoringEngine:
         arg = np.clip(np.power(ratio, alpha_eff), 0.0, 50.0)
         denoised = z * np.tanh(arg)
 
-        if is_series:
-            return pd.Series(denoised, index=scores_centered.index)
+        if is_series and series_index is not None:
+            return pd.Series(denoised, index=series_index)
         return denoised
 
     @classmethod

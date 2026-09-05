@@ -25,7 +25,7 @@ class QuintPillarMap(dict):
 
     def __getitem__(self, key: str) -> List[str]:
         canonical_key = self._ALIASES.get(str(key).upper(), key)
-        return super().__getitem__(canonical_key)
+        return list(super().__getitem__(canonical_key))
 
     def get(self, key: str, default: Any = None) -> Any:
         canonical_key = self._ALIASES.get(str(key).upper(), key)
@@ -59,8 +59,14 @@ def apply_quintic_hyperbolic_deadband(
       while transmitting 100.0% of high conviction signals (|z| >= 0.150) with strict rank
       monotonicity (Spearman rho == 1.0000) and exact odd symmetry when unconditioned.
     """
-    is_series = isinstance(scores_centered, pd.Series)
-    z = scores_centered.values if is_series else np.asarray(scores_centered, dtype=np.float64)
+    if isinstance(scores_centered, pd.Series):
+        z = scores_centered.values
+        series_index = scores_centered.index
+        is_series = True
+    else:
+        z = np.asarray(scores_centered, dtype=np.float64)
+        series_index = None
+        is_series = False
 
     reg_str = str(regime).upper() if regime is not None else ''
     base_alpha = float(alpha_pos)
@@ -97,8 +103,8 @@ def apply_quintic_hyperbolic_deadband(
     arg = np.clip(np.power(ratio, alpha_eff), 0.0, 50.0)
     denoised = z * np.tanh(arg)
 
-    if is_series:
-        return pd.Series(denoised, index=scores_centered.index)
+    if is_series and series_index is not None:
+        return pd.Series(denoised, index=series_index)
     return denoised
 
 

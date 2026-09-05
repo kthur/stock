@@ -66,6 +66,7 @@ class UnifiedPortfolioAllocator:
         self.leland_cost_bps = float(leland_cost_bps)
         self.target_horizon = int(target_horizon)
         self.rebalance_mode = str(rebalance_mode).lower() if rebalance_mode is not None else "boundary"
+        self._last_blend_weights: Optional[Dict[str, float]] = None
 
     @staticmethod
     def calculate_asymmetric_leland_multipliers(
@@ -573,8 +574,8 @@ class UnifiedPortfolioAllocator:
             downside_diff = np.minimum(returns_matrix - target_return, 0.0)
             semi_cov = np.dot(downside_diff.T, downside_diff) / max(len(returns_matrix) - 1, 1)
             if base_cov is not None and base_cov.shape == semi_cov.shape:
-                return (1.0 - shrinkage_intensity) * semi_cov + shrinkage_intensity * base_cov
-            return semi_cov
+                return np.asarray((1.0 - shrinkage_intensity) * semi_cov + shrinkage_intensity * base_cov, dtype=float)
+            return np.asarray(semi_cov, dtype=float)
 
     def compute_rvine_tail_cascade_metrics(
         self,
@@ -1069,7 +1070,7 @@ class UnifiedPortfolioAllocator:
             def constr_sum_w(var):
                 return float(np.sum(var[:n]) - 1.0)
 
-            bounds = [(0.0, max_w) for _ in range(n)] + [(None, None)] + [(0.0, None) for _ in range(T)]
+            emp_bounds: List[Tuple[Optional[float], Optional[float]]] = [(0.0, float(max_w)) for _ in range(n)] + [(None, None)] + [(0.0, None) for _ in range(T)]
 
             def constr_tail_losses(var):
                 w = var[:n]
@@ -1086,7 +1087,7 @@ class UnifiedPortfolioAllocator:
                 obj_cvar,
                 x0,
                 method="SLSQP",
-                bounds=bounds,
+                bounds=emp_bounds,
                 constraints=[
                     {"type": "eq", "fun": constr_sum_w},
                     {"type": "ineq", "fun": constr_tail_losses},
@@ -1119,7 +1120,7 @@ class UnifiedPortfolioAllocator:
         total_capital: float = 100_000_000.0,
         market_caps: Optional[np.ndarray] = None,
         factor_loadings: Optional[Any] = None,
-        alpha_half_lives: Optional[Union[np.ndarray, Dict[str, float], float]] = None,
+        alpha_half_lives: Optional[Union[np.ndarray, Dict[str, float], List[float], float]] = None,
         darkpool_scores: Optional[Union[np.ndarray, Dict[str, float]]] = None,
         cost_scaling_factor: Optional[float] = None,
         copula_lower_tail: Optional[float] = None,
@@ -1424,13 +1425,13 @@ class UnifiedPortfolioAllocator:
                             if eff_asset_cascade is not None and len(eff_asset_cascade) == n:
                                 safety_weight = np.exp(-1.5 * np.asarray(eff_asset_cascade[~viol_mask], dtype=float))
                             else:
-                                safety_weight = np.ones(np.sum(~viol_mask))
+                                safety_weight = np.ones(int(np.sum(~viol_mask)))
                             hr_weights = w_target[~viol_mask] * headroom * safety_weight
                             sum_hr = np.sum(hr_weights)
                             if sum_hr > 0:
                                 w_target[~viol_mask] += unalloc * (hr_weights / sum_hr)
                             else:
-                                w_target[~viol_mask] += unalloc / np.sum(~viol_mask)
+                                w_target[~viol_mask] += unalloc / max(1.0, float(np.sum(~viol_mask)))
                         elif int(version) >= 7:
                             # F49: Residual Risk Headroom redistribution
                             headroom = np.maximum(0.0, trc_cap - trc[~viol_mask])
@@ -1569,7 +1570,7 @@ class UnifiedPortfolioAllocator:
         else:
             final_w = w_target
 
-        return final_w
+        return np.asarray(final_w, dtype=float)
 
     def apply_target_volatility_scaling(
         self,
@@ -1612,7 +1613,7 @@ class UnifiedPortfolioAllocator:
             c_crisis = 1.0 if "CRISIS" in str(regime).upper() else 0.0
 
         if isinstance(regime, dict):
-            regime_key = max(regime, key=regime.get) if regime else "BULL_LOW_VOL"
+            regime_key = max(regime.keys(), key=lambda k: regime[k]) if regime else "BULL_LOW_VOL"
             regime_str = str(regime_key).upper()
         else:
             regime_str = str(regime).upper() if regime else ""
@@ -1697,7 +1698,7 @@ class UnifiedPortfolioAllocator:
         if current_weights is None or len(current_weights) != n or np.all(current_weights <= 0):
             return target_weights
 
-        mode = (rebalance_mode or getattr(self, "rebalance_mode", "boundary")).lower()
+        mode = str(rebalance_mode or getattr(self, "rebalance_mode", "boundary") or "boundary").lower()
 
         # F30 & F38: Resolve granular 5-market per-asset transaction cost fraction c_i
         if asset_cost_bps is not None:

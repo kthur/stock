@@ -76,6 +76,7 @@ class ExecutionOMSEngine:
         self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
         self.config = config
         self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 1
+        self.sor: Optional[Any] = None
         try:
             from src.execution.smart_order_router import SmartOrderRouter
             self.sor = SmartOrderRouter()
@@ -961,7 +962,7 @@ class ExecutionOMSEngine:
                                     rem_lots -= sub
                                     if rem_lots == 0:
                                         break
-                            raw_slices = [l * lot_size for l in alloc_lots]
+                            raw_slices = [lots * lot_size for lots in alloc_lots]
 
                         active_slices = [q for q in raw_slices if q > 0]
                         if not active_slices:
@@ -1412,9 +1413,10 @@ class ExecutionOMSEngine:
         elif l3_imbalance is not None and math.isfinite(float(l3_imbalance)):
             eff_obi = float(l3_imbalance)
         elif multi_obi is not None and isinstance(multi_obi, dict):
-            obi_1 = float(multi_obi.get("OBI_1", multi_obi.get("obi_1", multi_obi.get("1", multi_obi.get(1, 0.0)))) or 0.0)
-            obi_5 = float(multi_obi.get("OBI_5", multi_obi.get("obi_5", multi_obi.get("5", multi_obi.get(5, 0.0)))) or 0.0)
-            obi_10 = float(multi_obi.get("OBI_10", multi_obi.get("obi_10", multi_obi.get("10", multi_obi.get(10, 0.0)))) or 0.0)
+            multi_dict: Dict[Any, Any] = multi_obi
+            obi_1 = float(multi_dict.get("OBI_1", multi_dict.get("obi_1", multi_dict.get("1", multi_dict.get(1, 0.0)))) or 0.0)
+            obi_5 = float(multi_dict.get("OBI_5", multi_dict.get("obi_5", multi_dict.get("5", multi_dict.get(5, 0.0)))) or 0.0)
+            obi_10 = float(multi_dict.get("OBI_10", multi_dict.get("obi_10", multi_dict.get("10", multi_dict.get(10, 0.0)))) or 0.0)
             eff_obi = 0.50 * obi_1 + 0.35 * obi_5 + 0.15 * obi_10
         elif obi is not None and math.isfinite(float(obi)):
             eff_obi = float(obi)
@@ -1947,9 +1949,10 @@ class AlmgrenChrissScheduler:
         elif l3_imbalance is not None and math.isfinite(float(l3_imbalance)):
             eff_obi = float(l3_imbalance)
         elif multi_obi is not None and isinstance(multi_obi, dict):
-            obi_1 = float(multi_obi.get("OBI_1", multi_obi.get("obi_1", multi_obi.get("1", multi_obi.get(1, 0.0)))) or 0.0)
-            obi_5 = float(multi_obi.get("OBI_5", multi_obi.get("obi_5", multi_obi.get("5", multi_obi.get(5, 0.0)))) or 0.0)
-            obi_10 = float(multi_obi.get("OBI_10", multi_obi.get("obi_10", multi_obi.get("10", multi_obi.get(10, 0.0)))) or 0.0)
+            multi_dict: Dict[Any, Any] = multi_obi
+            obi_1 = float(multi_dict.get("OBI_1", multi_dict.get("obi_1", multi_dict.get("1", multi_dict.get(1, 0.0)))) or 0.0)
+            obi_5 = float(multi_dict.get("OBI_5", multi_dict.get("obi_5", multi_dict.get("5", multi_dict.get(5, 0.0)))) or 0.0)
+            obi_10 = float(multi_dict.get("OBI_10", multi_dict.get("obi_10", multi_dict.get("10", multi_dict.get(10, 0.0)))) or 0.0)
             eff_obi = 0.50 * obi_1 + 0.35 * obi_5 + 0.15 * obi_10
         elif obi is not None and math.isfinite(float(obi)):
             eff_obi = float(obi)
@@ -2154,7 +2157,7 @@ class GatheralMarketImpactKernel:
                         break
         # Final safety check: if total still doesn't match due to extreme inputs, assign all to first tranche
         if int(np.sum(alloc)) != total_quantity:
-            alloc = np.zeros(n_slices, dtype=int)
+            alloc = np.zeros(eff_n_slices, dtype=int)
             alloc[0] = total_quantity
         return [int(x) for x in alloc]
 
