@@ -676,7 +676,7 @@ class EnsembleScoringEngine:
         self.orthogonalizer_enabled = True
         self.enable_coverage_shrinkage = getattr(config, 'enable_coverage_shrinkage', True)
         self.score_normalizer = CrossSectionalScoreNormalizer(method='winsorized_zscore')
-        self._dsr_validator = DeflatedSharpeRatioValidator(n_strategies=34, n_horizons=8) if DeflatedSharpeRatioValidator is not None else None
+        self._dsr_validator = DeflatedSharpeRatioValidator(n_strategies=37, n_horizons=8) if DeflatedSharpeRatioValidator is not None else None
 
         # Feature F04: Multi-horizon exponential decay filtering prior scores state cache per market
         self._prev_filtered_scores: Dict[str, pd.DataFrame] = {}
@@ -2274,7 +2274,7 @@ class EnsembleScoringEngine:
                             version: int = 5,
                             **kwargs) -> pd.DataFrame:
         """
-        Merges 34 strategy prediction DataFrames and computes weighted ensemble score.
+        Merges 37 strategy prediction DataFrames and computes weighted ensemble score.
         """
         version = int(kwargs.get('version', version))
         regime = kwargs.get('regime_label', regime)
