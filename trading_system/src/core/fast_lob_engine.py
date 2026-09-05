@@ -843,3 +843,85 @@ def compute_multivariate_hawkes_arrival_intensity(
         "decay_rate": float(decay_beta) if isinstance(decay_beta, (int, float)) else 1.2,
     }
 
+
+class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
+    """
+    Phase 11 (F65.2): Deep Hawkes Dynamic Order Book Imbalance (Hawkes-DOBI) Process.
+    Endogenously couples multivariate cross-excited venue arrival intensities with
+    deep Level-3 order book queue depth profiles:
+        lambda_m^{deep}(t) = lambda_m(t) * (1.0 + gamma_dobi * |DOBI_m(t)|)
+    Detects microsecond multi-venue liquidity vacuum propagation and triggers
+    preemptive dark pool allocation up to 95%.
+    """
+
+    def __init__(
+        self,
+        mu: Optional[np.ndarray] = None,
+        alpha: Optional[np.ndarray] = None,
+        beta: Optional[Union[float, np.ndarray]] = None,
+        num_venues: int = 3,
+        venue_names: Optional[List[str]] = None,
+        gamma_dobi: float = 0.45,
+    ):
+        super().__init__(mu=mu, alpha=alpha, beta=beta, num_venues=num_venues, venue_names=venue_names)
+        self.gamma_dobi = float(gamma_dobi)
+        self.dobi_profiles = np.zeros(self.num_venues, dtype=float)
+
+    def update_dobi(self, dobi_vector: Union[np.ndarray, List[float]]) -> None:
+        """Updates instantaneous deep order book imbalance across venues."""
+        arr = np.asarray(dobi_vector, dtype=float).flatten()
+        if len(arr) >= self.num_venues:
+            self.dobi_profiles = np.clip(arr[:self.num_venues], -1.0, 1.0)
+        else:
+            self.dobi_profiles[:len(arr)] = np.clip(arr, -1.0, 1.0)
+
+    def get_deep_intensities(self, t_query_sec: Optional[float] = None) -> Dict[str, float]:
+        """Returns deep imbalance modulated arrival intensities per venue."""
+        base_int = self.get_intensity_at(t_query_sec)
+        dobi_mod = 1.0 + self.gamma_dobi * np.abs(self.dobi_profiles)
+        deep_int = base_int * dobi_mod
+        return {v: round(float(deep_int[i]), 4) for i, v in enumerate(self.venue_names)}
+
+    def compute_preemptive_dark_routing(self) -> Dict[str, float]:
+        """Calculates optimal preemptive dark allocation ratio under deep Hawkes toxicity."""
+        deep_ints = self.get_deep_intensities()
+        lit_int = deep_ints.get("LIT", 1.0)
+        ats_int = deep_ints.get("ATS", 0.6)
+        dark_int = deep_ints.get("DARK", 0.3)
+        tot = max(1e-6, lit_int + ats_int + dark_int)
+
+        lit_toxicity = lit_int / tot
+        # If lit venue exhibits elevated arrival/depletion intensity, expand dark routing to 95%
+        dark_ratio = float(np.clip(0.65 + 0.35 * (lit_toxicity / 0.60), 0.65, 0.95))
+        return {
+            "lit_toxicity_ratio": round(lit_toxicity, 4),
+            "preemptive_dark_routing_ratio": round(dark_ratio, 4),
+            "total_deep_intensity": round(tot, 4),
+        }
+
+
+def compute_deep_order_book_imbalance_hawkes(
+    event_timestamps: np.ndarray,
+    event_venues: Union[np.ndarray, List[str], List[int]],
+    dobi_profiles: Optional[List[float]] = None,
+    gamma_dobi: float = 0.45,
+) -> Dict[str, Any]:
+    """
+    Phase 11 (F65.2): Batch interface for Deep Hawkes DOBI Liquidity Imbalance Process.
+    """
+    base_res = compute_multivariate_hawkes_arrival_intensity(event_timestamps, event_venues)
+    process = DeepHawkesArrivalProcess(gamma_dobi=gamma_dobi)
+    if dobi_profiles is not None:
+        process.update_dobi(dobi_profiles)
+
+    deep_dict = process.get_deep_intensities()
+    route_info = process.compute_preemptive_dark_routing()
+
+    return {
+        **base_res,
+        "deep_intensity_dict": deep_dict,
+        "lit_toxicity_ratio": route_info["lit_toxicity_ratio"],
+        "preemptive_dark_routing_ratio": route_info["preemptive_dark_routing_ratio"],
+    }
+
+

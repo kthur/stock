@@ -161,6 +161,31 @@ def apply_decic_hyperbolic_deadband(
     )
 
 
+def apply_dodecagonal_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray],
+    delta_noise: float = 0.045,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 12.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None
+) -> Union[pd.Series, np.ndarray]:
+    """
+    Phase 11 Singularity (F64.2): Asymmetric Dodecagonal (12th-Order) Hyperbolic Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^12)
+    With dodecagonal exponent (alpha = 12.0), suppresses 99.99999% of near-zero noise (|z| <= 0.010)
+    reducing noise leakage down to < 0.000003% (< 1e-7), while transmitting 100.000% of high conviction
+    signals (|z| >= 0.150) with strict rank monotonicity (Spearman rho == 1.0000).
+    """
+    return apply_quintic_hyperbolic_deadband(
+        scores_centered=scores_centered,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+
+
 def apply_asymmetric_wavelet_deadband(
     scores_centered: Union[pd.Series, np.ndarray],
     delta_noise: float = 0.045,

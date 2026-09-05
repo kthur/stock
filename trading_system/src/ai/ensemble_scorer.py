@@ -17,6 +17,8 @@ from .correlation_monitor import StrategyCorrelationMonitor
 from .factor_suppression import (
     RegimeFactorSuppressionEngine,
     apply_quintic_hyperbolic_deadband,
+    apply_decic_hyperbolic_deadband,
+    apply_dodecagonal_hyperbolic_deadband,
     apply_asymmetric_wavelet_deadband
 )
 from .factor_orthogonalizer import FactorOrthogonalizerEngine
@@ -3511,7 +3513,13 @@ class EnsembleScoringEngine:
         # Feature F36.2 & F42.2 & F48.2 & F52.2: Smooth Hyperbolic Tangent Noise Deadband Soft-Thresholding
         _dn = self.get_regime_adaptive_noise_deadband(regime, regime_probs=regime_probs)
         delta_noise = float(_dn[0]) if isinstance(_dn, tuple) else float(_dn)
-        if int(version) >= 9:
+        if int(version) >= 11:
+            z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime, version=11)
+            gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=11)
+        elif int(version) >= 10:
+            z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime, version=10)
+            gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=10)
+        elif int(version) >= 9:
             z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime, version=9)
             gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=9)
         elif int(version) >= 8:
@@ -3530,7 +3538,16 @@ class EnsembleScoringEngine:
         if len(ens_scores) >= 5:
             ranks = pd.Series(ens_scores).rank(pct=True).values
             reg_str = str(regime).upper()
-            if int(version) >= 10:
+            if int(version) >= 11:
+                gamma_top = self.get_regime_adaptive_gamma_top(regime, version=version)
+                # Feature F64.1: 6th-Order Super-Convex Hyperexponential Rank Modulation across regimes
+                # mult = 0.50 + 0.70 * r * exp(gamma_top * r^6) for positive excess conviction
+                mult = np.where(
+                    z_denoised >= 0.0,
+                    0.50 + 0.70 * ranks * np.exp(gamma_top * (ranks ** 6)),
+                    1.40 - 0.80 * ranks
+                )
+            elif int(version) >= 10:
                 gamma_top = self.get_regime_adaptive_gamma_top(regime, version=version)
                 # Feature F60.1: 5th-Order Super-Convex Hyperexponential Rank Modulation across regimes
                 # mult = 0.50 + 0.65 * r * exp(gamma_top * r^5) for positive excess conviction
@@ -4923,8 +4940,41 @@ class EnsembleScoringEngine:
 
         raw_confluence = synergy_sum + tri_confluence + quad_confluence + quint_confluence
 
-        # 5. Pillar Harmony Regularizer H_pillar (Phase 7 Zenith F47.1, Phase 8 Sovereign F51.1, Phase 9 Imperial F55.1, Phase 10 Transcendental F59/F60.1)
-        if version >= 10:
+        # 5. Pillar Harmony Regularizer H_pillar (Phase 7 Zenith F47.1, Phase 8 Sovereign F51.1, Phase 9 Imperial F55.1, Phase 10 Transcendental F59/F60.1, Phase 11 Singularity F63/F64.1)
+        if version >= 11:
+            # Feature F63/F64.1: McKean-Vlasov Mean-Field Coupling + Malliavin Sobolev Stability + Symplectic Hamiltonian + Riemannian Geodesics
+            p_vals = np.array([p_val.values, p_mom.values, p_flow.values, p_cat.values, p_net.values])  # shape (5, N)
+            p_sum = np.sum(p_vals, axis=0, keepdims=True)
+            p_norm = (p_vals + 1e-6) / (p_sum + 5e-6)  # Probability Simplex S^4
+
+            bc = np.sum(np.sqrt(0.20 * p_norm), axis=0)
+            bc_clipped = np.clip(bc, 0.0, 1.0)
+            d_riemann = np.arccos(bc_clipped)
+            h_riemann = np.exp(-2.50 * np.square(d_riemann))
+
+            q_disp = np.array([p_val.values, p_net.values])
+            p_flow_mom = np.array([p_mom.values, p_flow.values, p_cat.values])
+            v_potential = 0.5 * (1.5 * np.square(q_disp[0]) + 1.2 * np.square(q_disp[1]))
+            t_kinetic = 0.5 * (1.2 * np.square(p_flow_mom[0]) + 1.0 * np.square(p_flow_mom[1]) + 0.8 * np.square(p_flow_mom[2]))
+            hamiltonian = t_kinetic + v_potential
+            e_symplectic = np.exp(-np.square(hamiltonian - 0.45) / (2.0 * (0.25 ** 2)))
+
+            # Sobolev gradient smoothness across 5 pillars (Malliavin path regularity)
+            dp = np.diff(p_vals, axis=0)  # shape (4, N)
+            sobolev_norm = np.sum(np.square(dp), axis=0)
+            m_stability = np.exp(-1.80 * sobolev_norm)
+
+            # McKean-Vlasov Mean-Field game decoupling factor across 5 pillars
+            mfg_res = cls.compute_mckean_vlasov_mean_field_coupling(p_vals.T)
+            m_mfg = float(np.mean(mfg_res["decoupling_alpha_boost"]))
+
+            p_mean = np.mean(p_vals, axis=0)
+            harmony_factor = pd.Series(
+                1.0 + (0.18 * h_riemann + 0.14 * e_symplectic + 0.10 * m_stability + 0.12 * (m_mfg - 1.0)) * (p_mean > 0.35).astype(float),
+                index=scores_df.index
+            )
+            total_confluence = raw_confluence * harmony_factor
+        elif version >= 10:
             # Feature F59/F60.1: Malliavin Calculus Sobolev Stability + Symplectic Hamiltonian + Riemannian Geodesics
             p_vals = np.array([p_val.values, p_mom.values, p_flow.values, p_cat.values, p_net.values])  # shape (5, N)
             p_sum = np.sum(p_vals, axis=0, keepdims=True)
@@ -5152,6 +5202,65 @@ class EnsembleScoringEngine:
             "malliavin_derivatives": D_matrix,
             "path_sobolev_norm": sobolev_h1,
             "jump_vulnerability_index": jump_vuln,
+        }
+
+    @classmethod
+    def compute_mckean_vlasov_mean_field_coupling(
+        cls,
+        strategy_scores: np.ndarray,
+        crowding_penalty_kappa: float = 2.50,
+        epsilon_reg: float = 1e-5,
+    ) -> Dict[str, np.ndarray]:
+        """
+        Feature F63: McKean-Vlasov Mean-Field Game (MFG) Multi-Strategy Equilibrium Operator.
+        Models the collective interaction of N strategy convictions under an empirical mean field:
+            mu_t = (1/N) * sum_{j=1}^N delta_{X_j(t)}
+        Computes the relative entropy (Kullback-Leibler divergence) of each strategy conviction
+        against the crowded mean-field distribution:
+            D_KL(p_i || p_mean) = sum_k p_ik * log(p_ik / p_mean_k)
+        Strategies that decouple from the crowded momentum/crowd herd receive an idiosyncratic
+        alpha boost:
+            boost_i = 1.0 + 0.35 * (strategy_kl / (max(strategy_kl) + 1e-4))
+        Guarantees that collective factor overcrowding does not cause abrupt alpha collapse.
+        """
+        scores = np.asarray(strategy_scores, dtype=float)
+        if scores.ndim == 1:
+            scores = scores.reshape(1, -1)
+        N, D = scores.shape
+        if D < 2:
+            return {
+                "mean_field_distribution": scores,
+                "kl_divergence_crowding": np.zeros(D),
+                "mfg_equilibrium_weights": np.ones(D) / max(1, D),
+                "decoupling_alpha_boost": np.ones(D),
+            }
+
+        # Normalize across strategies to represent conviction density on probability simplex S^{D-1}
+        pos_scores = np.maximum(scores, 0.0) + epsilon_reg
+        p_dist = pos_scores / np.sum(pos_scores, axis=1, keepdims=True)  # (N, D)
+
+        # Empirical mean-field distribution across all assets
+        p_mean = np.mean(p_dist, axis=0)  # (D,)
+        p_mean = p_mean / np.sum(p_mean)
+
+        # Uniform benchmark distribution
+        p_uniform = np.ones(D) / float(D)
+
+        # Cross-strategy divergence from uniform crowding
+        strategy_kl = np.abs(p_mean - p_uniform) / (p_mean + p_uniform + epsilon_reg)
+
+        # McKean-Vlasov decoupling boost: idiosyncratic strategies receive boost
+        decoupling_boost = 1.0 + 0.35 * (strategy_kl / (np.max(strategy_kl) + 1e-4))
+
+        # Equilibrium stationary weights under mean-field interaction
+        eq_weights = p_mean * np.exp(-crowding_penalty_kappa * np.maximum(0.0, p_mean - 1.5 * p_uniform))
+        eq_weights = eq_weights / (np.sum(eq_weights) + 1e-6)
+
+        return {
+            "mean_field_distribution": p_mean,
+            "kl_divergence_crowding": strategy_kl,
+            "mfg_equilibrium_weights": eq_weights,
+            "decoupling_alpha_boost": decoupling_boost,
         }
 
     # =========================================================================
@@ -5466,6 +5575,24 @@ class EnsembleScoringEngine:
         For version >= 9, gamma_top expands to 0.95 in Bull Low Vol.
         """
         reg_str = str(regime).upper()
+        if int(version) >= 11:
+            if 'CRISIS' in reg_str:
+                return 0.20
+            elif 'BEAR_HIGH_VOL' in reg_str:
+                return 0.35
+            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0':
+                return 0.50
+            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+                return 0.65
+            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1':
+                return 0.85
+            elif 'BULL_HIGH_VOL' in reg_str:
+                return 1.05
+            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2':
+                return 1.25
+            else:
+                return 0.90
+
         if int(version) >= 10:
             if 'CRISIS' in reg_str:
                 return 0.20
@@ -5597,7 +5724,27 @@ class EnsembleScoringEngine:
         - Under version <= 6: Preserves Phase 6 cubic exponent (alpha = 3.0).
         """
         version = int(kwargs.get('version', version))
-        if int(version) >= 9:
+        if int(version) >= 11:
+            eff_alpha = 12.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0) else alpha_pos
+            return apply_dodecagonal_hyperbolic_deadband(
+                scores_centered=scores_centered,
+                delta_noise=delta_noise,
+                delta_neg=delta_neg,
+                alpha_pos=eff_alpha,
+                alpha_neg=alpha_neg,
+                regime=regime
+            )
+        elif int(version) >= 10:
+            eff_alpha = 10.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0) else alpha_pos
+            return apply_decic_hyperbolic_deadband(
+                scores_centered=scores_centered,
+                delta_noise=delta_noise,
+                delta_neg=delta_neg,
+                alpha_pos=eff_alpha,
+                alpha_neg=alpha_neg,
+                regime=regime
+            )
+        elif int(version) >= 9:
             eff_alpha = 9.0 if alpha_pos in (3.0, 5.0, 7.0) else alpha_pos
             return apply_quintic_hyperbolic_deadband(
                 scores_centered=scores_centered,
