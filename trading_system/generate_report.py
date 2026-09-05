@@ -1081,18 +1081,21 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
         m = re.match(r"Maximum Total Allocation Allowed:\s*(.+)", line)
         if m:
             data.max_allocation = m.group(1).strip()
-        m = re.match(r"Allocated Capital\s*:\s*([-+eE\d.]+%)\s*\(\s*([\d,]+|\S+)\s*\)", line)
+        m = re.match(r"Allocated Capital\s*:\s*([-+eE\d.]+(?:\s*%)?)\s*\(\s*([\d,]+|\S+)\s*\)", line)
         if m:
             data.allocated_capital_pct = m.group(1).strip()
             data.allocated_capital = m.group(2).strip()
-        m = re.match(r"Remaining Cash\s*:\s*([-+eE\d.]+%)\s*\(\s*([\d,]+|\S+)\s*\)", line)
+        m = re.match(r"Remaining Cash\s*:\s*([-+eE\d.]+(?:\s*%)?)\s*\(\s*([\d,]+|\S+)\s*\)", line)
         if m:
             data.remaining_cash_pct = m.group(1).strip()
             data.remaining_cash = m.group(2).strip()
 
         row_m = re.match(
             r"^\s*(\d+)\s+(\S+)\s+(.+?)\s+"
-            r"([-+eE\d.]+%|nan%|NaN%|None%)\s+([-+eE\d.]+%|nan%|NaN%|None%)\s+([-+eE\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)\s*$",
+            r"([-+eE\d.]+(?:\s*%)?|[nN]an%?|[nN]a[nN]%?|[nN]one%?|N/A|NA|null%?)\s+"
+            r"([-+eE\d.]+(?:\s*%)?|[nN]an%?|[nN]a[nN]%?|[nN]one%?|N/A|NA|null%?)\s+"
+            r"([-+eE\d.]+(?:\s*%)?|[nN]an%?|[nN]a[nN]%?|[nN]one%?|N/A|NA|null%?)\s+"
+            r"([\d,]+|\S+)\s*$",
             line
         )
         if row_m:
@@ -1281,12 +1284,12 @@ REGIME_INFO = {
     "SIDEWAYS_HIGH_VOL": ("🟡 SIDEWAYS_HIGH_VOL (고변동 횡보)", "#e3b341"),
 }
 
-def safe_float(val: str) -> float:
+def safe_float(val: Any) -> float:
     try:
         if val is None:
             return 0.0
         val_clean = str(val).replace("%", "").replace(",", "").strip()
-        if val_clean.lower() in ("nan", "none", "", "n/a"):
+        if val_clean.lower() in ("nan", "none", "", "n/a", "null", "na"):
             return 0.0
         m = re.search(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", val_clean)
         if not m:
@@ -1295,8 +1298,11 @@ def safe_float(val: str) -> float:
     except Exception:
         return 0.0
 
-def ret_class(val: str) -> str:
-    if "nan" in val.lower() or "none" in val.lower():
+def ret_class(val: Any) -> str:
+    if val is None:
+        return ""
+    val_str = str(val).lower()
+    if any(null_token in val_str for null_token in ("nan", "none", "n/a", "null")):
         return ""
     v = safe_float(val)
     if v > 0:

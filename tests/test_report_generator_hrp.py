@@ -547,3 +547,84 @@ Remaining Cash    : 91.70% (    91,700,000)
             assert "66" != market_col
             assert "Corp" != market_col
 
+
+def test_parse_portfolio_allocation_spaced_percent_and_raw_decimals():
+    sample_text = """=== Portfolio Allocation Recommendations (Ensemble HRP) ===
+Date: 2026-09-05 01:29 KST
+Total Capital: 100,000,000 KRW
+Target Horizon: 20d
+Current Market Regime Detected: BULL_LOW_VOL
+Maximum Total Allocation Allowed: 85.0%
+
+No.  Symbol       Name                 Market         Shares     Lot     Return   Volatility     Weight          Amount
+-----------------------------------------------------------------------------------------------------------------------
+1    MSFT         Microsoft Corp       SP500          150        1       +5.2 %        0.18 %     4.50 %      4,500,000
+2    GOOG         Alphabet Inc         SP500          120        1       +0.052        0.0018     0.045       4,500,000
+3    AMZN         Amazon.com Inc       SP500          100        1       N/A           0.18%      4.50%       4,500,000
+4    TSLA         Tesla Inc            SP500          80         1       nan           NaN        None                0
+-----------------------------------------------------------------------------------------------------------------------
+Allocated Capital : +13.50 % (    13,500,000)
+Remaining Cash    : 86.50 % (    86,500,000)
+"""
+    port_data = parse_portfolio_allocation(sample_text)
+    assert len(port_data.rows) == 4
+
+    # MSFT: Spaced percent sign
+    assert port_data.rows[0].symbol == "MSFT"
+    assert port_data.rows[0].expected_return == "+5.2 %"
+    assert port_data.rows[0].volatility == "0.18 %"
+    assert port_data.rows[0].weight == "4.50 %"
+
+    # GOOG: Raw decimals without percent sign
+    assert port_data.rows[1].symbol == "GOOG"
+    assert port_data.rows[1].expected_return == "+0.052"
+    assert port_data.rows[1].volatility == "0.0018"
+    assert port_data.rows[1].weight == "0.045"
+
+    # AMZN: N/A in expected return
+    assert port_data.rows[2].symbol == "AMZN"
+    assert port_data.rows[2].expected_return == "N/A"
+
+    # TSLA: nan and None
+    assert port_data.rows[3].symbol == "TSLA"
+    assert port_data.rows[3].expected_return == "nan"
+
+    assert port_data.allocated_capital_pct == "13.50%"
+    assert port_data.remaining_cash_pct == "86.50%"
+
+
+def test_parse_portfolio_allocation_tab_delimited_and_mixed_whitespace():
+    sample_text = """=== Portfolio Allocation Recommendations (Ensemble HRP) ===
+Date: 2026-09-05 01:29 KST
+Total Capital: 100,000,000 KRW
+Target Horizon: 20d
+Current Market Regime Detected: BULL_LOW_VOL
+Maximum Total Allocation Allowed: 85.0%
+
+No.\tSymbol\tName\tMarket\tShares\tLot\tReturn\tVolatility\tWeight\tAmount
+-----------------------------------------------------------------------------------------------------------------------
+1\tPSX\tPhillips 66\tSP500\t150\t1\t+1.2%\t0.18%\t4.50%\t4,500,000
+2\tBAC\tBank of America Corp\tSP500\t120\t1\t-0.5%\t0.12%\t3.80%\t3,800,000
+3\t005930\t삼성전자\tKOSPI\t80\t1\t+6.2%\t0.22%\t5.20%\t5,200,000
+4\t035420\tNAVER Corp\tKOSDAQ\t50\t1\t+3.1%\t0.15%\t2.50%\t2,500,000
+-----------------------------------------------------------------------------------------------------------------------
+Allocated Capital : +16.00%\t(\t16,000,000)
+Remaining Cash    :\t84.00%\t(\t84,000,000)
+"""
+    port_data = parse_portfolio_allocation(sample_text)
+    assert len(port_data.rows) == 4
+    assert port_data.rows[0].symbol == "PSX"
+    assert port_data.rows[0].name == "Phillips 66"
+    assert port_data.rows[0].market == "SP500"
+    assert port_data.rows[1].symbol == "BAC"
+    assert port_data.rows[1].name == "Bank of America Corp"
+    assert port_data.rows[1].market == "SP500"
+    assert port_data.rows[2].symbol == "005930"
+    assert port_data.rows[2].name == "삼성전자"
+    assert port_data.rows[2].market == "KOSPI"
+    assert port_data.rows[3].symbol == "035420"
+    assert port_data.rows[3].name == "NAVER Corp"
+    assert port_data.rows[3].market == "KOSDAQ"
+    assert port_data.allocated_capital_pct == "16.00%"
+    assert port_data.remaining_cash_pct == "84.00%"
+

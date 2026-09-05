@@ -575,7 +575,10 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
 
     row_re = re.compile(
         r"^\s*(\d+)\s+(\S+)\s+(.+?)\s+"
-        r"([-+eE\d.]+%|nan%|NaN%|None%)\s+([-+eE\d.]+%|nan%|NaN%|None%)\s+([-+eE\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)\s*$"
+        r"([-+eE\d.]+(?:\s*%)?|[nN]an%?|[nN]a[nN]%?|[nN]one%?|N/A|NA|null%?)\s+"
+        r"([-+eE\d.]+(?:\s*%)?|[nN]an%?|[nN]a[nN]%?|[nN]one%?|N/A|NA|null%?)\s+"
+        r"([-+eE\d.]+(?:\s*%)?|[nN]an%?|[nN]a[nN]%?|[nN]one%?|N/A|NA|null%?)\s+"
+        r"([\d,]+|\S+)\s*$"
     )
     known_mkts_upper = {m.upper() for m in KNOWN_MARKETS}
 
