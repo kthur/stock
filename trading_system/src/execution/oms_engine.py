@@ -1381,17 +1381,20 @@ class ExecutionOMSEngine:
         hawkes_toxicity: Optional[float] = None,
         hawkes_arrival_imbalance: Optional[float] = None,
         queue_imbalance: Optional[float] = None,
+        qi_acceleration: Optional[float] = None,
+        cross_asset_toxicity: Optional[float] = None,
         version: int = 6,
     ) -> float:
         """
-        Phase 6 (F44) & Phase 7 (F50) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
+        Phase 6 (F44), Phase 7 (F50) & Phase 8 (F54) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
         1. Base anchor price: Hawkes arrival-adjusted micro-price > L3 micro-price > L1 micro-price > mid price.
         2. Dynamic curvature kappa_eff scales with volatility and orderbook depth.
         3. Imbalance shift uses Queue Imbalance (QI_L3*) > L3 decayed imbalance > multi-tier L2 OBI composite > L1 OBI.
         4. Queue position adverse selection offset delta_P_queue compensates when order is buried (u_q > 0.40),
-           suppressed by Hawkes toxicity gamma_toxic (F50).
-        5. Toxic shading offset delta_P_shade steps back against toxic flow when gamma_toxic > 0.50 (F50).
-        6. Strict clipping within [min(bid, ask), max(bid, ask)].
+           suppressed by Hawkes & cross-asset composite toxicity gamma_composite (F50 & F54).
+        5. Toxic shading offset delta_P_shade steps back against toxic flow when gamma_composite > 0.45/0.50 (F50 & F54).
+        6. Queue Imbalance 2nd-order acceleration peg shift a_shift (F54.2).
+        7. Strict clipping within [min(bid, ask), max(bid, ask)].
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
         if tp <= 0:
@@ -1446,6 +1449,7 @@ class ExecutionOMSEngine:
             kappa_eff = float(kappa)
 
         is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE", "BID"]
+        direction = 1.0 if is_buy else -1.0
 
         # 4. Imbalance peg shift
         if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0 and del_lam is None:
@@ -1454,37 +1458,45 @@ class ExecutionOMSEngine:
         else:
             peg_shift = 0.0
 
-        # F50: Directional Hawkes toxicity
-        gamma_toxic = 0.0
-        if hawkes_toxicity is not None and math.isfinite(float(hawkes_toxicity)):
-            gamma_toxic = float(np.clip(float(hawkes_toxicity), 0.0, 1.0))
+        # F50 & F54: Directional Hawkes and Cross-Asset Composite Toxicity
+        g_loc = float(np.clip(float(hawkes_toxicity), 0.0, 1.0)) if (hawkes_toxicity is not None and math.isfinite(float(hawkes_toxicity))) else 0.0
+        g_cross = float(np.clip(float(cross_asset_toxicity), 0.0, 1.0)) if (cross_asset_toxicity is not None and math.isfinite(float(cross_asset_toxicity))) else 0.0
+        gamma_composite = float(np.clip(0.65 * g_loc + 0.35 * g_cross, 0.0, 1.0)) if cross_asset_toxicity is not None else g_loc
 
-        # 5. Queue position adverse selection offset (F44 & F50)
+        # 5. Queue position adverse selection offset (F44, F50 & F54)
         q_shift = 0.0
         if queue_position_ratio is not None and math.isfinite(float(queue_position_ratio)):
             u_q = float(np.clip(float(queue_position_ratio), 0.0, 1.0))
             if u_q > 0.40:
-                direction = 1.0 if is_buy else -1.0
                 urg = float(np.clip(float(alpha_urgency), 0.1, 1.0))
-                tox_suppress = max(0.0, 1.0 - 0.85 * gamma_toxic)
+                tox_suppress = max(0.0, 1.0 - 0.85 * gamma_composite)
                 q_shift = direction * 0.5 * spr * urg * (u_q - 0.40) * 0.60 * tox_suppress
 
-        # 6. Toxic shading offset (F50)
+        # 6. Toxic shading offset (F50 & F54)
         shade_shift = 0.0
-        if gamma_toxic > 0.50:
-            direction = 1.0 if is_buy else -1.0
-            shade_shift = -direction * 0.25 * spr * (gamma_toxic - 0.50)
+        if int(version) >= 8 and gamma_composite > 0.45:
+            shade_shift = -direction * 0.35 * spr * (gamma_composite - 0.45)
+        elif gamma_composite > 0.50:
+            shade_shift = -direction * 0.25 * spr * (gamma_composite - 0.50)
 
-        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, or arrival imbalance was active
+        # 7. Queue Imbalance 2nd-Order Acceleration Peg Shift (F54)
+        accel_shift = 0.0
+        if qi_acceleration is not None and math.isfinite(float(qi_acceleration)):
+            a_val = float(qi_acceleration)
+            accel_tox_damp = max(0.0, 1.0 - 0.90 * gamma_composite)
+            accel_shift = direction * 0.20 * spr * math.tanh(0.80 * a_val) * accel_tox_damp
+
+        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, accel shift, or arrival imbalance was active
         if (
             (l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0)
             or (micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0)
             or (eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0)
             or q_shift != 0.0
             or shade_shift != 0.0
+            or accel_shift != 0.0
             or del_lam is not None
         ):
-            peg_price = p_base + peg_shift + q_shift + shade_shift
+            peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
         # Fallback to urgency interpolation between bid and ask
@@ -1904,17 +1916,20 @@ class AlmgrenChrissScheduler:
         hawkes_toxicity: Optional[float] = None,
         hawkes_arrival_imbalance: Optional[float] = None,
         queue_imbalance: Optional[float] = None,
+        qi_acceleration: Optional[float] = None,
+        cross_asset_toxicity: Optional[float] = None,
         version: int = 6,
     ) -> float:
         """
-        Phase 6 (F44) & Phase 7 (F50) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
+        Phase 6 (F44), Phase 7 (F50) & Phase 8 (F54) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
         1. Base anchor price: Hawkes arrival-adjusted micro-price > L3 micro-price > L1 micro-price > mid price.
         2. Dynamic curvature kappa_eff scales with volatility and orderbook depth.
         3. Imbalance shift uses Queue Imbalance (QI_L3*) > L3 decayed imbalance > multi-tier L2 OBI composite > L1 OBI.
         4. Queue position adverse selection offset delta_P_queue compensates when order is buried (u_q > 0.40),
-           suppressed by Hawkes toxicity gamma_toxic (F50).
-        5. Toxic shading offset delta_P_shade steps back against toxic flow when gamma_toxic > 0.50 (F50).
-        6. Strict clipping within [min(bid, ask), max(bid, ask)].
+           suppressed by Hawkes & cross-asset composite toxicity gamma_composite (F50 & F54).
+        5. Toxic shading offset delta_P_shade steps back against toxic flow when gamma_composite > 0.45/0.50 (F50 & F54).
+        6. Queue Imbalance 2nd-order acceleration peg shift a_shift (F54.2).
+        7. Strict clipping within [min(bid, ask), max(bid, ask)].
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
         if tp <= 0:
@@ -1969,6 +1984,7 @@ class AlmgrenChrissScheduler:
             kappa_eff = float(kappa)
 
         is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE", "BID"]
+        direction = 1.0 if is_buy else -1.0
 
         # 4. Imbalance peg shift
         if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0 and del_lam is None:
@@ -1977,37 +1993,45 @@ class AlmgrenChrissScheduler:
         else:
             peg_shift = 0.0
 
-        # F50: Directional Hawkes toxicity
-        gamma_toxic = 0.0
-        if hawkes_toxicity is not None and math.isfinite(float(hawkes_toxicity)):
-            gamma_toxic = float(np.clip(float(hawkes_toxicity), 0.0, 1.0))
+        # F50 & F54: Directional Hawkes and Cross-Asset Composite Toxicity
+        g_loc = float(np.clip(float(hawkes_toxicity), 0.0, 1.0)) if (hawkes_toxicity is not None and math.isfinite(float(hawkes_toxicity))) else 0.0
+        g_cross = float(np.clip(float(cross_asset_toxicity), 0.0, 1.0)) if (cross_asset_toxicity is not None and math.isfinite(float(cross_asset_toxicity))) else 0.0
+        gamma_composite = float(np.clip(0.65 * g_loc + 0.35 * g_cross, 0.0, 1.0)) if cross_asset_toxicity is not None else g_loc
 
-        # 5. Queue position adverse selection offset (F44 & F50)
+        # 5. Queue position adverse selection offset (F44, F50 & F54)
         q_shift = 0.0
         if queue_position_ratio is not None and math.isfinite(float(queue_position_ratio)):
             u_q = float(np.clip(float(queue_position_ratio), 0.0, 1.0))
             if u_q > 0.40:
-                direction = 1.0 if is_buy else -1.0
                 urg = float(np.clip(float(alpha_urgency), 0.1, 1.0))
-                tox_suppress = max(0.0, 1.0 - 0.85 * gamma_toxic)
+                tox_suppress = max(0.0, 1.0 - 0.85 * gamma_composite)
                 q_shift = direction * 0.5 * spr * urg * (u_q - 0.40) * 0.60 * tox_suppress
 
-        # 6. Toxic shading offset (F50)
+        # 6. Toxic shading offset (F50 & F54)
         shade_shift = 0.0
-        if gamma_toxic > 0.50:
-            direction = 1.0 if is_buy else -1.0
-            shade_shift = -direction * 0.25 * spr * (gamma_toxic - 0.50)
+        if int(version) >= 8 and gamma_composite > 0.45:
+            shade_shift = -direction * 0.35 * spr * (gamma_composite - 0.45)
+        elif gamma_composite > 0.50:
+            shade_shift = -direction * 0.25 * spr * (gamma_composite - 0.50)
 
-        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, or arrival imbalance was active
+        # 7. Queue Imbalance 2nd-Order Acceleration Peg Shift (F54)
+        accel_shift = 0.0
+        if qi_acceleration is not None and math.isfinite(float(qi_acceleration)):
+            a_val = float(qi_acceleration)
+            accel_tox_damp = max(0.0, 1.0 - 0.90 * gamma_composite)
+            accel_shift = direction * 0.20 * spr * math.tanh(0.80 * a_val) * accel_tox_damp
+
+        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, accel shift, or arrival imbalance was active
         if (
             (l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0)
             or (micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0)
             or (eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0)
             or q_shift != 0.0
             or shade_shift != 0.0
+            or accel_shift != 0.0
             or del_lam is not None
         ):
-            peg_price = p_base + peg_shift + q_shift + shade_shift
+            peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
         # Fallback to urgency interpolation between bid and ask

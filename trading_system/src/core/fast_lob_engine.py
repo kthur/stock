@@ -106,6 +106,7 @@ class FastOrderBookMatchingEngine:
         self.asks: Dict[float, Deque[OrderNode]] = {}
         self.order_lookup: Dict[str, Tuple[str, float]] = {} # order_id -> (side, price)
         self._lock = threading.RLock()
+        self._qi_history: Deque[Tuple[float, float]] = deque(maxlen=20)
 
     def add_limit_order(
         self,
@@ -376,12 +377,16 @@ class FastOrderBookMatchingEngine:
         self,
         levels: int = 10,
         lambda_depth: float = 0.35,
-        alpha_dist: float = 0.50
+        alpha_dist: float = 0.50,
+        timestamp_sec: Optional[float] = None,
     ) -> Dict[str, float]:
         """
-        Phase 7 (F50.1): Physical Distance-Decayed and Fragmentation-Adjusted Level-3 Queue Imbalance (QI_L3*).
+        Phase 7 (F50.1) & Phase 8 (F54.1): Physical Distance-Decayed, Fragmentation-Adjusted,
+        and 2nd-Order Time-Derivative Accelerated Level-3 Queue Imbalance (QI_L3*, v_QI, a_QI).
         w_k^dist = exp(-lambda_depth * k - alpha_dist * |P_k - P_1| / max(spread, tick_size))
         Phi_k^bid = ( (V_k^bid / N_k^bid) / (V_k^bid / N_k^bid + V_k^ask / N_k^ask) )^0.25
+        v_QI = dQI/dt, a_QI = d^2QI/dt^2
+        QI_pred = clip(QI + tau_lead * v_QI + 0.5 * tau_lead^2 * a_QI, -1.0, 1.0)
         """
         with self._lock:
             p_b1, v_b1 = self.get_best_bid()
@@ -390,6 +395,9 @@ class FastOrderBookMatchingEngine:
                 return {
                     "l3_queue_imbalance": 0.0,
                     "l3_micro_price": max(p_b1, p_a1, 0.0),
+                    "qi_velocity": 0.0,
+                    "qi_acceleration": 0.0,
+                    "accelerated_l3_micro_price": max(p_b1, p_a1, 0.0),
                     "weighted_bid_depth": 0.0,
                     "weighted_ask_depth": 0.0,
                 }
@@ -408,9 +416,13 @@ class FastOrderBookMatchingEngine:
             ][:levels]
 
         if not bids and not asks:
+            p_mid = 0.5 * (p_b1 + p_a1)
             return {
                 "l3_queue_imbalance": 0.0,
-                "l3_micro_price": 0.5 * (p_b1 + p_a1),
+                "l3_micro_price": p_mid,
+                "qi_velocity": 0.0,
+                "qi_acceleration": 0.0,
+                "accelerated_l3_micro_price": p_mid,
                 "weighted_bid_depth": 0.0,
                 "weighted_ask_depth": 0.0,
             }
@@ -441,9 +453,39 @@ class FastOrderBookMatchingEngine:
         p_mid = 0.5 * (p_b1 + p_a1)
         l3_micro_price = p_mid + 0.5 * spread * qi_l3
 
+        # F54.1: Level-3 Queue Imbalance Acceleration (d^2QI/dt^2)
+        t_now = float(timestamp_sec) if (timestamp_sec is not None and math.isfinite(float(timestamp_sec))) else time.time()
+        with self._lock:
+            self._qi_history.append((t_now, qi_l3))
+
+            qi_velocity = 0.0
+            qi_acceleration = 0.0
+
+            if len(self._qi_history) >= 2:
+                t0, q0 = self._qi_history[-1]
+                t1, q1 = self._qi_history[-2]
+                dt1 = max(1e-4, t0 - t1)
+                v0 = (q0 - q1) / dt1
+                qi_velocity = float(np.clip(v0, -20.0, 20.0))
+
+                if len(self._qi_history) >= 3:
+                    t2, q2 = self._qi_history[-3]
+                    dt2 = max(1e-4, t1 - t2)
+                    v1 = (q1 - q2) / dt2
+                    dt_mid = max(1e-4, 0.5 * (dt1 + dt2))
+                    qi_acceleration = float(np.clip((v0 - v1) / dt_mid, -50.0, 50.0))
+
+        # Predictive Taylor Expansion Micro-Price
+        tau_lead = 0.10  # 100ms predictive horizon
+        qi_pred = float(np.clip(qi_l3 + tau_lead * qi_velocity + 0.5 * (tau_lead ** 2) * qi_acceleration, -1.0, 1.0))
+        accel_micro_price = p_mid + 0.5 * spread * qi_pred
+
         return {
             "l3_queue_imbalance": round(qi_l3, 4),
             "l3_micro_price": round(l3_micro_price, 4),
+            "qi_velocity": round(qi_velocity, 4),
+            "qi_acceleration": round(qi_acceleration, 4),
+            "accelerated_l3_micro_price": round(accel_micro_price, 4),
             "weighted_bid_depth": round(w_bid_tot, 4),
             "weighted_ask_depth": round(w_ask_tot, 4),
         }

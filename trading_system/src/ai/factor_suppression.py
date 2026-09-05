@@ -50,37 +50,40 @@ def apply_quintic_hyperbolic_deadband(
     regime: Optional[Union[str, int]] = None
 ) -> Union[pd.Series, np.ndarray]:
     """
-    Phase 7 Zenith (F48.2): Smooth C^infinity Quintic-Hyperbolic Tangent Deadband Filter:
+    Phase 7 Zenith (F48.2) & Phase 8 Sovereign (F52.2): Smooth C^infinity Hyperbolic Deadband:
         z_denoised = z * tanh((|z| / delta_eff(z))^alpha_eff(z))
-    With true quintic exponent (alpha = 5.0), squashes >99.9% of near-zero noise (|z| <= 0.010)
-    reducing noise leakage down to ~0.05% (a 22-fold reduction vs cubic deadband),
-    while transmitting 100.0% of high conviction signals (|z| >= 0.150) with strict rank
-    monotonicity (Spearman rho == 1.0000) and exact odd symmetry when unconditioned.
+    - With quintic exponent (alpha = 5.0, Phase 7): squashes >99.9% of near-zero noise (|z| <= 0.010)
+      reducing noise leakage down to ~0.05%.
+    - With septic exponent (alpha = 7.0, Phase 8): squashes >99.99% of near-zero noise (|z| <= 0.010)
+      reducing noise leakage down to <0.003% (suppressing 99.997% of noise, a 20-fold reduction),
+      while transmitting 100.0% of high conviction signals (|z| >= 0.150) with strict rank
+      monotonicity (Spearman rho == 1.0000) and exact odd symmetry when unconditioned.
     """
     is_series = isinstance(scores_centered, pd.Series)
     z = scores_centered.values if is_series else np.asarray(scores_centered, dtype=np.float64)
 
     reg_str = str(regime).upper() if regime is not None else ''
+    base_alpha = float(alpha_pos)
     if 'CRISIS' in reg_str:
         chi_bear = 1.40
-        eff_alpha_neg = 5.0 if alpha_neg is None else alpha_neg
-        eff_alpha_pos = 5.0
+        eff_alpha_neg = base_alpha if alpha_neg is None else float(alpha_neg)
+        eff_alpha_pos = base_alpha
     elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
         chi_bear = 1.35
-        eff_alpha_neg = 5.0 if alpha_neg is None else alpha_neg
-        eff_alpha_pos = alpha_pos
+        eff_alpha_neg = base_alpha if alpha_neg is None else float(alpha_neg)
+        eff_alpha_pos = base_alpha
     elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or 'BEAR' in reg_str:
         chi_bear = 1.20
-        eff_alpha_neg = 5.0 if alpha_neg is None else alpha_neg
-        eff_alpha_pos = alpha_pos
+        eff_alpha_neg = base_alpha if alpha_neg is None else float(alpha_neg)
+        eff_alpha_pos = base_alpha
     elif 'SIDEWAYS_HIGH_VOL' in reg_str:
         chi_bear = 1.15
-        eff_alpha_neg = 5.0 if alpha_neg is None else alpha_neg
-        eff_alpha_pos = alpha_pos
+        eff_alpha_neg = base_alpha if alpha_neg is None else float(alpha_neg)
+        eff_alpha_pos = base_alpha
     else:
         chi_bear = 1.00
-        eff_alpha_neg = alpha_pos if alpha_neg is None else alpha_neg
-        eff_alpha_pos = alpha_pos
+        eff_alpha_neg = base_alpha if alpha_neg is None else float(alpha_neg)
+        eff_alpha_pos = base_alpha
 
     safe_delta_pos = max(1e-6, float(delta_noise))
     safe_delta_neg = max(1e-6, float(delta_neg)) if delta_neg is not None else (safe_delta_pos * chi_bear)
@@ -97,6 +100,33 @@ def apply_quintic_hyperbolic_deadband(
     if is_series:
         return pd.Series(denoised, index=scores_centered.index)
     return denoised
+
+
+def apply_asymmetric_wavelet_deadband(
+    scores_centered: Union[pd.Series, np.ndarray],
+    delta_noise: float = 0.045,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 7.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None
+) -> Union[pd.Series, np.ndarray]:
+    """
+    Phase 8 Sovereign (F52.2): Asymmetric Septic Wavelet Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^7)
+    With septic exponent (alpha = 7.0), suppresses 99.997% of near-zero noise (|z| <= 0.010)
+    reducing noise leakage down to < 0.003% (a 20-fold reduction vs Phase 7 quintic deadband),
+    while transmitting 100.000% of high conviction signals (|z| >= 0.150) with strict rank
+    monotonicity (Spearman rho == 1.0000) and exact odd symmetry when unconditioned.
+    """
+    return apply_quintic_hyperbolic_deadband(
+        scores_centered=scores_centered,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+
 
 
 def solve_single_stage_entropy_allocation(

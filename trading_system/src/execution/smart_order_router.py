@@ -51,6 +51,8 @@ class SmartOrderRouter:
         use_logistic_dark_fill: Optional[bool] = None,
         queue_imbalance: Optional[float] = None,
         arrival_imbalance: Optional[float] = None,
+        qi_acceleration: Optional[float] = None,
+        cross_asset_toxicity: Optional[float] = None,
         version: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
@@ -59,6 +61,8 @@ class SmartOrderRouter:
         F44: Directional Bivariate Hawkes Toxicity, Anti-Gaming Dynamic MinQty,
         Logistic Hazard Dark Fill Probability, and Institutional Venue Specialization.
         F50: Level-3 Queue Imbalance Preemption, 0.10 Maker Ratio Contraction, and 0.60 MinQty Cap.
+        F54: Level-3 Queue Imbalance Acceleration Preemption up to 85%, 0.05 Maker Floor,
+        0.75 Anti-Gaming MinQty, and Cross-Asset Toxicity.
         """
         symbol = str(order_plan.get("symbol", ""))
         action = str(order_plan.get("action", "BUY")).upper()
@@ -77,7 +81,11 @@ class SmartOrderRouter:
         v_eff = version if version is not None else int(order_plan.get("version", 6))
         qi = queue_imbalance if queue_imbalance is not None else order_plan.get("queue_imbalance", order_plan.get("l3_queue_imbalance"))
         arr_imb = arrival_imbalance if arrival_imbalance is not None else order_plan.get("arrival_imbalance")
-        is_phase7 = (v_eff >= 7) or (qi is not None) or (arr_imb is not None)
+        qi_accel = qi_acceleration if qi_acceleration is not None else order_plan.get("qi_acceleration")
+        cross_tox = cross_asset_toxicity if cross_asset_toxicity is not None else order_plan.get("cross_asset_toxicity")
+
+        is_phase8 = (v_eff >= 8) or (qi_accel is not None) or (cross_tox is not None)
+        is_phase7 = is_phase8 or (v_eff >= 7) or (qi is not None) or (arr_imb is not None)
 
         legs: List[Dict[str, Any]] = []
 
@@ -93,13 +101,20 @@ class SmartOrderRouter:
         else:
             eff_dark_ratio = float(self.dark_probe_ratio)
 
-        # F50: Lit Queue Imbalance Preemption (preemptively route up to 75% to dark ATS before lit quotes jump)
-        if qi is not None:
-            qi_f = float(qi)
-            if math.isfinite(qi_f):
-                qi_aligned = qi_f if action in ["BUY", "BID", "LONG"] else -qi_f
-                if qi_aligned > 0.50:
-                    eff_dark_ratio = float(np.clip(eff_dark_ratio + 0.15 * qi_aligned, self.dark_probe_ratio, 0.75))
+        # F50 & F54: Lit Queue Imbalance & Acceleration Preemption (preemptively route up to 75% / 85% to dark ATS)
+        if qi is not None or qi_accel is not None:
+            qi_f = float(qi) if (qi is not None and math.isfinite(float(qi))) else 0.0
+            qi_aligned = qi_f if action in ["BUY", "BID", "LONG"] else -qi_f
+            a_f = float(qi_accel) if (qi_accel is not None and math.isfinite(float(qi_accel))) else 0.0
+            a_aligned = a_f if action in ["BUY", "BID", "LONG"] else -a_f
+
+            if is_phase8 and (qi_aligned > 0.40 or a_aligned > 0.20):
+                eff_dark_ratio = float(np.clip(
+                    eff_dark_ratio + 0.15 * max(0.0, qi_aligned) + 0.10 * math.tanh(max(0.0, a_aligned)),
+                    self.dark_probe_ratio, 0.85
+                ))
+            elif qi_aligned > 0.50:
+                eff_dark_ratio = float(np.clip(eff_dark_ratio + 0.15 * qi_aligned, self.dark_probe_ratio, 0.75))
 
         # F32, F38 & F44: Hawkes Arrival Intensity & Directional Toxicity Adverse Selection Gating
         hwk = hawkes_intensity if hawkes_intensity is not None else order_plan.get("hawkes_intensity")
@@ -122,7 +137,10 @@ class SmartOrderRouter:
         if g_dir is not None:
             gamma_toxic = float(np.clip(float(g_dir), 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase7 and gamma_toxic > 0.80:
+            if is_phase8 and gamma_toxic > 0.80:
+                # F54: Extreme directional toxicity contracts lit maker floor to 0.05
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.9286 * gamma_toxic), 0.05, 0.70))
+            elif is_phase7 and gamma_toxic > 0.80:
                 # F50: Extreme directional toxicity contracts lit maker floor to 0.10
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.8571 * gamma_toxic), 0.10, 0.70))
             else:
@@ -140,7 +158,9 @@ class SmartOrderRouter:
                 gamma_raw = (hb_val - base_hwk) / (1.5 * base_hwk) - 0.35 * min(0.0, delta_dir)
             gamma_toxic = float(np.clip(gamma_raw, 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase7 and gamma_toxic > 0.80:
+            if is_phase8 and gamma_toxic > 0.80:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.9286 * gamma_toxic), 0.05, 0.70))
+            elif is_phase7 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.8571 * gamma_toxic), 0.10, 0.70))
             else:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.7143 * gamma_toxic), 0.20, 0.70))
@@ -174,10 +194,22 @@ class SmartOrderRouter:
         else:
             maker_ratio = 0.70
 
-        # F44 & F50: Anti-Gaming Dynamic MinQty (adapting between 20% and 50% in F44, up to 60% in F50)
+        # F54: Cross-Asset Flow Toxicity Blending
+        if cross_tox is not None and math.isfinite(float(cross_tox)):
+            g_cross = float(np.clip(float(cross_tox), 0.0, 1.0))
+            gamma_toxic = float(np.clip(0.65 * gamma_toxic + 0.35 * g_cross, 0.0, 1.0))
+            is_toxic_flow = bool(gamma_toxic > 0.50)
+            if is_phase8 and gamma_toxic > 0.80:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.9286 * gamma_toxic), 0.05, 0.70))
+            elif is_phase7 and gamma_toxic > 0.80:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.8571 * gamma_toxic), 0.10, 0.70))
+
+        # F44, F50 & F54: Anti-Gaming Dynamic MinQty (adapting between 20% and 50% in F44, 60% in F50, up to 75% in F54)
         min_ratio = 0.20
         if is_toxic_flow or gamma_toxic > 0.50 or dp_score >= 0.60:
-            if is_phase7 and (gamma_toxic > 0.70 or is_accum):
+            if is_phase8 and (gamma_toxic > 0.70 or is_accum):
+                min_ratio = float(np.clip(0.20 + 0.35 * gamma_toxic + 0.20 * dp_score, 0.20, 0.75))
+            elif is_phase7 and (gamma_toxic > 0.70 or is_accum):
                 min_ratio = float(np.clip(0.20 + 0.30 * gamma_toxic + 0.15 * dp_score, 0.20, 0.60))
             else:
                 min_ratio = float(np.clip(0.20 + 0.25 * gamma_toxic + 0.15 * dp_score, 0.20, 0.50))

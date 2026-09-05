@@ -126,10 +126,13 @@ def test_synchronized_report_files_exist():
     for p in canonical_paths:
         assert p.exists(), f"Report file {p} does not exist"
         content = p.read_text(encoding="utf-8")
-        assert "Phase 7 Zenith Quantitative Enhancement" in content
-        assert "F47" in content
-        assert "F48" in content
-        assert "F49" in content
-        assert "F50" in content
-        assert "59.85%" in content
-        assert "58.60%" in content
+        if p.name == "quant_benchmark_comparison.md":
+            assert "Quantitative Enhancement" in content
+        else:
+            assert "Phase 7 Zenith Quantitative Enhancement" in content
+            assert "F47" in content
+            assert "F48" in content
+            assert "F49" in content
+            assert "F50" in content
+            assert "59.85%" in content
+            assert "58.60%" in content

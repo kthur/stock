@@ -552,6 +552,202 @@ class UnifiedPortfolioAllocator:
         bar_u = float(np.mean(lam_u_pairs)) if lam_u_pairs else 0.0
         return lambda_l_mat, bar_l, bar_u
 
+    @staticmethod
+    def compute_downside_semi_covariance(
+        returns_matrix: np.ndarray,
+        base_cov: Optional[np.ndarray] = None,
+        target_return: float = 0.0,
+        shrinkage_intensity: float = 0.20
+    ) -> np.ndarray:
+        """
+        Computes Downside Semi-Covariance Matrix (Sigma^-) for Sortino and CCVaR optimization.
+        """
+        try:
+            from src.risk.portfolio_allocator import PortfolioAllocator
+            return PortfolioAllocator.compute_downside_semi_cov(
+                returns_matrix, base_cov=base_cov, target_return=target_return, shrinkage_intensity=shrinkage_intensity
+            )
+        except Exception:
+            if returns_matrix is None or len(returns_matrix) < 5 or returns_matrix.shape[1] < 2:
+                return base_cov if base_cov is not None else np.eye(2)
+            downside_diff = np.minimum(returns_matrix - target_return, 0.0)
+            semi_cov = np.dot(downside_diff.T, downside_diff) / max(len(returns_matrix) - 1, 1)
+            if base_cov is not None and base_cov.shape == semi_cov.shape:
+                return (1.0 - shrinkage_intensity) * semi_cov + shrinkage_intensity * base_cov
+            return semi_cov
+
+    def compute_rvine_tail_cascade_metrics(
+        self,
+        returns: np.ndarray,
+        tail_quantile: float = 0.05
+    ) -> Dict[str, Any]:
+        """
+        Phase 8 (F53.1): Multivariate Regular Vine (R-Vine) Tree Copula Cascade Engine.
+        Models 3-tier hierarchical downside contagion across assets and allocation paradigms:
+        - Tree 1 (T_1): Pairwise unconditional Clayton (lambda_L^(1)) & Gumbel (lambda_U^(1)) copulas.
+        - Tree 2 (T_2): Conditional pair-copulas via Clayton h-functions h(u|v; theta_1),
+                        evaluating conditional Kendall's tau and conditional lower tail dependence lambda_L^(2).
+        - Tree 3 (T_3): Higher-order cascade contagion copula via nested h-functions lambda_L^(3).
+        Returns composite cascade index:
+            Lambda_cascade = 0.50 * bar_lambda_T1 + 0.35 * bar_lambda_T2 + 0.15 * bar_lambda_T3
+        """
+        if returns is None or not hasattr(returns, "shape") or returns.ndim != 2:
+            return {
+                "lambda_cascade_aggregate": 0.0,
+                "tree1_lower_tail_mean": 0.0,
+                "tree2_lower_tail_mean": 0.0,
+                "tree3_lower_tail_mean": 0.0,
+                "tree1_upper_tail_mean": 0.0,
+                "asset_cascade_vector": np.zeros(1),
+                "pairwise_lower_tail_matrix": np.eye(1),
+            }
+
+        t, n = returns.shape
+        if n < 2 or t < 5:
+            return {
+                "lambda_cascade_aggregate": 0.0,
+                "tree1_lower_tail_mean": 0.0,
+                "tree2_lower_tail_mean": 0.0,
+                "tree3_lower_tail_mean": 0.0,
+                "tree1_upper_tail_mean": 0.0,
+                "asset_cascade_vector": np.zeros(n),
+                "pairwise_lower_tail_matrix": np.eye(n),
+            }
+
+        r = np.asarray(returns, dtype=float)
+        if np.isnan(r).any():
+            r = np.nan_to_num(r, nan=0.0)
+
+        # 1. Pseudo-observations via empirical CDF (ranks)
+        from scipy.stats import rankdata, kendalltau
+        u = np.zeros_like(r)
+        for j in range(n):
+            u[:, j] = (rankdata(r[:, j]) - 0.5) / t
+
+        # Helper for Clayton h-function: h(u|v; theta) = dC(u,v)/dv
+        def clayton_h(u_val: np.ndarray, v_val: np.ndarray, theta: float) -> np.ndarray:
+            u_c = np.clip(u_val, 1e-6, 1.0 - 1e-6)
+            v_c = np.clip(v_val, 1e-6, 1.0 - 1e-6)
+            if theta < 1e-4:
+                return u_c
+            term = u_c ** (-theta) + v_c ** (-theta) - 1.0
+            term = np.maximum(term, 1e-6)
+            res = (v_c ** (-1.0 - theta)) * (term ** (-1.0 - 1.0 / theta))
+            return np.clip(res, 1e-6, 1.0 - 1e-6)
+
+        # --- TREE 1: Unconditional Pairwise ---
+        lam_t1_mat = np.eye(n, dtype=float)
+        theta_t1_mat = np.zeros((n, n), dtype=float)
+        tau_t1_pairs = []
+        lam_t1_pairs = []
+        lam_u_pairs = []
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                try:
+                    tau_res = kendalltau(r[:, i], r[:, j])
+                    tau_val = float(tau_res.correlation) if math.isfinite(tau_res.correlation) else 0.0
+                except Exception:
+                    tau_val = float(np.corrcoef(r[:, i], r[:, j])[0, 1] * 0.6366) if (np.std(r[:, i]) > 1e-6 and np.std(r[:, j]) > 1e-6) else 0.0
+                tau_val = float(np.clip(tau_val, -0.99, 0.99))
+                tau_t1_pairs.append(tau_val)
+
+                if tau_val > 0.01:
+                    theta_l = max(0.05, 2.0 * tau_val / max(1e-4, 1.0 - tau_val))
+                    lam_l = float(2.0 ** (-1.0 / theta_l))
+                    theta_u = max(1.0, 1.0 / max(1e-4, 1.0 - tau_val))
+                    lam_u = float(np.clip(2.0 - 2.0 ** (1.0 / theta_u), 0.0, 1.0))
+                else:
+                    theta_l = 0.05
+                    lam_l = 0.0
+                    lam_u = 0.0
+
+                theta_t1_mat[i, j] = theta_l
+                theta_t1_mat[j, i] = theta_l
+                lam_t1_mat[i, j] = lam_l
+                lam_t1_mat[j, i] = lam_l
+                lam_t1_pairs.append(lam_l)
+                lam_u_pairs.append(lam_u)
+
+        bar_lam_t1 = float(np.mean(lam_t1_pairs)) if lam_t1_pairs else 0.0
+        bar_lam_u = float(np.mean(lam_u_pairs)) if lam_u_pairs else 0.0
+
+        # --- TREE 2: First-Order Conditional Copulas ---
+        # Conditioned on systemic driver k = 0 (first asset or highest centrality asset)
+        lam_t2_pairs = []
+        theta_t2_mat = np.zeros((n, n), dtype=float)
+        k_root = 0
+        u_cond_k = {}
+        for i in range(1, n):
+            u_cond_k[i] = clayton_h(u[:, i], u[:, k_root], theta_t1_mat[i, k_root])
+
+        if n >= 3:
+            for i in range(1, n):
+                for j in range(i + 1, n):
+                    try:
+                        tau_c = kendalltau(u_cond_k[i], u_cond_k[j])
+                        tau_2 = float(tau_c.correlation) if math.isfinite(tau_c.correlation) else 0.0
+                    except Exception:
+                        tau_2 = 0.0
+                    tau_2 = float(np.clip(tau_2, -0.99, 0.99))
+                    if tau_2 > 0.01:
+                        theta_2 = max(0.05, 2.0 * tau_2 / max(1e-4, 1.0 - tau_2))
+                        lam_2 = float(2.0 ** (-1.0 / theta_2))
+                    else:
+                        theta_2 = 0.05
+                        lam_2 = 0.0
+                    theta_t2_mat[i, j] = theta_2
+                    theta_t2_mat[j, i] = theta_2
+                    lam_t2_pairs.append(lam_2)
+            bar_lam_t2 = float(np.mean(lam_t2_pairs)) if lam_t2_pairs else 0.0
+        else:
+            bar_lam_t2 = 0.0
+
+        # --- TREE 3: Second-Order Cascade Contagion Copulas ---
+        lam_t3_pairs = []
+        if n >= 4:
+            # Conditioned on root pair (k_root=0, second_hub=1)
+            k2 = 1
+            for i in range(2, n):
+                for j in range(i + 1, n):
+                    u_i_given_01 = clayton_h(u_cond_k[i], u_cond_k[k2], theta_t2_mat[i, k2])
+                    u_j_given_01 = clayton_h(u_cond_k[j], u_cond_k[k2], theta_t2_mat[j, k2])
+                    try:
+                        tau_c3 = kendalltau(u_i_given_01, u_j_given_01)
+                        tau_3 = float(tau_c3.correlation) if math.isfinite(tau_c3.correlation) else 0.0
+                    except Exception:
+                        tau_3 = 0.0
+                    tau_3 = float(np.clip(tau_3, -0.99, 0.99))
+                    if tau_3 > 0.01:
+                        theta_3 = max(0.05, 2.0 * tau_3 / max(1e-4, 1.0 - tau_3))
+                        lam_3 = float(2.0 ** (-1.0 / theta_3))
+                    else:
+                        lam_3 = 0.0
+                    lam_t3_pairs.append(lam_3)
+            bar_lam_t3 = float(np.mean(lam_t3_pairs)) if lam_t3_pairs else 0.0
+        else:
+            bar_lam_t3 = 0.0
+
+        # Aggregate Cascade Contagion Index
+        lambda_cascade = float(np.clip(0.50 * bar_lam_t1 + 0.35 * bar_lam_t2 + 0.15 * bar_lam_t3, 0.0, 1.0))
+
+        # Per-Asset Cascade Contagion Exposure Vector
+        asset_cascade = np.zeros(n, dtype=float)
+        for i in range(n):
+            t1_i = np.sum(lam_t1_mat[i, :]) - lam_t1_mat[i, i]
+            avg_t1_i = t1_i / max(1, n - 1)
+            asset_cascade[i] = float(np.clip(0.55 * avg_t1_i + 0.30 * bar_lam_t2 + 0.15 * bar_lam_t3, 0.0, 1.0))
+
+        return {
+            "lambda_cascade_aggregate": round(lambda_cascade, 4),
+            "tree1_lower_tail_mean": round(bar_lam_t1, 4),
+            "tree2_lower_tail_mean": round(bar_lam_t2, 4),
+            "tree3_lower_tail_mean": round(bar_lam_t3, 4),
+            "tree1_upper_tail_mean": round(bar_lam_u, 4),
+            "asset_cascade_vector": asset_cascade,
+            "pairwise_lower_tail_matrix": lam_t1_mat,
+        }
+
     def compute_information_theoretic_blend_weights(
         self,
         regime: Optional[Union[str, int, Dict[str, float]]] = "BULL_LOW_VOL",
@@ -564,13 +760,16 @@ class UnifiedPortfolioAllocator:
         temperature: float = 1.0,
         copula_lower_tail: Optional[float] = None,
         copula_upper_tail: Optional[float] = None,
+        rvine_cascade_index: Optional[float] = None,
+        tree2_conditional_tail: Optional[float] = None,
         version: int = 6,
     ) -> Dict[str, float]:
         """
-        F43 & F49: Continuous Information-Theoretic 4-Model Reliability Optimization.
+        F43, F49 & F53: Continuous Information-Theoretic 4-Model Reliability Optimization.
         Computes dynamic posterior log-odds updates Delta ell_m across:
         [Black-Litterman, HERC, Risk Parity, EVT-CVaR]
         including Archimedean Clayton & Gumbel Copula tail dependency shifts (F49),
+        Multivariate R-Vine Tree Copula cascade contagion & Information Entropy Parity (F53),
         and applies temperature-controlled Softmax blending.
         """
         # 1. Base Prior w^(0)
@@ -664,11 +863,32 @@ class UnifiedPortfolioAllocator:
             ),
         }
 
-        # F49: Archimedean Clayton (lambda_L) & Gumbel (lambda_U) Copula Dynamic Tail Reliability Tilting
+        # F49 & F53: Archimedean Clayton/Gumbel and Multivariate R-Vine Copula & Information Entropy Parity (IEP)
         lam_l = float(copula_lower_tail) if (copula_lower_tail is not None and math.isfinite(float(copula_lower_tail))) else 0.0
         lam_u = float(copula_upper_tail) if (copula_upper_tail is not None and math.isfinite(float(copula_upper_tail))) else 0.0
 
-        if (lam_l > 0.0 or lam_u > 0.0) or int(version) >= 7:
+        is_phase8 = int(version) >= 8
+        lam_casc = float(rvine_cascade_index) if (rvine_cascade_index is not None and math.isfinite(float(rvine_cascade_index))) else lam_l
+        lam_t2 = float(tree2_conditional_tail) if (tree2_conditional_tail is not None and math.isfinite(float(tree2_conditional_tail))) else 0.0
+
+        if is_phase8:
+            # 1. Information Entropy Parity (pulls toward equal weighting 0.25 when regime uncertainty is elevated and cascade contagion is contained)
+            alpha_iep = 0.60
+            contagion_damp = max(0.0, 1.0 - 1.5 * lam_casc)
+            for k in delta_ell:
+                delta_ell[k] += alpha_iep * u_entropy * (0.25 - w_prior[k]) * contagion_damp
+
+            # 2. R-Vine Higher-Order Downside Cascade Tilting
+            if lam_casc > 0.0 or lam_u > 0.0:
+                delta_rvine = {
+                    "bl": -0.90 * max(0.0, lam_casc - 0.15) + 0.40 * max(0.0, lam_u - 0.20),
+                    "herc": +0.30 * max(0.0, lam_casc - 0.15) - 0.40 * max(0.0, lam_t2 - 0.20),
+                    "rp": -1.25 * max(0.0, lam_casc - 0.15),
+                    "cvar": +1.65 * max(0.0, lam_casc - 0.15),
+                }
+                for k in delta_ell:
+                    delta_ell[k] += delta_rvine[k]
+        elif (lam_l > 0.0 or lam_u > 0.0) or int(version) >= 7:
             delta_copula = {
                 "bl": -0.60 * max(0.0, lam_l - 0.15) + 0.30 * max(0.0, lam_u - 0.20),
                 "herc": +0.35 * max(0.0, lam_l - 0.15),
@@ -905,12 +1125,15 @@ class UnifiedPortfolioAllocator:
         copula_lower_tail: Optional[float] = None,
         copula_upper_tail: Optional[float] = None,
         cross_asset_copula_lower_tail: Optional[np.ndarray] = None,
+        rvine_cascade_index: Optional[float] = None,
+        tree2_conditional_tail: Optional[float] = None,
+        asset_cascade_vector: Optional[np.ndarray] = None,
         version: int = 6,
     ) -> np.ndarray:
         """
         Continuous 4-Model Regime-Adaptive Multi-Model Blending:
         Blends Black-Litterman, HERC, Risk Parity, and EVT-CVaR based on the current regime,
-        including Archimedean Clayton/Gumbel copula tail dependency (F49),
+        including Archimedean Clayton/Gumbel copula tail dependency (F49) and Multivariate R-Vine (F53),
         then applies non-linear dark-pool-adjusted market impact penalty and Barra factor constraints.
         """
         n = len(symbols)
@@ -956,11 +1179,34 @@ class UnifiedPortfolioAllocator:
         elif regime and "CRISIS" in str(regime).upper():
             c_crisis = 1.0
 
-        # F49: Automatic Archimedean Clayton & Gumbel Copula estimation when version >= 7
+        # F49 & F53: Automatic Archimedean & R-Vine Copula estimation when version >= 7 or version >= 8
         eff_copula_l = copula_lower_tail
         eff_copula_u = copula_upper_tail
         eff_cross_copula = cross_asset_copula_lower_tail
-        if int(version) >= 7 and returns_df is not None and returns_df.shape[0] >= 5 and returns_df.shape[1] == n:
+        eff_rvine_cascade = rvine_cascade_index
+        eff_tree2_tail = tree2_conditional_tail
+        eff_asset_cascade = asset_cascade_vector
+
+        if int(version) >= 8 and returns_df is not None and returns_df.shape[0] >= 5 and returns_df.shape[1] == n:
+            try:
+                rvine_metrics = self.compute_rvine_tail_cascade_metrics(returns_df.values)
+                if eff_rvine_cascade is None:
+                    eff_rvine_cascade = rvine_metrics.get("lambda_cascade_aggregate", 0.0)
+                if eff_tree2_tail is None:
+                    eff_tree2_tail = rvine_metrics.get("tree2_lower_tail_mean", 0.0)
+                if eff_copula_l is None:
+                    eff_copula_l = rvine_metrics.get("tree1_lower_tail_mean", 0.0)
+                if eff_copula_u is None:
+                    eff_copula_u = rvine_metrics.get("tree1_upper_tail_mean", 0.0)
+                if eff_asset_cascade is None:
+                    eff_asset_cascade = rvine_metrics.get("asset_cascade_vector", None)
+                if eff_cross_copula is None:
+                    lam_mat = rvine_metrics.get("pairwise_lower_tail_matrix", None)
+                    if lam_mat is not None and n > 1:
+                        eff_cross_copula = (np.sum(lam_mat, axis=1) - np.diag(lam_mat)) / max(1, n - 1)
+            except Exception as e_rvine:
+                logger.debug(f"[R-Vine Tail Cascade] Exception: {e_rvine}")
+        elif int(version) >= 7 and returns_df is not None and returns_df.shape[0] >= 5 and returns_df.shape[1] == n:
             try:
                 lam_mat, bar_l, bar_u = self.compute_copula_tail_dependence_metrics(returns_df.values)
                 if eff_copula_l is None:
@@ -981,6 +1227,8 @@ class UnifiedPortfolioAllocator:
             market_coskewness=mkt_coskew,
             copula_lower_tail=eff_copula_l,
             copula_upper_tail=eff_copula_u,
+            rvine_cascade_index=eff_rvine_cascade,
+            tree2_conditional_tail=eff_tree2_tail,
             version=version,
         )
 
@@ -1116,7 +1364,12 @@ class UnifiedPortfolioAllocator:
                 coskew_pen = np.maximum(0.0, -np.nan_to_num(co_skew, nan=0.0))
 
             copula_drag = np.zeros(n)
-            if eff_cross_copula is not None and len(eff_cross_copula) == n:
+            if int(version) >= 8 and eff_asset_cascade is not None and len(eff_asset_cascade) == n:
+                # F53: R-Vine higher-order cascade contagion drag
+                c_casc = np.nan_to_num(np.asarray(eff_asset_cascade, dtype=float), nan=0.0)
+                bar_casc = float(np.nanmean(c_casc))
+                copula_drag = 0.50 * np.maximum(0.0, c_casc - bar_casc)
+            elif eff_cross_copula is not None and len(eff_cross_copula) == n:
                 c_tail = np.nan_to_num(np.asarray(eff_cross_copula, dtype=float), nan=0.0)
                 bar_lam = float(np.nanmean(c_tail))
                 copula_drag = 0.40 * np.maximum(0.0, c_tail - bar_lam)
@@ -1165,7 +1418,20 @@ class UnifiedPortfolioAllocator:
                     tot_w = np.sum(w_target)
                     if tot_w < 1.0:
                         unalloc = 1.0 - tot_w
-                        if int(version) >= 7:
+                        if int(version) >= 8:
+                            # F53: R-Vine Cascade Safety-Weighted Headroom Redistribution
+                            headroom = np.maximum(0.0, trc_cap - trc[~viol_mask])
+                            if eff_asset_cascade is not None and len(eff_asset_cascade) == n:
+                                safety_weight = np.exp(-1.5 * np.asarray(eff_asset_cascade[~viol_mask], dtype=float))
+                            else:
+                                safety_weight = np.ones(np.sum(~viol_mask))
+                            hr_weights = w_target[~viol_mask] * headroom * safety_weight
+                            sum_hr = np.sum(hr_weights)
+                            if sum_hr > 0:
+                                w_target[~viol_mask] += unalloc * (hr_weights / sum_hr)
+                            else:
+                                w_target[~viol_mask] += unalloc / np.sum(~viol_mask)
+                        elif int(version) >= 7:
                             # F49: Residual Risk Headroom redistribution
                             headroom = np.maximum(0.0, trc_cap - trc[~viol_mask])
                             hr_weights = w_target[~viol_mask] * headroom
