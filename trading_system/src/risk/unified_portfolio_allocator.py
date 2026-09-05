@@ -1001,6 +1001,154 @@ class UnifiedPortfolioAllocator:
         q /= np.sum(q)
         return {k: float(q[i]) for i, k in enumerate(model_keys)}
 
+    def compute_fisher_rao_barycenter_blend(
+        self,
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 12 (F69.1): Fisher-Rao Infinite-Dimensional Functional Information Geometry Manifold Barycenter Blending.
+        Computes consensus distribution q* in Delta^3 minimizing the Riemannian Fisher-Rao geodesic distance:
+            q* = argmin_{q in Delta^3} sum_k lambda_k d_{FR}^2(q, p_k)
+        under the square-root isometric embedding x_i = sqrt(p_i) on the unit 3-sphere S^3:
+            d_{FR}(p, q) = 2 * arccos(sum_i sqrt(p_i * q_i)) = 2 * arccos(BC(p, q)).
+        Intrinsic Riemannian gradient descent on S^3 via square-root coordinates:
+            Log_x(x_k) = (theta_k / sin theta_k) * (x_k - cos theta_k * x)
+            x^{(t+1)} = Exp_x(eta * Delta(x)) = cos(||v||) * x + sin(||v||) * (v / ||v||)
+        where v = step_size * sum_k lambda_k Log_x(x_k).
+        """
+        model_keys = ["bl", "herc", "rp", "cvar"]
+        d = len(model_keys)
+
+        if isinstance(model_weights, dict):
+            p_vec = np.array([max(1e-6, float(model_weights.get(k, 0.25))) for k in model_keys], dtype=float)
+            p_vec /= np.sum(p_vec)
+            distributions = [p_vec]
+            lambdas = [1.0]
+        elif isinstance(model_weights, list) and len(model_weights) > 0 and isinstance(model_weights[0], dict):
+            distributions = []
+            for mw in model_weights:
+                pv = np.array([max(1e-6, float(mw.get(k, 0.25))) for k in model_keys], dtype=float)
+                pv /= np.sum(pv)
+                distributions.append(pv)
+            lambdas = np.full(len(distributions), 1.0 / len(distributions))
+        else:
+            arr = np.asarray(model_weights, dtype=float)
+            if arr.ndim == 1 and len(arr) == d:
+                pv = np.maximum(arr, 1e-6)
+                pv /= np.sum(pv)
+                distributions = [pv]
+                lambdas = [1.0]
+            elif arr.ndim == 2 and arr.shape[1] == d:
+                distributions = []
+                for row in arr:
+                    pv = np.maximum(row, 1e-6)
+                    pv /= np.sum(pv)
+                    distributions.append(pv)
+                lambdas = np.full(len(distributions), 1.0 / len(distributions))
+            else:
+                distributions = [np.full(d, 0.25)]
+                lambdas = [1.0]
+
+        K_num = len(distributions)
+        if K_num == 1:
+            q = distributions[0]
+            return {k: float(q[i]) for i, k in enumerate(model_keys)}
+
+        # Convert distributions to square-root coordinates on unit sphere S^3
+        # x_{k, i} = sqrt(p_{k, i})
+        X = [np.sqrt(np.maximum(1e-12, dist)) for dist in distributions]
+        for k in range(K_num):
+            norm_k = np.linalg.norm(X[k])
+            if norm_k > 0:
+                X[k] = X[k] / norm_k
+
+        # 1. Extrinsic Center of Mass initialization on S^3
+        v_init = np.zeros(d, dtype=float)
+        for k in range(K_num):
+            v_init += lambdas[k] * X[k]
+        norm_init = np.linalg.norm(v_init)
+        if norm_init > 1e-12:
+            x_cur = v_init / norm_init
+        else:
+            x_cur = np.full(d, 1.0 / np.sqrt(d))
+
+        # 2. Intrinsic Riemannian gradient descent on S^3 via Log/Exp maps
+        eta = float(np.clip(step_size, 0.05, 1.0))
+        for _ in range(max(10, int(max_iter))):
+            # Compute tangent gradient Delta = sum_k lambda_k Log_{x_cur}(X_k)
+            delta_tangent = np.zeros(d, dtype=float)
+            for k in range(K_num):
+                cos_theta = float(np.clip(np.dot(x_cur, X[k]), -1.0, 1.0))
+                theta = math.acos(cos_theta)
+                sin_theta = math.sin(theta)
+                if abs(sin_theta) > 1e-9 and theta > 1e-9:
+                    log_map = (theta / sin_theta) * (X[k] - cos_theta * x_cur)
+                else:
+                    log_map = X[k] - cos_theta * x_cur
+                delta_tangent += lambdas[k] * log_map
+
+            norm_delta = np.linalg.norm(delta_tangent)
+            if norm_delta < tol:
+                break
+
+            # Riemannian exponential map Exp_{x_cur}(eta * delta_tangent)
+            v = eta * delta_tangent
+            norm_v = np.linalg.norm(v)
+            if norm_v < 1e-12:
+                break
+
+            x_next = math.cos(norm_v) * x_cur + math.sin(norm_v) * (v / norm_v)
+            x_next = np.maximum(1e-6, x_next)
+            norm_next = np.linalg.norm(x_next)
+            if norm_next > 1e-12:
+                x_next /= norm_next
+            else:
+                x_next = np.full(d, 1.0 / np.sqrt(d))
+
+            if np.max(np.abs(x_next - x_cur)) < tol:
+                x_cur = x_next
+                break
+            x_cur = x_next
+
+        # 3. Project back to probability simplex Delta^3: q_i* = (x_i*)^2 / sum_j (x_j*)^2
+        q_star = np.square(x_cur)
+        q_star = np.maximum(1e-6, q_star)
+        q_star /= np.sum(q_star)
+
+        return {k: float(q_star[i]) for i, k in enumerate(model_keys)}
+
+    def compute_fisher_rao_distance(
+        self,
+        p: Union[Dict[str, float], np.ndarray],
+        q: Union[Dict[str, float], np.ndarray],
+    ) -> float:
+        """
+        Calculates the exact Fisher-Rao geodesic distance between two probability distributions on S^3:
+            d_{FR}(p, q) = 2 * arccos(sum_i sqrt(p_i * q_i)) = 2 * arccos(BC(p, q)).
+        """
+        model_keys = ["bl", "herc", "rp", "cvar"]
+        if isinstance(p, dict):
+            p_arr = np.array([max(1e-8, float(p.get(k, 0.25))) for k in model_keys], dtype=float)
+        else:
+            p_arr = np.maximum(1e-8, np.asarray(p, dtype=float))
+        p_arr /= np.sum(p_arr)
+
+        if isinstance(q, dict):
+            q_arr = np.array([max(1e-8, float(q.get(k, 0.25))) for k in model_keys], dtype=float)
+        else:
+            q_arr = np.maximum(1e-8, np.asarray(q, dtype=float))
+        q_arr /= np.sum(q_arr)
+
+        bc = float(np.sum(np.sqrt(p_arr * q_arr)))
+        bc = np.clip(bc, 0.0, 1.0)
+        return float(2.0 * math.acos(bc))
+
+    # Alias for API consistency across specifications
+    compute_fisher_rao_manifold_barycenter = compute_fisher_rao_barycenter_blend
+
     def compute_super_evar_risk_measure(
         self,
         returns: np.ndarray,
@@ -1065,6 +1213,88 @@ class UnifiedPortfolioAllocator:
             "var_value": round(float(var_val), 6),
             "optimal_t": round(float(best_t_super), 4),
             "alpha": float(alpha_clamped),
+        }
+
+    def compute_ultra_evar_risk_measure(
+        self,
+        returns: np.ndarray,
+        alpha: float = 0.05,
+        t_grid: Optional[np.ndarray] = None,
+        xi_jump: float = 0.15,
+        xi_frechet: float = 0.20,
+    ) -> Dict[str, Any]:
+        """
+        Phase 12 (F69.1): Higher-Order Fréchet Extreme Value Tail Risk (Ultra-EVaR) Coherent Risk Measure.
+        Evaluates the generalized heavy-tail Fréchet exponential ceiling:
+            Ultra-EVaR_{1-alpha}(X) = inf_{t > 0} { t^{-1} (ln E[exp(psi(t, L))] - ln alpha) }
+        where psi(t, L) = t * L + 0.5 * xi_jump * t^2 * L^2 + (1/6) * xi_frechet * t^3 * |L|^3.
+        Strictly satisfies the coherent tail risk hierarchy:
+            VaR_{1-alpha}(X) <= CVaR_{1-alpha}(X) <= EVaR_{1-alpha}(X) <= Super-EVaR_{1-alpha}(X) <= Ultra-EVaR_{1-alpha}(X).
+        """
+        super_res = self.compute_super_evar_risk_measure(returns, alpha=alpha, t_grid=t_grid, xi_jump=xi_jump)
+        super_evar_val = super_res["super_evar_value"]
+        evar_val = super_res["evar_value"]
+        cvar_val = super_res["cvar_value"]
+        var_val = super_res["var_value"]
+        opt_t = super_res["optimal_t"]
+
+        r = np.asarray(returns, dtype=float)
+        r_flat = r.flatten()
+        r_clean = r_flat[np.isfinite(r_flat)]
+        if len(r_clean) == 0:
+            return {
+                "ultra_evar_value": super_evar_val,
+                "super_evar_value": super_evar_val,
+                "evar_value": evar_val,
+                "cvar_value": cvar_val,
+                "var_value": var_val,
+                "optimal_t": opt_t,
+                "alpha": float(alpha),
+                "xi_jump": float(xi_jump),
+                "xi_frechet": float(xi_frechet),
+            }
+
+        losses = -r_clean
+        alpha_clamped = float(np.clip(alpha, 1e-4, 0.49))
+
+        def eval_ultra_evar_t(t_val: float) -> float:
+            if t_val <= 1e-8:
+                return 1e9
+            # psi(t, L) = t * L + 0.5 * xi_jump * t^2 * L^2 + (1/6) * xi_frechet * t^3 * |L|^3
+            arg = (
+                t_val * losses
+                + 0.5 * xi_jump * (t_val ** 2) * np.square(losses)
+                + (1.0 / 6.0) * xi_frechet * (t_val ** 3) * np.power(np.abs(losses), 3.0)
+            )
+            arg_clipped = np.clip(arg, -500.0, 500.0)
+            max_arg = np.max(arg_clipped)
+            log_smgf = max_arg + np.log(max(1e-12, float(np.mean(np.exp(arg_clipped - max_arg)))))
+            return float((log_smgf - math.log(alpha_clamped)) / t_val)
+
+        best_ultra = float("inf")
+        best_t_ultra = opt_t
+        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        if t_grid is not None:
+            candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
+
+        for t_c in candidate_t:
+            v = eval_ultra_evar_t(float(t_c))
+            if v < best_ultra:
+                best_ultra = v
+                best_t_ultra = float(t_c)
+
+        ultra_evar_final = max(best_ultra, super_evar_val)
+
+        return {
+            "ultra_evar_value": round(float(ultra_evar_final), 6),
+            "super_evar_value": round(float(super_evar_val), 6),
+            "evar_value": round(float(evar_val), 6),
+            "cvar_value": round(float(cvar_val), 6),
+            "var_value": round(float(var_val), 6),
+            "optimal_t": round(float(best_t_ultra), 4),
+            "alpha": float(alpha_clamped),
+            "xi_jump": float(xi_jump),
+            "xi_frechet": float(xi_frechet),
         }
 
     def compute_evar_risk_measure(
@@ -1281,14 +1511,43 @@ class UnifiedPortfolioAllocator:
         lam_l = float(copula_lower_tail) if (copula_lower_tail is not None and math.isfinite(float(copula_lower_tail))) else 0.0
         lam_u = float(copula_upper_tail) if (copula_upper_tail is not None and math.isfinite(float(copula_upper_tail))) else 0.0
 
-        is_phase11 = int(version) >= 11
+        is_phase12 = int(version) >= 12
+        is_phase11 = (int(version) >= 11) or is_phase12
         is_phase10 = int(version) >= 10 or is_phase11
         is_phase9 = int(version) >= 9 or is_phase10
         is_phase8 = int(version) >= 8 or is_phase9
         lam_casc = float(rvine_cascade_index) if (rvine_cascade_index is not None and math.isfinite(float(rvine_cascade_index))) else lam_l
         lam_t2 = float(tree2_conditional_tail) if (tree2_conditional_tail is not None and math.isfinite(float(tree2_conditional_tail))) else 0.0
 
-        if is_phase11:
+        if is_phase12:
+            # F69.1: Fisher-Rao Manifold Information Geometry & Ultra-EVaR Ambiguity Tilting
+            eps_w = float(wasserstein_radius) if (wasserstein_radius is not None and math.isfinite(float(wasserstein_radius))) else 0.110
+            delta_fr = {
+                "bl": -1.65 * eps_w - 0.60 * (u_entropy ** 2),
+                "herc": +0.70 * eps_w + 0.45 * u_entropy,
+                "rp": -1.95 * eps_w,
+                "cvar": +2.75 * eps_w + 0.80 * c_crisis,
+            }
+            for k in delta_ell:
+                delta_ell[k] += delta_fr[k]
+
+            # Super-Information Entropy Parity (F69.1)
+            alpha_iep = 0.85
+            contagion_damp = max(0.0, 1.0 - 1.6 * lam_casc)
+            for k in delta_ell:
+                delta_ell[k] += alpha_iep * u_entropy * (0.25 - w_prior[k]) * contagion_damp
+
+            # R-Vine Higher-Order Downside Cascade Tilting
+            if lam_casc > 0.0 or lam_u > 0.0:
+                delta_rvine = {
+                    "bl": -1.40 * max(0.0, lam_casc - 0.15) + 0.60 * max(0.0, lam_u - 0.20),
+                    "herc": +0.50 * max(0.0, lam_casc - 0.15) - 0.20 * max(0.0, lam_t2 - 0.20),
+                    "rp": -1.75 * max(0.0, lam_casc - 0.15),
+                    "cvar": +2.35 * max(0.0, lam_casc - 0.15),
+                }
+                for k in delta_ell:
+                    delta_ell[k] += delta_rvine[k]
+        elif is_phase11:
             # F65.1: Quantum Relative Entropy & Super-EVaR Ambiguity Tilting
             eps_w = float(wasserstein_radius) if (wasserstein_radius is not None and math.isfinite(float(wasserstein_radius))) else 0.095
             delta_qre = {
@@ -1407,13 +1666,19 @@ class UnifiedPortfolioAllocator:
         tot_exp = sum(exps.values())
 
         res_weights = {k: float(v / tot_exp) for k, v in exps.items()}
-        if is_phase11:
+        if is_phase12:
+            # F69.1: Apply Fisher-Rao Manifold Information Geometry Barycenter refinement
+            res_weights = self.compute_fisher_rao_barycenter_blend(res_weights)
+        elif is_phase11:
             # F65.1: Apply Quantum Relative Entropy Barycenter refinement
             res_weights = self.compute_quantum_relative_entropy_barycenter(res_weights)
         elif is_phase10:
             # F61.1: Apply MMOT Sinkhorn Barycenter refinement
             res_weights = self.compute_mmot_barycenter_blend(res_weights, reg=0.05)
         return res_weights
+
+    # Alias for API compatibility across specifications
+    blend_model_weights = compute_information_theoretic_blend_weights
 
     def calculate_cvar_weights(
         self,
@@ -1926,7 +2191,21 @@ class UnifiedPortfolioAllocator:
                     tot_w = np.sum(w_target)
                     if tot_w < 1.0:
                         unalloc = 1.0 - tot_w
-                        if int(version) >= 11:
+                        if int(version) >= 12:
+                            # F69.1: Higher-Order Fréchet Ultra-EVaR Bound & 14th-degree Ultra-Safety Headroom Redistribution
+                            headroom = np.maximum(0.0, trc_cap - trc[~viol_mask])
+                            if eff_asset_cascade is not None and len(eff_asset_cascade) == n:
+                                cascade_clean = np.asarray(eff_asset_cascade[~viol_mask], dtype=float)
+                                safety_weight = np.exp(-4.2 * np.power(np.maximum(0.0, cascade_clean), 2.0))
+                            else:
+                                safety_weight = np.ones(int(np.sum(~viol_mask)))
+                            hr_weights = w_target[~viol_mask] * np.power(headroom, 1.55) * safety_weight
+                            sum_hr = np.sum(hr_weights)
+                            if sum_hr > 0:
+                                w_target[~viol_mask] += unalloc * (hr_weights / sum_hr)
+                            else:
+                                w_target[~viol_mask] += unalloc / max(1.0, float(np.sum(~viol_mask)))
+                        elif int(version) >= 11:
                             # F65.1: Quantum Super-EVaR Bound & 12th-degree Super-Safety Headroom Redistribution
                             headroom = np.maximum(0.0, trc_cap - trc[~viol_mask])
                             if eff_asset_cascade is not None and len(eff_asset_cascade) == n:
@@ -2120,6 +2399,9 @@ class UnifiedPortfolioAllocator:
             final_w = w_target
 
         return np.asarray(final_w, dtype=float)
+
+    # Alias for API compatibility across specifications
+    optimize_portfolio = optimize_multi_model_blend
 
     def apply_target_volatility_scaling(
         self,
