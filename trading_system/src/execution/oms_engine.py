@@ -1378,14 +1378,20 @@ class ExecutionOMSEngine:
         queue_position_ratio: Optional[float] = None,
         l3_micro_price: Optional[float] = None,
         l3_imbalance: Optional[float] = None,
+        hawkes_toxicity: Optional[float] = None,
+        hawkes_arrival_imbalance: Optional[float] = None,
+        queue_imbalance: Optional[float] = None,
+        version: int = 6,
     ) -> float:
         """
-        Phase 6 (F44) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
-        1. Base anchor price: L3 micro-price > L1 micro-price > mid price.
+        Phase 6 (F44) & Phase 7 (F50) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
+        1. Base anchor price: Hawkes arrival-adjusted micro-price > L3 micro-price > L1 micro-price > mid price.
         2. Dynamic curvature kappa_eff scales with volatility and orderbook depth.
-        3. Imbalance shift uses L3 decayed imbalance > multi-tier L2 OBI composite > L1 OBI.
-        4. Queue position adverse selection offset delta_P_queue compensates when order is buried (u_q > 0.40).
-        5. Strict clipping within [min(bid, ask), max(bid, ask)].
+        3. Imbalance shift uses Queue Imbalance (QI_L3*) > L3 decayed imbalance > multi-tier L2 OBI composite > L1 OBI.
+        4. Queue position adverse selection offset delta_P_queue compensates when order is buried (u_q > 0.40),
+           suppressed by Hawkes toxicity gamma_toxic (F50).
+        5. Toxic shading offset delta_P_shade steps back against toxic flow when gamma_toxic > 0.50 (F50).
+        6. Strict clipping within [min(bid, ask), max(bid, ask)].
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
         if tp <= 0:
@@ -1396,17 +1402,11 @@ class ExecutionOMSEngine:
         p_ask = float(ask_price) if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
         p_mid = (p_bid + p_ask) / 2.0
 
-        # 1. Base anchor price: L3 micro-price > L1 micro-price > mid price
-        if l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
-            p_base = float(l3_micro_price)
-        elif micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
-            p_base = float(micro_price)
-        else:
-            p_base = p_mid
-
-        # 2. Imbalance resolution: L3 decayed imbalance > Multi-tier L2 composite > L1 OBI
+        # 2. Imbalance resolution: Queue Imbalance > L3 decayed imbalance > Multi-tier L2 composite > L1 OBI
         eff_obi = None
-        if l3_imbalance is not None and math.isfinite(float(l3_imbalance)):
+        if queue_imbalance is not None and math.isfinite(float(queue_imbalance)):
+            eff_obi = float(queue_imbalance)
+        elif l3_imbalance is not None and math.isfinite(float(l3_imbalance)):
             eff_obi = float(l3_imbalance)
         elif multi_obi is not None and isinstance(multi_obi, dict):
             obi_1 = float(multi_obi.get("OBI_1", multi_obi.get("obi_1", multi_obi.get("1", multi_obi.get(1, 0.0)))) or 0.0)
@@ -1415,6 +1415,26 @@ class ExecutionOMSEngine:
             eff_obi = 0.50 * obi_1 + 0.35 * obi_5 + 0.15 * obi_10
         elif obi is not None and math.isfinite(float(obi)):
             eff_obi = float(obi)
+
+        # 1. Base anchor price: Hawkes arrival adjusted (F50) > L3 micro-price > L1 micro-price > mid price
+        omega_H = 0.35
+        kappa_H = 1.20
+        del_lam = None
+        if hawkes_arrival_imbalance is not None and math.isfinite(float(hawkes_arrival_imbalance)):
+            del_lam = float(np.clip(float(hawkes_arrival_imbalance), -1.0, 1.0))
+
+        if del_lam is not None:
+            qi_val = float(np.clip(eff_obi if eff_obi is not None else 0.0, -1.0, 1.0))
+            if l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
+                p_base = float(l3_micro_price) + 0.5 * spr * omega_H * math.tanh(kappa_H * del_lam)
+            else:
+                p_base = p_mid + 0.5 * spr * ((1.0 - omega_H) * qi_val + omega_H * math.tanh(kappa_H * del_lam))
+        elif l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
+            p_base = float(l3_micro_price)
+        elif micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
+            p_base = float(micro_price)
+        else:
+            p_base = p_mid
 
         # 3. Dynamic curvature scaling
         if daily_volatility is not None or book_depth_ratio is not None:
@@ -1428,29 +1448,43 @@ class ExecutionOMSEngine:
         is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE", "BID"]
 
         # 4. Imbalance peg shift
-        if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0:
+        if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0 and del_lam is None:
             obi_val = float(np.clip(float(eff_obi), -1.0, 1.0))
             peg_shift = 0.5 * spr * math.tanh(kappa_eff * obi_val)
         else:
             peg_shift = 0.0
 
-        # 5. Queue position adverse selection offset (F44)
+        # F50: Directional Hawkes toxicity
+        gamma_toxic = 0.0
+        if hawkes_toxicity is not None and math.isfinite(float(hawkes_toxicity)):
+            gamma_toxic = float(np.clip(float(hawkes_toxicity), 0.0, 1.0))
+
+        # 5. Queue position adverse selection offset (F44 & F50)
         q_shift = 0.0
         if queue_position_ratio is not None and math.isfinite(float(queue_position_ratio)):
             u_q = float(np.clip(float(queue_position_ratio), 0.0, 1.0))
             if u_q > 0.40:
                 direction = 1.0 if is_buy else -1.0
                 urg = float(np.clip(float(alpha_urgency), 0.1, 1.0))
-                q_shift = direction * 0.5 * spr * urg * (u_q - 0.40) * 0.60
+                tox_suppress = max(0.0, 1.0 - 0.85 * gamma_toxic)
+                q_shift = direction * 0.5 * spr * urg * (u_q - 0.40) * 0.60 * tox_suppress
 
-        # If micro-price, L3 micro-price, OBI shift, or queue offset was active
+        # 6. Toxic shading offset (F50)
+        shade_shift = 0.0
+        if gamma_toxic > 0.50:
+            direction = 1.0 if is_buy else -1.0
+            shade_shift = -direction * 0.25 * spr * (gamma_toxic - 0.50)
+
+        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, or arrival imbalance was active
         if (
             (l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0)
             or (micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0)
             or (eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0)
             or q_shift != 0.0
+            or shade_shift != 0.0
+            or del_lam is not None
         ):
-            peg_price = p_base + peg_shift + q_shift
+            peg_price = p_base + peg_shift + q_shift + shade_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
         # Fallback to urgency interpolation between bid and ask
@@ -1867,14 +1901,20 @@ class AlmgrenChrissScheduler:
         queue_position_ratio: Optional[float] = None,
         l3_micro_price: Optional[float] = None,
         l3_imbalance: Optional[float] = None,
+        hawkes_toxicity: Optional[float] = None,
+        hawkes_arrival_imbalance: Optional[float] = None,
+        queue_imbalance: Optional[float] = None,
+        version: int = 6,
     ) -> float:
         """
-        Phase 6 (F44) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
-        1. Base anchor price: L3 micro-price > L1 micro-price > mid price.
+        Phase 6 (F44) & Phase 7 (F50) Level-3 Micro-Price & Queue-Position-Aware Peg Calculation:
+        1. Base anchor price: Hawkes arrival-adjusted micro-price > L3 micro-price > L1 micro-price > mid price.
         2. Dynamic curvature kappa_eff scales with volatility and orderbook depth.
-        3. Imbalance shift uses L3 decayed imbalance > multi-tier L2 OBI composite > L1 OBI.
-        4. Queue position adverse selection offset delta_P_queue compensates when order is buried (u_q > 0.40).
-        5. Strict clipping within [min(bid, ask), max(bid, ask)].
+        3. Imbalance shift uses Queue Imbalance (QI_L3*) > L3 decayed imbalance > multi-tier L2 OBI composite > L1 OBI.
+        4. Queue position adverse selection offset delta_P_queue compensates when order is buried (u_q > 0.40),
+           suppressed by Hawkes toxicity gamma_toxic (F50).
+        5. Toxic shading offset delta_P_shade steps back against toxic flow when gamma_toxic > 0.50 (F50).
+        6. Strict clipping within [min(bid, ask), max(bid, ask)].
         """
         tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
         if tp <= 0:
@@ -1885,17 +1925,11 @@ class AlmgrenChrissScheduler:
         p_ask = float(ask_price) if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
         p_mid = (p_bid + p_ask) / 2.0
 
-        # 1. Base anchor price: L3 micro-price > L1 micro-price > mid price
-        if l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
-            p_base = float(l3_micro_price)
-        elif micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
-            p_base = float(micro_price)
-        else:
-            p_base = p_mid
-
-        # 2. Imbalance resolution: L3 decayed imbalance > Multi-tier L2 composite > L1 OBI
+        # 2. Imbalance resolution: Queue Imbalance > L3 decayed imbalance > Multi-tier L2 composite > L1 OBI
         eff_obi = None
-        if l3_imbalance is not None and math.isfinite(float(l3_imbalance)):
+        if queue_imbalance is not None and math.isfinite(float(queue_imbalance)):
+            eff_obi = float(queue_imbalance)
+        elif l3_imbalance is not None and math.isfinite(float(l3_imbalance)):
             eff_obi = float(l3_imbalance)
         elif multi_obi is not None and isinstance(multi_obi, dict):
             obi_1 = float(multi_obi.get("OBI_1", multi_obi.get("obi_1", multi_obi.get("1", multi_obi.get(1, 0.0)))) or 0.0)
@@ -1904,6 +1938,26 @@ class AlmgrenChrissScheduler:
             eff_obi = 0.50 * obi_1 + 0.35 * obi_5 + 0.15 * obi_10
         elif obi is not None and math.isfinite(float(obi)):
             eff_obi = float(obi)
+
+        # 1. Base anchor price: Hawkes arrival adjusted (F50) > L3 micro-price > L1 micro-price > mid price
+        omega_H = 0.35
+        kappa_H = 1.20
+        del_lam = None
+        if hawkes_arrival_imbalance is not None and math.isfinite(float(hawkes_arrival_imbalance)):
+            del_lam = float(np.clip(float(hawkes_arrival_imbalance), -1.0, 1.0))
+
+        if del_lam is not None:
+            qi_val = float(np.clip(eff_obi if eff_obi is not None else 0.0, -1.0, 1.0))
+            if l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
+                p_base = float(l3_micro_price) + 0.5 * spr * omega_H * math.tanh(kappa_H * del_lam)
+            else:
+                p_base = p_mid + 0.5 * spr * ((1.0 - omega_H) * qi_val + omega_H * math.tanh(kappa_H * del_lam))
+        elif l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
+            p_base = float(l3_micro_price)
+        elif micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
+            p_base = float(micro_price)
+        else:
+            p_base = p_mid
 
         # 3. Dynamic curvature scaling
         if daily_volatility is not None or book_depth_ratio is not None:
@@ -1917,29 +1971,43 @@ class AlmgrenChrissScheduler:
         is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE", "BID"]
 
         # 4. Imbalance peg shift
-        if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0:
+        if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0 and del_lam is None:
             obi_val = float(np.clip(float(eff_obi), -1.0, 1.0))
             peg_shift = 0.5 * spr * math.tanh(kappa_eff * obi_val)
         else:
             peg_shift = 0.0
 
-        # 5. Queue position adverse selection offset (F44)
+        # F50: Directional Hawkes toxicity
+        gamma_toxic = 0.0
+        if hawkes_toxicity is not None and math.isfinite(float(hawkes_toxicity)):
+            gamma_toxic = float(np.clip(float(hawkes_toxicity), 0.0, 1.0))
+
+        # 5. Queue position adverse selection offset (F44 & F50)
         q_shift = 0.0
         if queue_position_ratio is not None and math.isfinite(float(queue_position_ratio)):
             u_q = float(np.clip(float(queue_position_ratio), 0.0, 1.0))
             if u_q > 0.40:
                 direction = 1.0 if is_buy else -1.0
                 urg = float(np.clip(float(alpha_urgency), 0.1, 1.0))
-                q_shift = direction * 0.5 * spr * urg * (u_q - 0.40) * 0.60
+                tox_suppress = max(0.0, 1.0 - 0.85 * gamma_toxic)
+                q_shift = direction * 0.5 * spr * urg * (u_q - 0.40) * 0.60 * tox_suppress
 
-        # If micro-price, L3 micro-price, OBI shift, or queue offset was active
+        # 6. Toxic shading offset (F50)
+        shade_shift = 0.0
+        if gamma_toxic > 0.50:
+            direction = 1.0 if is_buy else -1.0
+            shade_shift = -direction * 0.25 * spr * (gamma_toxic - 0.50)
+
+        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, or arrival imbalance was active
         if (
             (l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0)
             or (micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0)
             or (eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0)
             or q_shift != 0.0
+            or shade_shift != 0.0
+            or del_lam is not None
         ):
-            peg_price = p_base + peg_shift + q_shift
+            peg_price = p_base + peg_shift + q_shift + shade_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
         # Fallback to urgency interpolation between bid and ask

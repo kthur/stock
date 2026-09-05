@@ -105,7 +105,7 @@ class FastOrderBookMatchingEngine:
         self.bids: Dict[float, Deque[OrderNode]] = {} # price -> FIFO queue of orders
         self.asks: Dict[float, Deque[OrderNode]] = {}
         self.order_lookup: Dict[str, Tuple[str, float]] = {} # order_id -> (side, price)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     def add_limit_order(
         self,
@@ -356,6 +356,98 @@ class FastOrderBookMatchingEngine:
             "obi_10": round(_calc_obi(10), 4),
         }
 
+    def get_best_bid(self) -> Tuple[float, float]:
+        """Returns (price, total_volume) of the highest active bid level."""
+        with self._lock:
+            for p in sorted(self.bids.keys(), reverse=True):
+                if p > 0 and self.bids[p]:
+                    return p, sum(o.volume for o in self.bids[p])
+        return 0.0, 0.0
+
+    def get_best_ask(self) -> Tuple[float, float]:
+        """Returns (price, total_volume) of the lowest active ask level."""
+        with self._lock:
+            for p in sorted(self.asks.keys()):
+                if p > 0 and self.asks[p]:
+                    return p, sum(o.volume for o in self.asks[p])
+        return 0.0, 0.0
+
+    def compute_l3_queue_imbalance(
+        self,
+        levels: int = 10,
+        lambda_depth: float = 0.35,
+        alpha_dist: float = 0.50
+    ) -> Dict[str, float]:
+        """
+        Phase 7 (F50.1): Physical Distance-Decayed and Fragmentation-Adjusted Level-3 Queue Imbalance (QI_L3*).
+        w_k^dist = exp(-lambda_depth * k - alpha_dist * |P_k - P_1| / max(spread, tick_size))
+        Phi_k^bid = ( (V_k^bid / N_k^bid) / (V_k^bid / N_k^bid + V_k^ask / N_k^ask) )^0.25
+        """
+        with self._lock:
+            p_b1, v_b1 = self.get_best_bid()
+            p_a1, v_a1 = self.get_best_ask()
+            if p_b1 <= 0 or p_a1 <= 0 or p_b1 >= p_a1:
+                return {
+                    "l3_queue_imbalance": 0.0,
+                    "l3_micro_price": max(p_b1, p_a1, 0.0),
+                    "weighted_bid_depth": 0.0,
+                    "weighted_ask_depth": 0.0,
+                }
+
+            spread = max(1e-4, p_a1 - p_b1)
+            tick_size = max(1e-4, spread * 0.10)
+            norm_unit = max(spread, tick_size)
+
+            bids = [
+                {"price": p, "volume": sum(o.volume for o in self.bids[p]), "n_orders": max(1, len(self.bids[p]))}
+                for p in sorted(self.bids.keys(), reverse=True) if p > 0 and self.bids[p]
+            ][:levels]
+            asks = [
+                {"price": p, "volume": sum(o.volume for o in self.asks[p]), "n_orders": max(1, len(self.asks[p]))}
+                for p in sorted(self.asks.keys()) if p > 0 and self.asks[p]
+            ][:levels]
+
+        if not bids and not asks:
+            return {
+                "l3_queue_imbalance": 0.0,
+                "l3_micro_price": 0.5 * (p_b1 + p_a1),
+                "weighted_bid_depth": 0.0,
+                "weighted_ask_depth": 0.0,
+            }
+
+        w_bid_tot = 0.0
+        w_ask_tot = 0.0
+
+        for k in range(len(bids)):
+            dist_b = abs(bids[k]["price"] - p_b1) / norm_unit
+            w_k_bid = math.exp(-lambda_depth * k - alpha_dist * dist_b)
+            avg_sz_b = bids[k]["volume"] / bids[k]["n_orders"]
+            avg_sz_a = (asks[k]["volume"] / asks[k]["n_orders"]) if k < len(asks) else (asks[0]["volume"] / asks[0]["n_orders"])
+            tot_avg = avg_sz_b + avg_sz_a
+            phi_bid = (avg_sz_b / tot_avg) ** 0.25 if tot_avg > 0 else 1.0
+            w_bid_tot += w_k_bid * bids[k]["volume"] * phi_bid
+
+        for k in range(len(asks)):
+            dist_a = abs(asks[k]["price"] - p_a1) / norm_unit
+            w_k_ask = math.exp(-lambda_depth * k - alpha_dist * dist_a)
+            avg_sz_a = asks[k]["volume"] / asks[k]["n_orders"]
+            avg_sz_b = (bids[k]["volume"] / bids[k]["n_orders"]) if k < len(bids) else (bids[0]["volume"] / bids[0]["n_orders"])
+            tot_avg = avg_sz_b + avg_sz_a
+            phi_ask = (avg_sz_a / tot_avg) ** 0.25 if tot_avg > 0 else 1.0
+            w_ask_tot += w_k_ask * asks[k]["volume"] * phi_ask
+
+        den = w_bid_tot + w_ask_tot
+        qi_l3 = float(np.clip((w_bid_tot - w_ask_tot) / max(1e-6, den), -1.0, 1.0)) if den > 0 else 0.0
+        p_mid = 0.5 * (p_b1 + p_a1)
+        l3_micro_price = p_mid + 0.5 * spread * qi_l3
+
+        return {
+            "l3_queue_imbalance": round(qi_l3, 4),
+            "l3_micro_price": round(l3_micro_price, 4),
+            "weighted_bid_depth": round(w_bid_tot, 4),
+            "weighted_ask_depth": round(w_ask_tot, 4),
+        }
+
 
 class MicrosecondHawkesIntensity:
     """
@@ -470,5 +562,28 @@ class BivariateHawkesIntensity:
                 "lambda_sell": round(lam_s, 4),
                 "delta_dir": round(delta_dir, 4),
                 "gamma_toxic_dir": round(gamma, 4),
+            }
+
+    def get_arrival_imbalance(self, t_query: Optional[float] = None) -> Dict[str, float]:
+        """
+        Phase 7 (F50.2): Evaluates Bivariate Hawkes Arrival Intensity Imbalance Delta lambda_dir.
+        Delta lambda_dir = (lambda_buy - lambda_sell) / max(1e-6, lambda_buy + lambda_sell) in [-1.0, 1.0].
+        Branching ratio eta = (alpha_self + alpha_cross) / beta.
+        """
+        t = t_query or time.time()
+        with self._lock:
+            dt = max(0.0, t - self.last_ts) if self.last_ts else 0.0
+            decay = math.exp(-self.beta * dt)
+            lam_b = self.mu_buy + max(0.0, self.lambda_buy - self.mu_buy) * decay
+            lam_s = self.mu_sell + max(0.0, self.lambda_sell - self.mu_sell) * decay
+            tot = max(1e-6, lam_b + lam_s)
+            delta_dir = float(np.clip((lam_b - lam_s) / tot, -1.0, 1.0))
+            branching_ratio = float((self.alpha_self + self.alpha_cross) / max(1e-6, self.beta))
+            return {
+                "arrival_imbalance": round(delta_dir, 4),
+                "lambda_total": round(lam_b + lam_s, 4),
+                "branching_ratio": round(branching_ratio, 4),
+                "lambda_buy": round(lam_b, 4),
+                "lambda_sell": round(lam_s, 4),
             }
 

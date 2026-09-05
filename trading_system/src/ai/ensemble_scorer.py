@@ -14,7 +14,7 @@ except ImportError:
 
 from .meta_ensemble_learner import MetaEnsembleLearner
 from .correlation_monitor import StrategyCorrelationMonitor
-from .factor_suppression import RegimeFactorSuppressionEngine
+from .factor_suppression import RegimeFactorSuppressionEngine, apply_quintic_hyperbolic_deadband
 from .factor_orthogonalizer import FactorOrthogonalizerEngine
 from .score_normalizer import CrossSectionalScoreNormalizer
 
@@ -1163,8 +1163,13 @@ class EnsembleScoringEngine:
         vix_val: Optional[float] = None,
         macro_label: Optional[str] = None,
         regime_probs: Optional[Dict[Union[str, int], float]] = None,
+        prev_regime_probs: Optional[Dict[Union[str, int], float]] = None,
+        version: int = 6,
+        jump_regime: Optional[str] = None,
+        **kwargs
     ) -> Dict[str, float]:
         """Return baseline strategy weights according to 1D/2D regime or Markov posterior probability vector."""
+        version = int(kwargs.get('version', version))
         probs_dict = regime_probs if regime_probs is not None else (regime if isinstance(regime, dict) else None)
 
         if probs_dict and isinstance(probs_dict, dict) and len(probs_dict) > 0:
@@ -1205,7 +1210,83 @@ class EnsembleScoringEngine:
                         for strat, sw in state_w.items():
                             blended[strat] = blended.get(strat, 0.0) + prob * float(sw)
 
-                    w = blended
+                    w_diffusion = blended
+
+                    # Feature F47: Merton Jump-Diffusion Regime Transition Base Weight Mixture (version >= 7)
+                    if int(version) >= 7:
+                        prior_p = prev_regime_probs
+                        if prior_p is None and hasattr(self, '_prev_regime_probs') and isinstance(self._prev_regime_probs, dict):
+                            prior_p = self._prev_regime_probs.get('global')
+
+                        prev_norm = {}
+                        if prior_p and isinstance(prior_p, dict) and len(prior_p) > 0:
+                            for pk, pv in prior_p.items():
+                                if pv is None:
+                                    continue
+                                try:
+                                    pvf = float(pv)
+                                    if np.isfinite(pvf) and pvf > 0:
+                                        prev_norm[str(pk).upper()] = pvf
+                                except (ValueError, TypeError):
+                                    continue
+                            tot_prev = sum(prev_norm.values())
+                            if tot_prev > 1e-12:
+                                prev_norm = {k: v / tot_prev for k, v in prev_norm.items()}
+
+                        if prev_norm:
+                            curr_norm = {str(k).upper(): v for k, v in norm_probs.items()}
+                            all_states = set(curr_norm.keys()) | set(prev_norm.keys())
+                            d_tv = 0.5 * sum(abs(curr_norm.get(s, 0.0) - prev_norm.get(s, 0.0)) for s in all_states)
+
+                            if d_tv > 0.25:
+                                # Empirical Jump Indicator J_regime in [0.0, 1.0]
+                                j_regime = float(np.clip((d_tv - 0.25) / 0.35, 0.0, 1.0))
+
+                                # Determine target jump regime R_jump
+                                if jump_regime is not None:
+                                    r_jump = str(jump_regime).upper()
+                                else:
+                                    delta_crisis = curr_norm.get('CRISIS', 0.0) - prev_norm.get('CRISIS', 0.0)
+                                    delta_bear_high = curr_norm.get('BEAR_HIGH_VOL', 0.0) - prev_norm.get('BEAR_HIGH_VOL', 0.0)
+                                    delta_bear_low = curr_norm.get('BEAR_LOW_VOL', 0.0) - prev_norm.get('BEAR_LOW_VOL', 0.0)
+                                    delta_bear_tot = delta_bear_high + delta_bear_low
+
+                                    if delta_crisis > 0.15:
+                                        r_jump = 'CRISIS'
+                                    elif delta_bear_tot > 0.20:
+                                        r_jump = 'CRISIS' if delta_crisis > 0.10 else ('BEAR_HIGH_VOL' if delta_bear_high >= delta_bear_low else 'BEAR_LOW_VOL')
+                                    else:
+                                        diffs = {s: curr_norm.get(s, 0.0) - prev_norm.get(s, 0.0) for s in all_states}
+                                        r_jump = max(diffs.keys(), key=lambda s: diffs[s])
+
+                                # Lookup W_2D(R_jump)
+                                r_jump_upper = str(r_jump).upper()
+                                if r_jump_upper in self.REGIME_2D_WEIGHTS:
+                                    w_jump = self.REGIME_2D_WEIGHTS[r_jump_upper]
+                                elif 'CRISIS' in r_jump_upper:
+                                    w_jump = self.REGIME_2D_WEIGHTS['CRISIS']
+                                else:
+                                    w_jump = self.REGIME_2D_WEIGHTS.get(r_jump_upper, self.REGIME_2D_WEIGHTS['SIDEWAYS_LOW_VOL'])
+
+                                # w_Zenith^* = (1 - 0.60 * J_regime) * w_diffusion + 0.60 * J_regime * W_2D(R_jump)
+                                blend_jump = 0.60 * j_regime
+                                blend_diff = 1.0 - blend_jump
+                                all_strats = set(w_diffusion.keys()) | set(w_jump.keys())
+                                w_zenith = {}
+                                for strat in all_strats:
+                                    w_zenith[strat] = blend_diff * float(w_diffusion.get(strat, 0.0)) + blend_jump * float(w_jump.get(strat, 0.0))
+
+                                tot_z = sum(w_zenith.values())
+                                if tot_z > 1e-12:
+                                    w = {k: v / tot_z for k, v in w_zenith.items()}
+                                else:
+                                    w = w_diffusion
+                            else:
+                                w = w_diffusion
+                        else:
+                            w = w_diffusion
+                    else:
+                        w = w_diffusion
                 elif has_1d:
                     # 1D regime soft blending
                     for rk, prob in norm_probs.items():
@@ -1372,6 +1453,8 @@ class EnsembleScoringEngine:
         regime_probs: Optional[Dict[str, float]] = None,
         enable_tv_smoothing: Optional[bool] = None,
         factor_autocorr_dict: Optional[Dict[str, float]] = None,
+        version: int = 6,
+        **kwargs
     ) -> Dict[str, float]:
         """
         Dynamically adjusts strategy weights using recent rolling Sharpe ratios per strategy,
@@ -1384,7 +1467,15 @@ class EnsembleScoringEngine:
         fabricated performance evidence as real — the dashboard must not claim dynamic
         weighting until real history exists.
         """
-        base_weights = self.get_base_weights(regime, vix_val=vix_val, regime_probs=regime_probs)
+        version = int(kwargs.get('version', version))
+        prev_probs = self._prev_regime_probs.get(market) if hasattr(self, '_prev_regime_probs') and isinstance(self._prev_regime_probs, dict) else None
+        base_weights = self.get_base_weights(
+            regime,
+            vix_val=vix_val,
+            regime_probs=regime_probs,
+            prev_regime_probs=prev_probs,
+            version=version
+        )
         if not base_weights:
             return {}
 
@@ -3261,13 +3352,14 @@ class EnsembleScoringEngine:
                 synergy_multiplier = np.where(strong_signal_counts >= 3, 1.0 + 0.03 * (strong_signal_counts - 2), 1.0)
                 blended_score = pd.Series((blended_score * synergy_multiplier), index=merged.index).clip(0.0, 1.0)
 
-                # Phase 2-B: Quint-Pillar High-Order Tensor Synergy Kernel (F41.1) vs Quad-Pillar Baseline
+                # Phase 2-B: Quint-Pillar High-Order Tensor Synergy Kernel (F41.1 & F47.1) vs Quad-Pillar Baseline
                 if int(version) >= 6:
                     synergy_mult = self.compute_quint_pillar_tensor_synergy(
                         scores_df=merged,
                         regime=regime,
                         kappa=8.0,
-                        regime_adaptive_cap=True
+                        regime_adaptive_cap=True,
+                        version=version
                     )
                 else:
                     synergy_mult = self.compute_bilinear_cross_pillar_synergy(
@@ -3383,10 +3475,13 @@ class EnsembleScoringEngine:
         ens_scores = merged['ensemble_score'].values
         abs_centered = np.clip(ens_scores - 0.50, -0.50, 0.50)
 
-        # Feature F36.2 & F42.2: Smooth Hyperbolic Tangent Noise Deadband Soft-Thresholding
+        # Feature F36.2 & F42.2 & F48.2: Smooth Hyperbolic Tangent Noise Deadband Soft-Thresholding
         delta_noise = self.get_regime_adaptive_noise_deadband(regime, regime_probs=regime_probs)
-        if int(version) >= 6:
-            z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime)
+        if int(version) >= 7:
+            z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime, version=7)
+            gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=7)
+        elif int(version) >= 6:
+            z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime, version=6)
             gamma_tail = self.get_regime_adaptive_gamma_tail(regime, version=6)
         else:
             z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, alpha_pos=3.0, alpha_neg=3.0)
@@ -3396,7 +3491,15 @@ class EnsembleScoringEngine:
             ranks = pd.Series(ens_scores).rank(pct=True).values
             reg_str = str(regime).upper()
             if 'BULL' in reg_str or str(regime) == '2':
-                if int(version) >= 6:
+                if int(version) >= 7:
+                    # Feature F48.3: Quartic rank modulation in Bull regimes: steepens convexity for top percentiles
+                    # g_v7(r) = 0.60 + 0.25*r + 0.25*r^2 + 0.40*r^3 + 0.35*r^4
+                    mult = np.where(
+                        z_denoised >= 0.0,
+                        0.60 + 0.25 * ranks + 0.25 * (ranks ** 2) + 0.40 * (ranks ** 3) + 0.35 * (ranks ** 4),
+                        1.40 - 0.80 * ranks
+                    )
+                elif int(version) >= 6:
                     # Cubic rank modulation in Bull regimes: steepens convexity for top percentiles
                     mult = np.where(z_denoised >= 0.0, 0.60 + 0.30 * ranks + 0.30 * (ranks ** 2) + 0.55 * (ranks ** 3), 1.40 - 0.80 * ranks)
                 else:
@@ -4092,13 +4195,23 @@ class EnsembleScoringEngine:
                     for strat, val in expected_tau.items()
                 }
 
-            # 4. Feature F42.1: Stationary Distribution Divergence D_KL(pi || pi_infty)
+            # 4. Feature F42.1 & F48.1: Stationary Distribution Divergence D_KL(pi || pi_infty)
             d_kl = 0.0
             for reg_k, p_val in pi_norm.items():
                 if p_val > 0.0:
                     p_inf = cls.PI_STATIONARY.get(reg_k, 0.05)
                     d_kl += p_val * np.log((p_val + 1e-12) / (p_inf + 1e-12))
-            phi_kl = float(np.exp(-0.25 * max(0.0, d_kl)))
+
+            # For version >= 7: Directional Volatility Modulated Markov Departure Penalty
+            if int(version) >= 7:
+                high_vol_states = {'CRISIS', 'BEAR_HIGH_VOL', 'SIDEWAYS_HIGH_VOL', 'BULL_HIGH_VOL'}
+                curr_high_vol = sum(prob for state, prob in pi_norm.items() if str(state).upper() in high_vol_states)
+                stat_high_vol = sum(cls.PI_STATIONARY.get(s, 0.0) for s in high_vol_states)
+                s_vol = float(curr_high_vol - stat_high_vol)
+                kappa_markov = float(np.clip(0.25 * (1.0 + 0.80 * max(0.0, s_vol)), 0.25, 0.45))
+                phi_kl = float(np.exp(-kappa_markov * max(0.0, d_kl)))
+            else:
+                phi_kl = float(np.exp(-0.25 * max(0.0, d_kl)))
 
             base_damping = float(np.clip(phi_entropy * phi_jump * phi_kl, 1e-4, 1.0))
 
@@ -4461,10 +4574,12 @@ class EnsembleScoringEngine:
         kappa: float = 8.0,
         regime_adaptive_cap: bool = True,
         max_cap: Optional[float] = None,
+        version: int = 6,
         **kwargs
     ) -> pd.Series:
         """
-        Phase 6 (F41.1): Quint-Pillar Economic Decomposition & High-Order Multi-Linear Tensor Synergy.
+        Phase 6 (F41.1) & Phase 7 Zenith (F47.1): Quint-Pillar Economic Decomposition & 
+        High-Order Multi-Linear Tensor Synergy.
         Partitions all 37 strategies into 5 disjoint canonical pillars without omission or overlap:
         1. Val_Qual (6):      {rim_score, valueup_catalyst_score, accruals_quality_score, arm_score, factor_neutralized_score, reg_score}
         2. Mom_Trend (9):     {surge_score, vcp_ml_score, trend_efficiency_score, sector_score, range_expansion_score, mq_score, ll_score, vcp_rule_score, lstm_score}
@@ -4473,8 +4588,16 @@ class EnsembleScoringEngine:
         5. Network_Macro (7): {supply_chain_score, supply_chain_gnn_score, cross_asset_spillover_score, dual_correction_score, index_rebalance_score, card_score, latr_score}
 
         Computes 2nd-order (10 pairs), 3rd-order (10 triplets), 4th-order (5 quads), and 5th-order (1 quint) contractions.
-        Caps scale up to 0.180 (1.180x multiplier) in BULL_LOW_VOL and are tightly bounded <= 0.040 in CRISIS.
+        - For version >= 7:
+            * Economically-weighted triplets: ('val', 'mom', 'flow') boosted by 1.40x, ('flow', 'cat', 'net') boosted by 1.20x.
+            * Pillar Harmony Regularizer: H_pillar = exp(-1.20 * CV_psi^2), boosting harmonious 5-pillar conviction by up to 1.25x.
+            * Bull Low Vol regime cap expands to 0.220 (1.220x multiplier).
+            * Crisis cap strictly preserved <= 0.040.
+            * Strict hierarchy 5 > 4 > 3 > 2 > 1 > Baseline strictly maintained.
+        - For version <= 6:
+            * Exact Phase 6 baseline (cap 0.180 in Bull Low Vol, uniform w_tri triplets, unity harmony factor).
         """
+        version = int(kwargs.get('version', version))
         if scores_df is None or scores_df.empty:
             return pd.Series(1.0, index=scores_df.index if scores_df is not None else [0])
 
@@ -4539,7 +4662,7 @@ class EnsembleScoringEngine:
             w_tri = 0.025
             w_quad = 0.035
             w_quint = 0.060
-            reg_cap = 0.180
+            reg_cap = 0.220 if version >= 7 else 0.180
         elif 'BULL_HIGH_VOL' in reg_str:
             omega_pairs = {
                 ('val', 'mom'): 0.020, ('val', 'flow'): 0.025, ('val', 'cat'): 0.015, ('val', 'net'): 0.015,
@@ -4641,16 +4764,31 @@ class EnsembleScoringEngine:
             synergy_sum += w_omega * (pillar_convictions[p1] * pillar_convictions[p2])
 
         # 2. 3rd-order Trilinear triplets (10 terms)
-        triplets = [
-            (p_val, p_mom, p_flow), (p_val, p_mom, p_cat), (p_val, p_mom, p_net),
-            (p_val, p_flow, p_cat), (p_val, p_flow, p_net), (p_val, p_cat, p_net),
-            (p_mom, p_flow, p_cat), (p_mom, p_flow, p_net), (p_mom, p_cat, p_net),
-            (p_flow, p_cat, p_net)
+        named_triplets = [
+            (('val', 'mom', 'flow'), (p_val, p_mom, p_flow)),
+            (('val', 'mom', 'cat'), (p_val, p_mom, p_cat)),
+            (('val', 'mom', 'net'), (p_val, p_mom, p_net)),
+            (('val', 'flow', 'cat'), (p_val, p_flow, p_cat)),
+            (('val', 'flow', 'net'), (p_val, p_flow, p_net)),
+            (('val', 'cat', 'net'), (p_val, p_cat, p_net)),
+            (('mom', 'flow', 'cat'), (p_mom, p_flow, p_cat)),
+            (('mom', 'flow', 'net'), (p_mom, p_flow, p_net)),
+            (('mom', 'cat', 'net'), (p_mom, p_cat, p_net)),
+            (('flow', 'cat', 'net'), (p_flow, p_cat, p_net)),
         ]
+        tri_multipliers = {
+            ('val', 'mom', 'flow'): 1.40,
+            ('flow', 'cat', 'net'): 1.20,
+        }
         tri_confluence = pd.Series(0.0, index=scores_df.index)
         if w_tri > 0:
-            for t1, t2, t3 in triplets:
-                tri_confluence += w_tri * (t1 * t2 * t3)
+            if version >= 7:
+                for trip_key, (t1, t2, t3) in named_triplets:
+                    mult_factor = tri_multipliers.get(trip_key, 1.00)
+                    tri_confluence += (w_tri * mult_factor) * (t1 * t2 * t3)
+            else:
+                for _, (t1, t2, t3) in named_triplets:
+                    tri_confluence += w_tri * (t1 * t2 * t3)
 
         # 3. 4th-order Quadruplets (5 terms)
         quads = [
@@ -4670,7 +4808,23 @@ class EnsembleScoringEngine:
         if w_quint > 0:
             quint_confluence = w_quint * (p_val * p_mom * p_flow * p_cat * p_net)
 
-        total_confluence = synergy_sum + tri_confluence + quad_confluence + quint_confluence
+        raw_confluence = synergy_sum + tri_confluence + quad_confluence + quint_confluence
+
+        # 5. Pillar Harmony Regularizer H_pillar (Phase 7 Zenith F47.1)
+        if version >= 7:
+            p_vals = np.array([p_val.values, p_mom.values, p_flow.values, p_cat.values, p_net.values])
+            p_mean = np.mean(p_vals, axis=0)
+            p_std = np.std(p_vals, axis=0)
+            cv_p = p_std / (p_mean + 1e-4)
+            cv_clipped = np.clip(cv_p, 0.0, 2.0)
+            h_pillar = np.exp(-1.20 * np.square(cv_clipped))
+            harmony_factor = pd.Series(
+                1.0 + 0.25 * h_pillar * (p_mean > 0.40).astype(float),
+                index=scores_df.index
+            )
+            total_confluence = raw_confluence * harmony_factor
+        else:
+            total_confluence = raw_confluence
 
         if max_cap is not None:
             eff_cap = float(max_cap)
@@ -4728,6 +4882,23 @@ class EnsembleScoringEngine:
         if regime is None:
             return BessembinderParams(default_gamma, default_beta, default_u_thresh)
         reg_str = str(regime).upper()
+        if int(version) >= 7:
+            if 'CRISIS' in reg_str:
+                return BessembinderParams(1.20, 0.20, 0.78, beta_left=0.50, u_thresh_left=0.45, eta_right=1.50, eta_left=2.00)
+            elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
+                return BessembinderParams(1.25, 0.20, 0.70, beta_left=0.45, u_thresh_left=0.50, eta_right=1.60, eta_left=1.90)
+            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or reg_str == 'BEAR':
+                return BessembinderParams(1.35, 0.30, 0.65, beta_left=0.40, u_thresh_left=0.55, eta_right=1.80, eta_left=1.80)
+            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+                return BessembinderParams(1.40, 0.32, 0.65, beta_left=0.35, u_thresh_left=0.65, eta_right=1.85, eta_left=1.70)
+            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or reg_str == 'SIDEWAYS':
+                return BessembinderParams(1.60, 0.46, 0.52, beta_left=0.35, u_thresh_left=0.60, eta_right=2.10, eta_left=1.60)
+            elif 'BULL_HIGH_VOL' in reg_str:
+                return BessembinderParams(1.85, 0.58, 0.42, beta_left=0.35, u_thresh_left=0.60, eta_right=2.35, eta_left=1.50)
+            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
+                return BessembinderParams(2.10, 0.68, 0.35, beta_left=0.35, u_thresh_left=0.60, eta_right=2.60, eta_left=1.40)
+            else:
+                return BessembinderParams(default_gamma, default_beta, default_u_thresh, beta_left=0.35, u_thresh_left=0.60, eta_right=2.00, eta_left=1.60)
 
         if int(version) >= 6:
             if 'CRISIS' in reg_str:
@@ -4913,6 +5084,24 @@ class EnsembleScoringEngine:
         - Phase 6 (version=6): [1.00, 1.35] (1.35 in BULL_LOW_VOL)
         """
         reg_str = str(regime).upper()
+        if int(version) >= 7:
+            if 'CRISIS' in reg_str or 'BEAR_HIGH_VOL' in reg_str:
+                return 1.00
+            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or ('BEAR' in reg_str and 'LOW_VOL' in reg_str):
+                return 1.10
+            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+                return 1.16
+            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or 'SIDEWAYS' in reg_str:
+                return 1.22
+            elif 'BULL_HIGH_VOL' in reg_str:
+                return 1.30
+            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
+                return 1.42
+            elif 'BEAR' in reg_str:
+                return 1.08
+            else:
+                return 1.25
+
         if int(version) >= 6:
             if 'CRISIS' in reg_str or 'BEAR_HIGH_VOL' in reg_str:
                 return 1.00
@@ -5011,16 +5200,29 @@ class EnsembleScoringEngine:
         delta_neg: Optional[float] = None,
         alpha_pos: float = 3.0,
         alpha_neg: Optional[float] = None,
-        regime: Optional[Union[str, int]] = None
+        regime: Optional[Union[str, int]] = None,
+        version: int = 6,
+        **kwargs
     ) -> Union[pd.Series, np.ndarray]:
         """
-        Feature F36.2 & F42.2: Asymmetric Kurtosis-Adaptive Noise Deadband:
+        Feature F36.2, F42.2 & F48.2: Asymmetric Kurtosis-Adaptive Noise Deadband:
         z_denoised = z * tanh((|z| / delta_eff(z))^alpha_eff(z))
-        - Positive conviction (z >= 0): delta_eff = delta_noise, alpha_eff = alpha_pos (default 3.0, 3.5 in Bull)
-        - Negative conviction (z < 0): delta_eff = delta_neg, alpha_eff = 4.0 in Crisis/High-Vol, 3.5 in Bear Low Vol, alpha_pos when regime is None.
-        Squashes >90% of near-zero noise (|z| <= 0.01) while preserving >98.5% of high conviction signals (|z| >= 0.15)
-        with strictly monotonic rank order (rho_s == 1.0000).
+        - Under version >= 7: Activates true C^infinity quintic exponent (alpha = 5.0),
+          squashing >99.9% of near-zero noise with 0.05% leakage.
+        - Under version <= 6: Preserves Phase 6 cubic exponent (alpha = 3.0).
         """
+        version = int(kwargs.get('version', version))
+        if int(version) >= 7:
+            eff_alpha = 5.0 if alpha_pos == 3.0 else alpha_pos
+            return apply_quintic_hyperbolic_deadband(
+                scores_centered=scores_centered,
+                delta_noise=delta_noise,
+                delta_neg=delta_neg,
+                alpha_pos=eff_alpha,
+                alpha_neg=alpha_neg,
+                regime=regime
+            )
+
         is_series = isinstance(scores_centered, pd.Series)
         z = scores_centered.values if is_series else np.asarray(scores_centered, dtype=np.float64)
 
@@ -5056,4 +5258,24 @@ class EnsembleScoringEngine:
         if is_series:
             return pd.Series(denoised, index=scores_centered.index)
         return denoised
+
+    @classmethod
+    def apply_quintic_hyperbolic_deadband(
+        cls,
+        scores_centered: Union[pd.Series, np.ndarray],
+        delta_noise: float = 0.045,
+        delta_neg: Optional[float] = None,
+        alpha_pos: float = 5.0,
+        alpha_neg: Optional[float] = None,
+        regime: Optional[Union[str, int]] = None
+    ) -> Union[pd.Series, np.ndarray]:
+        """Direct alias to apply_quintic_hyperbolic_deadband in factor_suppression."""
+        return apply_quintic_hyperbolic_deadband(
+            scores_centered=scores_centered,
+            delta_noise=delta_noise,
+            delta_neg=delta_neg,
+            alpha_pos=alpha_pos,
+            alpha_neg=alpha_neg,
+            regime=regime
+        )
 

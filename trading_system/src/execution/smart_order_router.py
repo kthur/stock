@@ -49,12 +49,16 @@ class SmartOrderRouter:
         hawkes_sell: Optional[float] = None,
         gamma_toxic_dir: Optional[float] = None,
         use_logistic_dark_fill: Optional[bool] = None,
+        queue_imbalance: Optional[float] = None,
+        arrival_imbalance: Optional[float] = None,
+        version: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Decomposes an order plan into 3-tier routing legs to optimize net execution cost.
         F32 & F38: Continuous Hawkes Arrival Intensity Adverse Selection Gating.
         F44: Directional Bivariate Hawkes Toxicity, Anti-Gaming Dynamic MinQty,
         Logistic Hazard Dark Fill Probability, and Institutional Venue Specialization.
+        F50: Level-3 Queue Imbalance Preemption, 0.10 Maker Ratio Contraction, and 0.60 MinQty Cap.
         """
         symbol = str(order_plan.get("symbol", ""))
         action = str(order_plan.get("action", "BUY")).upper()
@@ -70,6 +74,11 @@ class SmartOrderRouter:
                 "expected_cost_saving_bps": 0.0
             }
 
+        v_eff = version if version is not None else int(order_plan.get("version", 6))
+        qi = queue_imbalance if queue_imbalance is not None else order_plan.get("queue_imbalance", order_plan.get("l3_queue_imbalance"))
+        arr_imb = arrival_imbalance if arrival_imbalance is not None else order_plan.get("arrival_imbalance")
+        is_phase7 = (v_eff >= 7) or (qi is not None) or (arr_imb is not None)
+
         legs: List[Dict[str, Any]] = []
 
         dp_score = float(order_plan.get("darkpool_score", order_plan.get("dark_pool_score", 0.0)) or 0.0)
@@ -83,6 +92,14 @@ class SmartOrderRouter:
             eff_dark_ratio = float(np.clip(self.dark_probe_ratio + 0.30 * dp_score, self.dark_probe_ratio, 0.70))
         else:
             eff_dark_ratio = float(self.dark_probe_ratio)
+
+        # F50: Lit Queue Imbalance Preemption (preemptively route up to 75% to dark ATS before lit quotes jump)
+        if qi is not None:
+            qi_f = float(qi)
+            if math.isfinite(qi_f):
+                qi_aligned = qi_f if action in ["BUY", "BID", "LONG"] else -qi_f
+                if qi_aligned > 0.50:
+                    eff_dark_ratio = float(np.clip(eff_dark_ratio + 0.15 * qi_aligned, self.dark_probe_ratio, 0.75))
 
         # F32, F38 & F44: Hawkes Arrival Intensity & Directional Toxicity Adverse Selection Gating
         hwk = hawkes_intensity if hawkes_intensity is not None else order_plan.get("hawkes_intensity")
@@ -105,8 +122,12 @@ class SmartOrderRouter:
         if g_dir is not None:
             gamma_toxic = float(np.clip(float(g_dir), 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            # F44: Modulate maker_ratio down to 0.20 when directional toxic flow is present
-            maker_ratio = float(np.clip(0.70 * (1.0 - 0.7143 * gamma_toxic), 0.20, 0.70))
+            if is_phase7 and gamma_toxic > 0.80:
+                # F50: Extreme directional toxicity contracts lit maker floor to 0.10
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.8571 * gamma_toxic), 0.10, 0.70))
+            else:
+                # F44: Modulate maker_ratio down to 0.20 when directional toxic flow is present
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.7143 * gamma_toxic), 0.20, 0.70))
             eff_dark_ratio = float(np.clip(eff_dark_ratio + 0.20 * gamma_toxic, eff_dark_ratio, 0.80))
         elif h_buy is not None or h_sell is not None:
             hb_val = float(h_buy) if (h_buy is not None and math.isfinite(float(h_buy))) else base_hwk
@@ -119,8 +140,10 @@ class SmartOrderRouter:
                 gamma_raw = (hb_val - base_hwk) / (1.5 * base_hwk) - 0.35 * min(0.0, delta_dir)
             gamma_toxic = float(np.clip(gamma_raw, 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            # F44: Modulate maker_ratio down to 0.20 when directional toxic flow is present
-            maker_ratio = float(np.clip(0.70 * (1.0 - 0.7143 * gamma_toxic), 0.20, 0.70))
+            if is_phase7 and gamma_toxic > 0.80:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.8571 * gamma_toxic), 0.10, 0.70))
+            else:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.7143 * gamma_toxic), 0.20, 0.70))
             eff_dark_ratio = float(np.clip(eff_dark_ratio + 0.20 * gamma_toxic, eff_dark_ratio, 0.80))
         elif hwk is not None:
             try:
@@ -151,10 +174,13 @@ class SmartOrderRouter:
         else:
             maker_ratio = 0.70
 
-        # F44: Anti-Gaming Dynamic MinQty (adapting between 20% and 50% of dark_qty)
+        # F44 & F50: Anti-Gaming Dynamic MinQty (adapting between 20% and 50% in F44, up to 60% in F50)
         min_ratio = 0.20
         if is_toxic_flow or gamma_toxic > 0.50 or dp_score >= 0.60:
-            min_ratio = float(np.clip(0.20 + 0.25 * gamma_toxic + 0.15 * dp_score, 0.20, 0.50))
+            if is_phase7 and (gamma_toxic > 0.70 or is_accum):
+                min_ratio = float(np.clip(0.20 + 0.30 * gamma_toxic + 0.15 * dp_score, 0.20, 0.60))
+            else:
+                min_ratio = float(np.clip(0.20 + 0.25 * gamma_toxic + 0.15 * dp_score, 0.20, 0.50))
 
         # F38 & F44: Darkpool Fill Probability Estimation
         use_logistic = (
@@ -277,6 +303,9 @@ class SmartOrderRouter:
             "gamma_toxic": round(float(gamma_toxic), 4),
             "darkpool_fill_probability": round(float(p_fill_dark), 4),
             "maker_ratio": round(float(maker_ratio), 4),
+            "queue_imbalance": round(float(qi), 4) if (qi is not None and math.isfinite(float(qi))) else None,
+            "arrival_imbalance": round(float(arr_imb), 4) if (arr_imb is not None and math.isfinite(float(arr_imb))) else None,
+            "min_ratio": round(float(min_ratio), 4),
         }
 
     def determine_destination(self, symbol: str, market: Optional[str] = None) -> Dict[str, Any]:

@@ -479,6 +479,79 @@ class UnifiedPortfolioAllocator:
         self._last_blend_weights = dict(blend_cfg)
         return blend_cfg
 
+    def compute_copula_tail_dependence_metrics(
+        self,
+        returns: np.ndarray,
+        tail_quantile: float = 0.05
+    ) -> Tuple[np.ndarray, float, float]:
+        """
+        F49: Archimedean Clayton & Gumbel Copula Lower and Upper Tail Dependence Metrics.
+        Calculates:
+        - Pairwise lower tail dependence matrix Lambda_L (N x N)
+        - Systemic average lower tail dependence lambda_bar_L
+        - Systemic average upper tail dependence lambda_bar_U
+        """
+        if returns is None or not hasattr(returns, "shape") or returns.ndim != 2:
+            return np.zeros((1, 1)), 0.0, 0.0
+
+        t, n = returns.shape
+        if n < 2 or t < 5:
+            return np.eye(n, dtype=float), 0.0, 0.0
+
+        r = np.asarray(returns, dtype=float)
+        if np.isnan(r).any():
+            r = np.nan_to_num(r, nan=0.0)
+
+        lambda_l_mat = np.eye(n, dtype=float)
+        lam_l_pairs = []
+        lam_u_pairs = []
+
+        q_low = np.quantile(r, tail_quantile, axis=0)
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                x = r[:, i]
+                y = r[:, j]
+                try:
+                    from scipy.stats import kendalltau
+                    tau_res = kendalltau(x, y)
+                    tau_val = float(tau_res.correlation) if math.isfinite(tau_res.correlation) else 0.0
+                except Exception:
+                    tau_val = float(np.corrcoef(x, y)[0, 1] * 0.6366) if np.std(x) > 1e-6 and np.std(y) > 1e-6 else 0.0
+
+                tau_val = float(np.clip(tau_val, -0.99, 0.99))
+
+                # Clayton lower tail parameter theta_L
+                if tau_val > 0.01:
+                    theta_l = max(0.05, 2.0 * tau_val / max(1e-4, 1.0 - tau_val))
+                    lam_l_theo = float(2.0 ** (-1.0 / theta_l))
+                else:
+                    lam_l_theo = 0.0
+
+                # Empirical quantile co-exceedance
+                p_i = np.mean(x <= q_low[i])
+                p_j = np.mean(y <= q_low[j])
+                p_joint = np.mean((x <= q_low[i]) & (y <= q_low[j]))
+                lam_l_emp = float(p_joint / max(1e-8, math.sqrt(p_i * p_j))) if (p_i > 0 and p_j > 0) else 0.0
+                lam_l_emp = float(np.clip(lam_l_emp, 0.0, 1.0))
+
+                lam_l_ij = float(np.clip(0.5 * lam_l_emp + 0.5 * lam_l_theo, 0.0, 1.0))
+                lambda_l_mat[i, j] = lam_l_ij
+                lambda_l_mat[j, i] = lam_l_ij
+                lam_l_pairs.append(lam_l_ij)
+
+                # Gumbel upper tail parameter theta_U
+                if tau_val > 0.01:
+                    theta_u = max(1.0, 1.0 / max(1e-4, 1.0 - tau_val))
+                    lam_u_theo = float(np.clip(2.0 - 2.0 ** (1.0 / theta_u), 0.0, 1.0))
+                else:
+                    lam_u_theo = 0.0
+                lam_u_pairs.append(lam_u_theo)
+
+        bar_l = float(np.mean(lam_l_pairs)) if lam_l_pairs else 0.0
+        bar_u = float(np.mean(lam_u_pairs)) if lam_u_pairs else 0.0
+        return lambda_l_mat, bar_l, bar_u
+
     def compute_information_theoretic_blend_weights(
         self,
         regime: Optional[Union[str, int, Dict[str, float]]] = "BULL_LOW_VOL",
@@ -489,11 +562,15 @@ class UnifiedPortfolioAllocator:
         gpd_tail_index: Optional[float] = None,
         market_coskewness: Optional[float] = None,
         temperature: float = 1.0,
+        copula_lower_tail: Optional[float] = None,
+        copula_upper_tail: Optional[float] = None,
+        version: int = 6,
     ) -> Dict[str, float]:
         """
-        F43: Continuous Information-Theoretic 4-Model Reliability Optimization.
+        F43 & F49: Continuous Information-Theoretic 4-Model Reliability Optimization.
         Computes dynamic posterior log-odds updates Delta ell_m across:
         [Black-Litterman, HERC, Risk Parity, EVT-CVaR]
+        including Archimedean Clayton & Gumbel Copula tail dependency shifts (F49),
         and applies temperature-controlled Softmax blending.
         """
         # 1. Base Prior w^(0)
@@ -586,6 +663,20 @@ class UnifiedPortfolioAllocator:
                 + 0.35 * max(0.0, 1.20 - dr)
             ),
         }
+
+        # F49: Archimedean Clayton (lambda_L) & Gumbel (lambda_U) Copula Dynamic Tail Reliability Tilting
+        lam_l = float(copula_lower_tail) if (copula_lower_tail is not None and math.isfinite(float(copula_lower_tail))) else 0.0
+        lam_u = float(copula_upper_tail) if (copula_upper_tail is not None and math.isfinite(float(copula_upper_tail))) else 0.0
+
+        if (lam_l > 0.0 or lam_u > 0.0) or int(version) >= 7:
+            delta_copula = {
+                "bl": -0.60 * max(0.0, lam_l - 0.15) + 0.30 * max(0.0, lam_u - 0.20),
+                "herc": +0.35 * max(0.0, lam_l - 0.15),
+                "rp": -0.80 * max(0.0, lam_l - 0.15),
+                "cvar": +1.10 * max(0.0, lam_l - 0.15),
+            }
+            for k in delta_ell:
+                delta_ell[k] += delta_copula[k]
 
         # 3. Temperature-controlled Softmax Blending
         tau = max(0.10, float(temperature))
@@ -811,10 +902,15 @@ class UnifiedPortfolioAllocator:
         alpha_half_lives: Optional[Union[np.ndarray, Dict[str, float], float]] = None,
         darkpool_scores: Optional[Union[np.ndarray, Dict[str, float]]] = None,
         cost_scaling_factor: Optional[float] = None,
+        copula_lower_tail: Optional[float] = None,
+        copula_upper_tail: Optional[float] = None,
+        cross_asset_copula_lower_tail: Optional[np.ndarray] = None,
+        version: int = 6,
     ) -> np.ndarray:
         """
         Continuous 4-Model Regime-Adaptive Multi-Model Blending:
         Blends Black-Litterman, HERC, Risk Parity, and EVT-CVaR based on the current regime,
+        including Archimedean Clayton/Gumbel copula tail dependency (F49),
         then applies non-linear dark-pool-adjusted market impact penalty and Barra factor constraints.
         """
         n = len(symbols)
@@ -860,6 +956,22 @@ class UnifiedPortfolioAllocator:
         elif regime and "CRISIS" in str(regime).upper():
             c_crisis = 1.0
 
+        # F49: Automatic Archimedean Clayton & Gumbel Copula estimation when version >= 7
+        eff_copula_l = copula_lower_tail
+        eff_copula_u = copula_upper_tail
+        eff_cross_copula = cross_asset_copula_lower_tail
+        if int(version) >= 7 and returns_df is not None and returns_df.shape[0] >= 5 and returns_df.shape[1] == n:
+            try:
+                lam_mat, bar_l, bar_u = self.compute_copula_tail_dependence_metrics(returns_df.values)
+                if eff_copula_l is None:
+                    eff_copula_l = bar_l
+                if eff_copula_u is None:
+                    eff_copula_u = bar_u
+                if eff_cross_copula is None and n > 1:
+                    eff_cross_copula = (np.sum(lam_mat, axis=1) - np.diag(lam_mat)) / max(1, n - 1)
+            except Exception as e_copula:
+                logger.debug(f"[Copula Tail Dependency] Exception: {e_copula}")
+
         blend_cfg = self.compute_information_theoretic_blend_weights(
             regime=regime,
             crisis_severity=c_crisis,
@@ -867,6 +979,9 @@ class UnifiedPortfolioAllocator:
             diversification_ratio=dr_base,
             gpd_tail_index=eff_xi,
             market_coskewness=mkt_coskew,
+            copula_lower_tail=eff_copula_l,
+            copula_upper_tail=eff_copula_u,
+            version=version,
         )
 
         # F37: Systematic Higher-Order Co-Moments Alpha Conviction Adjustment
@@ -1000,11 +1115,18 @@ class UnifiedPortfolioAllocator:
             if co_skew is not None and len(co_skew) == n:
                 coskew_pen = np.maximum(0.0, -np.nan_to_num(co_skew, nan=0.0))
 
+            copula_drag = np.zeros(n)
+            if eff_cross_copula is not None and len(eff_cross_copula) == n:
+                c_tail = np.nan_to_num(np.asarray(eff_cross_copula, dtype=float), nan=0.0)
+                bar_lam = float(np.nanmean(c_tail))
+                copula_drag = 0.40 * np.maximum(0.0, c_tail - bar_lam)
+
             tilt_mult = np.exp(
                 0.35 * z_alpha
                 - 0.50 * np.maximum(0.0, down_ratios - 1.0)
                 + 0.25 * np.maximum(0.0, 1.0 - down_ratios)
                 - 0.25 * coskew_pen
+                - copula_drag
             )
             w_composite = w_composite * tilt_mult
 
@@ -1021,10 +1143,21 @@ class UnifiedPortfolioAllocator:
             factor_loadings=factor_loadings
         )
 
-        # F43: Euler Component CVaR (CCVaR) Risk Budget Enforcement
+        # F43 & F49: Euler Component CVaR (CCVaR) Risk Budget Enforcement with Headroom Redistribution
         if cov_matrix is not None and cov_matrix.shape == (n, n) and n > 1:
             try:
-                _, trc = self.compute_component_cvar_risk_contributions(w_target, cov_matrix)
+                cov_eff = cov_matrix
+                if int(version) >= 7 and returns_df is not None and returns_df.shape[0] >= 5:
+                    try:
+                        semi_cov = self.compute_downside_semi_covariance(returns_df.values)
+                        lam_l_val = float(eff_copula_l) if (eff_copula_l is not None and math.isfinite(float(eff_copula_l))) else 0.0
+                        c_crisis_eff = 1.0 if (regime and "CRISIS" in str(regime).upper()) else 0.0
+                        psi_tail = float(np.clip(0.25 + 0.50 * lam_l_val + 0.30 * c_crisis_eff, 0.20, 0.85))
+                        cov_eff = (1.0 - psi_tail) * cov_matrix + psi_tail * semi_cov
+                    except Exception:
+                        cov_eff = cov_matrix
+
+                _, trc = self.compute_component_cvar_risk_contributions(w_target, cov_eff)
                 trc_cap = max(1.75 / n, 0.20)
                 viol_mask = trc > trc_cap
                 if np.any(viol_mask) and np.any(~viol_mask):
@@ -1032,12 +1165,22 @@ class UnifiedPortfolioAllocator:
                     tot_w = np.sum(w_target)
                     if tot_w < 1.0:
                         unalloc = 1.0 - tot_w
-                        fav_scores = np.maximum(w_target[~viol_mask], 0.0)
-                        sum_fav = np.sum(fav_scores)
-                        if sum_fav > 0:
-                            w_target[~viol_mask] += unalloc * (fav_scores / sum_fav)
+                        if int(version) >= 7:
+                            # F49: Residual Risk Headroom redistribution
+                            headroom = np.maximum(0.0, trc_cap - trc[~viol_mask])
+                            hr_weights = w_target[~viol_mask] * headroom
+                            sum_hr = np.sum(hr_weights)
+                            if sum_hr > 0:
+                                w_target[~viol_mask] += unalloc * (hr_weights / sum_hr)
+                            else:
+                                w_target[~viol_mask] += unalloc / np.sum(~viol_mask)
                         else:
-                            w_target[~viol_mask] += unalloc / np.sum(~viol_mask)
+                            fav_scores = np.maximum(w_target[~viol_mask], 0.0)
+                            sum_fav = np.sum(fav_scores)
+                            if sum_fav > 0:
+                                w_target[~viol_mask] += unalloc * (fav_scores / sum_fav)
+                            else:
+                                w_target[~viol_mask] += unalloc / np.sum(~viol_mask)
                     w_target = np.clip(w_target, 0.0, self.max_single_weight)
                     sum_w = np.sum(w_target)
                     if sum_w > 0:
