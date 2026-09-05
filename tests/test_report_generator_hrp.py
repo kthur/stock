@@ -444,3 +444,106 @@ def test_build_html_only_contains_known_markets_filter_buttons():
     assert 'data-mkt="SP500"' in html
     assert 'data-mkt="KOSPI"' in html
     assert 'data-mkt="all"' in html
+
+
+def test_parse_portfolio_allocation_scientific_notation_and_edge_cases():
+    sample_text = """=== Portfolio Allocation Recommendations (Ensemble HRP) ===
+Date: 2026-09-05 01:29 KST
+Total Capital: 100,000,000 KRW
+Target Horizon: 20d
+Current Market Regime Detected: BULL_LOW_VOL
+Maximum Total Allocation Allowed: 85.0%
+
+No.  Symbol       Name                 Market         Shares     Lot     Return   Volatility     Weight          Amount
+-----------------------------------------------------------------------------------------------------------------------
+1    PSX          Phillips 66          SP500          150        1       +1.2e-1%      0.18%      4.50%       4,500,000
+2    BAC          Bank of America Corp                120        1       -2.4e-2%      0.12%      3.80%       3,800,000
+3    005930       삼성전자                            80         1       +6.2%         0.22%      5.20%       5,200,000
+4    AAPL         Apple Inc.           SP500          0.0%       0.10%   4.00%         4,000,000
+-----------------------------------------------------------------------------------------------------------------------
+Allocated Capital : +17.50% (    17,500,000)
+Remaining Cash    : 82.50% (    82,500,000)
+"""
+    port_data = parse_portfolio_allocation(sample_text)
+    assert len(port_data.rows) == 4
+
+    # PSX: Phillips 66 with market SP500, shares 150, lot 1, return +1.2e-1%
+    assert port_data.rows[0].symbol == "PSX"
+    assert port_data.rows[0].name == "Phillips 66"
+    assert port_data.rows[0].market == "SP500"
+    assert port_data.rows[0].expected_return == "+1.2e-1%"
+
+    # BAC: multi-word name without explicit market, shares 120, lot 1, return -2.4e-2%
+    assert port_data.rows[1].symbol == "BAC"
+    assert port_data.rows[1].name == "Bank of America Corp"
+    assert port_data.rows[1].market == "SP500"
+    assert port_data.rows[1].expected_return == "-2.4e-2%"
+
+    # 005930: Korean name without explicit market, shares 80, lot 1
+    assert port_data.rows[2].symbol == "005930"
+    assert port_data.rows[2].name == "삼성전자"
+    assert port_data.rows[2].market == "KOSPI"
+
+    # AAPL: 8-column format with 0.0% return
+    assert port_data.rows[3].symbol == "AAPL"
+    assert port_data.rows[3].name == "Apple Inc."
+    assert port_data.rows[3].market == "SP500"
+    assert port_data.rows[3].expected_return == "0.0%"
+
+    assert port_data.allocated_capital_pct == "17.50%"
+    assert port_data.remaining_cash_pct == "82.50%"
+
+
+def test_merge_portfolio_allocation_robust_tokens_and_scientific(tmp_path):
+    from trading_system.merge_predictions import merge_portfolio_allocation
+
+    sp500_dir = tmp_path / "result-SP500"
+    sp500_dir.mkdir()
+    sp500_file = sp500_dir / "portfolio_allocation_SP500.txt"
+    sp500_file.write_text("""=== Portfolio Allocation Recommendations ===
+Date: 2026-09-05 01:29 KST
+Total Capital: 100,000,000 KRW
+Target Horizon: 20d
+Current Market Regime Detected: BULL_LOW_VOL
+Maximum Total Allocation Allowed: 85.0%
+
+No.  Symbol       Name                 Market         Shares     Lot     Return   Volatility     Weight          Amount
+-----------------------------------------------------------------------------------------------------------------------
+1    PSX          Phillips 66          SP500          150        1       +1.2e-1%      0.18%      4.50%       4,500,000
+2    BAC          Bank of America Corp                120        1       -2.4e-2%      0.12%      3.80%       3,800,000
+-----------------------------------------------------------------------------------------------------------------------
+Allocated Capital : 8.30% (     8,300,000)
+Remaining Cash    : 91.70% (    91,700,000)
+""", encoding="utf-8")
+
+    out_dir = tmp_path / "merged"
+    out_dir.mkdir()
+    target_dirs = {"SP500": sp500_dir}
+
+    merge_portfolio_allocation(out_dir, target_dirs)
+    merged_file = out_dir / "portfolio_allocation.txt"
+    assert merged_file.exists()
+
+    merged_content = merged_file.read_text(encoding="utf-8")
+    assert "Phillips 66" in merged_content
+    assert "Bank of America Corp" in merged_content
+    assert "SP500" in merged_content
+
+    parsed_merged = parse_portfolio_allocation(merged_content)
+    assert len(parsed_merged.rows) == 2
+    assert parsed_merged.rows[0].symbol == "PSX"
+    assert parsed_merged.rows[0].name == "Phillips 66"
+    assert parsed_merged.rows[0].market == "SP500"
+    assert parsed_merged.rows[1].symbol == "BAC"
+    assert parsed_merged.rows[1].name == "Bank of America Corp"
+    assert parsed_merged.rows[1].market == "SP500"
+
+    # Ensure neither '66' nor 'Corp' is in the Market column (tokens[-5])
+    for line in merged_content.splitlines():
+        if "PSX" in line or "BAC" in line:
+            tokens = line.split()
+            market_col = tokens[-5]
+            assert market_col == "SP500"
+            assert "66" != market_col
+            assert "Corp" != market_col
+

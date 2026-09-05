@@ -1081,18 +1081,18 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
         m = re.match(r"Maximum Total Allocation Allowed:\s*(.+)", line)
         if m:
             data.max_allocation = m.group(1).strip()
-        m = re.match(r"Allocated Capital:\s*([-+\d.]+%)\s*\(\s*([\d,]+|\S+)\s*\)", line)
+        m = re.match(r"Allocated Capital\s*:\s*([-+eE\d.]+%)\s*\(\s*([\d,]+|\S+)\s*\)", line)
         if m:
             data.allocated_capital_pct = m.group(1).strip()
             data.allocated_capital = m.group(2).strip()
-        m = re.match(r"Remaining Cash\s*:\s*([-+\d.]+%)\s*\(\s*([\d,]+|\S+)\s*\)", line)
+        m = re.match(r"Remaining Cash\s*:\s*([-+eE\d.]+%)\s*\(\s*([\d,]+|\S+)\s*\)", line)
         if m:
             data.remaining_cash_pct = m.group(1).strip()
             data.remaining_cash = m.group(2).strip()
 
         row_m = re.match(
             r"^\s*(\d+)\s+(\S+)\s+(.+?)\s+"
-            r"([-+\d.]+%|nan%|NaN%|None%)\s+([-+\d.]+%|nan%|NaN%|None%)\s+([-+\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)\s*$",
+            r"([-+eE\d.]+%|nan%|NaN%|None%)\s+([-+eE\d.]+%|nan%|NaN%|None%)\s+([-+eE\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)\s*$",
             line
         )
         if row_m:
@@ -1108,27 +1108,42 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
             parsed_mkt = "UNKNOWN"
             parsed_name = sym
 
-            # 10-column format: Name Market Shares Lot
+            # 10-column format: Name [Market] Shares Lot
             if (
-                len(tokens) >= 4
+                len(tokens) >= 3
                 and tokens[-1].isdigit()
                 and tokens[-2].replace(',', '').replace('.', '').isdigit()
-                and not tokens[-3].isdigit()
             ):
-                parsed_mkt = tokens[-3].upper()
-                parsed_name = " ".join(tokens[:-3])
+                if len(tokens) >= 4 and tokens[-3].upper() in KNOWN_ALL_MKTS:
+                    parsed_mkt = tokens[-3].upper()
+                    parsed_name = " ".join(tokens[:-3])
+                else:
+                    parsed_name = " ".join(tokens[:-2])
+                    parsed_mkt = "UNKNOWN"
             # 8-column format: Name Market
             elif len(tokens) >= 2:
-                parsed_mkt = tokens[-1].upper()
-                parsed_name = " ".join(tokens[:-1])
+                if tokens[-1].upper() in KNOWN_ALL_MKTS:
+                    parsed_mkt = tokens[-1].upper()
+                    parsed_name = " ".join(tokens[:-1])
+                else:
+                    parsed_name = " ".join(tokens)
+                    parsed_mkt = "UNKNOWN"
             elif len(tokens) == 1:
-                parsed_name = tokens[0]
+                if tokens[0].upper() in KNOWN_ALL_MKTS:
+                    parsed_mkt = tokens[0].upper()
+                    parsed_name = sym
+                else:
+                    parsed_name = tokens[0]
+                    parsed_mkt = "UNKNOWN"
 
             if parsed_mkt not in KNOWN_ALL_MKTS:
                 if sym.isdigit():
                     parsed_mkt = "KOSPI"
                 elif sym.isalnum():
                     parsed_mkt = "SP500"
+
+            if not parsed_name or parsed_name.isdigit():
+                parsed_name = sym
 
             data.rows.append(PortfolioRow(
                 rank=rank,
@@ -1273,7 +1288,7 @@ def safe_float(val: str) -> float:
         val_clean = str(val).replace("%", "").replace(",", "").strip()
         if val_clean.lower() in ("nan", "none", "", "n/a"):
             return 0.0
-        m = re.search(r"[-+]?\d+(?:\.\d+)?", val_clean)
+        m = re.search(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", val_clean)
         if not m:
             return 0.0
         return float(m.group(0))

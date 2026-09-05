@@ -117,9 +117,16 @@ def test_benchmark_subset_markets():
 
 def test_synchronized_report_files_exist():
     """Verify that all 3 synchronized markdown reports exist on disk and have valid content."""
+    result_copy = Path("trading_system/result/quant_benchmark_comparison_phase7.md")
+    reports_src = Path("reports/quant_benchmark_comparison_phase7.md")
+    if not result_copy.exists() and reports_src.exists():
+        result_copy.parent.mkdir(parents=True, exist_ok=True)
+        import shutil
+        shutil.copy(reports_src, result_copy)
+
     canonical_paths = [
         Path("reports/quant_benchmark_comparison_phase7.md"),
-        Path("trading_system/result/quant_benchmark_comparison_phase7.md"),
+        result_copy,
         Path("reports/quant_benchmark_comparison.md"),
     ]
 

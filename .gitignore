@@ -91,7 +91,7 @@ temp_model.json
 
 # Pipeline output files
 trading_system/result/*
-!trading_system/result/quant_benchmark_comparison_phase6.md
+!trading_system/result/*.md
 
 # Test artifacts
 *.pdf

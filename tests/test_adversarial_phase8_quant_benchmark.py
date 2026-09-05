@@ -191,7 +191,7 @@ class TestMultiPathFileSynchronization:
 
     def test_cli_execution_and_file_synchronization_sha256(self):
         """Execute benchmark script via CLI and verify all 3 destination files exist and are byte-level identical."""
-        python_exe = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+        python_exe = sys.executable
         script_path = REPO_ROOT / "trading_system" / "scripts" / "benchmark_phase8_quant_performance.py"
 
         # Execute CLI
@@ -229,7 +229,7 @@ class TestMultiPathFileSynchronization:
     def test_output_directory_resilience_when_nonexistent(self):
         """Test script resilience when the target output directory does not yet exist.
         The script must create missing directories automatically without throwing FileNotFoundError."""
-        python_exe = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+        python_exe = sys.executable
         script_path = REPO_ROOT / "trading_system" / "scripts" / "benchmark_phase8_quant_performance.py"
 
         temp_test_dir = REPO_ROOT / "test_scratch_phase8_nested" / "sub_dir"

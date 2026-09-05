@@ -305,18 +305,27 @@ Rank Symbol Name Market Price Intrinsic Discount ROE(rep) ROE(adj) EQ Filter RIM
 
 def test_34_strategies_tabs_and_panels_presence():
     html_out = _call_build_html()
-    # Check that Row 2 navigation has all 34 strategy buttons
+    # Check that Row 2 navigation has all 37 strategy buttons
     assert "switchTab(this,'crossasset')" in html_out
     assert "switchTab(this,'gnn')" in html_out
     assert "switchTab(this,'rangeexpansion')" in html_out
+    assert "switchTab(this,'dualcorrection')" in html_out
+    assert "switchTab(this,'indexrebalance')" in html_out
+    assert "switchTab(this,'overnightgap')" in html_out
     assert "32. Cross-Asset" in html_out
     assert "33. Supply Chain GNN" in html_out
     assert "34. Range Expansion" in html_out
+    assert "35. Dual Correction" in html_out
+    assert "36. Index Rebalance" in html_out
+    assert "37. Overnight Gap" in html_out
 
-    # Check that all 34 strategy tab panels are rendered
+    # Check that all 37 strategy tab panels are rendered
     assert 'id="panel-crossasset"' in html_out
     assert 'id="panel-gnn"' in html_out
     assert 'id="panel-rangeexpansion"' in html_out
+    assert 'id="panel-dualcorrection"' in html_out
+    assert 'id="panel-indexrebalance"' in html_out
+    assert 'id="panel-overnightgap"' in html_out
 
 
 def test_parse_32_33_34_strategies():

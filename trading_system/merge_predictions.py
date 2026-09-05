@@ -575,7 +575,7 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
 
     row_re = re.compile(
         r"^\s*(\d+)\s+(\S+)\s+(.+?)\s+"
-        r"([-+\d.]+%|nan%|NaN%|None%)\s+([-+\d.]+%|nan%|NaN%|None%)\s+([-+\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)\s*$"
+        r"([-+eE\d.]+%|nan%|NaN%|None%)\s+([-+eE\d.]+%|nan%|NaN%|None%)\s+([-+eE\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)\s*$"
     )
     known_mkts_upper = {m.upper() for m in KNOWN_MARKETS}
 
@@ -627,21 +627,33 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
                 parsed_mkt = ""
                 parsed_name = ""
 
-                # 10-column format: Name Market Shares Lot
+                # 10-column format: Name [Market] Shares Lot
                 if (
-                    len(tokens) >= 4
+                    len(tokens) >= 3
                     and tokens[-1].isdigit()
                     and tokens[-2].replace(',', '').replace('.', '').isdigit()
-                    and not tokens[-3].isdigit()
                 ):
-                    parsed_mkt = tokens[-3].upper()
-                    parsed_name = " ".join(tokens[:-3])
+                    if len(tokens) >= 4 and tokens[-3].upper() in known_mkts_upper:
+                        parsed_mkt = tokens[-3].upper()
+                        parsed_name = " ".join(tokens[:-3])
+                    else:
+                        parsed_name = " ".join(tokens[:-2])
+                        parsed_mkt = market
                 # 8-column format: Name Market
                 elif len(tokens) >= 2:
-                    parsed_mkt = tokens[-1].upper()
-                    parsed_name = " ".join(tokens[:-1])
+                    if tokens[-1].upper() in known_mkts_upper:
+                        parsed_mkt = tokens[-1].upper()
+                        parsed_name = " ".join(tokens[:-1])
+                    else:
+                        parsed_name = " ".join(tokens)
+                        parsed_mkt = market
                 elif len(tokens) == 1:
-                    parsed_name = tokens[0]
+                    if tokens[0].upper() in known_mkts_upper:
+                        parsed_mkt = tokens[0].upper()
+                        parsed_name = sym
+                    else:
+                        parsed_name = tokens[0]
+                        parsed_mkt = market
 
                 # If parsed_mkt is not a recognized market or is purely digits, fall back to loop market
                 if parsed_mkt not in known_mkts_upper or parsed_mkt.isdigit():
