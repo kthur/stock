@@ -3916,7 +3916,7 @@ def build_html(
             </button>
           </div>
           <div class="filter-bar" id="filter-ensemble" style="margin:0">
-            {_b_btns('ensemble')}
+            {_b_btns('ensemble', [m for m in active_markets_ordered if any(em.market == m and em.rows for em in ensemble.markets)] or _CORE_ORDER)}
           </div>
         </div>
         <div id="ensemble-panels">
