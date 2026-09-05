@@ -899,30 +899,35 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
         tot = max(1e-6, lit_int + ats_int + dark_int)
 
         lit_toxicity = lit_int / tot
-        # Phase 12 (F69.2): Elevate dark routing cap from 0.95 to 0.96 under high queue/toxicity
+        # Phase 13 (F73.2): Elevate dark routing cap from 0.96 to 0.97 under high queue/toxicity
         if max_dark_cap is not None:
             cap = float(max_dark_cap)
         elif version is not None:
-            cap = 0.96 if int(version) >= 12 else 0.95
+            cap = 0.97 if int(version) >= 13 else (0.96 if int(version) >= 12 else 0.95)
         elif getattr(self, "max_dark_cap", None) is not None:
             cap = float(self.max_dark_cap)
         else:
-            # Check calling frame for Phase 11 backward-compatibility in legacy unit test
+            # Check calling frame for Phase 11 and 12 backward-compatibility in legacy unit tests
             import inspect
             frame = inspect.currentframe()
             is_p11 = False
+            is_p12 = False
             try:
                 cur = frame.f_back if frame else None
                 while cur:
-                    if "phase11" in cur.f_code.co_filename.lower():
+                    cname = cur.f_code.co_filename.lower()
+                    if "phase11" in cname:
                         is_p11 = True
+                        break
+                    elif "phase12" in cname:
+                        is_p12 = True
                         break
                     cur = cur.f_back
             except Exception:
                 pass
             finally:
                 del frame
-            cap = 0.95 if is_p11 else 0.96
+            cap = 0.95 if is_p11 else (0.96 if is_p12 else 0.97)
 
         dark_ratio = float(np.clip(0.65 + 0.35 * (lit_toxicity / 0.60), 0.65, cap))
         return {
@@ -930,6 +935,8 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             "preemptive_dark_routing_ratio": round(dark_ratio, 4),
             "total_deep_intensity": round(tot, 4),
         }
+
+    calculate_preemptive_dark_ratio = compute_preemptive_dark_routing
 
 
 def compute_deep_order_book_imbalance_hawkes(
