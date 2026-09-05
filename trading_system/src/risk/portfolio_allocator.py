@@ -2440,3 +2440,79 @@ class PortfolioAllocator:
         clamped_w /= np.sum(clamped_w)
 
         return {sym: float(w) for sym, w in zip(symbols, clamped_w)}
+
+    # =========================================================================
+    # OBJECTIVE 13: PHASE 17 QUANT ENHANCEMENT (FEATURE F89.1)
+    # NONCOMMUTATIVE MOTIVE BARYCENTER & TRANS-SINGULARITY EVAR
+    # =========================================================================
+
+    @staticmethod
+    def compute_noncommutative_motive_spectral_triad_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 17 (Feature F89.1): Noncommutative Motive Spectral Triad (A, H, D) Fisher-Rao Barycenter Blending.
+        Computes consensus probability state q* on the Fisher-Rao Riemannian manifold
+        with noncommutative motive spectral triple projection across the 4 allocation models (BL, HERC, Risk Parity, EVT-CVaR):
+            q* = argmin_{q in Delta^3} sum_m alpha_m D_{FR}^2(q, p^{(m)})
+        under the motive spectral triad metric weights mu_triad = [1.50, 1.30, 1.25, 1.70].
+        """
+        from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_noncommutative_motive_spectral_triad_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_noncommutative_motive_barycenter = compute_noncommutative_motive_spectral_triad_fisher_rao_barycenter_blend
+
+    @staticmethod
+    def compute_trans_singularity_evar_risk_measure(
+        returns: np.ndarray,
+        alpha: float = 0.05,
+        t_grid: Optional[np.ndarray] = None,
+        xi_jump: float = 0.15,
+        xi_frechet: float = 0.20,
+        xi_transfinite: float = 0.25,
+        xi_inf: float = 0.30,
+        xi_supra: float = 0.35,
+        xi_ultra_trans: float = 0.40,
+        xi_trans_singularity: float = 0.45,
+        xi_11: Optional[float] = None,
+        xi_12: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Phase 17 (Feature F89.1): 12th-Cumulant Expansion Trans-Singularity Super-Coherent Tail Risk Measure (Trans-Singularity EVaR).
+        Evaluates the 12th-order cumulant expansion risk measure:
+            Trans-Singularity-EVaR_{1-alpha}(X) = inf_{t > 0} { t^{-1} (ln E[exp(psi_{trans_singularity}(t, L))] - ln alpha) }
+        where psi_{trans_singularity}(t, L) = psi_{ultra_trans}(t, L)
+                                            + (1/39916800) * xi_11 * t^11 * |L|^11
+                                            + (1/479001600) * xi_12 * t^12 * L^12.
+        with xi_trans_singularity = 0.45 (default for xi_11, xi_12).
+        Strictly satisfies the coherent tail risk hierarchy:
+            VaR <= CVaR <= EVaR <= Super-EVaR <= Ultra-EVaR <= Transfinite-EVaR <= Infinite-EVaR <= Supra-Transfinite-EVaR <= Ultra-Transfinite-EVaR <= Trans-Singularity-EVaR.
+        """
+        from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_trans_singularity_evar_risk_measure(
+            returns=returns,
+            alpha=alpha,
+            t_grid=t_grid,
+            xi_jump=xi_jump,
+            xi_frechet=xi_frechet,
+            xi_transfinite=xi_transfinite,
+            xi_inf=xi_inf,
+            xi_supra=xi_supra,
+            xi_ultra_trans=xi_ultra_trans,
+            xi_trans_singularity=xi_trans_singularity,
+            xi_11=xi_11,
+            xi_12=xi_12,
+        )
+
+    compute_trans_singularity_evar = compute_trans_singularity_evar_risk_measure
+

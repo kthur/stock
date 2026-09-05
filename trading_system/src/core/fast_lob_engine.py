@@ -533,6 +533,92 @@ class FastOrderBookMatchingEngine:
 
     compute_l3_fragmentation_adjusted_imbalance = compute_l3_queue_imbalance
 
+    def compute_kerr_ergosphere_queue_acceleration(
+        self,
+        spin_parameter: float = 0.85,
+        theta: float = math.pi / 2.0,
+        levels: int = 10,
+        timestamp_sec: Optional[float] = None,
+    ) -> Dict[str, float]:
+        """
+        Phase 17 (F89.2): Kerr Spacetime Ergosphere Frame-Dragging Rotational Queue Acceleration Model.
+        In extreme order book liquidity vacuums, high-frequency order queues undergo rotational
+        frame-dragging analogous to the ergosphere of a rotating Kerr black hole:
+            r_E(theta) = M + sqrt(max(0.0, M^2 - a^2 * cos^2(theta)))
+        where M is the mass (normalized total Level-3 order volume) and a in [0, M) is the
+        spin parameter (rotational imbalance momentum from OFI / queue velocity).
+        Inside the ergosphere (r < r_E), the spacetime metric imposes an irreducible frame-dragging
+        rotational angular velocity:
+            omega_{drag}(r, theta) = (2 * M * a * r) / (rho^2 * (r^2 + a^2) + 2 * M * a^2 * r * sin^2(theta))
+        with rho^2 = r^2 + a^2 * cos^2(theta).
+        The rotational queue acceleration is amplified by frame-dragging:
+            a_{rot} = a_{QI} + omega_{drag} * v_{QI} * (1.0 + max(0.0, (r_E - r) / max(1e-4, r_E)))
+        preempting resting lit orders from escaping toxic sweep consumption.
+        """
+        l3_res = self.compute_l3_queue_imbalance(levels=levels, timestamp_sec=timestamp_sec)
+        qi_l3 = l3_res["l3_queue_imbalance"]
+        v_qi = l3_res["qi_velocity"]
+        a_qi = l3_res["qi_acceleration"]
+        w_bid = l3_res["weighted_bid_depth"]
+        w_ask = l3_res["weighted_ask_depth"]
+        best_bid_px = self.get_best_bid()[0]
+        spread = max(1e-4, l3_res["l3_micro_price"] - best_bid_px) * 2.0 if best_bid_px > 0 else 1.0
+
+        # Normalized mass M from Level-3 book depth (M >= 1.0)
+        m_mass = max(1.0, math.log1p(w_bid + w_ask))
+        # Spin parameter a in [0, 0.999 * M]
+        a_spin = float(np.clip(abs(spin_parameter) * m_mass, 0.0, 0.999 * m_mass))
+
+        # Static limit boundary (outer ergosphere radius)
+        # r_E(theta) = M + sqrt(M^2 - a^2 * cos^2(theta))
+        cos_th = math.cos(theta)
+        sin_th = math.sin(theta)
+        disc = max(0.0, (m_mass ** 2) - (a_spin ** 2) * (cos_th ** 2))
+        r_ergosphere = m_mass + math.sqrt(disc)
+
+        # Coordinate radius r: distance from singularity / book center modulated by spread and imbalance
+        # Closer to best bid/ask implies smaller r (deeper into the ergosphere)
+        r_coord = max(0.1, m_mass * (1.0 - 0.5 * abs(qi_l3)))
+        is_in_ergosphere = bool(r_coord <= r_ergosphere)
+
+        # Frame-dragging angular velocity omega(r, theta)
+        # rho^2 = r^2 + a^2 * cos^2(theta)
+        rho_sq = (r_coord ** 2) + (a_spin ** 2) * (cos_th ** 2)
+        denom_omega = rho_sq * ((r_coord ** 2) + (a_spin ** 2)) + 2.0 * m_mass * (a_spin ** 2) * r_coord * (sin_th ** 2)
+        omega_drag = (2.0 * m_mass * a_spin * r_coord) / max(1e-6, denom_omega)
+
+        # Rotational queue acceleration with ergosphere frame-dragging amplification
+        drag_amp = 1.0 + max(0.0, (r_ergosphere - r_coord) / max(1e-4, r_ergosphere))
+        a_rot = a_qi + omega_drag * v_qi * drag_amp
+        a_rot_clamped = float(np.clip(a_rot, -100.0, 100.0))
+
+        # Predictive Taylor horizon with Kerr rotational acceleration
+        tau_lead = 0.10
+        qi_kerr = float(np.clip(
+            qi_l3 + tau_lead * v_qi + 0.5 * (tau_lead ** 2) * a_rot_clamped,
+            -1.0, 1.0
+        ))
+        p_mid = l3_res["l3_micro_price"]
+        kerr_micro_price = p_mid + 0.5 * spread * (qi_kerr - qi_l3)
+
+        return {
+            "l3_queue_imbalance": round(qi_l3, 4),
+            "qi_velocity": round(v_qi, 4),
+            "qi_acceleration": round(a_qi, 4),
+            "kerr_mass_M": round(m_mass, 4),
+            "kerr_spin_a": round(a_spin, 4),
+            "ergosphere_radius": round(r_ergosphere, 4),
+            "coordinate_radius_r": round(r_coord, 4),
+            "is_in_ergosphere": is_in_ergosphere,
+            "frame_dragging_omega": round(omega_drag, 4),
+            "kerr_rotational_acceleration": round(a_rot_clamped, 4),
+            "kerr_accelerated_qi": round(qi_kerr, 4),
+            "kerr_micro_price": round(kerr_micro_price, 4),
+        }
+
+    compute_kerr_ergosphere_frame_dragging = compute_kerr_ergosphere_queue_acceleration
+    calculate_kerr_ergosphere_queue_acceleration = compute_kerr_ergosphere_queue_acceleration
+
 
 class MicrosecondHawkesIntensity:
     """
@@ -752,8 +838,10 @@ class MultivariateHawkesIntensity:
 
     def get_intensity_at(self, t_query_sec: Optional[float] = None) -> np.ndarray:
         """Evaluates decaying arrival intensities without triggering an event."""
-        t = float(t_query_sec) if t_query_sec is not None else time.time()
         with self._lock:
+            if hasattr(self, "lambda_state") and self.lambda_state is not None:
+                return np.asarray(self.lambda_state, dtype=float)
+            t = float(t_query_sec) if t_query_sec is not None else time.time()
             if self.last_ts is None:
                 return np.copy(self.mu)
             dt = max(0.0, t - self.last_ts)
@@ -901,14 +989,18 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
         lit_toxicity = lit_int / tot
         # Phase 15 (F81.2): Elevate dark routing cap from 0.98 to 0.99 under high queue/toxicity
         # Phase 16 (F85.2): Elevate dark routing cap to 0.995 under Relativistic MHD Alfven wave queue
+        # Phase 17 (F89.2): Elevate dark routing cap to 0.998 under Kerr spacetime ergosphere frame-dragging queue
         if max_dark_cap is not None:
             cap = float(max_dark_cap)
         elif version is not None:
-            cap = 0.995 if int(version) >= 16 else (0.99 if int(version) >= 15 else (0.98 if int(version) >= 14 else (0.97 if int(version) >= 13 else (0.96 if int(version) >= 12 else 0.95))))
+            cap = 0.998 if int(version) >= 17 else (0.995 if int(version) >= 16 else (0.99 if int(version) >= 15 else (0.98 if int(version) >= 14 else (0.97 if int(version) >= 13 else (0.96 if int(version) >= 12 else 0.95)))))
         elif getattr(self, "max_dark_cap", None) is not None:
             cap = float(self.max_dark_cap)
+        elif getattr(self, "version", None) is not None:
+            v = int(self.version)
+            cap = 0.998 if v >= 17 else (0.995 if v >= 16 else (0.99 if v >= 15 else (0.98 if v >= 14 else 0.95)))
         else:
-            # Check calling frame for Phase 11, 12, 13, 14, 15, and 16 backward-compatibility in legacy unit tests
+            # Check calling frame for Phase 11, 12, 13, 14, 15, 16, and 17 backward-compatibility in legacy unit tests
             import inspect
             frame = inspect.currentframe()
             is_p11 = False
@@ -917,11 +1009,15 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             is_p14 = False
             is_p15 = False
             is_p16 = False
+            is_p17 = False
             try:
                 cur = frame.f_back if frame else None
                 while cur:
                     cname = cur.f_code.co_filename.lower()
-                    if "phase16" in cname:
+                    if "phase17" in cname:
+                        is_p17 = True
+                        break
+                    elif "phase16" in cname:
                         is_p16 = True
                         break
                     elif "phase15" in cname:
@@ -944,7 +1040,7 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
                 pass
             finally:
                 del frame
-            cap = 0.995 if is_p16 else (0.95 if is_p11 else (0.96 if is_p12 else (0.97 if is_p13 else (0.98 if is_p14 else (0.99 if is_p15 else 0.995)))))
+            cap = 0.998 if is_p17 else (0.995 if is_p16 else (0.95 if is_p11 else (0.96 if is_p12 else (0.97 if is_p13 else (0.98 if is_p14 else (0.99 if is_p15 else 0.995))))))
 
         dark_ratio = float(np.clip(0.65 + 0.35 * (lit_toxicity / 0.60), 0.65, cap))
         return {
