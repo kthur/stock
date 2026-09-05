@@ -672,3 +672,174 @@ class BivariateHawkesIntensity:
                 "lambda_sell": round(lam_s, 4),
             }
 
+
+class MultivariateHawkesIntensity:
+    """
+    Phase 10 (F61.2): Multivariate Self- and Cross-Excited Hawkes Arrival Intensity Process.
+    Tracks high-frequency arrival intensities across M venues (e.g., Lit, ATS, Dark) or buy/sell directions:
+        lambda_m(t) = mu_m + sum_{n=1}^M int_0^t alpha_{mn} e^{-beta_{mn}(t - s)} dN_n(s)
+    Recursive update upon event at venue n at time t:
+        lambda_m(t) = mu_m + (lambda_m(t_{prev}) - mu_m) * exp(-beta_{mn} * dt) + alpha_{mn}
+    """
+
+    def __init__(
+        self,
+        mu: Optional[np.ndarray] = None,
+        alpha: Optional[np.ndarray] = None,
+        beta: Optional[Union[float, np.ndarray]] = None,
+        num_venues: int = 3,
+        venue_names: Optional[List[str]] = None,
+    ):
+        self.num_venues = int(num_venues)
+        self.venue_names = (
+            [str(v).upper() for v in venue_names]
+            if venue_names
+            else ["LIT", "ATS", "DARK"][: self.num_venues]
+        )
+        if len(self.venue_names) < self.num_venues:
+            for i in range(len(self.venue_names), self.num_venues):
+                self.venue_names.append(f"VENUE_{i}")
+
+        # Baselines mu_m > 0
+        if mu is not None:
+            self.mu = np.asarray(mu, dtype=float).flatten()
+        else:
+            self.mu = np.array([1.0, 0.6, 0.3][: self.num_venues], dtype=float)
+            if len(self.mu) < self.num_venues:
+                self.mu = np.full(self.num_venues, 0.5)
+
+        # Excitation matrix alpha_{mn} (impact of event in venue n on intensity of venue m)
+        if alpha is not None:
+            self.alpha = np.asarray(alpha, dtype=float)
+        else:
+            # Default: diagonal (self-excitation) 0.35, off-diagonal (cross-excitation) 0.12
+            self.alpha = 0.12 * np.ones((self.num_venues, self.num_venues), dtype=float)
+            np.fill_diagonal(self.alpha, 0.35)
+
+        # Decay matrix beta_{mn} > 0
+        if beta is not None:
+            self.beta = np.asarray(beta, dtype=float)
+            if self.beta.ndim == 0:
+                self.beta = np.full((self.num_venues, self.num_venues), float(beta), dtype=float)
+        else:
+            self.beta = np.full((self.num_venues, self.num_venues), 1.25, dtype=float)
+
+        self.last_ts: Optional[float] = None
+        self.intensities = np.copy(self.mu)
+        self._lock = threading.Lock()
+
+    def update(self, venue: Union[int, str], timestamp_sec: Optional[float] = None) -> np.ndarray:
+        """Updates arrival intensities upon an event at given venue."""
+        t = float(timestamp_sec) if timestamp_sec is not None else time.time()
+        v_idx = 0
+        if isinstance(venue, str):
+            v_str = str(venue).upper()
+            if v_str in self.venue_names:
+                v_idx = self.venue_names.index(v_str)
+        else:
+            v_idx = int(venue) % self.num_venues
+
+        with self._lock:
+            if self.last_ts is not None:
+                dt = max(0.0, t - self.last_ts)
+                decay = np.exp(-self.beta[:, v_idx] * dt)
+                self.intensities = self.mu + np.maximum(0.0, self.intensities - self.mu) * decay
+
+            # Add excitation from venue v_idx to all venues m
+            self.intensities += self.alpha[:, v_idx]
+            self.last_ts = t
+            return np.copy(self.intensities)
+
+    def get_intensity_at(self, t_query_sec: Optional[float] = None) -> np.ndarray:
+        """Evaluates decaying arrival intensities without triggering an event."""
+        t = float(t_query_sec) if t_query_sec is not None else time.time()
+        with self._lock:
+            if self.last_ts is None:
+                return np.copy(self.mu)
+            dt = max(0.0, t - self.last_ts)
+            # Use mean decay across columns if last triggering venue not specified
+            decay = np.exp(-np.mean(self.beta, axis=1) * dt)
+            return self.mu + np.maximum(0.0, self.intensities - self.mu) * decay
+
+    def get_intensity_dict(self, t_query_sec: Optional[float] = None) -> Dict[str, float]:
+        """Returns mapping from venue name to current arrival intensity."""
+        lam = self.get_intensity_at(t_query_sec)
+        return {v: round(float(lam[i]), 4) for i, v in enumerate(self.venue_names)}
+
+    def compute_cross_excitation_toxicity(self, proposed_venue: str = "ATS") -> Dict[str, float]:
+        """Evaluates toxicity when routing to proposed_venue under cross-excitation from other venues."""
+        pv = str(proposed_venue).upper()
+        p_idx = self.venue_names.index(pv) if pv in self.venue_names else 0
+        lam = self.get_intensity_at()
+
+        # Cross-venue intensity from all venues except proposed_venue
+        other_indices = [i for i in range(self.num_venues) if i != p_idx]
+        cross_intensity = float(np.sum(lam[other_indices])) if other_indices else 0.0
+        tot_intensity = float(np.sum(lam))
+
+        tox_ratio = cross_intensity / max(1e-6, tot_intensity)
+        return {
+            "proposed_venue": pv,
+            "venue_intensity": round(float(lam[p_idx]), 4),
+            "cross_excitation_intensity": round(cross_intensity, 4),
+            "total_intensity": round(tot_intensity, 4),
+            "cross_excitation_toxicity": round(float(np.clip(tox_ratio, 0.0, 1.0)), 4),
+        }
+
+
+def compute_multivariate_hawkes_arrival_intensity(
+    event_timestamps: np.ndarray,
+    event_venues: Union[np.ndarray, List[str], List[int]],
+    decay_beta: Optional[Union[float, np.ndarray]] = 1.2,
+    alpha_matrix: Optional[np.ndarray] = None,
+    mu_vector: Optional[np.ndarray] = None,
+    query_timestamp: Optional[float] = None,
+    venue_labels: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """
+    Phase 10 (F61.2): Evaluates batch Multivariate Hawkes Arrival Intensity Process.
+    Supports multi-venue trade stream (e.g., LIT, ATS, DARK) and computes cross-excitation metrics.
+    """
+    ts = np.asarray(event_timestamps, dtype=float)
+    labels = venue_labels or ["LIT", "ATS", "DARK"]
+    M = len(labels)
+
+    if ts.size == 0:
+        mu_def = np.asarray(mu_vector, dtype=float) if mu_vector is not None else np.array([1.0, 0.6, 0.3][:M])
+        return {
+            "intensities": mu_def,
+            "intensity_dict": {v: round(float(mu_def[i]), 4) for i, v in enumerate(labels)},
+            "total_intensity": float(np.sum(mu_def)),
+            "cross_excitation_toxicity": 0.0,
+            "decay_rate": float(decay_beta) if isinstance(decay_beta, (int, float)) else 1.2,
+        }
+
+    model = MultivariateHawkesIntensity(
+        mu=mu_vector,
+        alpha=alpha_matrix,
+        beta=decay_beta,
+        num_venues=M,
+        venue_names=labels,
+    )
+
+    # Sort events by timestamp
+    venues_list = list(event_venues)
+    sort_idx = np.argsort(ts)
+    for idx in sort_idx:
+        t_ev = float(ts[idx])
+        v_ev = venues_list[idx]
+        model.update(v_ev, timestamp_sec=t_ev)
+
+    q_t = query_timestamp if query_timestamp is not None else float(ts[sort_idx[-1]])
+    cur_intensities = model.get_intensity_at(q_t)
+    int_dict = model.get_intensity_dict(q_t)
+    tox_info = model.compute_cross_excitation_toxicity("ATS")
+
+    return {
+        "intensities": cur_intensities,
+        "intensity_dict": int_dict,
+        "total_intensity": round(float(np.sum(cur_intensities)), 4),
+        "cross_excitation_toxicity": tox_info["cross_excitation_toxicity"],
+        "decay_rate": float(decay_beta) if isinstance(decay_beta, (int, float)) else 1.2,
+    }
+

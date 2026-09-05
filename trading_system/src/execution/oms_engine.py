@@ -12,7 +12,7 @@ import logging
 import json
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -1387,6 +1387,7 @@ class ExecutionOMSEngine:
         version: int = 6,
         qi_jerk: Optional[float] = None,
         deep_ofi: Optional[float] = None,
+        hawkes_intensity: Optional[Union[float, Dict[str, float]]] = None,
         **kwargs
     ) -> float:
         """
@@ -1499,7 +1500,20 @@ class ExecutionOMSEngine:
             jerk_tox_damp = max(0.0, 1.0 - 0.95 * gamma_composite)
             jerk_shift = direction * spr * (0.10 * math.tanh(0.50 * j_val) + 0.15 * math.tanh(1.20 * d_ofi)) * jerk_tox_damp
 
-        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, accel shift, jerk shift, or arrival imbalance was active
+        # 9. Multivariate Hawkes Cross-Excitation Preemptive Shading (Phase 10 F61.2)
+        hawkes_shift = 0.0
+        if int(version) >= 10:
+            h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
+            if isinstance(h_int, dict):
+                h_val = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
+            elif h_int is not None and math.isfinite(float(h_int)):
+                h_val = float(h_int)
+            else:
+                h_val = 0.0
+            if h_val > 0.35:
+                hawkes_shift = -direction * 0.40 * spr * (h_val - 0.35)
+
+        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, accel shift, jerk shift, hawkes shift, or arrival imbalance was active
         if (
             (l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0)
             or (micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0)
@@ -1508,9 +1522,10 @@ class ExecutionOMSEngine:
             or shade_shift != 0.0
             or accel_shift != 0.0
             or jerk_shift != 0.0
+            or hawkes_shift != 0.0
             or del_lam is not None
         ):
-            peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift + jerk_shift
+            peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift + jerk_shift + hawkes_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
         # Fallback to urgency interpolation between bid and ask
@@ -1935,6 +1950,7 @@ class AlmgrenChrissScheduler:
         version: int = 6,
         qi_jerk: Optional[float] = None,
         deep_ofi: Optional[float] = None,
+        hawkes_intensity: Optional[Union[float, Dict[str, float]]] = None,
         **kwargs
     ) -> float:
         """
@@ -2047,7 +2063,20 @@ class AlmgrenChrissScheduler:
             jerk_tox_damp = max(0.0, 1.0 - 0.95 * gamma_composite)
             jerk_shift = direction * spr * (0.10 * math.tanh(0.50 * j_val) + 0.15 * math.tanh(1.20 * d_ofi)) * jerk_tox_damp
 
-        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, accel shift, jerk shift, or arrival imbalance was active
+        # 9. Multivariate Hawkes Cross-Excitation Preemptive Shading (Phase 10 F61.2)
+        hawkes_shift = 0.0
+        if int(version) >= 10:
+            h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
+            if isinstance(h_int, dict):
+                h_val = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
+            elif h_int is not None and math.isfinite(float(h_int)):
+                h_val = float(h_int)
+            else:
+                h_val = 0.0
+            if h_val > 0.35:
+                hawkes_shift = -direction * 0.40 * spr * (h_val - 0.35)
+
+        # If micro-price, L3 micro-price, OBI shift, queue offset, shade shift, accel shift, jerk shift, hawkes shift, or arrival imbalance was active
         if (
             (l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0)
             or (micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0)
@@ -2056,9 +2085,10 @@ class AlmgrenChrissScheduler:
             or shade_shift != 0.0
             or accel_shift != 0.0
             or jerk_shift != 0.0
+            or hawkes_shift != 0.0
             or del_lam is not None
         ):
-            peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift + jerk_shift
+            peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift + jerk_shift + hawkes_shift
             return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
 
         # Fallback to urgency interpolation between bid and ask

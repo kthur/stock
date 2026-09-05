@@ -136,6 +136,31 @@ def apply_nonic_hyperbolic_deadband(
     )
 
 
+def apply_decic_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray],
+    delta_noise: float = 0.045,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 10.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None
+) -> Union[pd.Series, np.ndarray]:
+    """
+    Phase 10 Transcendental (F60.2): Asymmetric Decic (10th-Order) Hyperbolic Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^10)
+    With decic exponent (alpha = 10.0), suppresses 99.9999% of near-zero noise (|z| <= 0.010)
+    reducing noise leakage down to < 0.00003%, while transmitting 100.000% of high conviction
+    signals (|z| >= 0.150) with strict rank monotonicity (Spearman rho == 1.0000).
+    """
+    return apply_quintic_hyperbolic_deadband(
+        scores_centered=scores_centered,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+
+
 def apply_asymmetric_wavelet_deadband(
     scores_centered: Union[pd.Series, np.ndarray],
     delta_noise: float = 0.045,

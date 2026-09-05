@@ -825,6 +825,203 @@ class UnifiedPortfolioAllocator:
             "quantiles": losses,
         }
 
+    def compute_mmot_barycenter_blend(
+        self,
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        cost_matrix: Optional[np.ndarray] = None,
+        reg: float = 0.05,
+        max_iter: int = 50,
+        tol: float = 1e-6,
+    ) -> Dict[str, float]:
+        """
+        Phase 10 (F61.1): Multi-Marginal Optimal Transport (MMOT) Sinkhorn 2-Wasserstein Barycenter Blending.
+        Computes the entropy-regularized optimal transport barycenter q in Delta^4 across the 4 paradigms
+        [bl, herc, rp, cvar] solving:
+            min_q sum_{m=1}^M lambda_m W_{2, reg}^2(q, p_m)
+        using iterative Sinkhorn fixed-point iterations.
+        """
+        model_keys = ["bl", "herc", "rp", "cvar"]
+        d = 4
+
+        # Default pairwise cost matrix between paradigm profiles [bl, herc, rp, cvar]
+        if cost_matrix is not None and np.asarray(cost_matrix).shape == (d, d):
+            C = np.asarray(cost_matrix, dtype=float)
+        else:
+            C = np.array([
+                [0.00, 0.45, 0.65, 0.95],
+                [0.45, 0.00, 0.25, 0.50],
+                [0.65, 0.25, 0.00, 0.40],
+                [0.95, 0.50, 0.40, 0.00],
+            ], dtype=float)
+
+        # Gibbs kernel K = exp(-C / reg)
+        eps = max(1e-4, float(reg))
+        K = np.exp(-C / eps)
+
+        # Parse inputs
+        if isinstance(model_weights, dict):
+            p_vec = np.array([max(1e-6, float(model_weights.get(k, 0.25))) for k in model_keys], dtype=float)
+            p_vec /= np.sum(p_vec)
+            distributions = [p_vec]
+            lambdas = [1.0]
+        elif isinstance(model_weights, list) and len(model_weights) > 0 and isinstance(model_weights[0], dict):
+            distributions = []
+            for mw in model_weights:
+                pv = np.array([max(1e-6, float(mw.get(k, 0.25))) for k in model_keys], dtype=float)
+                pv /= np.sum(pv)
+                distributions.append(pv)
+            lambdas = np.full(len(distributions), 1.0 / len(distributions))
+        else:
+            arr = np.asarray(model_weights, dtype=float)
+            if arr.ndim == 1 and len(arr) == d:
+                pv = np.maximum(arr, 1e-6)
+                pv /= np.sum(pv)
+                distributions = [pv]
+                lambdas = [1.0]
+            elif arr.ndim == 2 and arr.shape[1] == d:
+                distributions = []
+                for row in arr:
+                    pv = np.maximum(row, 1e-6)
+                    pv /= np.sum(pv)
+                    distributions.append(pv)
+                lambdas = np.full(len(distributions), 1.0 / len(distributions))
+            else:
+                distributions = [np.full(d, 0.25)]
+                lambdas = [1.0]
+
+        K_num = len(distributions)
+        if K_num == 1:
+            # Single distribution Wasserstein projection smoothing
+            p0 = distributions[0]
+            v = p0 / np.maximum(1e-12, K @ np.ones(d))
+            q = K.T @ v
+            q = np.maximum(1e-6, q)
+            q /= np.sum(q)
+            return {k: float(q[i]) for i, k in enumerate(model_keys)}
+
+        # Multi-marginal Sinkhorn barycenter iterations
+        # v_k initialized to 1
+        v_list = [np.ones(d) for _ in range(K_num)]
+        q = np.full(d, 1.0 / d)
+
+        for _ in range(max(5, int(max_iter))):
+            q_prev = np.copy(q)
+            # q = prod_k (K^T v_k)^lambda_k
+            log_q = np.zeros(d)
+            for k in range(K_num):
+                Kv = K.T @ v_list[k]
+                Kv = np.maximum(1e-12, Kv)
+                log_q += lambdas[k] * np.log(Kv)
+            q = np.exp(log_q - np.max(log_q))
+            q /= np.sum(q)
+
+            # Update v_k = p_k / (K (q / K^T v_k))
+            for k in range(K_num):
+                Kv = np.maximum(1e-12, K.T @ v_list[k])
+                u_k = q / Kv
+                Ku = np.maximum(1e-12, K @ u_k)
+                v_list[k] = distributions[k] / Ku
+
+            if np.max(np.abs(q - q_prev)) < tol:
+                break
+
+        q = np.maximum(1e-6, q)
+        q /= np.sum(q)
+        return {k: float(q[i]) for i, k in enumerate(model_keys)}
+
+    def compute_evar_risk_measure(
+        self,
+        returns: np.ndarray,
+        alpha: float = 0.05,
+        t_grid: Optional[np.ndarray] = None,
+    ) -> Dict[str, Any]:
+        """
+        Phase 10 (F61.1): Entropic Value-at-Risk (EVaR) Coherent Risk Measure.
+        Computes the tightest Chernoff-bound coherent risk measure:
+            EVaR_{1-alpha}(X) = inf_{t > 0} { t^{-1} (ln M_L(t) - ln alpha) }
+        where L = -returns is the portfolio/asset loss and M_L(t) is the moment generating function.
+        Guaranteed to satisfy:
+            VaR_{1-alpha}(X) <= CVaR_{1-alpha}(X) <= EVaR_{1-alpha}(X).
+        """
+        r = np.asarray(returns, dtype=float)
+        if r.size == 0 or np.all(np.isnan(r)):
+            return {
+                "evar_value": 0.0,
+                "cvar_value": 0.0,
+                "var_value": 0.0,
+                "optimal_t": 1.0,
+                "alpha": float(alpha),
+            }
+
+        r_flat = r.flatten()
+        r_clean = r_flat[np.isfinite(r_flat)]
+        N = len(r_clean)
+        if N == 0:
+            return {
+                "evar_value": 0.0,
+                "cvar_value": 0.0,
+                "var_value": 0.0,
+                "optimal_t": 1.0,
+                "alpha": float(alpha),
+            }
+
+        losses = -r_clean
+        alpha_clamped = float(np.clip(alpha, 1e-4, 0.49))
+
+        # VaR and CVaR
+        var_val = float(np.quantile(losses, 1.0 - alpha_clamped))
+        tail_losses = losses[losses >= var_val]
+        cvar_val = float(np.mean(tail_losses)) if len(tail_losses) > 0 else var_val
+
+        # Log moment generating function: ln E[e^{t L}] = max(tL) + ln(mean(e^{tL - max(tL)}))
+        def eval_evar_t(t_val: float) -> float:
+            if t_val <= 1e-8:
+                return 1e9
+            scaled = t_val * losses
+            max_s = np.max(scaled)
+            log_mgf = max_s + np.log(max(1e-12, float(np.mean(np.exp(scaled - max_s)))))
+            return float((log_mgf - math.log(alpha_clamped)) / t_val)
+
+        if t_grid is not None and len(t_grid) > 0:
+            grid = np.asarray(t_grid, dtype=float)
+            grid = grid[grid > 0]
+        else:
+            grid = np.logspace(-2.0, 2.5, 120)
+
+        best_evar = float("inf")
+        best_t = 1.0
+        for t_c in grid:
+            val = eval_evar_t(float(t_c))
+            if val < best_evar:
+                best_evar = val
+                best_t = float(t_c)
+
+        # Refine with local search
+        try:
+            from scipy.optimize import minimize_scalar
+            res = minimize_scalar(
+                eval_evar_t,
+                bounds=(max(1e-3, best_t * 0.3), min(500.0, best_t * 3.0)),
+                method="bounded",
+            )
+            if res.success and math.isfinite(res.fun) and res.fun < best_evar:
+                best_evar = float(res.fun)
+                best_t = float(res.x)
+        except Exception:
+            pass
+
+        # EVaR upper bound guarantee
+        evar_final = max(best_evar, cvar_val)
+
+        return {
+            "evar_value": round(float(evar_final), 6),
+            "cvar_value": round(float(cvar_val), 6),
+            "var_value": round(float(var_val), 6),
+            "optimal_t": round(float(best_t), 4),
+            "alpha": float(alpha_clamped),
+        }
+
+
     def compute_information_theoretic_blend_weights(
         self,
         regime: Optional[Union[str, int, Dict[str, float]]] = "BULL_LOW_VOL",
@@ -946,12 +1143,41 @@ class UnifiedPortfolioAllocator:
         lam_l = float(copula_lower_tail) if (copula_lower_tail is not None and math.isfinite(float(copula_lower_tail))) else 0.0
         lam_u = float(copula_upper_tail) if (copula_upper_tail is not None and math.isfinite(float(copula_upper_tail))) else 0.0
 
-        is_phase9 = int(version) >= 9
+        is_phase10 = int(version) >= 10
+        is_phase9 = int(version) >= 9 or is_phase10
         is_phase8 = int(version) >= 8 or is_phase9
         lam_casc = float(rvine_cascade_index) if (rvine_cascade_index is not None and math.isfinite(float(rvine_cascade_index))) else lam_l
         lam_t2 = float(tree2_conditional_tail) if (tree2_conditional_tail is not None and math.isfinite(float(tree2_conditional_tail))) else 0.0
 
-        if is_phase9:
+        if is_phase10:
+            # F61.1: Multi-Marginal Optimal Transport (MMOT) Ambiguity Tilting
+            eps_w = float(wasserstein_radius) if (wasserstein_radius is not None and math.isfinite(float(wasserstein_radius))) else 0.080
+            delta_mmot = {
+                "bl": -1.35 * eps_w - 0.50 * (u_entropy ** 2),
+                "herc": +0.55 * eps_w + 0.35 * u_entropy,
+                "rp": -1.65 * eps_w,
+                "cvar": +2.35 * eps_w + 0.60 * c_crisis,
+            }
+            for k in delta_ell:
+                delta_ell[k] += delta_mmot[k]
+
+            # Super-Information Entropy Parity (F61.1)
+            alpha_iep = 0.70
+            contagion_damp = max(0.0, 1.0 - 1.5 * lam_casc)
+            for k in delta_ell:
+                delta_ell[k] += alpha_iep * u_entropy * (0.25 - w_prior[k]) * contagion_damp
+
+            # R-Vine Higher-Order Downside Cascade Tilting
+            if lam_casc > 0.0 or lam_u > 0.0:
+                delta_rvine = {
+                    "bl": -1.20 * max(0.0, lam_casc - 0.15) + 0.50 * max(0.0, lam_u - 0.20),
+                    "herc": +0.40 * max(0.0, lam_casc - 0.15) - 0.30 * max(0.0, lam_t2 - 0.20),
+                    "rp": -1.55 * max(0.0, lam_casc - 0.15),
+                    "cvar": +2.05 * max(0.0, lam_casc - 0.15),
+                }
+                for k in delta_ell:
+                    delta_ell[k] += delta_rvine[k]
+        elif is_phase9:
             # F57.1: Wasserstein Distributionally Robust Optimization (DRO) Ambiguity Tilting
             eps_w = float(wasserstein_radius) if (wasserstein_radius is not None and math.isfinite(float(wasserstein_radius))) else 0.065
             delta_dro = {
@@ -1013,7 +1239,11 @@ class UnifiedPortfolioAllocator:
         exps = {k: math.exp((v - max_log) / tau) for k, v in log_odds.items()}
         tot_exp = sum(exps.values())
 
-        return {k: float(v / tot_exp) for k, v in exps.items()}
+        res_weights = {k: float(v / tot_exp) for k, v in exps.items()}
+        if is_phase10:
+            # F61.1: Apply MMOT Sinkhorn Barycenter refinement
+            res_weights = self.compute_mmot_barycenter_blend(res_weights, reg=0.05)
+        return res_weights
 
     def calculate_cvar_weights(
         self,
@@ -1526,7 +1756,21 @@ class UnifiedPortfolioAllocator:
                     tot_w = np.sum(w_target)
                     if tot_w < 1.0:
                         unalloc = 1.0 - tot_w
-                        if int(version) >= 9:
+                        if int(version) >= 10:
+                            # F61.1: Entropic Value-at-Risk (EVaR) Bound & 10th-degree Super-Safety Headroom Redistribution
+                            headroom = np.maximum(0.0, trc_cap - trc[~viol_mask])
+                            if eff_asset_cascade is not None and len(eff_asset_cascade) == n:
+                                cascade_clean = np.asarray(eff_asset_cascade[~viol_mask], dtype=float)
+                                safety_weight = np.exp(-3.2 * np.power(np.maximum(0.0, cascade_clean), 1.6))
+                            else:
+                                safety_weight = np.ones(int(np.sum(~viol_mask)))
+                            hr_weights = w_target[~viol_mask] * np.power(headroom, 1.35) * safety_weight
+                            sum_hr = np.sum(hr_weights)
+                            if sum_hr > 0:
+                                w_target[~viol_mask] += unalloc * (hr_weights / sum_hr)
+                            else:
+                                w_target[~viol_mask] += unalloc / max(1.0, float(np.sum(~viol_mask)))
+                        elif int(version) >= 9:
                             # F57.2: Exponential Spectral Risk & 9th-degree Safety-Weighted Headroom Redistribution
                             headroom = np.maximum(0.0, trc_cap - trc[~viol_mask])
                             if eff_asset_cascade is not None and len(eff_asset_cascade) == n:

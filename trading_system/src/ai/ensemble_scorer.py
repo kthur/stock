@@ -3530,7 +3530,16 @@ class EnsembleScoringEngine:
         if len(ens_scores) >= 5:
             ranks = pd.Series(ens_scores).rank(pct=True).values
             reg_str = str(regime).upper()
-            if int(version) >= 9:
+            if int(version) >= 10:
+                gamma_top = self.get_regime_adaptive_gamma_top(regime, version=version)
+                # Feature F60.1: 5th-Order Super-Convex Hyperexponential Rank Modulation across regimes
+                # mult = 0.50 + 0.65 * r * exp(gamma_top * r^5) for positive excess conviction
+                mult = np.where(
+                    z_denoised >= 0.0,
+                    0.50 + 0.65 * ranks * np.exp(gamma_top * (ranks ** 5)),
+                    1.40 - 0.80 * ranks
+                )
+            elif int(version) >= 9:
                 gamma_top = self.get_regime_adaptive_gamma_top(regime, version=version)
                 # Feature F55.2: 4th-Order Super-Convex Hyperexponential Rank Modulation across regimes
                 # mult = 0.50 + 0.65 * r * exp(gamma_top * r^4) for positive excess conviction
@@ -4914,8 +4923,37 @@ class EnsembleScoringEngine:
 
         raw_confluence = synergy_sum + tri_confluence + quad_confluence + quint_confluence
 
-        # 5. Pillar Harmony Regularizer H_pillar (Phase 7 Zenith F47.1, Phase 8 Sovereign F51.1, Phase 9 Imperial F55.1)
-        if version >= 9:
+        # 5. Pillar Harmony Regularizer H_pillar (Phase 7 Zenith F47.1, Phase 8 Sovereign F51.1, Phase 9 Imperial F55.1, Phase 10 Transcendental F59/F60.1)
+        if version >= 10:
+            # Feature F59/F60.1: Malliavin Calculus Sobolev Stability + Symplectic Hamiltonian + Riemannian Geodesics
+            p_vals = np.array([p_val.values, p_mom.values, p_flow.values, p_cat.values, p_net.values])  # shape (5, N)
+            p_sum = np.sum(p_vals, axis=0, keepdims=True)
+            p_norm = (p_vals + 1e-6) / (p_sum + 5e-6)  # Probability Simplex S^4
+
+            bc = np.sum(np.sqrt(0.20 * p_norm), axis=0)
+            bc_clipped = np.clip(bc, 0.0, 1.0)
+            d_riemann = np.arccos(bc_clipped)
+            h_riemann = np.exp(-2.40 * np.square(d_riemann))
+
+            q_disp = np.array([p_val.values, p_net.values])
+            p_flow_mom = np.array([p_mom.values, p_flow.values, p_cat.values])
+            v_potential = 0.5 * (1.5 * np.square(q_disp[0]) + 1.2 * np.square(q_disp[1]))
+            t_kinetic = 0.5 * (1.2 * np.square(p_flow_mom[0]) + 1.0 * np.square(p_flow_mom[1]) + 0.8 * np.square(p_flow_mom[2]))
+            hamiltonian = t_kinetic + v_potential
+            e_symplectic = np.exp(-np.square(hamiltonian - 0.45) / (2.0 * (0.25 ** 2)))
+
+            # Sobolev gradient smoothness across 5 pillars (Malliavin path regularity)
+            dp = np.diff(p_vals, axis=0)  # shape (4, N)
+            sobolev_norm = np.sum(np.square(dp), axis=0)
+            m_stability = np.exp(-1.80 * sobolev_norm)
+
+            p_mean = np.mean(p_vals, axis=0)
+            harmony_factor = pd.Series(
+                1.0 + (0.20 * h_riemann + 0.16 * e_symplectic + 0.12 * m_stability) * (p_mean > 0.35).astype(float),
+                index=scores_df.index
+            )
+            total_confluence = raw_confluence * harmony_factor
+        elif version >= 9:
             # Feature F55.1: Symplectic Hamiltonian Energy Conservation & Riemannian Geodesics
             p_vals = np.array([p_val.values, p_mom.values, p_flow.values, p_cat.values, p_net.values])  # shape (5, N)
             p_sum = np.sum(p_vals, axis=0, keepdims=True)
@@ -5061,6 +5099,60 @@ class EnsembleScoringEngine:
         S2 = np.einsum('ti,tj->ij', X_shifted, dX)
         sig = np.concatenate([S1, S2.flatten()])
         return sig
+
+    @classmethod
+    def compute_malliavin_sensitivity_derivative(
+        cls,
+        paths: np.ndarray,
+        volatility_process: Optional[np.ndarray] = None,
+        dt: float = 0.05
+    ) -> Dict[str, np.ndarray]:
+        """
+        Feature F59/F60.1: Malliavin Stochastic Calculus Sensitivity Derivative Engine.
+        Evaluates the discrete Malliavin derivative operator D_t X_T along signal trajectory:
+            D_s X_t = (X_t - X_{s}) / (vol_s * sqrt(dt))
+        Quantifies trajectory jump sensitivity and Sobolev H^1 path energy:
+            ||X||_{D^{1,2}}^2 = E[|X_T|^2] + int_0^T E[|D_t X_T|^2] dt.
+        """
+        X = np.asarray(paths, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        T, D = X.shape
+        if T < 2:
+            return {
+                "malliavin_derivatives": np.zeros((1, D)),
+                "path_sobolev_norm": np.zeros(D),
+                "jump_vulnerability_index": np.zeros(D),
+            }
+
+        dt_safe = max(1e-4, float(dt))
+        dX = X[1:] - X[:-1]
+
+        if volatility_process is not None:
+            vol = np.asarray(volatility_process, dtype=float)
+            if vol.shape != X.shape:
+                vol = np.broadcast_to(vol.reshape(-1, 1), X.shape)
+            vol_eff = np.clip(vol[:-1], 1e-4, 5.0)
+        else:
+            # Robust diffusion scale via Median Absolute Deviation (MAD) to detect path jumps
+            med_dx = np.median(dX, axis=0, keepdims=True)
+            mad = np.median(np.abs(dX - med_dx), axis=0, keepdims=True)
+            vol_eff = np.clip(1.4826 * mad, 1e-3, 5.0)
+
+        # Discrete Malliavin sensitivity derivative
+        D_matrix = dX / (vol_eff * np.sqrt(dt_safe))
+
+        # Path Sobolev H^1 norm per dimension
+        sobolev_h1 = np.sqrt(np.mean(np.square(D_matrix), axis=0))
+
+        # Jump vulnerability index (bounded in [0, 1])
+        jump_vuln = 1.0 - np.exp(-1.20 * sobolev_h1)
+
+        return {
+            "malliavin_derivatives": D_matrix,
+            "path_sobolev_norm": sobolev_h1,
+            "jump_vulnerability_index": jump_vuln,
+        }
 
     # =========================================================================
     # OBJECTIVE 14: BESSEMBINDER CONVEX POWER-LAW ALPHA SIZING (TOP-DECILE TILT)
@@ -5374,6 +5466,24 @@ class EnsembleScoringEngine:
         For version >= 9, gamma_top expands to 0.95 in Bull Low Vol.
         """
         reg_str = str(regime).upper()
+        if int(version) >= 10:
+            if 'CRISIS' in reg_str:
+                return 0.20
+            elif 'BEAR_HIGH_VOL' in reg_str:
+                return 0.30
+            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0':
+                return 0.45
+            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+                return 0.55
+            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1':
+                return 0.70
+            elif 'BULL_HIGH_VOL' in reg_str:
+                return 0.90
+            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2':
+                return 1.10
+            else:
+                return 0.80
+
         if int(version) >= 9:
             if 'CRISIS' in reg_str:
                 return 0.20
