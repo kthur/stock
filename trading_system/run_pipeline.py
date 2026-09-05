@@ -4186,8 +4186,48 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         pct = v * 100.0 if abs(v) <= 1.0 else v
         return f"{pct:>{width}.0f}%"
 
+    _STRAT_DISPLAY_MAP = [
+        ("regression", "XGBoost Regression Fundamentals"),
+        ("surge", "Surge Classifier (XGBoost)"),
+        ("lead_lag", "Index & Sector Lead-Lag Flow"),
+        ("vcp_rule", "VCP Rule Pattern Detector"),
+        ("vcp_ml", "VCP Machine Learning Predictor"),
+        ("lstm", "Strict Causal LSTM Deep Learning"),
+        ("stat_arb", "Stat-Arb Cointegration Mean Rev"),
+        ("sector_rotation", "Sector Rotation Relative Momentum"),
+        ("rim_valuation", "RIM Valuation (Residual Income)"),
+        ("event_driven", "Event-Driven Disclosure Catalyst"),
+        ("mq_factor", "Momentum Quality (MQ) Factor"),
+        ("iv_skew", "Options Put/Call IV Skew"),
+        ("order_flow", "Order Flow Imbalance (MFI)"),
+        ("short_term_reversal", "Short-Term Mean Reversal"),
+        ("arm_factor", "Analyst Revision Momentum (ARM)"),
+        ("card_factor", "Cross-Asset Regime Divergence(CARD)"),
+        ("latr_factor", "Liq-Adj Tail Risk (LATR)"),
+        ("inst_foreign_sector", "Inst & Foreign Sector Flow"),
+        ("supply_chain", "Supply Chain Spillover Momentum"),
+        ("sentiment", "NLP FinBERT Sentiment Catalyst"),
+        ("factor_neutralized", "Multi-Factor Style Neutral Alpha"),
+        ("vol_target", "Dynamic Volatility Targeting"),
+        ("microstructure", "Microstructure Order Imbalance"),
+        ("accruals_quality", "Accruals Quality Accounting Pure"),
+        ("short_squeeze", "Short Interest & Squeeze Catalyst"),
+        ("valueup_catalyst", "Value-Up & Shareholder Yield"),
+        ("trend_efficiency", "Kaufman Trend Efficiency Filter"),
+        ("gamma_squeeze", "Options Gamma & Delta Squeeze"),
+        ("insider_buying", "Executive & Insider Buying Catalyst"),
+        ("darkpool", "HFT Order Flow & Dark Pool"),
+        ("earnings_tone_drift", "Earnings Tone Drift NLP Quant"),
+        ("cross_asset_spillover", "Cross-Asset Spillover Momentum"),
+        ("supply_chain_gnn", "Supply Chain GNN & Sector Flow"),
+        ("range_expansion_breakout", "Range Expansion Breakout"),
+        ("dual_correction", "Dual Price & Time Correction"),
+        ("index_rebalance", "Index Rebalance Structural Flow"),
+        ("overnight_gap_reversal", "Overnight Gap Reversal"),
+    ]
+
     with open(ensemble_output_path, "w", encoding="utf-8") as f:
-        f.write(f"=== Dynamic Multi-Strategy Ensemble Predictions ({len(ensemble_weights)} Strategies) ===\n")
+        f.write(f"=== Dynamic Multi-Strategy Ensemble Predictions ({len(_STRAT_DISPLAY_MAP)} Strategies) ===\n")
         f.write(f"Date: {kst_now_str}\n\n")
 
         # 1. Executive Summary & Basis
@@ -4224,46 +4264,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         us_weights_map = getattr(scorer, 'us_strategy_weights', ensemble_weights) or ensemble_weights
         kr_weights_map = getattr(scorer, 'kr_strategy_weights', ensemble_weights) or ensemble_weights
 
-        f.write(f"--- Applied US Strategy Weights ({len(us_weights_map)} Strategies) [US: {us_2d_regime}] ---\n")
-        _STRAT_DISPLAY_MAP = [
-            ("regression", "XGBoost Regression Fundamentals"),
-            ("surge", "Surge Classifier (XGBoost)"),
-            ("lead_lag", "Index & Sector Lead-Lag Flow"),
-            ("vcp_rule", "VCP Rule Pattern Detector"),
-            ("vcp_ml", "VCP Machine Learning Predictor"),
-            ("lstm", "Strict Causal LSTM Deep Learning"),
-            ("stat_arb", "Stat-Arb Cointegration Mean Rev"),
-            ("sector_rotation", "Sector Rotation Relative Momentum"),
-            ("rim_valuation", "RIM Valuation (Residual Income)"),
-            ("event_driven", "Event-Driven Disclosure Catalyst"),
-            ("mq_factor", "Momentum Quality (MQ) Factor"),
-            ("iv_skew", "Options Put/Call IV Skew"),
-            ("order_flow", "Order Flow Imbalance (MFI)"),
-            ("short_term_reversal", "Short-Term Mean Reversal"),
-            ("arm_factor", "Analyst Revision Momentum (ARM)"),
-            ("card_factor", "Cross-Asset Regime Divergence(CARD)"),
-            ("latr_factor", "Liq-Adj Tail Risk (LATR)"),
-            ("inst_foreign_sector", "Inst & Foreign Sector Flow"),
-            ("supply_chain", "Supply Chain Spillover Momentum"),
-            ("sentiment", "NLP FinBERT Sentiment Catalyst"),
-            ("factor_neutralized", "Multi-Factor Style Neutral Alpha"),
-            ("vol_target", "Dynamic Volatility Targeting"),
-            ("microstructure", "Microstructure Order Imbalance"),
-            ("accruals_quality", "Accruals Quality Accounting Pure"),
-            ("short_squeeze", "Short Interest & Squeeze Catalyst"),
-            ("valueup_catalyst", "Value-Up & Shareholder Yield"),
-            ("trend_efficiency", "Kaufman Trend Efficiency Filter"),
-            ("gamma_squeeze", "Options Gamma & Delta Squeeze"),
-            ("insider_buying", "Executive & Insider Buying Catalyst"),
-            ("darkpool", "HFT Order Flow & Dark Pool"),
-            ("earnings_tone_drift", "Earnings Tone Drift NLP Quant"),
-            ("cross_asset_spillover", "Cross-Asset Spillover Momentum"),
-            ("supply_chain_gnn", "Supply Chain GNN & Sector Flow"),
-            ("range_expansion_breakout", "Range Expansion Breakout"),
-            ("dual_correction", "Dual Price & Time Correction"),
-            ("index_rebalance", "Index Rebalance Structural Flow"),
-            ("overnight_gap_reversal", "Overnight Gap Reversal"),
-        ]
+        f.write(f"--- Applied US Strategy Weights ({len(_STRAT_DISPLAY_MAP)} Strategies) [US: {us_2d_regime}] ---\n")
         us_vals = [us_weights_map.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP]
         us_rounded = largest_remainder_round(us_vals, target_sum=100.0, decimals=1)
         for (_skey, _sname), _w_pct in zip(_STRAT_DISPLAY_MAP, us_rounded):
@@ -4272,14 +4273,14 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
 
         kr_vals = [kr_weights_map.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP]
         kr_rounded = largest_remainder_round(kr_vals, target_sum=100.0, decimals=1)
-        f.write(f"--- Applied KR Strategy Weights ({len(kr_weights_map)} Strategies) [KR: {kr_2d_regime}] ---\n")
+        f.write(f"--- Applied KR Strategy Weights ({len(_STRAT_DISPLAY_MAP)} Strategies) [KR: {kr_2d_regime}] ---\n")
         for (_skey, _sname), _w_pct in zip(_STRAT_DISPLAY_MAP, kr_rounded):
             f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
         f.write("\n")
 
         ens_vals = [ensemble_weights.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP]
         ens_rounded = largest_remainder_round(ens_vals, target_sum=100.0, decimals=1)
-        f.write(f"--- Applied Ensemble Strategy Weights ({len(ensemble_weights)} Strategies) ---\n")
+        f.write(f"--- Applied Ensemble Strategy Weights ({len(_STRAT_DISPLAY_MAP)} Strategies) ---\n")
         for (_skey, _sname), _w_pct in zip(_STRAT_DISPLAY_MAP, ens_rounded):
             f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
         f.write("\n")

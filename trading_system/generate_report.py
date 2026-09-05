@@ -27,6 +27,15 @@ logger = logging.getLogger(__name__)
 
 KST = timezone(timedelta(hours=9))
 
+_CORE_ORDER = ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]
+_INTL_ORDER = [
+    "JAPAN_TSE", "JAPAN", "CHINA_SSE", "CHINA", "TAIWAN_TWSE", "TAIWAN",
+    "INDIA_NSE", "INDIA", "EUROPE_STOXX", "EUROPE", "VIETNAM_HOSE", "VIETNAM",
+    "AUSTRALIA_ASX", "AUSTRALIA", "BRAZIL_B3", "BRAZIL", "HKEX",
+    "SINGAPORE_SGX", "SINGAPORE", "CANADA_TSX", "CANADA", "KONEX", "CHINA_SZSE", "US"
+]
+KNOWN_ALL_MKTS = set(_CORE_ORDER + _INTL_ORDER)
+
 
 def _safe_json(obj: Any) -> str:
     """Safely serialize JSON for embedding directly in HTML script blocks without XSS risk."""
@@ -1072,29 +1081,64 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
         m = re.match(r"Maximum Total Allocation Allowed:\s*(.+)", line)
         if m:
             data.max_allocation = m.group(1).strip()
-        m = re.match(r"Allocated Capital:\s*([-\d.]+%)\s*\(\s*([\d,]+|\S+)\s*\)", line)
+        m = re.match(r"Allocated Capital:\s*([-+\d.]+%)\s*\(\s*([\d,]+|\S+)\s*\)", line)
         if m:
             data.allocated_capital_pct = m.group(1).strip()
             data.allocated_capital = m.group(2).strip()
-        m = re.match(r"Remaining Cash\s*:\s*([-\d.]+%)\s*\(\s*([\d,]+|\S+)\s*\)", line)
+        m = re.match(r"Remaining Cash\s*:\s*([-+\d.]+%)\s*\(\s*([\d,]+|\S+)\s*\)", line)
         if m:
             data.remaining_cash_pct = m.group(1).strip()
             data.remaining_cash = m.group(2).strip()
 
-        m = re.match(
-            r"^(\d+)\s+(\S+)\s+(.+?)\s+([A-Za-z0-9_]+)(?:\s+[\d,]+)?(?:\s+\d+)?\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$",
+        row_m = re.match(
+            r"^\s*(\d+)\s+(\S+)\s+(.+?)\s+"
+            r"([-+\d.]+%|nan%|NaN%|None%)\s+([-+\d.]+%|nan%|NaN%|None%)\s+([-+\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)\s*$",
             line
         )
-        if m:
+        if row_m:
+            rank = int(row_m.group(1))
+            sym = row_m.group(2)
+            middle = row_m.group(3).strip()
+            exp_ret = row_m.group(4).strip()
+            vol = row_m.group(5).strip()
+            weight = row_m.group(6).strip()
+            amount = row_m.group(7).strip()
+
+            tokens = middle.split()
+            parsed_mkt = "UNKNOWN"
+            parsed_name = sym
+
+            # 10-column format: Name Market Shares Lot
+            if (
+                len(tokens) >= 4
+                and tokens[-1].isdigit()
+                and tokens[-2].replace(',', '').replace('.', '').isdigit()
+                and not tokens[-3].isdigit()
+            ):
+                parsed_mkt = tokens[-3].upper()
+                parsed_name = " ".join(tokens[:-3])
+            # 8-column format: Name Market
+            elif len(tokens) >= 2:
+                parsed_mkt = tokens[-1].upper()
+                parsed_name = " ".join(tokens[:-1])
+            elif len(tokens) == 1:
+                parsed_name = tokens[0]
+
+            if parsed_mkt not in KNOWN_ALL_MKTS:
+                if sym.isdigit():
+                    parsed_mkt = "KOSPI"
+                elif sym.isalnum():
+                    parsed_mkt = "SP500"
+
             data.rows.append(PortfolioRow(
-                rank=int(m.group(1)),
-                symbol=m.group(2),
-                name=m.group(3).strip(),
-                market=m.group(4).strip(),
-                expected_return=m.group(5).strip(),
-                volatility=m.group(6).strip(),
-                weight=m.group(7).strip(),
-                amount=m.group(8).strip(),
+                rank=rank,
+                symbol=sym,
+                name=parsed_name,
+                market=parsed_mkt,
+                expected_return=exp_ret,
+                volatility=vol,
+                weight=weight,
+                amount=amount,
             ))
 
     if not data.rows:
@@ -1992,21 +2036,12 @@ def build_html(
     all_seen_markets = set()
     if ensemble and ensemble.markets:
         for emkt in ensemble.markets:
-            if emkt.rows:
+            if emkt.rows and emkt.market in KNOWN_ALL_MKTS:
                 all_seen_markets.add(emkt.market)
     if portfolio_data and portfolio_data.rows:
         for prow in portfolio_data.rows:
-            if prow.market:
-                all_seen_markets.add(prow.market)
-    # Standard preferred ordering for core markets, then alphabetized international markets
-    _CORE_ORDER = ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]
-    _INTL_ORDER = [
-        "JAPAN_TSE", "JAPAN", "CHINA_SSE", "CHINA", "TAIWAN_TWSE", "TAIWAN",
-        "INDIA_NSE", "INDIA", "EUROPE_STOXX", "EUROPE", "VIETNAM_HOSE", "VIETNAM",
-        "AUSTRALIA_ASX", "AUSTRALIA", "BRAZIL_B3", "BRAZIL", "HKEX",
-        "SINGAPORE_SGX", "SINGAPORE", "CANADA_TSX", "CANADA", "KONEX", "CHINA_SZSE", "US"
-    ]
-    KNOWN_ALL_MKTS = set(_CORE_ORDER + _INTL_ORDER)
+            if prow.market and prow.market.upper() in KNOWN_ALL_MKTS:
+                all_seen_markets.add(prow.market.upper())
 
     for row_coll in [vcp_rows, follower_rows, sector_rows, rim_rows, event_rows, mq_rows, iv_rows, flow_rows, reversal_rows, arm_rows, card_rows, latr_rows, ifs_rows, supply_chain_rows, sentiment_rows, factor_neutralized_rows, vol_target_rows, microstructure_rows, accruals_quality_rows, short_squeeze_rows, valueup_catalyst_rows, trend_efficiency_rows, gamma_squeeze_rows, insider_buying_rows, darkpool_rows, earnings_tone_drift_rows, lstm_rows, cross_asset_rows, supply_chain_gnn_rows, range_expansion_rows, dual_correction_rows, index_rebalance_rows, overnight_gap_rows]:
         if row_coll and isinstance(row_coll, (list, tuple)):
@@ -2026,7 +2061,7 @@ def build_html(
         if mkt in all_seen_markets and mkt not in active_markets_ordered:
             active_markets_ordered.append(mkt)
     for mkt in sorted(all_seen_markets):
-        if mkt not in active_markets_ordered:
+        if mkt in KNOWN_ALL_MKTS and mkt not in active_markets_ordered:
             active_markets_ordered.append(mkt)
     if not active_markets_ordered:
         active_markets_ordered = _CORE_ORDER
@@ -4091,7 +4126,7 @@ def build_html(
         <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
         <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
         <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
-        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 34-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
+        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 37-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
   </div>
@@ -4689,16 +4724,31 @@ function switchTab(btn, id) {{
 
   // Determine container (main-system-content or row2-content or document)
   let container = nav ? nav.nextElementSibling : null;
-  if (!container || !container.classList.contains('content')) {{
+  while (container && !container.classList.contains('content')) {{
+    container = container.nextElementSibling;
+  }}
+  if (!container) {{
+    if (nav && nav.classList.contains('main-system-tabs')) {{
+      container = document.querySelector('.main-system-content');
+    }} else if (nav && nav.closest('.row2-wrapper')) {{
+      container = document.querySelector('.row2-content');
+    }}
+  }}
+  if (!container) {{
     container = document;
   }}
   container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('panel-' + id);
-  if (panel) panel.classList.add('active');
+  if (panel) {{
+    panel.classList.add('active');
+    window.dispatchEvent(new Event('resize'));
+  }}
 }}
 
 function switchTabById(tabId) {{
-  let targetBtn = document.querySelector(`button[onclick*="'${{tabId}}'"]`);
+  let targetBtn = document.querySelector(`button.tab[onclick*="'${{tabId}}'"]`) ||
+                  document.querySelector(`nav.tabs button[onclick*="'${{tabId}}'"]`) ||
+                  document.querySelector(`button[onclick*="switchTab"][onclick*="'${{tabId}}'"]`);
   if (!targetBtn) {{
     targetBtn = document.getElementById(`tab-${{tabId}}`);
   }}
@@ -6083,7 +6133,7 @@ def main(args_list: Optional[list[str]] = None):
 
     scenario_universe_json = _safe_json(scen_universe)
 
-    # Build complete all_stocks_universe for Instant AutoComplete Search & 34-Factor Drawer lookup
+    # Build complete all_stocks_universe for Instant AutoComplete Search & 37-Factor Drawer lookup
     all_stocks_universe = []
     seen_syms = set()
     for m in ensemble.markets:

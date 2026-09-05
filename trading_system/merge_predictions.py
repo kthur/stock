@@ -574,10 +574,10 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
     merged_path = result_dir / "portfolio_allocation.txt"
 
     row_re = re.compile(
-        r"^\s*(\d+)\s+(\S+)\s+(.+?)\s+([A-Za-z0-9_]+)"
-        r"\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)"
-        r"\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$"
+        r"^\s*(\d+)\s+(\S+)\s+(.+?)\s+"
+        r"([-+\d.]+%|nan%|NaN%|None%)\s+([-+\d.]+%|nan%|NaN%|None%)\s+([-+\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)\s*$"
     )
+    known_mkts_upper = {m.upper() for m in KNOWN_MARKETS}
 
     all_rows: list[tuple] = []  # (weight_pct, symbol, name, market, exp_ret, vol, weight_str, amount_str)
     total_capital = "100,000,000 KRW"
@@ -611,13 +611,45 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
                 max_alloc = m.group(1).strip()
             m = row_re.match(line)
             if m:
-                w_str = m.group(7).replace("%", "")
+                w_str = m.group(6).replace("%", "")
                 try:
                     w_pct = float(w_str)
                 except ValueError:
                     continue
-                all_rows.append((w_pct, m.group(2), m.group(3).strip(), m.group(4).strip(),
-                                 m.group(5), m.group(6), m.group(7), m.group(8)))
+                sym = m.group(2)
+                middle = m.group(3).strip()
+                exp_ret = m.group(4).strip()
+                vol = m.group(5).strip()
+                weight_str = m.group(6).strip()
+                amount_str = m.group(7).strip()
+
+                tokens = middle.split()
+                parsed_mkt = ""
+                parsed_name = ""
+
+                # 10-column format: Name Market Shares Lot
+                if (
+                    len(tokens) >= 4
+                    and tokens[-1].isdigit()
+                    and tokens[-2].replace(',', '').replace('.', '').isdigit()
+                    and not tokens[-3].isdigit()
+                ):
+                    parsed_mkt = tokens[-3].upper()
+                    parsed_name = " ".join(tokens[:-3])
+                # 8-column format: Name Market
+                elif len(tokens) >= 2:
+                    parsed_mkt = tokens[-1].upper()
+                    parsed_name = " ".join(tokens[:-1])
+                elif len(tokens) == 1:
+                    parsed_name = tokens[0]
+
+                # If parsed_mkt is not a recognized market or is purely digits, fall back to loop market
+                if parsed_mkt not in known_mkts_upper or parsed_mkt.isdigit():
+                    parsed_mkt = market
+                if not parsed_name or parsed_name.isdigit():
+                    parsed_name = sym
+
+                all_rows.append((w_pct, sym, parsed_name, parsed_mkt, exp_ret, vol, weight_str, amount_str))
 
     if not all_rows:
         print("  No per-market portfolio allocation files found; skipping merge.")
@@ -695,7 +727,8 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
         out.write(f"{'No.':<4} {'Symbol':<12} {'Name':<20} {'Market':<14} {'Return':<10} {'Volatility':<12} {'Weight':<10} {'Amount':<15}\n")
         out.write("-" * 96 + "\n")
         for rank, (w_pct, sym, name, mkt, exp_ret, vol, weight, amount) in enumerate(norm_rows, 1):
-            out.write(f"{rank:<4} {sym:<12} {name[:18]:<20} {mkt:<14} {exp_ret:>10} {vol:>12} {weight:>10} {amount:>15}\n")
+            name_disp = name[:20] if len(name) > 20 else name
+            out.write(f"{rank:<4} {sym:<12} {name_disp:<20} {mkt:<14} {exp_ret:>10} {vol:>12} {weight:>10} {amount:>15}\n")
         out.write("-" * 96 + "\n")
         out.write(f"Allocated Capital: {allocated_pct:.2f}% ({int(allocated_amount):>14,d})\n")
         out.write(f"Remaining Cash   : {remaining_pct:.2f}% ({int(remaining_amount):>14,d})\n")

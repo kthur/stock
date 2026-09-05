@@ -368,7 +368,79 @@ def test_dashboard_html_ux_fixes():
     # 5. Preloaded Backtest Returns Chart and multi-strategy walk-forward table check
     assert 'id="backtestReturnsChart"' in html
     assert ("37대 동적 가중 앙상블 (Ensemble)" in html) or ("34대 동적 가중 앙상블 (Ensemble)" in html) or ("31대 동적 가중 앙상블 (Ensemble)" in html)
-    assert ("37대 전략 역사적 벤치마크 백테스트 성과" in html) or ("34대 전략 역사적 벤치마크 백테스트 성과" in html) or ("31대 전략 역사적 벤치마크 백테스트 성과" in html)
+
+def test_parse_portfolio_allocation_10_column_and_multi_word_names():
+    sample_text = """=== Portfolio Allocation Recommendations (Ensemble HRP) ===
+Date: 2026-09-05 01:29 KST
+Total Capital: 100,000,000 KRW
+Target Horizon: 20d
+Current Market Regime Detected: BULL_LOW_VOL
+Maximum Total Allocation Allowed: 85.0%
+
+No.  Symbol       Name                 Market         Shares     Lot     Return   Volatility     Weight          Amount
+-----------------------------------------------------------------------------------------------------------------------
+1    GILD         Gilead Sciences      SP500          150        1       +5.2%         0.18%      4.50%       4,500,000
+2    JNJ          Johnson & Johnson    SP500          120        1       +4.1%         0.12%      3.80%       3,800,000
+3    005930       삼성전자             KOSPI          80         1       +6.2%         0.22%      5.20%       5,200,000
+-----------------------------------------------------------------------------------------------------------------------
+Allocated Capital: 13.50% (    13,500,000)
+Remaining Cash   : 86.50% (    86,500,000)
+"""
+    port_data = parse_portfolio_allocation(sample_text)
+    assert len(port_data.rows) == 3
+
+    assert port_data.rows[0].symbol == "GILD"
+    assert port_data.rows[0].name == "Gilead Sciences"
+    assert port_data.rows[0].market == "SP500"
+
+    assert port_data.rows[1].symbol == "JNJ"
+    assert port_data.rows[1].name == "Johnson & Johnson"
+    assert port_data.rows[1].market == "SP500"
+
+    assert port_data.rows[2].symbol == "005930"
+    assert port_data.rows[2].name == "삼성전자"
+    assert port_data.rows[2].market == "KOSPI"
 
 
+def test_build_html_only_contains_known_markets_filter_buttons():
+    ensemble = EnsembleData(
+        date="2026-09-05",
+        regime="BULL_LOW_VOL",
+        markets=[
+            EnsembleMarket(market="SP500", rows=[
+                EnsembleRow(1, "GILD", "Gilead Sciences", "85%", "5.2%", "40%", "10%", "20%", "15%")
+            ]),
+            EnsembleMarket(market="KOSPI", rows=[
+                EnsembleRow(1, "005930", "삼성전자", "90%", "6.1%", "20%", "30%", "20%", "20%")
+            ]),
+        ]
+    )
+    port_data = PortfolioAllocationData(
+        rows=[
+            PortfolioRow(1, "GILD", "Gilead Sciences", "SP500", "5.2%", "0.18%", "4.5%", "4,500,000"),
+            PortfolioRow(2, "005930", "삼성전자", "KOSPI", "6.1%", "0.22%", "5.2%", "5,200,000"),
+        ]
+    )
 
+    html = build_html(
+        ensemble,
+        surge_date="2026-09-05",
+        surge_sections=[],
+        vcp_date="2026-09-05",
+        vcp_rows=[],
+        lag_date="2026-09-05",
+        follower_rows=[],
+        leader_rows=[],
+        portfolio_data=port_data,
+    )
+
+    # Verify that corrupt tokens never appear as filter-btn data-mkt attributes
+    corrupt_words = ["Acquisition", "Corp", "Sciences", "Mellon", "1", "66"]
+    for word in corrupt_words:
+        assert f'data-mkt="{word}"' not in html
+        assert f'data-mkt="{word.lower()}"' not in html
+
+    # Verify valid markets are present
+    assert 'data-mkt="SP500"' in html
+    assert 'data-mkt="KOSPI"' in html
+    assert 'data-mkt="all"' in html

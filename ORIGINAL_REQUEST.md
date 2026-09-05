@@ -262,3 +262,103 @@ Integrity mode: development
 - [ ] 37대 전략 신호 결합, 앙상블 가중치, 포트폴리오 배분 및 체결 최적화 6차 심화 코드 수정 완료
 - [ ] 기존 2,442+ 단위/통합 테스트 스위트 100% 합격 및 회귀 결함 0건 유지
 - [ ] 6차 개선 전후 핵심 지표를 일목요연하게 대조한 종합 표(Table) 보고서 생성
+
+## 2026-09-04T23:18:21Z
+
+한국(KOSPI, KOSDAQ) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장 대상 37대 다변화 전략 통합 주식 자동매매 시스템의 실전 순기대수익률(Net Expected Return), 샤프 지수(Sharpe Ratio) 및 정보 비율(IC)을 추가 극대화하기 위한 7차 심화 퀀트 개선(Phase 7 Zenith Enhancement, v14)을 수행하고 수정된 결과를 정량적 비교 표(Table)로 정리합니다.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. 37대 전략 다변화 알파 신호 비선형 시너지 및 꼬리 신뢰도 7차 극대화
+- 37대 전략 간 5대 기둥(가치, 모멘텀, 수급, 퀄리티, 감성) 교차 텐서 시너지 및 레짐 전이 점프-확산(Jump-Diffusion) 가중치를 고도화하여 Top 분위 종목의 초과수익률(Top-Decile Alpha Spread)을 추가 확장합니다.
+- 변동성 체제별 마르코프 정상 분포 이탈 페널티 및 적응형 노이즈 데드밴드를 미세 조정하여 시장 잡음과 횡보장 휩소 손실을 원천 억제합니다.
+
+### R2. 4-Model 포트폴리오 다변량 코퓰러 배분 및 L3 오더북 체결 마찰비용 최소화 7차 심화
+- Black-Litterman, HERC, Risk Parity, EVT-CVaR 4대 배분 모델 간 다변량 꼬리 의존성(Copula Tail Dependency) 기반 동적 신뢰도 틸팅 및 Euler CCVaR 리스크 예산을 정밀화합니다.
+- Level-3 오더북 큐 불균형(Queue Imbalance) 및 Bivariate Hawkes 도착 강도 기반 마이크로 가격 페깅과 다크풀/ATS 유동성 포획을 고도화하여 체결 슬리피지 및 마찰 비용을 추가 감축합니다.
+
+### R3. 개선 전후 성과 정량 비교 및 결과 표 정리
+- 7차 고도화 전(Phase 6 Apex v13) 대비 후(Phase 7 Zenith v14)의 순기대수익률, 총수익률, 샤프 지수(Sharpe), 정보 비율(Rank-IC), 최대 낙폭(MDD), 회전율, 거래비용, 슬리피지 등을 5대 시장별로 정량 비교하여 Markdown 표로 정리 및 보고합니다.
+
+## Acceptance Criteria
+
+### 수익률 및 리스크 지표 개선 검증
+- [ ] 37대 전략 신호 결합, 앙상블 가중치, 포트폴리오 배분 및 체결 최적화 7차 심화 코드 수정 완료
+- [ ] 기존 2,536+ 단위/통합 테스트 스위트 100% 합격 및 회귀 결함 0건 유지
+- [ ] 7차 개선 전후 15대 핵심 지표를 일목요연하게 대조한 종합 표(Table) 보고서 생성
+
+## 2026-09-05T02:15:24Z
+
+한국(KOSPI, KOSDAQ) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장 대상 37대 다변화 전략 통합 주식 자동매매 시스템의 실전 순기대수익률(Net Expected Return), 샤프 지수(Sharpe Ratio) 및 정보 비율(IC)을 추가 극대화하기 위한 8차 초심화 퀀트 개선(Phase 8 Sovereign Enhancement, v15)을 수행하고 수정된 결과를 정량적 비교 표(Table)로 정리합니다.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. 37대 전략 리만 다양체 텐서 시너지 및 초지수적 극단 알파 식별력 8차 극대화
+- 37대 전략 간 5대 기둥(가치, 모멘텀, 수급, 퀄리티, 감성) 결합을 정보 기하학 리만 다양체(Riemannian Manifold) 측지선 가중 매핑으로 일반화하고, 상위 1% 초극단 알파 종목에 대한 초지수적(Hyperexponential) 볼록 순위 변조 ($g_{\text{v8}}(r) = r \cdot \exp(\gamma_{\text{top}} \cdot r^3)$)를 적용하여 Top 분위 초과수익률 스프레드를 추가 확장합니다.
+- 허스트 지수($H$) 연계 분수 점프-확산 레짐 가중치 및 비대칭 웨이블릿 노이즈 데드밴드를 미세 조정하여 시장 잡음과 횡보장 휩소 손실을 99.99% 원천 억제합니다.
+
+### R2. 4-Model R-Vine 코퓰러 동적 배분 및 L3 큐 가속도 마찰비용 최소화 8차 심화
+- Black-Litterman, HERC, Risk Parity, EVT-CVaR 4대 배분 모델 간 다변량 Regular Vine (R-Vine) 트리 구조 코퓰러 기반 고차 하방 전이 연쇄 모델링 및 정보 엔트로피 패리티(Information Entropy Parity) 동적 신뢰도 틸팅을 적용합니다.
+- Level-3 오더북 큐 불균형(QI)의 2차 시간 미분 가속도($d^2\text{QI}/dt^2$) 및 교차 자산 오더 플로우 독성 기반 선제적 페깅과 다크풀/ATS 유동성 포획을 고도화하여 체결 슬리피지 및 거래 마찰 비용을 극소화합니다.
+
+### R3. 개선 전후 성과 정량 비교 및 결과 표 정리
+- 8차 고도화 전(Phase 7 Zenith v14) 대비 후(Phase 8 Sovereign v15)의 순기대수익률, 총수익률, 샤프 지수(Sharpe), 정보 비율(Rank-IC), 최대 낙폭(MDD), 회전율, 거래비용, 슬리피지 등을 5대 시장별로 정량 비교하여 Markdown 표로 정리 및 보고합니다.
+
+## Acceptance Criteria
+
+### 수익률 및 리스크 지표 개선 검증
+- [ ] 37대 전략 신호 결합, 앙상블 가중치, 포트폴리오 배분 및 체결 최적화 8차 심화 코드 수정 완료
+- [ ] 기존 2,580+ 단위/통합 테스트 스위트 100% 합격 및 회귀 결함 0건 유지
+- [ ] 8차 개선 전후 15대 핵심 지표를 일목요연하게 대조한 종합 표(Table) 보고서 생성
+
+## 2026-09-05T03:18:41Z
+
+This is a single self-contained fix; keep it small and focused.
+Fix GitHub Pages dashboard menu click unresponsiveness, market category corruption (69 abnormal category buttons like 'Acquisition', 'Corp', '1') in the Ensemble TOP list, and outdated 34-strategy labels (updating to 37 strategies) in the Korean & US stock automated trading system.
+
+Working directory: d:/Finance/code/stock
+Integrity mode: development
+
+## Requirements
+
+### R1. Resolve Market Classification & Column Parsing Corruption in Portfolio Allocation and Ensemble Filtering
+- In `trading_system/merge_predictions.py`, fix `merge_portfolio_allocation` so that it robustly parses both 8-column and 10-column table formats (with `Shares` and `Lot` columns). It must reliably extract the true stock `name` and valid `market` (`KOSPI`, `KOSDAQ`, `SP500`, `NASDAQ`, `RUSSELL2000`), preventing lot numbers (`1`) or tokens of multi-word company names (`Sciences`, `Acquisition`, `Mellon`, `66`) from being parsed as the market identifier.
+- In `trading_system/generate_report.py`, update `parse_portfolio_allocation` with the same robust token parsing, and enforce strict validation on `all_seen_markets` so that only verified markets in `KNOWN_ALL_MKTS` can ever generate market filter buttons and panels. This eliminates the 69 abnormal market category buttons (e.g., `🌐 Acquisition`, `🌐 Corp`, `🌐 1`) in the Ensemble TOP stock list.
+
+### R2. Restore Full Navigation Menu and Filter Button Click Operability
+- Ensure that clicking any menu tab, market filter button, column preset, quick filter chip, stock table row, and stock card reliably triggers its intended DOM action without silent failures or hidden panels.
+- Ensure that `filterMarket(btn, 'ensemble')` smoothly shows/hides only the valid market panels (`all`, `KOSPI`, `KOSDAQ`, `SP500`, `NASDAQ`, `RUSSELL2000`) without being obstructed by empty or corrupt fake market panels.
+- Verify through headless browser automation (Edge CDP) that all clicking interactions on `gh-pages/index.html` succeed with zero JavaScript exceptions or unhandled rejections.
+
+### R3. Synchronize Strategy Count Display Across Dashboard & Pipeline (37 Strategies)
+- In `trading_system/generate_report.py`:
+  - Update line 4094: Change `34-Strategy Ensemble scores mapped to expected returns` to `37-Strategy Ensemble scores mapped to expected returns`.
+  - Update line 6086: Change `34-Factor Drawer lookup` to `37-Factor Drawer lookup`.
+- In `trading_system/run_pipeline.py`:
+  - Ensure the ensemble summary headers in lines 4190, 4227, 4275, 4282 dynamically reflect `len(_STRAT_DISPLAY_MAP)` (37 strategies) instead of raw dictionary lengths that might fluctuate.
+- In `trading_system/src/ai/ensemble_scorer.py`:
+  - Update `DeflatedSharpeRatioValidator(n_strategies=37, n_horizons=8)` and documentation strings from 34 to 37.
+- Regenerate `gh-pages/index.html` and verify that all 37 strategy tabs, panels, radar charts, and drawer metrics accurately reflect 37 strategies.
+
+## Acceptance Criteria
+
+### Correct Market Filtering & Category Buttons
+- [ ] In `gh-pages/index.html`, the Ensemble TOP stock list filter bar contains ONLY valid market buttons (`전체`, `KOSPI`, `KOSDAQ`, `SP500`, `NASDAQ`, `RUSSELL2000`), with zero spurious company-name tokens or number buttons (`Acquisition`, `Corp`, `1`, `66`, etc.).
+- [ ] In `trading_system/result/portfolio_allocation.txt`, the `Market` column contains only valid market codes (`KOSPI`, `KOSDAQ`, `SP500`, `NASDAQ`, `RUSSELL2000`), and stock names with spaces (e.g. `Gilead Sciences`, `Johnson & Johnson`) are preserved intact.
+
+### Menu & Click Interaction Operability
+- [ ] Clicking on Row 1 navigation tabs (`Portfolio`, `Backtest`, `Regime Info`, `Scenario Simulator`, `Pipeline History`) smoothly switches active panels without console errors.
+- [ ] Clicking on Row 2 strategy tabs (1..37) switches to the corresponding strategy panel.
+- [ ] Clicking on any stock row or card properly opens the stock drawer with factor metrics and radar charts.
+- [ ] Edge CDP browser automation test confirms all click handlers execute with zero exceptions.
+
+### Strategy Count Consistency
+- [ ] All strategy counts on the dashboard (titles, descriptions, Regime Detector Parameters, Health Monitor, Column Presets) consistently display 37 strategies.
+- [ ] Pytest test suites (`tests/test_report_ux_and_rounding.py`, `tests/test_canonical_31_strategies.py`, `tests/test_portfolio_optimizer_and_oms.py`, `tests/test_report_generator_hrp.py`) pass 100%.
+
