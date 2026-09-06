@@ -345,6 +345,40 @@ def apply_dotriacontagonal_hyperbolic_deadband(
     return res
 
 
+def apply_hexatriacontagonal_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray, float],
+    delta_noise: float = 0.035,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 36.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 18 (R1, Feature F92.2): Asymmetric Hexatriacontagonal (36th-Order) Hyperbolic Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^36)
+    With hexatriacontagonal exponent (alpha = 36.0) and delta_noise = 0.035, suppresses near-zero
+    noise (|z| <= 0.005) reducing noise leakage down to < 10^-20 (< 10^-30), while transmitting 100.000%
+    of high conviction signals (|z| >= 0.150) with strict rank monotonicity (Spearman rho == 1.0000).
+    """
+    is_scalar = np.isscalar(scores_centered)
+    if is_scalar:
+        arr_in = np.array([scores_centered], dtype=np.float64)
+    else:
+        arr_in = scores_centered
+
+    res = apply_quintic_hyperbolic_deadband(
+        scores_centered=arr_in,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+    if is_scalar:
+        return float(res[0])
+    return res
+
+
 def apply_smooth_deadband_attenuation(
     scores_centered: Union[pd.Series, np.ndarray, float],
     delta_noise: float = 0.035,
@@ -352,18 +386,29 @@ def apply_smooth_deadband_attenuation(
     alpha_pos: float = 3.0,
     alpha_neg: Optional[float] = None,
     regime: Optional[Union[str, int]] = None,
-    version: int = 17,
+    version: int = 18,
     **kwargs
 ) -> Union[pd.Series, np.ndarray, float]:
     """
-    Feature F88.2: Unified smooth deadband attenuation dispatcher across quantitative engine versions.
-    When version >= 17: activates Feature F88.2 dotriacontagonal hyperbolic deadband (alpha=32.0).
+    Feature F92.2: Unified smooth deadband attenuation dispatcher across quantitative engine versions.
+    When version >= 18: activates Feature F92.2 hexatriacontagonal hyperbolic deadband (alpha=36.0).
+    When version == 17: activates Feature F88.2 dotriacontagonal hyperbolic deadband (alpha=32.0).
     When version == 16: activates octacosagonal deadband (alpha=28.0).
     When version == 15: activates tetracosagonal deadband (alpha=24.0).
     When version == 14: activates icosagonal deadband (alpha=20.0).
     """
     version = int(kwargs.get('version', version))
-    if version >= 17:
+    if version >= 18:
+        eff_alpha = 36.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0) else alpha_pos
+        return apply_hexatriacontagonal_hyperbolic_deadband(
+            scores_centered=scores_centered,
+            delta_noise=delta_noise,
+            delta_neg=delta_neg,
+            alpha_pos=eff_alpha,
+            alpha_neg=alpha_neg,
+            regime=regime
+        )
+    elif version >= 17:
         eff_alpha = 32.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0) else alpha_pos
         return apply_dotriacontagonal_hyperbolic_deadband(
             scores_centered=scores_centered,

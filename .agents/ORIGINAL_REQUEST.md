@@ -472,3 +472,42 @@ Integrity mode: development
 - [ ] [표 1] 종합 지표, [표 2] 시장별 성과, [표 3] 팩터 기여도 3대 표준 표가 산출될 것
 - [ ] 전용 단위/통합 테스트 스위트 100% 무결점 통과 및 기존 기능 회귀 0건 입증
 - [ ] 벤치마크 리포트 파일(`reports/quant_benchmark_comparison_phase17.md` 등) 정상 동기화
+
+## 2026-09-05T23:17:37Z
+
+풀 팀(Full Team) — 알파 시그널, 리스크 배분, 미시구조 OMS, 퀀트 검증의 4개 전문 역할로 분업 수행
+
+글로벌 5대 주식 시장(KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)을 대상으로 시스템의 수익률과 샤프 지수를 추가 극대화하기 위해 Phase 18 퀀트 고도화(유도 대수기하학 모티브 코호몰로지 알파 결합, 13차 초볼록 순위 변조, 보에보드스키 모티브 복합체 피셔-라오 바리센터 및 14차 큐뮬런트 Beyond-Singularity EVaR, 커-뉴먼 하전 회전 시공간 L3 오더북 수력학 및 99.9% 다크풀 선제 체결)를 수행하고, 개선 결과를 정량 비교표로 산출합니다.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. 37대 전략 다이나믹 알파 결합 및 신호 고도화 (Phase 18)
+유도 대수기하학(Derived Algebraic Geometry) 및 모티브 코호몰로지(Motivic Cohomology) 장애 복합체($E_{\text{derived}}, Z_{\text{derived}}$) 기반 팩터 얽힘 해소, 상위 0.000001% 초극단 확신 자본 집중을 위한 13차 초볼록 순위 변조($g_{\text{v18}}(r) = 0.50 + 1.00 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{13})$), 비돌파 미세 노이즈 박멸을 위한 36차(Hexatriacontagonal, $\alpha=36.0$) 쌍곡선 데드밴드 필터링(노이즈 누출률 $<10^{-20}$)을 구축하여 Rank-IC와 선형 상관계수(Pearson IC)를 비약적으로 향상시킵니다.
+
+### R2. 보에보드스키 모티브 바리센터 및 초특이점 초월 꼬리위험(Beyond-Singularity EVaR) 배분
+보에보드스키(Voevodsky) 모티브 호모토피 범주 피셔-라오 다양체 바리센터 블렌딩과 14차 큐뮬런트 전개 기반 Beyond-Singularity EVaR 꼬리위험 예산화를 도입하여 MDD를 -0.05%로 극단 압축하고 샤프 지수를 14.05 이상으로 견인합니다.
+
+### R3. 커-뉴먼 시공간 L3 오더북 수력학 및 마찰비용 극소화
+커-뉴먼(Kerr-Newman) 하전 회전 시공간 조석력 및 프레임 드래깅 모델 기반 L3 큐 선제 체결, 다크풀(ATS) 선제 라우팅 99.9% 확대, 0.00005 메이커 플로어, 99.95% 안티게이밍 MinQty 및 선제적 틱 셰이딩($-0.99 \cdot \text{spread} \cdot (h - 0.10)$)을 적용하여 슬리피지(0.008 bps)와 총 거래 마찰비용(0.18 bps)을 극소화합니다.
+
+### R4. 5대 시장 실증 벤치마크 및 3대 표준 결과 표 출력
+15대 핵심 퀀트 지표에 대한 엄격한 벤치마크 평가(`benchmark_phase18_quant_performance.py`)를 수행하고, 3대 표준 표([표 1] 15대 종합 지표 비교표, [표 2] 5대 시장별 성과표, [표 3] 전략 팩터 기여도표)를 생성하여 리포트에 동기화하고 사용자에게 출력합니다.
+
+## Acceptance Criteria
+
+### 1. Performance Targets (5-Market Aggregate Portfolio)
+- [ ] Net Expected Return: >= 101.5% 이상 달성 (목표: 102.25%, 기준: 100.10%, +2.15%p)
+- [ ] Annualized Sharpe Ratio: >= 13.80 이상 달성 (목표: 14.05, 기준: 13.45, +0.60)
+- [ ] Maximum Drawdown (MDD): <= -0.06% 이내 극단적 압축 (목표: -0.05%, 기준: -0.07%, +0.02%p)
+- [ ] Trading & Friction Costs: <= 0.22 bps 이내 (목표: 0.18 bps, 기준: 0.25 bps, -0.07 bps)
+- [ ] Execution Slippage: <= 0.01 bps 이내 (목표: 0.008 bps, 기준: 0.01 bps, -0.002 bps)
+- [ ] Top-Decile Alpha Spread: >= 71.5% 이상 (목표: 72.5%, 기준: 70.2%, +2.30%p)
+
+### 2. Verification & Deliverables
+- [ ] [표 1] 15대 종합 지표 비교표, [표 2] 5대 시장별 성과표, [표 3] 전략 팩터 기여도표 3대 표준 표가 산출될 것
+- [ ] 전용 단위/통합 테스트 스위트 100% 무결점 통과 및 기존 기능 회귀 0건 입증
+- [ ] 벤치마크 리포트 파일(`reports/quant_benchmark_comparison_phase18.md` 등) 정상 동기화
+- [ ] 독립 승리 감사관(Victory Auditor) 3단계 엄격 감사 통과: VICTORY CONFIRMED
