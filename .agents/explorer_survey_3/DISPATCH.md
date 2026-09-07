@@ -1,9 +1,30 @@
-## 2026-09-05T13:48:47Z
+## 2026-09-06T15:04:03Z
+You are an Explorer subagent (identity: explorer_survey_3).
+Working directory: d:\Finance\code\stock\.agents\explorer_survey_3
+Original Request Path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Please read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (specifically section ## 2026-09-06T15:02:05Z).
 
-**Mission**: Investigate existing codebase regarding R3 & R4:
-- L3 order book queue acceleration fluid dynamics model in src/execution/oms_engine.py, src/execution/smart_order_router.py, src/core/fast_lob_engine.py, src/execution/almgren_chriss.py, src/execution/slippage_feedback.py.
-- Darkpool preemptive routing (ATS) and toxic order flow preemptive micro-tick shading.
-- Check how trading friction costs and execution slippage are computed and controlled (Targets: Trading & Friction Costs <= 0.6 bps, Execution Slippage <= 0.05 bps).
-- Investigate the benchmark scripts and reports: check trading_system/scripts/benchmark_phase*.py (look for the latest ones like phase12, phase13, phase14, phase15, etc.), reports/quant_benchmark_comparison*.md, and existing test suites in tests/.
-- Identify what benchmark script should be created or enhanced, how 15 key quant metrics across the 5 markets are computed, and the schema of the 3 standard tables ([표 1] 15대 종합 지표 비교표, [표 2] 5대 시장별 성과표, [표 3] 전략 팩터 기여도표).
-- Write your detailed report to d:\Finance\code\stock\.agents\explorer_survey_3\survey_report.md and complete with handoff.md.
+Your mission:
+Investigate the codebase for Phase 19 Quant Enhancement R4 (Verification, Benchmarks, Reports, AGENTS.md).
+Specifically examine:
+1. `trading_system/scripts/benchmark_phase18_quant_performance.py` (and previous phases e.g. phase17, phase16):
+   - What are the 15 Core Quant Metrics? How are they calculated?
+   - How are the 5 markets evaluated (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)?
+   - How is strategy factor contribution calculated across the 37 strategies?
+   - How are the 3 standard tables generated and formatted?
+   - What are the baseline metrics from Phase 18 and previous phases?
+2. Existing tests:
+   - Search for `tests/test_phase18_*.py` or similar phase tests (`test_phase17_*.py`, etc.).
+   - How are the tests structured? What fixtures, assertions, and components do they test?
+3. Report synchronization:
+   - Check `reports/quant_benchmark_comparison_phase18.md` and `trading_system/result/quant_benchmark_comparison_phase18.md`.
+4. `AGENTS.md`:
+   - How is `benchmark_phase18_quant_performance.py` documented in Key Files and Requirements History?
+
+Requirements for your output:
+Write your complete technical exploration report to `d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md`. Include exact line numbers, templates, structures, and recommendations for implementing:
+- `trading_system/scripts/benchmark_phase19_quant_performance.py` (F98)
+- Dedicated test suite `tests/test_phase19_quant.py`
+- Reports `reports/quant_benchmark_comparison_phase19.md` and `trading_system/result/quant_benchmark_comparison_phase19.md`
+- `AGENTS.md` updates (Key Files and Requirements History R35)
+Then send a message to parent with a concise summary.

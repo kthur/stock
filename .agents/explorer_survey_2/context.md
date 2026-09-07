@@ -1,3 +1,3 @@
-# Context for Explorer Survey 2 (Milestone 2 / R2)
-Working Directory: d:\Finance\code\stock\.agents\explorer_survey_2
-Role: Technical Explorer for Phase 5 Requirement R2 (Portfolio Allocation & Execution Friction)
+# Explorer Survey 2 Context
+Task: Investigate Microstructure & OMS modules for Phase 19 (F97.2 Reissner-Nordström L3, maker floor 0.00002, tick shading -0.995, darkpool 99.95%, anti-gaming 99.98%).
+Target files: src/core/fast_lob_engine.py, src/execution/smart_order_router.py, src/execution/oms_engine.py.

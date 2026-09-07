@@ -2598,4 +2598,90 @@ class PortfolioAllocator:
 
     compute_beyond_singularity_evar = compute_beyond_singularity_evar_risk_measure
 
+    # =========================================================================
+    # OBJECTIVE 15: PHASE 19 QUANT ENHANCEMENT (FEATURES F97.1 & F97.1.2)
+    # GROTHENDIECK-LURIE (∞,1)-CATEGORY BARYCENTER & ULTRA-BEYOND-SINGULARITY EVAR
+    # =========================================================================
+
+    @staticmethod
+    def compute_grothendieck_lurie_infinity_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 19 (Feature F97.1): Grothendieck-Lurie (∞,1)-Category Fisher-Rao Barycenter Blending.
+        Computes consensus probability state q* on the Fisher-Rao Riemannian manifold
+        with Grothendieck-Lurie (∞,1)-category projection across the 4 allocation models (BL, HERC, Risk Parity, EVT-CVaR):
+            q* = argmin_{q in Delta^3} sum_m alpha_m D_{FR}^2(q, p^{(m)})
+        under the Grothendieck-Lurie metric weights mu_lurie = [1.70, 1.40, 1.35, 2.00].
+        """
+        from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_grothendieck_lurie_infinity_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_grothendieck_lurie_barycenter = compute_grothendieck_lurie_infinity_fisher_rao_barycenter_blend
+    compute_lurie_fisher_rao_barycenter = compute_grothendieck_lurie_infinity_fisher_rao_barycenter_blend
+    compute_lurie_barycenter = compute_grothendieck_lurie_infinity_fisher_rao_barycenter_blend
+
+    @staticmethod
+    def compute_ultra_beyond_singularity_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]],
+        alpha: float = 0.05,
+        t_grid: Optional[Union[np.ndarray, List[float]]] = None,
+        xi_jump: float = 0.15,
+        xi_frechet: float = 0.20,
+        xi_transfinite: float = 0.25,
+        xi_inf: float = 0.30,
+        xi_supra: float = 0.35,
+        xi_ultra_trans: float = 0.40,
+        xi_trans_singularity: float = 0.45,
+        xi_beyond_singularity: float = 0.50,
+        xi_ultra_beyond_singularity: float = 0.55,
+        xi_11: Optional[float] = None,
+        xi_12: Optional[float] = None,
+        xi_13: Optional[float] = None,
+        xi_14: Optional[float] = None,
+        xi_15: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Phase 19 (Feature F97.1.2): 15th-Cumulant Expansion Ultra-Beyond-Singularity Super-Coherent Tail Risk Measure.
+        Evaluates the 15th-order cumulant expansion risk measure:
+            Ultra-Beyond-Singularity-EVaR_{1-alpha}(X) = inf_{t > 0} { t^{-1} (ln E[exp(psi_{ultra_beyond_singularity}(t, L))] - ln alpha) }
+        where psi_{ultra_beyond_singularity}(t, L) = psi_{beyond_singularity}(t, L)
+                                                  + (1/1307674368000) * xi_15 * t^15 * |L|^15.
+        with 15! = 1,307,674,368,000, and xi_ultra_beyond_singularity = 0.55.
+        Strictly satisfies the coherent tail risk hierarchy:
+            VaR <= CVaR <= EVaR <= ... <= Beyond-Singularity-EVaR <= Ultra-Beyond-Singularity-EVaR.
+        """
+        from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_ultra_beyond_singularity_evar_risk_measure(
+            returns=returns,
+            alpha=alpha,
+            t_grid=t_grid,
+            xi_jump=xi_jump,
+            xi_frechet=xi_frechet,
+            xi_transfinite=xi_transfinite,
+            xi_inf=xi_inf,
+            xi_supra=xi_supra,
+            xi_ultra_trans=xi_ultra_trans,
+            xi_trans_singularity=xi_trans_singularity,
+            xi_beyond_singularity=xi_beyond_singularity,
+            xi_ultra_beyond_singularity=xi_ultra_beyond_singularity,
+            xi_11=xi_11,
+            xi_12=xi_12,
+            xi_13=xi_13,
+            xi_14=xi_14,
+            xi_15=xi_15,
+        )
+
+    compute_ultra_beyond_singularity_evar = compute_ultra_beyond_singularity_evar_risk_measure
+
 
