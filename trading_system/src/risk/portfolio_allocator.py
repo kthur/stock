@@ -2684,4 +2684,84 @@ class PortfolioAllocator:
 
     compute_ultra_beyond_singularity_evar = compute_ultra_beyond_singularity_evar_risk_measure
 
+    # =========================================================================
+    # OBJECTIVE 16: PHASE 20 QUANT ENHANCEMENT (FEATURES F101.1 & F101.1.2)
+    # LURIE SPECTRAL AG BARYCENTER & ULTRA-TRANSCENDENT EVAR
+    # =========================================================================
+
+    @staticmethod
+    def compute_lurie_spectral_ag_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 20 (Feature F101.1): Lurie Spectral AG Fisher-Rao Barycenter Blending.
+        """
+        from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_spectral_ag_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_spectral_ag_barycenter = compute_lurie_spectral_ag_fisher_rao_barycenter_blend
+    compute_spectral_ag_fisher_rao_barycenter = compute_lurie_spectral_ag_fisher_rao_barycenter_blend
+    compute_spectral_ag_barycenter = compute_lurie_spectral_ag_fisher_rao_barycenter_blend
+
+    @staticmethod
+    def compute_ultra_transcendent_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]],
+        alpha: float = 0.05,
+        t_grid: Optional[Union[np.ndarray, List[float]]] = None,
+        xi_jump: float = 0.15,
+        xi_frechet: float = 0.20,
+        xi_transfinite: float = 0.25,
+        xi_inf: float = 0.30,
+        xi_supra: float = 0.35,
+        xi_ultra_trans: float = 0.40,
+        xi_trans_singularity: float = 0.45,
+        xi_beyond_singularity: float = 0.50,
+        xi_ultra_beyond_singularity: float = 0.55,
+        xi_ultra_transcendent: float = 0.60,
+        xi_11: Optional[float] = None,
+        xi_12: Optional[float] = None,
+        xi_13: Optional[float] = None,
+        xi_14: Optional[float] = None,
+        xi_15: Optional[float] = None,
+        xi_16: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Phase 20 (Feature F101.1.2): 16th-Cumulant Expansion Ultra-Transcendent EVaR Tail Risk Measure.
+        """
+        from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_ultra_transcendent_evar_risk_measure(
+            returns=returns,
+            alpha=alpha,
+            t_grid=t_grid,
+            xi_jump=xi_jump,
+            xi_frechet=xi_frechet,
+            xi_transfinite=xi_transfinite,
+            xi_inf=xi_inf,
+            xi_supra=xi_supra,
+            xi_ultra_trans=xi_ultra_trans,
+            xi_trans_singularity=xi_trans_singularity,
+            xi_beyond_singularity=xi_beyond_singularity,
+            xi_ultra_beyond_singularity=xi_ultra_beyond_singularity,
+            xi_ultra_transcendent=xi_ultra_transcendent,
+            xi_11=xi_11,
+            xi_12=xi_12,
+            xi_13=xi_13,
+            xi_14=xi_14,
+            xi_15=xi_15,
+            xi_16=xi_16,
+        )
+
+    compute_ultra_transcendent_evar = compute_ultra_transcendent_evar_risk_measure
+
+
 

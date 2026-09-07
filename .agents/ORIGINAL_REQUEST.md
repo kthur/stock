@@ -558,3 +558,51 @@ Lurie ∞-Topos / Higher Category Theory (∞-categorical) 기반 팩터 얽힘 
 
 ---
 *Phase 18 baseline: Net Return 102.25%, Sharpe 14.05, MDD -0.05%, Friction 0.18 bps, Slippage 0.008 bps, Top-Decile 72.5%*
+
+## 2026-09-07T11:39:07Z
+
+풀 팀(Full Team) — 알파 시그널, 리스크 배분, 미시구조 OMS, 퀀튴 검증의 4개 전문 역할로 분업 수행
+
+글로벌 5대 주식 시장(KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)을 대상으로 시스템의 수익률과 샤프 지수를 추가 극대화하기 위해 Phase 20 퀀튴 고도화(Perfectoid Space & Prismatic Cohomology 알파 결합, 15차 초볼록 순위 변조, 44차 Tetracontatetragonal 쌍곡선 데드밴드, Lurie Spectral Algebraic Geometry 피셔-라오 바리센터 및 16차 큐뮬런트 Ultra-Transcendent EVaR, Kerr-Newman-AdS 블랙홀 L3 수력학 및 99.97% 다크풀 선제 체결)를 수행하고, 개선 결과를 정량 비교표로 산출합니다.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. 37대 전략 다이나믹 알파 결합 및 신호 고도화 (Phase 20)
+
+Perfectoid Space & Prismatic Cohomology 기반 팩터 얽힘 해소 커플러(F99)를 `ensemble_scorer.py`와 `factor_suppression.py`에 구현합니다. 상위 0.000001% 초극단 확신 자본 집중을 위한 15차 초볼록 순위 변조 함수 `g_v20(r) = 0.50 + 1.04 * r * exp(gamma_top * r^15)`(F100.1)와 44차 Tetracontatetragonal(alpha=44.0) 쌍곡선 데드밴드(F100.2, 누설 < 10^-24)를 `factor_suppression.py`에 추가하고, `ensemble_scorer.py`의 버전 분기(version >= 20)에서 이를 호출하여 Rank-IC와 선형 예측력을 추가 개선합니다.
+
+### R2. Lurie Spectral AG 바리센터 및 Ultra-Transcendent EVaR (Phase 20)
+
+`unified_portfolio_allocator.py`에 Lurie Spectral Algebraic Geometry 피셔-라오 다양체 바리센터 블렌딩(F101.1)을 버전 분기(version >= 20)로 추가하고, `portfolio_allocator.py`에 16차 큐뮬런트 전개 기반 Ultra-Transcendent EVaR 꼬리위험 예산화를 구현합니다. MDD <= -0.03%, 샤프 지수 >= 15.25 달성이 목표입니다.
+
+### R3. Kerr-Newman-AdS L3 수력학 및 마찰비용 극소화 (Phase 20)
+
+`fast_lob_engine.py`에 Kerr-Newman-AdS 블랙홀 스페이스타임 L3 오더북 수력학 모델(F101.2)을 적용하고, `smart_order_router.py`에 메이커 플로어 0.00001, `oms_engine.py`에 틱 셰이딩 계수 `-0.997 * spread * (h - 0.06)`, 다크풀 라우팅 99.97% ATS, Anti-Gaming MinQty 99.99%를 구현하여 체결 슬리피지와 총 거래 마찰비용을 최소화합니다.
+
+### R4. 5대 시장 실증 퀀튴 벤치마크 및 결과 표 출력 (Phase 20)
+
+`trading_system/scripts/benchmark_phase20_quant_performance.py`(F102)를 신규 작성하고, 전용 테스트 스위트(`tests/test_phase20_*.py`)를 구현하여 100% 통과를 검증합니다. 5대 시장 대상 15대 핵심 퀀튴 지표 비교표 3종([표 1] 15대 종합 지표 비교표, [표 2] 5대 시장별 성과표, [표 3] 전략 팩터 기여도표)을 `reports/quant_benchmark_comparison_phase20.md` 및 `trading_system/result/quant_benchmark_comparison_phase20.md`에 저장하고 최종 출력합니다. `AGENTS.md` Key Files 테이블에 `benchmark_phase20_quant_performance.py` 항목을 추가하고, Requirements History에 R36 항목을 추가합니다.
+
+## Acceptance Criteria
+
+### 1. Performance Targets (5-Market Aggregate Portfolio)
+- [ ] Net Expected Return: >= 106.45% (Phase 19 대비 +2.10%p 이상 개선)
+- [ ] Annualized Sharpe Ratio: >= 15.25 (+0.60 이상)
+- [ ] Maximum Drawdown (MDD): <= -0.03% (하방 꼬리위험 극단적 압축)
+- [ ] Trading & Friction Costs: <= 0.08 bps (-0.04 bps 이하)
+- [ ] Execution Slippage: <= 0.005 bps
+- [ ] Top-Decile Alpha Spread: >= 77.1% (+2.3%p 이상)
+
+### 2. Verification & Deliverables
+- [ ] 15대 퀀튴 지표 비교표([표 1]), 5대 시장별 성과표([표 2]), 전략 팩터 기여도표([표 3])가 온전히 작성되어 출력될 것
+- [ ] 전용 단위/통합 테스트 스위트가 작성되고 기존 기능에 대한 회귀 없이 100% 통과할 것
+- [ ] 벤치마크 리포트 파일(`reports/quant_benchmark_comparison_phase20.md`)이 정상적으로 생성 및 동기화될 것
+- [ ] `AGENTS.md` Key Files 및 Requirements History(R36) 업데이트 완료
+- [ ] Victory Auditor의 3단계 독립 감사(코드 존재 검증 → 수치 재현 → 회귀 테스트)를 통과하여 **VICTORY CONFIRMED** 판정을 받을 것
+
+---
+*Phase 19 baseline: Net Return 104.35%, Sharpe 14.65, MDD -0.04%, Friction 0.12 bps, Slippage 0.006 bps, Top-Decile 74.8%*
+
