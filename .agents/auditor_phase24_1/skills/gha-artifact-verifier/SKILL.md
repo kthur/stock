@@ -1,0 +1,7 @@
+---
+name: gha-artifact-verifier
+description: Verifies GitHub Action pipeline outputs for SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ across all 31 multi-factor strategies (regression, surge, lead_lag, vcp_rule, vcp_ml, lstm, stat_arb, sector_rotation, rim_valuation, event_driven, mq_factor, iv_skew, order_flow, short_term_reversal, arm_factor, card_factor, latr_factor, inst_foreign_sector, supply_chain, sentiment, factor_neutralized, vol_target, microstructure, accruals_quality, short_squeeze, valueup_catalyst, trend_efficiency, gamma_squeeze, insider_buying, darkpool, earnings_tone_drift, ensemble), ensuring non-zero data and gh-pages deployment.
+---
+
+# GitHub Action Artifact Verifier Skill (Local Copy for Phase 24 Auditor)
+Refer to original skill file for complete instructions.
