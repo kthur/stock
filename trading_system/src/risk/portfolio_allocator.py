@@ -2763,5 +2763,28 @@ class PortfolioAllocator:
 
     compute_ultra_transcendent_evar = compute_ultra_transcendent_evar_risk_measure
 
+    # ── Phase 21 (F105.1.2): 17th-Cumulant Hyper-Transcendent EVaR ──────
+    def compute_hyper_transcendent_evar_risk_measure(
+        self,
+        losses=None,
+        alpha: float = 0.05,
+        xi_17: float = None,
+        xi_hyper_transcendent: float = 0.65,
+        **kwargs,
+    ):
+        """
+        Phase 21 (Feature F105.1.2): 17th-Cumulant Expansion Hyper-Transcendent EVaR Tail Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.compute_hyper_transcendent_evar_risk_measure.
+        """
+        alloc = self._get_unified_allocator()
+        return alloc.compute_hyper_transcendent_evar_risk_measure(
+            losses=losses,
+            alpha=alpha,
+            xi_17=xi_17,
+            xi_hyper_transcendent=xi_hyper_transcendent,
+            **kwargs,
+        )
+
+    compute_hyper_transcendent_evar = compute_hyper_transcendent_evar_risk_measure
 
 

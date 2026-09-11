@@ -1001,6 +1001,83 @@ class UnifiedPortfolioAllocator:
         q /= np.sum(q)
         return {k: float(q[i]) for i, k in enumerate(model_keys)}
 
+    def compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend(
+        self,
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 21 (Feature F105.1): Lurie Chromatic Homotopy Theory Fisher-Rao Barycenter Blending.
+        Computes consensus probability state q* on the Fisher-Rao Riemannian manifold
+        with Lurie Chromatic Homotopy projection across the 4 allocation models (BL, HERC, Risk Parity, EVT-CVaR):
+            q* = argmin_{q in Delta^3} sum_m alpha_m D_{FR}^2(q, p^{(m)})
+        under the Chromatic metric weights mu_chromatic = [1.90, 1.50, 1.45, 2.30] strictly
+        prioritizing heavy-tail EVT-CVaR (2.30) and robust Black-Litterman conviction (1.90).
+        """
+        model_keys = ["bl", "herc", "rp", "cvar"]
+        d = len(model_keys)
+        mu_chromatic = np.array([1.90, 1.50, 1.45, 2.30], dtype=float)
+        mu_sq = np.square(mu_chromatic)
+
+        if isinstance(model_weights, dict):
+            p_vec = np.array([max(1e-6, float(model_weights.get(k, 0.25))) for k in model_keys], dtype=float)
+            p_vec /= np.sum(p_vec)
+            distributions = [p_vec]
+            alphas = [1.0]
+        elif isinstance(model_weights, list) and len(model_weights) > 0 and isinstance(model_weights[0], dict):
+            distributions = []
+            for mw in model_weights:
+                pv = np.array([max(1e-6, float(mw.get(k, 0.25))) for k in model_keys], dtype=float)
+                pv /= np.sum(pv)
+                distributions.append(pv)
+            alphas = np.full(len(distributions), 1.0 / len(distributions))
+        else:
+            arr = np.asarray(model_weights, dtype=float)
+            if arr.ndim == 1 and len(arr) == d:
+                pv = np.maximum(arr, 1e-6)
+                pv /= np.sum(pv)
+                distributions = [pv]
+                alphas = [1.0]
+            elif arr.ndim == 2 and arr.shape[1] == d:
+                distributions = []
+                for row in arr:
+                    pv = np.maximum(row, 1e-6)
+                    pv /= np.sum(pv)
+                    distributions.append(pv)
+                alphas = np.full(len(distributions), 1.0 / len(distributions))
+            else:
+                distributions = [np.full(d, 0.25)]
+                alphas = [1.0]
+
+        alphas = np.asarray(alphas, dtype=float)
+        alphas /= np.sum(alphas)
+        P_mat = np.array(distributions)
+
+        q_init = np.sum(alphas[:, None] * P_mat, axis=0)
+        q_init /= np.sum(q_init)
+
+        q = q_init.copy()
+        for _ in range(max_iter):
+            grad = 2.0 * mu_sq * (q - q_init) / (np.sqrt(q) + 1e-8)
+            q_new = q * np.exp(-step_size * grad)
+            q_new = np.maximum(q_new, 1e-8)
+            q_new /= np.sum(q_new)
+            if np.max(np.abs(q_new - q)) < tol:
+                q = q_new
+                break
+            q = q_new
+
+        return {k: float(q[i]) for i, k in enumerate(model_keys)}
+
+    compute_lurie_chromatic_homotopy_barycenter = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+    compute_chromatic_homotopy_fisher_rao_barycenter = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+    compute_chromatic_homotopy_barycenter = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+    compute_lurie_chromatic_barycenter = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+    compute_chromatic_homotopy_fisher_rao_barycenter_blend = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+    compute_lurie_chromatic_barycenter_blend = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+
     def compute_lurie_spectral_ag_fisher_rao_barycenter_blend(
         self,
         model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
@@ -1804,6 +1881,147 @@ class UnifiedPortfolioAllocator:
             "optimal_t": round(float(best_t_super), 4),
             "alpha": float(alpha_clamped),
         }
+
+    def compute_hyper_transcendent_evar_risk_measure(
+        self,
+        returns: Union[np.ndarray, pd.Series, List[float]],
+        alpha: float = 0.05,
+        t_grid: Optional[Union[np.ndarray, List[float]]] = None,
+        xi_jump: float = 0.15,
+        xi_frechet: float = 0.20,
+        xi_transfinite: float = 0.25,
+        xi_inf: float = 0.30,
+        xi_supra: float = 0.35,
+        xi_ultra_trans: float = 0.40,
+        xi_trans_singularity: float = 0.45,
+        xi_beyond_singularity: float = 0.50,
+        xi_ultra_beyond_singularity: float = 0.55,
+        xi_ultra_transcendent: float = 0.60,
+        xi_hyper_transcendent: float = 0.65,
+        xi_11: Optional[float] = None,
+        xi_12: Optional[float] = None,
+        xi_13: Optional[float] = None,
+        xi_14: Optional[float] = None,
+        xi_15: Optional[float] = None,
+        xi_16: Optional[float] = None,
+        xi_17: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Phase 21 (Feature F105.1.2): 17th-Cumulant Expansion Hyper-Transcendent Super-Coherent Tail Risk Measure.
+        Evaluates the 17th-order cumulant expansion risk measure:
+            Hyper-Transcendent-EVaR_{1-alpha}(X) = inf_{t > 0} { t^{-1} (ln E[exp(psi_{hyper_transcendent}(t, L))] - ln alpha) }
+        where psi_{hyper_transcendent}(t, L) = psi_{ultra_transcendent}(t, L)
+                                             + (1/355687428096000) * xi_17 * t^17 * |L|^17.
+        with 17! = 355,687,428,096,000, and xi_hyper_transcendent = 0.65.
+        Strictly satisfies the coherent tail risk hierarchy:
+            VaR <= CVaR <= EVaR <= ... <= Ultra-Transcendent-EVaR <= Hyper-Transcendent-EVaR.
+        """
+        xi_11_eff = float(xi_11) if xi_11 is not None else float(xi_trans_singularity)
+        xi_12_eff = float(xi_12) if xi_12 is not None else float(xi_trans_singularity)
+        xi_13_eff = float(xi_13) if xi_13 is not None else float(xi_beyond_singularity)
+        xi_14_eff = float(xi_14) if xi_14 is not None else float(xi_beyond_singularity)
+        xi_15_eff = float(xi_15) if xi_15 is not None else float(xi_ultra_beyond_singularity)
+        xi_16_eff = float(xi_16) if xi_16 is not None else float(xi_ultra_transcendent)
+        xi_17_eff = float(xi_17) if xi_17 is not None else float(xi_hyper_transcendent)
+
+        ultra_trans_res = self.compute_ultra_transcendent_evar_risk_measure(
+            returns,
+            alpha=alpha,
+            t_grid=t_grid,
+            xi_jump=xi_jump,
+            xi_frechet=xi_frechet,
+            xi_transfinite=xi_transfinite,
+            xi_inf=xi_inf,
+            xi_supra=xi_supra,
+            xi_ultra_trans=xi_ultra_trans,
+            xi_trans_singularity=xi_trans_singularity,
+            xi_beyond_singularity=xi_beyond_singularity,
+            xi_ultra_beyond_singularity=xi_ultra_beyond_singularity,
+            xi_ultra_transcendent=xi_ultra_transcendent,
+            xi_11=xi_11,
+            xi_12=xi_12,
+            xi_13=xi_13,
+            xi_14=xi_14,
+            xi_15=xi_15,
+            xi_16=xi_16,
+        )
+        ultra_trans_val = ultra_trans_res["ultra_transcendent_evar_value"]
+        opt_t = ultra_trans_res["optimal_t"]
+
+        r = np.asarray(returns, dtype=float)
+        r_flat = r.flatten()
+        r_clean = r_flat[np.isfinite(r_flat)]
+        if len(r_clean) == 0:
+            res_dict = dict(ultra_trans_res)
+            res_dict.update({
+                "hyper_transcendent_evar_value": ultra_trans_val,
+                "hyper_transcendent_evar": ultra_trans_val,
+                "xi_hyper_transcendent": float(xi_hyper_transcendent),
+                "xi_17": float(xi_17_eff),
+                "kappa_17": float(xi_17_eff),
+                "order": 17,
+            })
+            return res_dict
+
+        losses = -r_clean
+        alpha_clamped = float(np.clip(alpha, 1e-4, 0.49))
+
+        def eval_hyper_transcendent_evar_t(t_val: float) -> float:
+            if t_val <= 1e-8:
+                return 1e9
+            abs_l = np.abs(losses)
+            l_sq = np.square(losses)
+            arg = (
+                t_val * losses
+                + 0.5 * xi_jump * (t_val ** 2) * l_sq
+                + (1.0 / 6.0) * xi_frechet * (t_val ** 3) * np.power(abs_l, 3.0)
+                + (1.0 / 24.0) * xi_transfinite * (t_val ** 4) * np.power(losses, 4.0)
+                + (1.0 / 120.0) * xi_inf * (t_val ** 5) * np.power(abs_l, 5.0)
+                + (1.0 / 720.0) * xi_supra * (t_val ** 6) * np.power(losses, 6.0)
+                + (1.0 / 5040.0) * xi_ultra_trans * (t_val ** 7) * np.power(abs_l, 7.0)
+                + (1.0 / 40320.0) * xi_ultra_trans * (t_val ** 8) * np.power(losses, 8.0)
+                + (1.0 / 362880.0) * xi_ultra_trans * (t_val ** 9) * np.power(abs_l, 9.0)
+                + (1.0 / 3628800.0) * xi_ultra_trans * (t_val ** 10) * np.power(losses, 10.0)
+                + (1.0 / 39916800.0) * xi_11_eff * (t_val ** 11) * np.power(abs_l, 11.0)
+                + (1.0 / 479001600.0) * xi_12_eff * (t_val ** 12) * np.power(losses, 12.0)
+                + (1.0 / 6227020800.0) * xi_13_eff * (t_val ** 13) * np.power(abs_l, 13.0)
+                + (1.0 / 87178291200.0) * xi_14_eff * (t_val ** 14) * np.power(losses, 14.0)
+                + (1.0 / 1307674368000.0) * xi_15_eff * (t_val ** 15) * np.power(abs_l, 15.0)
+                + (1.0 / 20922789888000.0) * xi_16_eff * (t_val ** 16) * np.power(losses, 16.0)
+                + (1.0 / 355687428096000.0) * xi_17_eff * (t_val ** 17) * np.power(abs_l, 17.0)
+            )
+            arg_clipped = np.clip(arg, -500.0, 500.0)
+            max_arg = np.max(arg_clipped)
+            log_smgf = max_arg + np.log(max(1e-12, float(np.mean(np.exp(arg_clipped - max_arg)))))
+            return float((log_smgf - math.log(alpha_clamped)) / t_val)
+
+        best_ts = float("inf")
+        best_t_ts = opt_t
+        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        if t_grid is not None:
+            candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
+
+        for t_c in candidate_t:
+            v = eval_hyper_transcendent_evar_t(float(t_c))
+            if v < best_ts:
+                best_ts = v
+                best_t_ts = float(t_c)
+
+        hyper_transcendent_final = max(best_ts, ultra_trans_val)
+        out = dict(ultra_trans_res)
+        out.update({
+            "hyper_transcendent_evar_value": round(float(hyper_transcendent_final), 6),
+            "hyper_transcendent_evar": round(float(hyper_transcendent_final), 6),
+            "optimal_t": round(float(best_t_ts), 4),
+            "xi_hyper_transcendent": float(xi_hyper_transcendent),
+            "xi_17": float(xi_17_eff),
+            "kappa_17": float(xi_17_eff),
+            "order": 17,
+        })
+        return out
+
+    compute_hyper_transcendent_evar = compute_hyper_transcendent_evar_risk_measure
+    hyper_transcendent_evar_risk_measure = compute_hyper_transcendent_evar_risk_measure
 
     def compute_ultra_transcendent_evar_risk_measure(
         self,
@@ -3125,7 +3343,8 @@ class UnifiedPortfolioAllocator:
         lam_l = float(copula_lower_tail) if (copula_lower_tail is not None and math.isfinite(float(copula_lower_tail))) else 0.0
         lam_u = float(copula_upper_tail) if (copula_upper_tail is not None and math.isfinite(float(copula_upper_tail))) else 0.0
 
-        is_phase20 = int(version) >= 20
+        is_phase21 = int(version) >= 21
+        is_phase20 = (int(version) >= 20) or is_phase21
         is_phase19 = (int(version) >= 19) or is_phase20
         is_phase18 = (int(version) >= 18) or is_phase19
         is_phase17 = (int(version) >= 17) or is_phase18
@@ -3141,7 +3360,35 @@ class UnifiedPortfolioAllocator:
         lam_casc = float(rvine_cascade_index) if (rvine_cascade_index is not None and math.isfinite(float(rvine_cascade_index))) else lam_l
         lam_t2 = float(tree2_conditional_tail) if (tree2_conditional_tail is not None and math.isfinite(float(tree2_conditional_tail))) else 0.0
 
-        if is_phase20:
+        if is_phase21:
+            # Phase 21 (Feature F105.1): Lurie Chromatic Homotopy Ambiguity Tilting
+            eps_w = float(wasserstein_radius) if (wasserstein_radius is not None and math.isfinite(float(wasserstein_radius))) else 0.255
+            delta_cht = {
+                "bl": -3.30 * eps_w - 1.15 * (u_entropy ** 2),
+                "herc": +1.65 * eps_w + 0.95 * u_entropy,
+                "rp": -3.60 * eps_w,
+                "cvar": +4.95 * eps_w + 1.75 * c_crisis,
+            }
+            for k in delta_ell:
+                delta_ell[k] += delta_cht[k]
+
+            # Hyper-Information Entropy Parity (Phase 21)
+            alpha_iep = 1.30
+            contagion_damp = max(0.0, 1.0 - 2.8 * lam_casc)
+            for k in delta_ell:
+                delta_ell[k] += alpha_iep * u_entropy * (0.25 - w_prior[k]) * contagion_damp
+
+            # R-Vine Higher-Order Downside Cascade Tilting
+            if lam_casc > 0.0 or lam_u > 0.0:
+                delta_rvine = {
+                    "bl": -2.65 * max(0.0, lam_casc - 0.15) + 1.10 * max(0.0, lam_u - 0.20),
+                    "herc": +1.15 * max(0.0, lam_casc - 0.15) - 0.02 * max(0.0, lam_t2 - 0.20),
+                    "rp": -3.05 * max(0.0, lam_casc - 0.15),
+                    "cvar": +4.25 * max(0.0, lam_casc - 0.15),
+                }
+                for k in delta_ell:
+                    delta_ell[k] += delta_rvine[k]
+        elif is_phase20:
             # Phase 20 (Feature F101.1): Lurie Spectral Algebraic Geometry (SAG) Ambiguity Tilting
             eps_w = float(wasserstein_radius) if (wasserstein_radius is not None and math.isfinite(float(wasserstein_radius))) else 0.240
             delta_sag = {
@@ -3512,7 +3759,10 @@ class UnifiedPortfolioAllocator:
         tot_exp = sum(exps.values())
 
         res_weights = {k: float(v / tot_exp) for k, v in exps.items()}
-        if is_phase20:
+        if is_phase21:
+            # Phase 21 (Feature F105.1): Apply Lurie Chromatic Homotopy Fisher-Rao Barycenter refinement
+            res_weights = self.compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend(res_weights)
+        elif is_phase20:
             # Phase 20 (Feature F101.1): Apply Lurie Spectral AG Fisher-Rao Barycenter refinement
             res_weights = self.compute_lurie_spectral_ag_fisher_rao_barycenter_blend(res_weights)
         elif is_phase19:
@@ -3660,7 +3910,8 @@ class UnifiedPortfolioAllocator:
                     except Exception as e_moments:
                         logger.debug(f"[EVT-CVaR Co-Moments] Fallback: {e_moments}")
 
-                is_phase20 = (int(version) >= 20)
+                is_phase21 = (int(version) >= 21)
+                is_phase20 = (int(version) >= 20) or is_phase21
                 is_phase19 = (int(version) >= 19) or is_phase20
                 is_phase18 = (int(version) >= 18) or is_phase19
                 is_phase17 = (int(version) >= 17) or is_phase18
@@ -3669,7 +3920,18 @@ class UnifiedPortfolioAllocator:
                     port_var = float(w @ eff_cov @ w)
                     port_std = math.sqrt(max(1e-8, port_var))
                     # F37: Dynamic Cornish-Fisher EVT-CVaR tail expansion adapting to portfolio co-skewness and co-kurtosis
-                    if is_phase20:
+                    if is_phase21:
+                        # Phase 21: Hyper-Transcendent EVaR Tail calibration with 17th-cumulant expansion
+                        if co_skew is not None and co_kurt is not None:
+                            s_p = float(np.dot(w, co_skew))
+                            k_p = float(np.dot(w, co_kurt - 3.0))
+                            k_alpha_w = float(np.clip(
+                                z_alpha + 0.60 - ((z_alpha ** 2 - 1.0) / 6.0) * s_p + 0.20 * max(0.0, k_p) + 1.75 * eff_xi,
+                                2.30, 3.80
+                            ))
+                        else:
+                            k_alpha_w = float(np.clip(k_alpha + 0.30 + 1.75 * (eff_xi - 0.15), 2.30, 3.80))
+                    elif is_phase20:
                         # Phase 20: Ultra-Transcendent EVaR Tail calibration with 16th-cumulant expansion
                         if co_skew is not None and co_kurt is not None:
                             s_p = float(np.dot(w, co_skew))
@@ -3753,13 +4015,25 @@ class UnifiedPortfolioAllocator:
         # Empirical Sample Rockafellar & Uryasev Optimization
         R = returns_df.values  # T x n
         try:
-            is_phase18 = (int(version) >= 18)
-            is_phase17 = (int(version) >= 17)
+            is_phase21 = (int(version) >= 21)
+            is_phase20 = (int(version) >= 20) or is_phase21
+            is_phase19 = (int(version) >= 19) or is_phase20
+            is_phase18 = (int(version) >= 18) or is_phase19
+            is_phase17 = (int(version) >= 17) or is_phase18
 
             def obj_cvar(var):
                 w = var[:n]
                 cvar_part = float(var[n] + (1.0 / ((1.0 - alpha) * T)) * np.sum(var[n + 1:]))
-                if is_phase18:
+                if is_phase21:
+                    extreme_losses = np.maximum(0.0, var[n + 1:])
+                    cvar_part += float(0.08 * np.mean(np.power(extreme_losses, 2.0)))
+                elif is_phase20:
+                    extreme_losses = np.maximum(0.0, var[n + 1:])
+                    cvar_part += float(0.07 * np.mean(np.power(extreme_losses, 2.0)))
+                elif is_phase19:
+                    extreme_losses = np.maximum(0.0, var[n + 1:])
+                    cvar_part += float(0.065 * np.mean(np.power(extreme_losses, 2.0)))
+                elif is_phase18:
                     extreme_losses = np.maximum(0.0, var[n + 1:])
                     cvar_part += float(0.06 * np.mean(np.power(extreme_losses, 2.0)))
                 elif is_phase17:
