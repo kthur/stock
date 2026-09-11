@@ -52,6 +52,12 @@
 | F38 | SOR & Darkpool/HFT OBI Pegging & Micro-Friction Slippage Minimization | Continuous Hawkes toxicity modulation, Darkpool midpoint resting with MinQty $\ge 20\%$, volatility/depth-adaptive L2 OBI micro-price curvature, ADV-adaptive Gatheral slice count with volume smile, and 5-market Leland buffer bands | M16 | ORIGINAL_REQUEST R2 |
 | F39 | Phase 5 Benchmark Performance Engine & Multi-Market Comparison Reports | Build `benchmark_phase5_quant_performance.py`, generate 5-market comparison tables across 15 metrics, sync to 3 report destinations, and build `test_benchmark_phase5.py` | M17 | ORIGINAL_REQUEST R3 |
 | F40 | Phase 5 Full Test Suite & Multi-Agent Forensic Verification | Scale test suite to 2,380+ tests with 100% pass rate, zero regressions, and multi-agent forensic integrity audit | M18 | ORIGINAL_REQUEST Acceptance Criteria |
+| F111 | Toposic Geometric Langlands & Derived Satake Equivalence Coupler | Bundle stack $\text{Bun}_G$ and derived Satake category $\mathcal{D}(\text{Gr}_G)$ obstruction $E_{\text{langlands}}$ and invariant $Z_{\text{satake}}$ | M1 (P23) | Phase 23 R1 |
+| F112.1 | 18th-Order Ultra-Convex Rank Modulation | $g_{\text{v23}}(r) = 0.50 + 1.10 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{18})$ with regime-adaptive $\gamma_{\text{top}}$ up to 2.40 | M1 (P23) | Phase 23 R1 |
+| F112.2 | 56th-Order Hexaquinquagintagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{56})$ eliminating noise leakage to $< 10^{-30}$ | M1 (P23) | Phase 23 R1 |
+| F113.1 | Lurie Geometric Langlands Barycenter & Ultra-Trans-Hyper EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{langlands}}=[2.10, 1.60, 1.55, 2.60]$ and $19! = 121,645,100,408,832,000$ tail bounds | M2 (P23) | Phase 23 R2 |
+| F113.2 | KNK Quintessence-Phantom L3 & Preemptive OMS | Kerr-Newman-Kiselev double dark energy ($w_p = -4/3$), 0.000001 maker floor, 99.995% dark ATS, 99.999% anti-gaming, tick shading $-0.9995 \cdot \text{spread} \cdot (h-0.035)$ | M3 (P23) | Phase 23 R3 |
+| F114 | Phase 23 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase23_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P23) | Phase 23 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -73,7 +79,11 @@
 | M15 | Phase 5 Dynamic Alpha Signal Quality & Top Alpha (R1) | F35, F36: `ensemble_scorer.py`, `test_phase5_signal_enhancement.py` | M14 | DONE |
 | M16 | Phase 5 Portfolio Allocation & Execution Friction (R2) | F37, F38: `unified_portfolio_allocator.py`, `smart_order_router.py`, `oms_engine.py`, `test_phase5_portfolio_execution.py` | M15 | DONE |
 | M17 | Phase 5 Quantitative Benchmark Engine & Multi-Market Reports (R3) | F39: `benchmark_phase5_quant_performance.py`, sync reports across 3 paths, `test_benchmark_phase5.py` | M15, M16 | DONE |
-| M18 | Phase 5 Full Test Suite & Forensic Verification (R4) | F40: 2,380+ test suite 100% pass rate, zero regressions, multi-agent review, challenger & forensic audit | M15, M16, M17 | IN_PROGRESS |
+| M18 | Phase 5 Full Test Suite & Forensic Verification (R4) | F40: 2,380+ test suite 100% pass rate, zero regressions, multi-agent review, challenger & forensic audit | M15, M16, M17 | DONE |
+| M1 (P23) | Phase 23 Alpha Signal Disentanglement & Ultra-Convex Modulation (R1) | F111, F112.1, F112.2: Toposic Geometric Langlands Coupler, 18th-order rank modulation, 56th-order deadband | none | DONE |
+| M2 (P23) | Phase 23 Portfolio Allocation & Ultra-Trans-Hyper EVaR (R2) | F113.1: Lurie Geometric Langlands Barycenter, 19th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P23) | DONE |
+| M3 (P23) | Phase 23 Microstructure Hydrodynamics & Preemptive OMS (R3) | F113.2: KNK Quintessence-Phantom L3, 99.995% dark ATS, 0.000001 maker floor, 99.999% anti-gaming, tick shading | M2 (P23) | DONE |
+| M4 (P23) | Phase 23 Benchmark Engine & Forensic Verification (R4) | F114: `benchmark_phase23_quant_performance.py`, comparison reports, 60/60 tests 100% pass | M1, M2, M3 (P23) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -92,6 +102,8 @@
 - `trading_system/scripts/merge_predictions.py`: 37-strategy multi-market file merger
 - `trading_system/scripts/benchmark_phase4_quant_performance.py`: Phase 4 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase5_quant_performance.py`: Phase 5 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase22_quant_performance.py`: Phase 22 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase23_quant_performance.py`: Phase 23 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
@@ -99,4 +111,4 @@
 - `src/broker/interactive_brokers.py`: Native IBKR connector
 - `src/execution/smart_order_router.py`: Global multi-market Smart Order Router
 - `src/execution/rl_execution_agent.py`: Reinforcement learning order slicing agent
-- `tests/`: Automated unit, integration, and e2e test suite (2,380+ items)
+- `tests/`: Automated unit, integration, and e2e test suite (2,500+ items)

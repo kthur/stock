@@ -2890,5 +2890,70 @@ class PortfolioAllocator:
     compute_trans_hyper_transcendent_evar = compute_trans_hyper_transcendent_evar_risk_measure
     trans_hyper_transcendent_evar_risk_measure = compute_trans_hyper_transcendent_evar_risk_measure
 
+    # ── Phase 23 (F113.1): Lurie Geometric Langlands Fisher-Rao Barycenter ────
+    @staticmethod
+    def compute_lurie_geometric_langlands_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 23 (Feature F113.1): Lurie Geometric Langlands Fisher-Rao Barycenter Blending.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_geometric_langlands_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_geometric_langlands_barycenter = compute_lurie_geometric_langlands_fisher_rao_barycenter_blend
+    compute_geometric_langlands_fisher_rao_barycenter = compute_lurie_geometric_langlands_fisher_rao_barycenter_blend
+    compute_geometric_langlands_barycenter = compute_lurie_geometric_langlands_fisher_rao_barycenter_blend
+    compute_langlands_fisher_rao_barycenter = compute_lurie_geometric_langlands_fisher_rao_barycenter_blend
+    compute_lurie_langlands_barycenter = compute_lurie_geometric_langlands_fisher_rao_barycenter_blend
+    compute_geometric_langlands_fisher_rao_barycenter_blend = compute_lurie_geometric_langlands_fisher_rao_barycenter_blend
+    compute_lurie_langlands_barycenter_blend = compute_lurie_geometric_langlands_fisher_rao_barycenter_blend
+
+    # ── Phase 23 (F113.1.2): 19th-Cumulant Ultra-Trans-Hyper EVaR ──────────────
+    @staticmethod
+    def compute_ultra_trans_hyper_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        xi_19: Optional[float] = None,
+        xi_ultra_trans: float = 0.75,
+        xi_ultra_trans_hyper: float = 0.75,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 23 (Feature F113.1.2): 19th-Cumulant Expansion Ultra-Trans-Hyper EVaR Tail Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.compute_ultra_trans_hyper_evar_risk_measure.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        rets = returns if returns is not None else (-np.asarray(losses, dtype=float) if losses is not None else np.array([]))
+        xi_19_val = xi_19 if xi_19 is not None else (kwargs.get("xi_ultra_trans_hyper", kwargs.get("xi_ultra_trans", xi_ultra_trans)))
+        return alloc.compute_ultra_trans_hyper_evar_risk_measure(
+            returns=rets,
+            alpha=alpha,
+            xi_19=xi_19_val,
+            xi_ultra_trans=xi_19_val,
+            **kwargs,
+        )
+
+    compute_ultra_trans_hyper_evar = compute_ultra_trans_hyper_evar_risk_measure
+    ultra_trans_hyper_evar_risk_measure = compute_ultra_trans_hyper_evar_risk_measure
+
+
 
 
