@@ -3018,6 +3018,81 @@ class PortfolioAllocator:
     trans_super_hyper_evar_risk_measure = compute_trans_super_hyper_evar_risk_measure
     compute_trans_super_hyper_evar_blend = compute_trans_super_hyper_evar_risk_measure
 
+    # ── Phase 25 (F121.1): Lurie Non-Abelian Hodge Fisher-Rao Barycenter ──────
+    @staticmethod
+    def compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 25 (Feature F121.1): Lurie Non-Abelian Hodge Fisher-Rao Barycenter Blending.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_nonabelian_hodge_fisher_rao_barycenter_blend = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_lurie_nonabelian_hodge_barycenter = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_nonabelian_hodge_fisher_rao_barycenter = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_nonabelian_hodge_barycenter = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_nonabelian_hodge_fisher_rao_barycenter_blend = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_lurie_nonabelian_hodge_barycenter_blend = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_lurie_non_abelian_hodge_barycenter = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_non_abelian_hodge_fisher_rao_barycenter = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_non_abelian_hodge_barycenter = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_non_abelian_hodge_fisher_rao_barycenter_blend = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_lurie_non_abelian_hodge_barycenter_blend = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_lurie_hodge_barycenter = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_lurie_hodge_fisher_rao_barycenter_blend = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+    compute_lurie_hodge_barycenter_blend = compute_lurie_non_abelian_hodge_fisher_rao_barycenter_blend
+
+    # ── Phase 25 (F121.1.2): 21st-Cumulant Ultra-Trans-Super-Hyper EVaR ────────
+    @staticmethod
+    def compute_ultra_trans_super_hyper_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        xi_21: Optional[float] = None,
+        xi_ultra_super: float = 0.85,
+        xi_ultra_trans_super_hyper: float = 0.85,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 25 (Feature F121.1.2): 21st-Cumulant Expansion Ultra-Trans-Super-Hyper EVaR Tail Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.compute_ultra_trans_super_hyper_evar_risk_measure.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        rets = returns if returns is not None else (-np.asarray(losses, dtype=float) if losses is not None else np.array([]))
+        xi_21_val = xi_21 if xi_21 is not None else (kwargs.get("xi_ultra_trans_super_hyper", kwargs.get("xi_ultra_super", xi_ultra_super)))
+        return alloc.compute_ultra_trans_super_hyper_evar_risk_measure(
+            returns=rets,
+            alpha=alpha,
+            xi_21=xi_21_val,
+            xi_ultra_super=xi_21_val,
+            **kwargs,
+        )
+
+    compute_ultra_trans_super_hyper_evar = compute_ultra_trans_super_hyper_evar_risk_measure
+    ultra_trans_super_hyper_evar_risk_measure = compute_ultra_trans_super_hyper_evar_risk_measure
+    compute_ultra_trans_super_hyper_evar_blend = compute_ultra_trans_super_hyper_evar_risk_measure
+    compute_ultra_super_hyper_evar = compute_ultra_trans_super_hyper_evar_risk_measure
+    ultra_super_hyper_evar_risk_measure = compute_ultra_trans_super_hyper_evar_risk_measure
+
+
 
 
 

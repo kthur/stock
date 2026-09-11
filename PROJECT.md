@@ -64,6 +64,12 @@
 | F117.1 | Lurie Arithmetic Spectral Barycenter & Trans-Super-Hyper EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{arithmetic}}=[2.15, 1.65, 1.60, 2.70]$ and $20! = 2,432,902,008,176,640,000$ tail bounds | M2 (P24) | Phase 24 R2 |
 | F117.2 | KNK Quintessence-Phantom-Tachyon L3 & Preemptive OMS | Kerr-Newman-Kiselev triple dark energy ($w_{\text{tachyon}} = -5/3$), 0.0000005 maker floor, 99.998% dark ATS, 99.9995% anti-gaming, tick shading $-0.9998 \cdot \text{spread} \cdot (h-0.030)$ | M3 (P24) | Phase 24 R3 |
 | F118 | Phase 24 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase24_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P24) | Phase 24 R4 |
+| F119 | Non-Abelian Hodge Theory & Deligne-Simpson Spectral Moduli Coupler | Hitchin equations $\bar{\partial}_E \Phi = 0, F_A + [\Phi, \Phi^*] = 0$ harmonic bundle obstruction $E_{\text{hodge}}$ and Deligne-Simpson moduli invariant $Z_{\text{simpson}}$ | M1 (P25) | Phase 25 R1 |
+| F120.1 | 20th-Order Ultra-Convex Rank Modulation | $g_{\text{v25}}(r) = 0.50 + 1.14 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{20})$ with regime-adaptive $\gamma_{\text{top}}$ up to 2.60 | M1 (P25) | Phase 25 R1 |
+| F120.2 | 64th-Order Hexatetrahedral Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{64})$ eliminating noise leakage to $< 10^{-34}$ | M1 (P25) | Phase 25 R1 |
+| F121.1 | Lurie Non-Abelian Hodge Barycenter & Ultra-Trans-Super-Hyper EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{hodge}}=[2.20, 1.70, 1.65, 2.75]$ and $21! = 51,090,942,171,709,440,000$ tail bounds | M2 (P25) | Phase 25 R2 |
+| F121.2 | KNK Quintom 4-Dark-Energy L3 & Preemptive OMS | Kerr-Newman-Kiselev 4-dark-energy ($w_{\text{quintom}} = -2$), 0.0000002 maker floor, 99.999% dark ATS, 99.9998% anti-gaming, tick shading $-0.9999 \cdot \text{spread} \cdot (h-0.025)$ | M3 (P25) | Phase 25 R3 |
+| F122 | Phase 25 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase25_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P25) | Phase 25 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -94,6 +100,10 @@
 | M2 (P24) | Phase 24 Portfolio Allocation & Trans-Super-Hyper EVaR (R2) | F117.1: Lurie Arithmetic Spectral Barycenter, 20th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P24) | DONE |
 | M3 (P24) | Phase 24 Microstructure Hydrodynamics & Preemptive OMS (R3) | F117.2: KNK Quintessence-Phantom-Tachyon L3, 99.998% dark ATS, 0.0000005 maker floor, 99.9995% anti-gaming, tick shading | M2 (P24) | DONE |
 | M4 (P24) | Phase 24 Benchmark Engine & Forensic Verification (R4) | F118: `benchmark_phase24_quant_performance.py`, comparison reports, 104/104 tests 100% pass | M1, M2, M3 (P24) | DONE |
+| M1 (P25) | Phase 25 Alpha Signal Disentanglement & Ultra-Convex Modulation (R1) | F119, F120.1, F120.2: Non-Abelian Hodge Coupler, 20th-order rank modulation, 64th-order deadband | none | DONE |
+| M2 (P25) | Phase 25 Portfolio Allocation & Ultra-Trans-Super-Hyper EVaR (R2) | F121.1: Lurie Non-Abelian Hodge Barycenter, 21st-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P25) | DONE |
+| M3 (P25) | Phase 25 Microstructure Hydrodynamics & Preemptive OMS (R3) | F121.2: KNK Quintom 4-Dark-Energy L3, 99.999% dark ATS, 0.0000002 maker floor, 99.9998% anti-gaming, tick shading | M2 (P25) | DONE |
+| M4 (P25) | Phase 25 Benchmark Engine & Forensic Verification (R4) | F122: `benchmark_phase25_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P25) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts

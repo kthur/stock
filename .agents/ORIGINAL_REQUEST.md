@@ -781,3 +781,47 @@ Derived Arithmetic Topology & Étale-Motivic Spectral Homotopy 기반 팩터 얽
 
 ---
 *Phase 23 baseline: Net Return 113.38%, Sharpe 17.18, MDD -0.019%, Friction 0.024 bps, Slippage 0.0012 bps, Top-Decile 84.9%*
+
+## 2026-09-11T12:11:40Z
+
+풀 팀(Full Team) — 알파 시그널, 리스크 배분, 미시구조 OMS, 퀀트 검증의 4개 전문 역할로 분업 수행
+
+글로벌 5대 주식 시장(KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)을 대상으로 시스템의 수익률과 샤프 지수를 추가 극대화하기 위해 Phase 25 퀀트 고도화(Non-Abelian Hodge Theory & Deligne-Simpson Spectral Moduli 알파 결합, 20차 초볼록 순위 변조, 64차 Hexatetrahedral 쌍곡선 데드밴드, Lurie Non-Abelian Hodge Fisher-Rao 바리센터 및 21차 큐뮬런트 Ultra-Trans-Super-Hyper EVaR, Kerr-Newman-Kiselev Quintom 4중 암흑에너지 L3 수력학 및 99.999% 다크풀 선제 체결)를 수행하고, 개선 결과를 정량 비교표로 산출합니다.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. 37대 전략 다이나믹 알파 결합 및 신호 고도화 (Phase 25)
+Non-Abelian Hodge Theory & Deligne-Simpson Spectral Moduli 기반 팩터 얽힘 해소 커플러(F119, 히친 방정식 $\bar{\partial}_E \Phi = 0, F_A + [\Phi, \Phi^*] = 0$ 조화 다발 장애 복합체 $E_{\text{hodge}}$, 들리뉴-심슨 스펙트럼 모듈라이 불변량 $Z_{\text{simpson}}$)를 `ensemble_scorer.py`와 `factor_suppression.py`에 구현합니다. 상위 0.00000000001% 초극단 확신 자본 집중을 위한 20차 초볼록 순위 변조 함수 $g_{\text{v25}}(r) = 0.50 + 1.14 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{20})$ (F120.1, 레짐 적응형 $\gamma_{\text{top}}$ 최대 2.60)와 64차 Hexatetrahedral($\alpha=64.0$) 쌍곡선 데드밴드(F120.2, 노이즈 누출률 $< 10^{-34}$)를 `factor_suppression.py`에 추가하고, `ensemble_scorer.py`의 버전 분기(version >= 25)에서 이를 호출하여 Rank-IC와 선형 예측력을 추가 개선합니다.
+
+### R2. Lurie Non-Abelian Hodge 바리센터 및 Ultra-Trans-Super-Hyper EVaR (Phase 25)
+`unified_portfolio_allocator.py`에 Lurie Non-Abelian Hodge Fisher-Rao 다양체 바리센터 블렌딩(F121.1, 메트릭 가중치 $\mu_{\text{hodge}} = [2.20, 1.70, 1.65, 2.75]$)을 버전 분기(version >= 25)로 추가하고, `portfolio_allocator.py`에 21차 큐뮬런트 전개 기반 Ultra-Trans-Super-Hyper EVaR 꼬리위험 예산화($21! = 51,090,942,171,709,440,000$, $\xi_{\text{ultra\_super}} = 0.85$)를 구현합니다. MDD $\le -0.015\%$, 샤프 지수 $\ge 18.35$ 달성이 목표입니다.
+
+### R3. KNK Quintom 4중 암흑에너지 L3 수력학 및 마찰비용 극소화 (Phase 25)
+`fast_lob_engine.py`에 Kerr-Newman-Kiselev 퀸톰 4중 암흑에너지($w_{\text{quintom}} = -2$) 블랙홀 스페이스타임 L3 오더북 수력학 모델(F121.2)을 적용하고, `smart_order_router.py`에 메이커 플로어 0.0000002, `oms_engine.py`에 틱 셰이딩 계수 $-0.9999 \cdot \text{spread} \cdot (h - 0.025)$, 다크풀 라우팅 99.999% ATS, Anti-Gaming MinQty 99.9998%를 구현하여 체결 슬리피지와 총 거래 마찰비용을 최소화합니다.
+
+### R4. 5대 시장 실증 퀀트 벤치마크 및 결과 표 출력 (Phase 25)
+`trading_system/scripts/benchmark_phase25_quant_performance.py`(F122)를 신규 작성하고, 전용 테스트 스위트(`tests/test_phase25_*.py`)를 구현하여 100% 통과를 검증합니다. 5대 시장 대상 15대 핵심 퀀트 지표 비교표 3종([표 1] 15대 종합 지표 비교표, [표 2] 5대 시장별 성과표, [표 3] 전략 팩터 기여도표)을 `reports/quant_benchmark_comparison_phase25.md` 및 `trading_system/result/quant_benchmark_comparison_phase25.md`에 저장하고 최종 출력합니다. `AGENTS.md` Key Files 테이블에 `benchmark_phase25_quant_performance.py` 항목을 추가하고, Requirements History에 R41 항목을 추가합니다.
+
+## Acceptance Criteria
+
+### 1. Performance Targets (5-Market Aggregate Portfolio)
+- [ ] Net Expected Return: >= 117.55% (Phase 24 대비 +2.06%p 이상 개선)
+- [ ] Annualized Sharpe Ratio: >= 18.35 (+0.57 이상)
+- [ ] Maximum Drawdown (MDD): <= -0.015% (하방 꼬리위험 극단적 압축)
+- [ ] Trading & Friction Costs: <= 0.015 bps (-0.003 bps 이하)
+- [ ] Execution Slippage: <= 0.0008 bps
+- [ ] Top-Decile Alpha Spread: >= 89.5% (+2.2%p 이상)
+
+### 2. Verification & Deliverables
+- [ ] 15대 퀀트 지표 비교표([표 1]), 5대 시장별 성과표([표 2]), 전략 팩터 기여도표([표 3])가 온전히 작성되어 출력될 것
+- [ ] 전용 단위/통합 테스트 스위트가 작성되고 기존 기능에 대한 회귀 없이 100% 통과할 것
+- [ ] 벤치마크 리포트 파일(`reports/quant_benchmark_comparison_phase25.md`)이 정상적으로 생성 및 동기화될 것
+- [ ] `AGENTS.md` Key Files 및 Requirements History(R41) 업데이트 완료
+- [ ] Victory Auditor의 3단계 독립 감사(코드 존재 검증 → 수치 재현 → 회귀 테스트)를 통과하여 **VICTORY CONFIRMED** 판정을 받을 것
+
+---
+*Phase 24 baseline: Net Return 115.49%, Sharpe 17.78, MDD -0.016%, Friction 0.018 bps, Slippage 0.0010 bps, Top-Decile 87.3%*
+
