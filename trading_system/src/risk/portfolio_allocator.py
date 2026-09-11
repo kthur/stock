@@ -2764,21 +2764,27 @@ class PortfolioAllocator:
     compute_ultra_transcendent_evar = compute_ultra_transcendent_evar_risk_measure
 
     # ── Phase 21 (F105.1.2): 17th-Cumulant Hyper-Transcendent EVaR ──────
+    @staticmethod
     def compute_hyper_transcendent_evar_risk_measure(
-        self,
-        losses=None,
+        returns: Union[np.ndarray, pd.Series, List[float]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
         alpha: float = 0.05,
-        xi_17: float = None,
+        xi_17: Optional[float] = None,
         xi_hyper_transcendent: float = 0.65,
         **kwargs,
-    ):
+    ) -> Dict[str, Any]:
         """
         Phase 21 (Feature F105.1.2): 17th-Cumulant Expansion Hyper-Transcendent EVaR Tail Risk Measure.
         Delegates to UnifiedPortfolioAllocator.compute_hyper_transcendent_evar_risk_measure.
         """
-        alloc = self._get_unified_allocator()
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        rets = returns if returns is not None else (-np.asarray(losses, dtype=float) if losses is not None else np.array([]))
         return alloc.compute_hyper_transcendent_evar_risk_measure(
-            losses=losses,
+            returns=rets,
             alpha=alpha,
             xi_17=xi_17,
             xi_hyper_transcendent=xi_hyper_transcendent,
@@ -2786,5 +2792,103 @@ class PortfolioAllocator:
         )
 
     compute_hyper_transcendent_evar = compute_hyper_transcendent_evar_risk_measure
+    hyper_transcendent_evar_risk_measure = compute_hyper_transcendent_evar_risk_measure
+
+    @staticmethod
+    def compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 21 (Feature F105.1): Lurie Chromatic Homotopy Theory Fisher-Rao Barycenter Blending.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_chromatic_homotopy_barycenter = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+    compute_chromatic_homotopy_fisher_rao_barycenter = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+    compute_chromatic_homotopy_barycenter = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+    compute_lurie_chromatic_barycenter = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+    compute_chromatic_homotopy_fisher_rao_barycenter_blend = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+    compute_lurie_chromatic_barycenter_blend = compute_lurie_chromatic_homotopy_fisher_rao_barycenter_blend
+
+    # =========================================================================
+    # OBJECTIVE 18: PHASE 22 QUANT ENHANCEMENT (FEATURE F109.1)
+    # LURIE CONDENSED SPECTRAL BARYCENTER & TRANS-HYPER-TRANSCENDENT EVAR
+    # =========================================================================
+
+    @staticmethod
+    def compute_lurie_condensed_spectral_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 22 (Feature F109.1): Lurie Condensed Spectral Fisher-Rao Barycenter Blending.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_condensed_spectral_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_condensed_spectral_barycenter = compute_lurie_condensed_spectral_fisher_rao_barycenter_blend
+    compute_condensed_spectral_fisher_rao_barycenter = compute_lurie_condensed_spectral_fisher_rao_barycenter_blend
+    compute_condensed_spectral_barycenter = compute_lurie_condensed_spectral_fisher_rao_barycenter_blend
+    compute_lurie_condensed_barycenter = compute_lurie_condensed_spectral_fisher_rao_barycenter_blend
+    compute_condensed_spectral_fisher_rao_barycenter_blend = compute_lurie_condensed_spectral_fisher_rao_barycenter_blend
+    compute_lurie_condensed_barycenter_blend = compute_lurie_condensed_spectral_fisher_rao_barycenter_blend
+
+    # ── Phase 22 (F109.1.2): 18th-Cumulant Trans-Hyper-Transcendent EVaR ──────
+    @staticmethod
+    def compute_trans_hyper_transcendent_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        xi_18: Optional[float] = None,
+        xi_trans_hyper_transcendent: float = 0.70,
+        xi_trans_hyper: float = 0.70,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 22 (Feature F109.1.2): 18th-Cumulant Expansion Trans-Hyper-Transcendent EVaR Tail Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.compute_trans_hyper_transcendent_evar_risk_measure.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        rets = returns if returns is not None else (-np.asarray(losses, dtype=float) if losses is not None else np.array([]))
+        xi_18_val = xi_18 if xi_18 is not None else (kwargs.get("xi_trans_hyper", xi_trans_hyper))
+        return alloc.compute_trans_hyper_transcendent_evar_risk_measure(
+            returns=rets,
+            alpha=alpha,
+            xi_18=xi_18_val,
+            xi_trans_hyper_transcendent=xi_trans_hyper_transcendent,
+            **kwargs,
+        )
+
+    compute_trans_hyper_transcendent_evar = compute_trans_hyper_transcendent_evar_risk_measure
+    trans_hyper_transcendent_evar_risk_measure = compute_trans_hyper_transcendent_evar_risk_measure
+
 
 

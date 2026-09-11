@@ -405,5 +405,71 @@ class TestEVTCVaROptimizationAdaptive(unittest.TestCase):
             self.assertGreaterEqual(w, 0.0)
 
 
+class TestPhase22RiskAllocation(unittest.TestCase):
+    """
+    Phase 22 (Feature F109.1 & F109.1.2) verification:
+    - Lurie Condensed Spectral Fisher-Rao Barycenter Blending (mu = [2.00, 1.55, 1.50, 2.45])
+    - 18th-Order Cumulant Expansion Trans-Hyper-Transcendent EVaR Tail Risk Measure
+    - Coherent Tail Risk Hierarchy preservation
+    - Delegation and alias mappings on PortfolioAllocator & UnifiedPortfolioAllocator
+    """
+
+    def setUp(self):
+        from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        self.u_alloc = UnifiedPortfolioAllocator()
+        self.p_alloc = PortfolioAllocator()
+        np.random.seed(42)
+
+    def test_lurie_condensed_spectral_barycenter_properties(self):
+        """Verify Lurie Condensed Spectral barycenter satisfies simplex constraints and convergence."""
+        mw = {"bl": 0.25, "herc": 0.25, "rp": 0.25, "cvar": 0.25}
+        b_res = self.u_alloc.compute_lurie_condensed_spectral_fisher_rao_barycenter_blend(mw)
+        self.assertAlmostEqual(sum(b_res.values()), 1.0, places=5)
+        for k in ["bl", "herc", "rp", "cvar"]:
+            self.assertIn(k, b_res)
+            self.assertGreater(b_res[k], 0.0)
+
+        # Multi-distribution consensus
+        d1 = {"bl": 0.40, "herc": 0.30, "rp": 0.20, "cvar": 0.10}
+        d2 = {"bl": 0.10, "herc": 0.20, "rp": 0.30, "cvar": 0.40}
+        b_multi = self.u_alloc.compute_lurie_condensed_spectral_fisher_rao_barycenter_blend([d1, d2])
+        self.assertAlmostEqual(sum(b_multi.values()), 1.0, places=5)
+
+    def test_trans_hyper_transcendent_evar_order18_and_hierarchy(self):
+        """Verify Trans-Hyper-Transcendent EVaR 18th cumulant expansion and coherent risk hierarchy."""
+        rets = np.random.normal(-0.01, 0.04, 300)
+        res = self.u_alloc.compute_trans_hyper_transcendent_evar_risk_measure(rets, alpha=0.05)
+        self.assertEqual(res["order"], 18)
+        self.assertEqual(res["xi_trans_hyper_transcendent"], 0.70)
+        self.assertIn("trans_hyper_transcendent_evar_value", res)
+        # Hierarchy check: VaR <= CVaR <= EVaR <= ... <= Hyper-Transcendent <= Trans-Hyper-Transcendent
+        self.assertGreaterEqual(res["trans_hyper_transcendent_evar_value"], res["hyper_transcendent_evar_value"])
+        self.assertGreaterEqual(res["hyper_transcendent_evar_value"], res["ultra_transcendent_evar_value"])
+
+    def test_portfolio_allocator_delegation_and_aliases(self):
+        """Verify PortfolioAllocator exposes static delegators and aliases matching UnifiedPortfolioAllocator."""
+        mw = {"bl": 0.25, "herc": 0.25, "rp": 0.25, "cvar": 0.25}
+        b_del = PortfolioAllocator.compute_lurie_condensed_spectral_fisher_rao_barycenter_blend(mw)
+        self.assertAlmostEqual(sum(b_del.values()), 1.0, places=5)
+
+        rets = np.random.normal(-0.005, 0.03, 200)
+        e_del = PortfolioAllocator.compute_trans_hyper_transcendent_evar_risk_measure(returns=rets, alpha=0.05)
+        self.assertEqual(e_del["order"], 18)
+
+        # Aliases
+        self.assertTrue(callable(getattr(PortfolioAllocator, "compute_lurie_condensed_spectral_barycenter")))
+        self.assertTrue(callable(getattr(PortfolioAllocator, "compute_trans_hyper_transcendent_evar")))
+        self.assertTrue(callable(getattr(self.u_alloc, "compute_lurie_condensed_spectral_barycenter")))
+        self.assertTrue(callable(getattr(self.u_alloc, "compute_trans_hyper_transcendent_evar")))
+
+    def test_information_theoretic_blend_weights_v22(self):
+        """Verify compute_information_theoretic_blend_weights activates Phase 22 ambiguity tilting and barycenter."""
+        w_prior = {"bl": 0.25, "herc": 0.25, "rp": 0.25, "cvar": 0.25}
+        w_blend = self.u_alloc.compute_information_theoretic_blend_weights(w_prior, version=22)
+        self.assertAlmostEqual(sum(w_blend.values()), 1.0, places=5)
+        for k in ["bl", "herc", "rp", "cvar"]:
+            self.assertGreater(w_blend[k], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
