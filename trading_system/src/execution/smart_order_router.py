@@ -30,14 +30,21 @@ class SmartOrderRouter:
         taker_fee_bps: float = 1.5,
         continuous_hawkes: bool = False,
         use_logistic_dark_fill: bool = False,
+        version: int = 6,
     ):
         self.dark_probe_ratio = float(dark_probe_ratio)
         self.maker_rebate_bps = float(maker_rebate_bps)
         self.taker_fee_bps = float(taker_fee_bps)
         self.continuous_hawkes = bool(continuous_hawkes)
+        self.use_logistic_dark_fill = bool(use_logistic_dark_fill)
+        self.version = int(version)
+        self.is_phase28 = (self.version >= 28)
+
     @staticmethod
     def _resolve_max_dark_cap(v_eff: int = 6) -> float:
-        if v_eff >= 27:
+        if v_eff >= 28:
+            return 0.999999
+        elif v_eff >= 27:
             return 0.999998
         elif v_eff >= 26:
             return 0.999995
@@ -124,7 +131,8 @@ class SmartOrderRouter:
         qi_accel = qi_acceleration if qi_acceleration is not None else order_plan.get("qi_acceleration")
         cross_tox = cross_asset_toxicity if cross_asset_toxicity is not None else order_plan.get("cross_asset_toxicity")
 
-        is_phase27 = (v_eff >= 27)
+        is_phase28 = (v_eff >= 28)
+        is_phase27 = is_phase28 or (v_eff >= 27)
         is_phase26 = is_phase27 or (v_eff >= 26)
         is_phase25 = is_phase26 or (v_eff >= 25)
         is_phase24 = is_phase25 or (v_eff >= 24)
@@ -167,7 +175,12 @@ class SmartOrderRouter:
             a_f = float(qi_accel) if (qi_accel is not None and math.isfinite(float(qi_accel))) else 0.0
             a_aligned = a_f if action in ["BUY", "BID", "LONG"] else -a_f
 
-            if is_phase27 and (qi_aligned > 0.002 or a_aligned > 0.0002):
+            if is_phase28 and (qi_aligned > 0.0015 or a_aligned > 0.00015):
+                eff_dark_ratio = float(np.clip(
+                    eff_dark_ratio + 0.68 * max(0.0, qi_aligned) + 0.58 * math.tanh(max(0.0, a_aligned)),
+                    self.dark_probe_ratio, 0.999999
+                ))
+            elif is_phase27 and (qi_aligned > 0.002 or a_aligned > 0.0002):
                 eff_dark_ratio = float(np.clip(
                     eff_dark_ratio + 0.65 * max(0.0, qi_aligned) + 0.55 * math.tanh(max(0.0, a_aligned)),
                     self.dark_probe_ratio, 0.999998
@@ -291,7 +304,10 @@ class SmartOrderRouter:
         if g_dir is not None:
             gamma_toxic = float(np.clip(float(g_dir), 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase27 and gamma_toxic > 0.80:
+            if is_phase28 and gamma_toxic > 0.80:
+                # F133.2: Kerr-Newman-Kiselev Phantom-Chameleon-Quintom 7-Dark-Energy L3 preemption contracts lit maker floor to 0.00000002
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.99999997143 * gamma_toxic), 0.00000002, 0.70))
+            elif is_phase27 and gamma_toxic > 0.80:
                 # F129.2: Kerr-Newman-Kiselev Phantom-Chameleon 6-Dark-Energy L3 preemption contracts lit maker floor to 0.00000005
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.99999992857 * gamma_toxic), 0.00000005, 0.70))
             elif is_phase26 and gamma_toxic > 0.80:
@@ -449,7 +465,9 @@ class SmartOrderRouter:
             g_cross = float(np.clip(float(cross_tox), 0.0, 1.0))
             gamma_toxic = float(np.clip(0.65 * gamma_toxic + 0.35 * g_cross, 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase27 and gamma_toxic > 0.80:
+            if is_phase28 and gamma_toxic > 0.80:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.99999997143 * gamma_toxic), 0.00000002, 0.70))
+            elif is_phase27 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.99999992857 * gamma_toxic), 0.00000005, 0.70))
             elif is_phase26 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.9999998571 * gamma_toxic), 0.0000001, 0.70))
@@ -495,7 +513,9 @@ class SmartOrderRouter:
         # F44, F50, F54, F58, F61, F65, F69, F73, F77, F81, F85, F89, F93, F97, F101.2, F105.2.4, F109.2.4, F113.2.2, F117.2, F121.2, F125.2 & F129.2: Anti-Gaming Dynamic MinQty (adapting up to 99.99995% in F129.2)
         min_ratio = 0.20
         if is_toxic_flow or gamma_toxic > 0.50 or dp_score >= 0.60:
-            if is_phase27 and (gamma_toxic > 0.010 or is_accum):
+            if is_phase28 and (gamma_toxic > 0.008 or is_accum):
+                min_ratio = float(np.clip(0.20 + 0.9998 * gamma_toxic + 0.98 * dp_score, 0.20, 0.9999998))
+            elif is_phase27 and (gamma_toxic > 0.010 or is_accum):
                 min_ratio = float(np.clip(0.20 + 0.9995 * gamma_toxic + 0.95 * dp_score, 0.20, 0.9999995))
             elif is_phase26 and (gamma_toxic > 0.015 or is_accum):
                 min_ratio = float(np.clip(0.20 + 0.999 * gamma_toxic + 0.92 * dp_score, 0.20, 0.999999))

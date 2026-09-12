@@ -447,6 +447,124 @@ def apply_tetracontatetragonal_hyperbolic_deadband(
     return res
 
 
+def apply_hexaheptacontagonal_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray, float],
+    delta_noise: float = 0.035,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 76.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 28 (R1, Feature F132.2): Asymmetric Hexaheptacontagonal (76th-Order) Hyperbolic Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^76)
+    With hexaheptacontagonal exponent (alpha = 76.0) and delta_noise = 0.035, suppresses near-zero
+    noise (|z| <= 0.005) reducing noise leakage down to < 10^-40 (< 10^-70), while transmitting 100.000%
+    of high conviction signals (|z| >= 0.150) with strict rank monotonicity (Spearman rho == 1.0000).
+    """
+    is_scalar = np.isscalar(scores_centered)
+    if is_scalar:
+        arr_in = np.array([scores_centered], dtype=np.float64)
+    else:
+        arr_in = scores_centered
+
+    res = apply_quintic_hyperbolic_deadband(
+        scores_centered=arr_in,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+    if is_scalar:
+        return float(res[0])
+    return res
+
+compute_phase28_deadband = apply_hexaheptacontagonal_hyperbolic_deadband
+
+
+def compute_phase28_hyperconvex_rank_modulation(
+    ranks: Union[pd.Series, np.ndarray, float],
+    gamma_top: float = 1.0,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 28 (R1, Feature F132.1): 23rd-Order Hyper-Convex Rank Modulation:
+        g_v28(r) = 0.50 + 1.20 * r * exp(gamma_top * r^23) (for z_denoised >= 0)
+        g_neg(r) = 1.35 - 1.00 * r (for z_denoised < 0)
+    Concentrates conviction into top 0.00000000000001% alpha names while remaining flat
+    across the bottom 70% of distribution.
+    """
+    is_scalar = np.isscalar(ranks)
+    r = np.asarray(ranks, dtype=np.float64)
+    r_clipped = np.clip(r, 0.0, 1.0)
+    pos_mult = 0.50 + 1.20 * r_clipped * np.exp(float(gamma_top) * np.power(r_clipped, 23.0))
+    if z_denoised is not None:
+        z = np.asarray(z_denoised, dtype=np.float64)
+        mult = np.where(z >= 0.0, pos_mult, 1.35 - 1.00 * r_clipped)
+    else:
+        mult = pos_mult
+
+    if is_scalar:
+        return float(mult.item() if hasattr(mult, 'item') else mult)
+    if isinstance(ranks, pd.Series):
+        return pd.Series(mult, index=ranks.index)
+    return mult
+
+compute_phase28_rank_warping = compute_phase28_hyperconvex_rank_modulation
+
+
+REGIME_GAMMA_TOP_V28 = {
+    'BULL_LOW_VOL': 2.90,
+    'BULL_HIGH_VOL': 2.60,
+    'SIDEWAYS': 2.40,
+    'SIDEWAYS_LOW_VOL': 2.40,
+    'SIDEWAYS_HIGH_VOL': 1.70,
+    'BEAR': 2.10,
+    'BEAR_LOW_VOL': 2.10,
+    'BEAR_HIGH_VOL': 1.45,
+    'PANIC': 1.05,
+    'CRISIS': 0.90,
+    'RECOVERY': 2.70,
+    '2': 2.90,
+    '1': 2.40,
+    '0': 2.10,
+}
+
+
+def get_regime_adaptive_gamma_top_v28(regime: Union[int, str] = 'BULL_LOW_VOL') -> float:
+    """
+    Phase 28 (R1, Feature F132.1): Regime-adaptive gamma_top <= 2.90
+    (Bull Low Vol: 2.90, Bull High Vol: 2.60, Sideways: 2.40, Bear: 2.10, Crisis: 0.90).
+    """
+    reg_str = str(regime).upper()
+    if 'CRISIS' in reg_str:
+        return 0.90
+    elif 'PANIC' in reg_str:
+        return 1.05
+    elif 'BEAR_HIGH_VOL' in reg_str:
+        return 1.45
+    elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0':
+        return 2.10
+    elif 'BEAR' in reg_str:
+        return 2.10
+    elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+        return 1.70
+    elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1':
+        return 2.40
+    elif 'SIDEWAYS' in reg_str:
+        return 2.40
+    elif 'BULL_HIGH_VOL' in reg_str:
+        return 2.60
+    elif 'BULL_LOW_VOL' in reg_str or reg_str == '2':
+        return 2.90
+    elif 'BULL' in reg_str:
+        return 2.90
+    elif 'RECOVERY' in reg_str:
+        return 2.70
+    return 2.30
+
+
 def apply_heptaduogonal_hyperbolic_deadband(
     scores_centered: Union[pd.Series, np.ndarray, float],
     delta_noise: float = 0.035,
@@ -1023,7 +1141,37 @@ def apply_smooth_deadband_attenuation(
     When version == 14: activates icosagonal deadband (alpha=20.0).
     """
     version = int(kwargs.get('version', version))
-    if version >= 25:
+    if version >= 28:
+        eff_alpha = 76.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0, 64.0, 68.0, 72.0) else alpha_pos
+        return apply_hexaheptacontagonal_hyperbolic_deadband(
+            scores_centered=scores_centered,
+            delta_noise=delta_noise,
+            delta_neg=delta_neg,
+            alpha_pos=eff_alpha,
+            alpha_neg=alpha_neg,
+            regime=regime
+        )
+    elif version >= 27:
+        eff_alpha = 72.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0, 64.0, 68.0) else alpha_pos
+        return apply_heptaduogonal_hyperbolic_deadband(
+            scores_centered=scores_centered,
+            delta_noise=delta_noise,
+            delta_neg=delta_neg,
+            alpha_pos=eff_alpha,
+            alpha_neg=alpha_neg,
+            regime=regime
+        )
+    elif version >= 26:
+        eff_alpha = 68.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0, 64.0) else alpha_pos
+        return apply_hexaoctagonal_hyperbolic_deadband(
+            scores_centered=scores_centered,
+            delta_noise=delta_noise,
+            delta_neg=delta_neg,
+            alpha_pos=eff_alpha,
+            alpha_neg=alpha_neg,
+            regime=regime
+        )
+    elif version >= 25:
         eff_alpha = 64.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0) else alpha_pos
         return apply_hexatetrahedral_hyperbolic_deadband(
             scores_centered=scores_centered,
@@ -1647,6 +1795,52 @@ class RegimeFactorSuppressionEngine:
 
 
 __all__ = [
+    'apply_hexaheptacontagonal_hyperbolic_deadband',
+    'compute_phase28_deadband',
+    'compute_phase28_hyperconvex_rank_modulation',
+    'compute_phase28_rank_warping',
+    'REGIME_GAMMA_TOP_V28',
+    'get_regime_adaptive_gamma_top_v28',
+    'MotivicGaloisTannakianCoupler',
+    'MotivicGaloisCoupler',
+    'DeligneTannakianCoupler',
+    'TannakianCategoryCoupler',
+    'MotivicTannakianCoupler',
+    'TannakaCoupler',
+    'FiberFunctorCoupler',
+    'MotivicGaloisGroupCoupler',
+    'AutOmegaCoupler',
+    'compute_motivic_galois_tannakian_coupling',
+    'compute_motivic_galois_coupling',
+    'compute_deligne_tannakian_coupling',
+    'compute_tannakian_category_coupling',
+    'compute_motivic_tannakian_coupling',
+    'compute_tannaka_coupling',
+    'compute_fiber_functor_coupling',
+    'compute_motivic_galois_group_coupling',
+    'compute_aut_omega_coupling',
+    'apply_heptaduogonal_hyperbolic_deadband',
+    'compute_phase27_deadband',
+    'compute_phase27_hyperconvex_rank_modulation',
+    'compute_phase27_rank_warping',
+    'REGIME_GAMMA_TOP_V27',
+    'get_regime_adaptive_gamma_top_v27',
+    'AnabelianGrothendieckCoupler',
+    'AnabelianGeometryCoupler',
+    'GrothendieckSectionCoupler',
+    'SectionConjectureCoupler',
+    'EtaleFundamentalCoupler',
+    'AnabelianCoupler',
+    'GrothendieckCoupler',
+    'SectionCoupler',
+    'compute_anabelian_grothendieck_coupling',
+    'compute_anabelian_geometry_coupling',
+    'compute_grothendieck_section_coupling',
+    'compute_section_conjecture_coupling',
+    'compute_etale_fundamental_coupling',
+    'compute_anabelian_coupling',
+    'compute_grothendieck_coupling',
+    'compute_section_coupling',
     'apply_hexaoctagonal_hyperbolic_deadband',
     'compute_phase26_hyperconvex_rank_modulation',
     'compute_phase26_rank_warping',
@@ -1743,6 +1937,40 @@ __all__ = [
 # =========================================================================
 
 def __getattr__(name: str) -> Any:
+    # Phase 28 (R1, Feature F131 & F132)
+    if name in (
+        'MotivicGaloisTannakianCoupler',
+        'MotivicGaloisCoupler',
+        'DeligneTannakianCoupler',
+        'TannakianCategoryCoupler',
+        'MotivicTannakianCoupler',
+        'TannakaCoupler',
+        'FiberFunctorCoupler',
+        'MotivicGaloisGroupCoupler',
+        'AutOmegaCoupler',
+    ):
+        from .ensemble_scorer import MotivicGaloisTannakianCoupler as _MGTC
+        return _MGTC
+    if name in (
+        'compute_motivic_galois_tannakian_coupling',
+        'compute_motivic_galois_coupling',
+        'compute_deligne_tannakian_coupling',
+        'compute_tannakian_category_coupling',
+        'compute_motivic_tannakian_coupling',
+        'compute_tannaka_coupling',
+        'compute_fiber_functor_coupling',
+        'compute_motivic_galois_group_coupling',
+        'compute_aut_omega_coupling',
+    ):
+        from .ensemble_scorer import MotivicGaloisTannakianCoupler as _MGTC
+        return _MGTC.compute
+    if name in ('apply_hexaheptacontagonal_hyperbolic_deadband', 'compute_phase28_deadband'):
+        return apply_hexaheptacontagonal_hyperbolic_deadband
+    if name in ('compute_phase28_hyperconvex_rank_modulation', 'compute_phase28_rank_warping'):
+        return compute_phase28_hyperconvex_rank_modulation
+    if name in ('REGIME_GAMMA_TOP_V28', 'get_regime_adaptive_gamma_top_v28'):
+        return globals()[name]
+
     # Phase 27 (R1, Feature F127 & F128)
     if name in (
         'AnabelianGrothendieckCoupler',

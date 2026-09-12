@@ -82,6 +82,12 @@
 | F129.1 | Lurie Anabelian Grothendieck Barycenter & Trans-Singular-Ultra EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{anabelian}}=[2.30, 1.80, 1.75, 2.85]$ and $23! = 25,852,016,738,884,976,640,000$ tail bounds | M2 (P27) | Phase 27 R2 |
 | F129.2 | KNK Phantom-Chameleon 6-Dark-Energy L3 & Preemptive OMS | Kerr-Newman-Kiselev 6-dark-energy ($w_{\text{phantom\_chameleon}} = -8/3$), 0.00000005 maker floor, 99.9998% dark ATS, 99.99995% anti-gaming, tick shading $-0.99998 \cdot \text{spread} \cdot (h-0.015)$ | M3 (P27) | Phase 27 R3 |
 | F130 | Phase 27 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase27_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P27) | Phase 27 R4 |
+| F131 | Motivic Galois & Deligne-Tannakian Duality Coupler | Deligne-Tannakian cycle defect obstruction $E_{\text{tannaka}}$ and Motivic Galois invariant $Z_{\text{tannaka}}$ | M1 (P28) | Phase 28 R1 |
+| F132.1 | 23rd-Order Hyper-Convex Rank Modulation | $g_{\text{v28}}(r) = 0.50 + 1.20 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{23})$ with regime-adaptive $\gamma_{\text{top}}$ up to 2.90 | M1 (P28) | Phase 28 R1 |
+| F132.2 | 76th-Order Hexaheptacontagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{76})$ eliminating noise leakage to $< 10^{-40}$ | M1 (P28) | Phase 28 R1 |
+| F133.1 | Lurie Tannakian Motivic Barycenter & Trans-Singular-Extreme EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{tannaka}}=[2.35, 1.85, 1.80, 2.90]$ and $24! = 620,448,401,733,239,439,360,000$ tail bounds | M2 (P28) | Phase 28 R2 |
+| F133.2 | KNK Phantom-Chameleon-Quintom 7-Dark-Energy L3 & Preemptive OMS | Kerr-Newman-Kiselev 7-dark-energy ($w_{\text{phantom\_chameleon\_quintom}} = -3.0$), 0.00000002 maker floor, 99.9999% dark ATS, 99.99998% anti-gaming, tick shading $-0.99999 \cdot \text{spread} \cdot (h-0.012)$ | M3 (P28) | Phase 28 R3 |
+| F134 | Phase 28 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase28_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P28) | Phase 28 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -120,6 +126,14 @@
 | M2 (P26) | Phase 26 Portfolio Allocation & Trans-Singular-Hyper EVaR (R2) | F125.1: Lurie Mochizuki IUT Barycenter, 22nd-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P26) | DONE |
 | M3 (P26) | Phase 26 Microstructure Hydrodynamics & Preemptive OMS (R3) | F125.2: KNK Chameleon 5-Dark-Energy L3, 99.9995% dark ATS, 0.0000001 maker floor, 99.9999% anti-gaming, tick shading | M2 (P26) | DONE |
 | M4 (P26) | Phase 26 Benchmark Engine & Forensic Verification (R4) | F126: `benchmark_phase26_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P26) | DONE |
+| M1 (P27) | Phase 27 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F127, F128.1, F128.2: Anabelian Grothendieck Coupler, 22nd-order rank modulation, 72nd-order deadband | none | DONE |
+| M2 (P27) | Phase 27 Portfolio Allocation & Trans-Singular-Ultra EVaR (R2) | F129.1: Lurie Anabelian Grothendieck Barycenter, 23rd-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P27) | DONE |
+| M3 (P27) | Phase 27 Microstructure Hydrodynamics & Preemptive OMS (R3) | F129.2: KNK Phantom-Chameleon 6-Dark-Energy L3, 99.9998% dark ATS, 0.00000005 maker floor, 99.99995% anti-gaming, tick shading | M2 (P27) | DONE |
+| M4 (P27) | Phase 27 Benchmark Engine & Forensic Verification (R4) | F130: `benchmark_phase27_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P27) | DONE |
+| M1 (P28) | Phase 28 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F131, F132.1, F132.2: Motivic Galois Tannakian Coupler, 23rd-order rank modulation, 76th-order deadband | none | DONE |
+| M2 (P28) | Phase 28 Portfolio Allocation & Trans-Singular-Extreme EVaR (R2) | F133.1: Lurie Tannakian Motivic Barycenter, 24th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P28) | DONE |
+| M3 (P28) | Phase 28 Microstructure Hydrodynamics & Preemptive OMS (R3) | F133.2: KNK Phantom-Chameleon-Quintom 7-Dark-Energy L3, 99.9999% dark ATS, 0.00000002 maker floor, 99.99998% anti-gaming, tick shading | M2 (P28) | DONE |
+| M4 (P28) | Phase 28 Benchmark Engine & Forensic Verification (R4) | F134: `benchmark_phase28_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P28) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -142,6 +156,7 @@
 - `trading_system/scripts/benchmark_phase23_quant_performance.py`: Phase 23 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase26_quant_performance.py`: Phase 26 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase27_quant_performance.py`: Phase 27 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase28_quant_performance.py`: Phase 28 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine

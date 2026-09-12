@@ -1005,6 +1005,107 @@ class UnifiedPortfolioAllocator:
     # PHASE 27 (FEATURE F129.1.1): LURIE ANABELIAN GROTHENDIECK FISHER-RAO BARYCENTER
     # =========================================================================
 
+    # =========================================================================
+    # PHASE 28 (FEATURE F133.1): LURIE TANNAKIAN MOTIVIC FISHER-RAO BARYCENTER
+    # =========================================================================
+
+    def compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend(
+        self,
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 28 (Feature F133.1): Lurie Tannakian Motivic Fisher-Rao Barycenter Blending.
+        Computes consensus probability state q* on the Fisher-Rao Riemannian manifold
+        with Motivic Galois Tannakian reconstruction across the 4 allocation models (BL, HERC, Risk Parity, EVT-CVaR):
+            q* = argmin_{q in Delta^3} sum_m alpha_m D_{FR}^2(q, p^{(m)})
+        under the Tannakian Motivic metric weights mu_tannaka = [2.35, 1.85, 1.80, 2.90] strictly
+        prioritizing heavy-tail EVT-CVaR (2.90) and robust Black-Litterman conviction (2.35).
+        """
+        model_keys = ["bl", "herc", "rp", "cvar"]
+        d = len(model_keys)
+        mu_tannaka = np.array([2.35, 1.85, 1.80, 2.90], dtype=float)
+        mu_sq = np.square(mu_tannaka)
+
+        if isinstance(model_weights, dict):
+            p_vec = np.array([max(1e-6, float(model_weights.get(k, 0.25))) for k in model_keys], dtype=float)
+            p_vec /= np.sum(p_vec)
+            distributions = [p_vec]
+            alphas = [1.0]
+        elif isinstance(model_weights, list) and len(model_weights) > 0 and isinstance(model_weights[0], dict):
+            distributions = []
+            for mw in model_weights:
+                pv = np.array([max(1e-6, float(mw.get(k, 0.25))) for k in model_keys], dtype=float)
+                pv /= np.sum(pv)
+                distributions.append(pv)
+            alphas = np.full(len(distributions), 1.0 / len(distributions))
+        else:
+            arr = np.asarray(model_weights, dtype=float)
+            if arr.ndim == 1 and len(arr) == d:
+                pv = np.maximum(arr, 1e-6)
+                pv /= np.sum(pv)
+                distributions = [pv]
+                alphas = [1.0]
+            elif arr.ndim == 2 and arr.shape[1] == d:
+                distributions = []
+                for row in arr:
+                    pv = np.maximum(row, 1e-6)
+                    pv /= np.sum(pv)
+                    distributions.append(pv)
+                alphas = np.full(len(distributions), 1.0 / len(distributions))
+            else:
+                distributions = [np.full(d, 0.25)]
+                alphas = [1.0]
+
+        alphas = np.asarray(alphas, dtype=float)
+        alphas /= np.sum(alphas)
+        P_mat = np.array(distributions)
+
+        q_init = np.sum(alphas[:, None] * P_mat, axis=0)
+        q_init /= np.sum(q_init)
+
+        # Apply Lurie Tannakian Motivic metric scaling
+        q_target = q_init * mu_tannaka
+        q_target /= np.sum(q_target)
+
+        q = q_target.copy()
+        for _ in range(max_iter):
+            grad = 2.0 * mu_sq * (q - q_target) / (np.sqrt(q) + 1e-8)
+            q_new = q * np.exp(-step_size * grad)
+            q_new = np.maximum(q_new, 1e-8)
+            q_new /= np.sum(q_new)
+            if np.max(np.abs(q_new - q)) < tol:
+                q = q_new
+                break
+            q = q_new
+
+        return {k: float(q[i]) for i, k in enumerate(model_keys)}
+
+    # Phase 28 Barycenter Aliases
+    compute_lurie_tannakian_motivic_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_lurie_tannakian_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_lurie_tannakian_barycenter_blend = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_tannakian_motivic_fisher_rao_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_tannakian_motivic_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_tannakian_motivic_barycenter_blend = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_tannakian_motivic_fisher_rao_barycenter_blend = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_lurie_tannakian_motivic_barycenter_blend = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_tannakian_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_tannakian_fisher_rao_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_tannakian_fisher_rao_barycenter_blend = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_tannakian_barycenter_blend = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_motivic_tannakian_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_motivic_tannakian_barycenter_blend = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_motivic_tannakian_fisher_rao_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_motivic_tannakian_fisher_rao_barycenter_blend = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_lurie_motivic_tannakian_barycenter_blend = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_lurie_motivic_tannakian_fisher_rao_barycenter_blend = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_motivic_galois_tannakian_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_galois_tannakian_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+    compute_phase28_fisher_rao_barycenter = compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend
+
     def compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend(
         self,
         model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
@@ -2406,6 +2507,202 @@ class UnifiedPortfolioAllocator:
             "optimal_t": round(float(best_t_super), 4),
             "alpha": float(alpha_clamped),
         }
+
+    # =========================================================================
+    # PHASE 28 (FEATURE F133.1): 24TH-CUMULANT TRANS-SINGULAR-EXTREME EVAR
+    # =========================================================================
+
+    def compute_trans_singular_extreme_evar_risk_measure(
+        self,
+        returns: Union[np.ndarray, pd.Series, List[float]],
+        alpha: float = 0.05,
+        t_grid: Optional[Union[np.ndarray, List[float]]] = None,
+        xi_jump: float = 0.15,
+        xi_frechet: float = 0.20,
+        xi_transfinite: float = 0.25,
+        xi_inf: float = 0.30,
+        xi_supra: float = 0.35,
+        xi_ultra_trans: float = 0.75,
+        xi_trans_singularity: float = 0.45,
+        xi_beyond_singularity: float = 0.50,
+        xi_ultra_beyond_singularity: float = 0.55,
+        xi_ultra_transcendent: float = 0.60,
+        xi_hyper_transcendent: float = 0.65,
+        xi_trans_hyper_transcendent: float = 0.70,
+        xi_super_hyper: float = 0.80,
+        xi_ultra_super: float = 0.85,
+        xi_singular_hyper: float = 0.90,
+        xi_singular_ultra: float = 0.95,
+        xi_singular_extreme: float = 0.98,
+        xi_11: Optional[float] = None,
+        xi_12: Optional[float] = None,
+        xi_13: Optional[float] = None,
+        xi_14: Optional[float] = None,
+        xi_15: Optional[float] = None,
+        xi_16: Optional[float] = None,
+        xi_17: Optional[float] = None,
+        xi_18: Optional[float] = None,
+        xi_19: Optional[float] = None,
+        xi_20: Optional[float] = None,
+        xi_21: Optional[float] = None,
+        xi_22: Optional[float] = None,
+        xi_23: Optional[float] = None,
+        xi_24: Optional[float] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 28 (Feature F133.1): 24th-Cumulant Expansion Trans-Singular-Extreme Super-Coherent Tail Risk Measure.
+        Evaluates the 24th-order cumulant expansion risk measure:
+            Trans-Singular-Extreme-EVaR_{1-alpha}(X) = inf_{t > 0} { t^{-1} (ln E[exp(psi_{trans_singular_extreme}(t, L))] - ln alpha) }
+        where psi_{trans_singular_extreme}(t, L) = psi_{trans_singular_ultra}(t, L)
+                                                + (1 / 620448401733239439360000) * xi_24 * t^24 * |L|^24.
+        with 24! = 620,448,401,733,239,439,360,000, and xi_singular_extreme = 0.98.
+        Strictly satisfies the coherent tail risk hierarchy:
+            VaR <= CVaR <= EVaR <= ... <= Trans-Singular-Ultra-EVaR <= Trans-Singular-Extreme-EVaR.
+        """
+        xi_lower_ultra_trans = float(kwargs.get("xi_lower_ultra_trans", 0.40))
+        xi_11_eff = float(xi_11) if xi_11 is not None else float(xi_trans_singularity)
+        xi_12_eff = float(xi_12) if xi_12 is not None else float(xi_trans_singularity)
+        xi_13_eff = float(xi_13) if xi_13 is not None else float(xi_beyond_singularity)
+        xi_14_eff = float(xi_14) if xi_14 is not None else float(xi_beyond_singularity)
+        xi_15_eff = float(xi_15) if xi_15 is not None else float(xi_ultra_beyond_singularity)
+        xi_16_eff = float(xi_16) if xi_16 is not None else float(xi_ultra_transcendent)
+        xi_17_eff = float(xi_17) if xi_17 is not None else float(xi_hyper_transcendent)
+        xi_18_eff = float(xi_18) if xi_18 is not None else float(kwargs.get("xi_trans_hyper", xi_trans_hyper_transcendent))
+        xi_19_eff = float(xi_19) if xi_19 is not None else float(kwargs.get("xi_ultra_trans_hyper", xi_ultra_trans))
+        xi_20_eff = float(xi_20) if xi_20 is not None else float(kwargs.get("xi_trans_super_hyper", xi_super_hyper))
+        xi_21_eff = float(xi_21) if xi_21 is not None else float(kwargs.get("xi_ultra_trans_super_hyper", xi_ultra_super))
+        xi_22_eff = float(xi_22) if xi_22 is not None else float(kwargs.get("xi_trans_singular_hyper", xi_singular_hyper))
+        xi_23_eff = float(xi_23) if xi_23 is not None else float(kwargs.get("xi_trans_singular_ultra", kwargs.get("xi_singular_ultra", xi_singular_ultra)))
+        xi_24_eff = float(xi_24) if xi_24 is not None else float(kwargs.get("xi_trans_singular_extreme", kwargs.get("xi_singular_extreme", xi_singular_extreme)))
+
+        singular_ultra_res = self.compute_trans_singular_ultra_evar_risk_measure(
+            returns,
+            alpha=alpha,
+            t_grid=t_grid,
+            xi_jump=xi_jump,
+            xi_frechet=xi_frechet,
+            xi_transfinite=xi_transfinite,
+            xi_inf=xi_inf,
+            xi_supra=xi_supra,
+            xi_ultra_trans=xi_lower_ultra_trans,
+            xi_trans_singularity=xi_trans_singularity,
+            xi_beyond_singularity=xi_beyond_singularity,
+            xi_ultra_beyond_singularity=xi_ultra_beyond_singularity,
+            xi_ultra_transcendent=xi_ultra_transcendent,
+            xi_hyper_transcendent=xi_hyper_transcendent,
+            xi_trans_hyper_transcendent=xi_trans_hyper_transcendent,
+            xi_super_hyper=xi_20_eff,
+            xi_ultra_super=xi_21_eff,
+            xi_singular_hyper=xi_22_eff,
+            xi_singular_ultra=xi_23_eff,
+            xi_11=xi_11,
+            xi_12=xi_12,
+            xi_13=xi_13,
+            xi_14=xi_14,
+            xi_15=xi_15,
+            xi_16=xi_16,
+            xi_17=xi_17,
+            xi_18=xi_18,
+            xi_19=xi_19_eff,
+            xi_20=xi_20_eff,
+            xi_21=xi_21_eff,
+            xi_22=xi_22_eff,
+            xi_23=xi_23_eff,
+        )
+        singular_ultra_val = singular_ultra_res["trans_singular_ultra_evar_value"]
+        opt_t = singular_ultra_res["optimal_t"]
+
+        r = np.asarray(returns, dtype=float)
+        r_flat = r.flatten()
+        r_clean = r_flat[np.isfinite(r_flat)]
+        if len(r_clean) == 0:
+            res_dict = dict(singular_ultra_res)
+            res_dict.update({
+                "trans_singular_extreme_evar_value": singular_ultra_val,
+                "trans_singular_extreme_evar": singular_ultra_val,
+                "xi_singular_extreme": float(xi_24_eff),
+                "xi_trans_singular_extreme": float(xi_24_eff),
+                "xi_24": float(xi_24_eff),
+                "kappa_24": float(xi_24_eff),
+                "order": 24,
+            })
+            return res_dict
+
+        losses = -r_clean
+        alpha_clamped = float(np.clip(alpha, 1e-4, 0.49))
+
+        def eval_trans_singular_extreme_evar_t(t_val: float) -> float:
+            if t_val <= 1e-8:
+                return 1e9
+            abs_l = np.abs(losses)
+            l_sq = np.square(losses)
+            arg = (
+                t_val * losses
+                + 0.5 * xi_jump * (t_val ** 2) * l_sq
+                + (1.0 / 6.0) * xi_frechet * (t_val ** 3) * np.power(abs_l, 3.0)
+                + (1.0 / 24.0) * xi_transfinite * (t_val ** 4) * np.power(losses, 4.0)
+                + (1.0 / 120.0) * xi_inf * (t_val ** 5) * np.power(abs_l, 5.0)
+                + (1.0 / 720.0) * xi_supra * (t_val ** 6) * np.power(losses, 6.0)
+                + (1.0 / 5040.0) * xi_lower_ultra_trans * (t_val ** 7) * np.power(abs_l, 7.0)
+                + (1.0 / 40320.0) * xi_lower_ultra_trans * (t_val ** 8) * np.power(losses, 8.0)
+                + (1.0 / 362880.0) * xi_lower_ultra_trans * (t_val ** 9) * np.power(abs_l, 9.0)
+                + (1.0 / 3628800.0) * xi_lower_ultra_trans * (t_val ** 10) * np.power(losses, 10.0)
+                + (1.0 / 39916800.0) * xi_11_eff * (t_val ** 11) * np.power(abs_l, 11.0)
+                + (1.0 / 479001600.0) * xi_12_eff * (t_val ** 12) * np.power(losses, 12.0)
+                + (1.0 / 6227020800.0) * xi_13_eff * (t_val ** 13) * np.power(abs_l, 13.0)
+                + (1.0 / 87178291200.0) * xi_14_eff * (t_val ** 14) * np.power(losses, 14.0)
+                + (1.0 / 1307674368000.0) * xi_15_eff * (t_val ** 15) * np.power(abs_l, 15.0)
+                + (1.0 / 20922789888000.0) * xi_16_eff * (t_val ** 16) * np.power(losses, 16.0)
+                + (1.0 / 355687428096000.0) * xi_17_eff * (t_val ** 17) * np.power(abs_l, 17.0)
+                + (1.0 / 6402373705728000.0) * xi_18_eff * (t_val ** 18) * np.power(losses, 18.0)
+                + (1.0 / 121645100408832000.0) * xi_19_eff * (t_val ** 19) * np.power(abs_l, 19.0)
+                + (1.0 / 2432902008176640000.0) * xi_20_eff * (t_val ** 20) * np.power(losses, 20.0)
+                + (1.0 / 51090942171709440000.0) * xi_21_eff * (t_val ** 21) * np.power(abs_l, 21.0)
+                + (1.0 / 1124000727777607680000.0) * xi_22_eff * (t_val ** 22) * np.power(losses, 22.0)
+                + (1.0 / 25852016738884976640000.0) * xi_23_eff * (t_val ** 23) * np.power(abs_l, 23.0)
+                + (1.0 / 620448401733239439360000.0) * xi_24_eff * (t_val ** 24) * np.power(losses, 24.0)
+            )
+            arg_clipped = np.clip(arg, -500.0, 500.0)
+            max_arg = np.max(arg_clipped)
+            log_smgf = max_arg + np.log(max(1e-12, float(np.mean(np.exp(arg_clipped - max_arg)))))
+            return float((log_smgf - math.log(alpha_clamped)) / t_val)
+
+        best_ts = float("inf")
+        best_t_ts = opt_t
+        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        if t_grid is not None:
+            candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
+
+        for t_c in candidate_t:
+            v = eval_trans_singular_extreme_evar_t(float(t_c))
+            if v < best_ts:
+                best_ts = v
+                best_t_ts = float(t_c)
+
+        trans_singular_extreme_final = max(best_ts, singular_ultra_val)
+        out = dict(singular_ultra_res)
+        out.update({
+            "trans_singular_extreme_evar_value": round(float(trans_singular_extreme_final), 6),
+            "trans_singular_extreme_evar": round(float(trans_singular_extreme_final), 6),
+            "optimal_t": round(float(best_t_ts), 4),
+            "xi_singular_extreme": float(xi_24_eff),
+            "xi_trans_singular_extreme": float(xi_24_eff),
+            "xi_24": float(xi_24_eff),
+            "kappa_24": float(xi_24_eff),
+            "order": 24,
+        })
+        return out
+
+    # Phase 28 EVaR Aliases
+    compute_trans_singular_extreme_evar = compute_trans_singular_extreme_evar_risk_measure
+    trans_singular_extreme_evar_risk_measure = compute_trans_singular_extreme_evar_risk_measure
+    compute_trans_singular_extreme_evar_blend = compute_trans_singular_extreme_evar_risk_measure
+    compute_singular_extreme_evar = compute_trans_singular_extreme_evar_risk_measure
+    singular_extreme_evar_risk_measure = compute_trans_singular_extreme_evar_risk_measure
+    compute_trans_singular_extreme_evar_phase28 = compute_trans_singular_extreme_evar_risk_measure
+    compute_24th_cumulant_evar = compute_trans_singular_extreme_evar_risk_measure
+    compute_phase28_evar = compute_trans_singular_extreme_evar_risk_measure
 
     # =========================================================================
     # PHASE 27 (FEATURE F129.1.2): 23RD-CUMULANT TRANS-SINGULAR-ULTRA EVAR
@@ -4884,7 +5181,8 @@ class UnifiedPortfolioAllocator:
         lam_l = float(copula_lower_tail) if (copula_lower_tail is not None and math.isfinite(float(copula_lower_tail))) else 0.0
         lam_u = float(copula_upper_tail) if (copula_upper_tail is not None and math.isfinite(float(copula_upper_tail))) else 0.0
 
-        is_phase27 = int(version) >= 27
+        is_phase28 = int(version) >= 28
+        is_phase27 = (int(version) >= 27) or is_phase28
         is_phase26 = (int(version) >= 26) or is_phase27
         is_phase25 = (int(version) >= 25) or is_phase26
         is_phase24 = (int(version) >= 24) or is_phase25
@@ -4907,7 +5205,35 @@ class UnifiedPortfolioAllocator:
         lam_casc = float(rvine_cascade_index) if (rvine_cascade_index is not None and math.isfinite(float(rvine_cascade_index))) else lam_l
         lam_t2 = float(tree2_conditional_tail) if (tree2_conditional_tail is not None and math.isfinite(float(tree2_conditional_tail))) else 0.0
 
-        if is_phase27:
+        if is_phase28:
+            # Phase 28 (Feature F133.1): Lurie Tannakian Motivic Fisher-Rao Ambiguity Tilting
+            eps_w = float(wasserstein_radius) if (wasserstein_radius is not None and math.isfinite(float(wasserstein_radius))) else 0.350
+            delta_tannakian = {
+                "bl": -5.15 * eps_w - 2.10 * (u_entropy ** 2),
+                "herc": +2.60 * eps_w + 1.55 * u_entropy,
+                "rp": -5.55 * eps_w,
+                "cvar": +7.45 * eps_w + 2.70 * c_crisis,
+            }
+            for k in delta_ell:
+                delta_ell[k] += delta_tannakian[k]
+
+            # Hyper-Information Entropy Parity (Phase 28)
+            alpha_iep = 1.65
+            contagion_damp = max(0.0, 1.0 - 4.2 * lam_casc)
+            for k in delta_ell:
+                delta_ell[k] += alpha_iep * u_entropy * (0.25 - w_prior[k]) * contagion_damp
+
+            # R-Vine Higher-Order Downside Cascade Tilting (Phase 28)
+            if lam_casc > 0.0 or lam_u > 0.0:
+                delta_rvine = {
+                    "bl": -4.30 * max(0.0, lam_casc - 0.15) + 1.70 * max(0.0, lam_u - 0.20),
+                    "herc": +2.05 * max(0.0, lam_casc - 0.15) - 0.01 * max(0.0, lam_t2 - 0.20),
+                    "rp": -4.95 * max(0.0, lam_casc - 0.15),
+                    "cvar": +6.85 * max(0.0, lam_casc - 0.15),
+                }
+                for k in delta_ell:
+                    delta_ell[k] += delta_rvine[k]
+        elif is_phase27:
             # Phase 27 (Feature F129.1.1): Lurie Anabelian Grothendieck Section Conjecture Ambiguity Tilting
             eps_w = float(wasserstein_radius) if (wasserstein_radius is not None and math.isfinite(float(wasserstein_radius))) else 0.340
             delta_anabelian = {
@@ -5472,9 +5798,12 @@ class UnifiedPortfolioAllocator:
         max_log = max(log_odds.values())
         exps = {k: math.exp((v - max_log) / tau) for k, v in log_odds.items()}
         tot_exp = sum(exps.values())
+        res_weights = {k: v / tot_exp for k, v in exps.items()}
 
-        res_weights = {k: float(v / tot_exp) for k, v in exps.items()}
-        if is_phase27:
+        if is_phase28:
+            # Phase 28 (Feature F133.1): Apply Lurie Tannakian Motivic Fisher-Rao Barycenter refinement
+            res_weights = self.compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend(res_weights)
+        elif is_phase27:
             # Phase 27 (Feature F129.1.1): Apply Lurie Anabelian Grothendieck Section Conjecture Fisher-Rao Barycenter refinement
             res_weights = self.compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend(res_weights)
         elif is_phase26:
@@ -5643,7 +5972,8 @@ class UnifiedPortfolioAllocator:
                     except Exception as e_moments:
                         logger.debug(f"[EVT-CVaR Co-Moments] Fallback: {e_moments}")
 
-                is_phase27 = (int(version) >= 27)
+                is_phase28 = (int(version) >= 28)
+                is_phase27 = (int(version) >= 27) or is_phase28
                 is_phase26 = (int(version) >= 26) or is_phase27
                 is_phase25 = (int(version) >= 25) or is_phase26
                 is_phase24 = (int(version) >= 24) or is_phase25
@@ -5659,7 +5989,18 @@ class UnifiedPortfolioAllocator:
                     port_var = float(w @ eff_cov @ w)
                     port_std = math.sqrt(max(1e-8, port_var))
                     # F37: Dynamic Cornish-Fisher EVT-CVaR tail expansion adapting to portfolio co-skewness and co-kurtosis
-                    if is_phase27:
+                    if is_phase28:
+                        # Phase 28: Trans-Singular-Extreme EVaR Tail calibration with 24th-cumulant expansion
+                        if co_skew is not None and co_kurt is not None:
+                            s_p = float(np.dot(w, co_skew))
+                            k_p = float(np.dot(w, co_kurt - 3.0))
+                            k_alpha_w = float(np.clip(
+                                z_alpha + 0.95 - ((z_alpha ** 2 - 1.0) / 6.0) * s_p + 0.40 * max(0.0, k_p) + 2.35 * eff_xi,
+                                2.65, 4.50
+                            ))
+                        else:
+                            k_alpha_w = float(np.clip(k_alpha + 0.65 + 2.35 * (eff_xi - 0.15), 2.65, 4.50))
+                    elif is_phase27:
                         # Phase 27: Trans-Singular-Ultra EVaR Tail calibration with 23rd-cumulant expansion
                         if co_skew is not None and co_kurt is not None:
                             s_p = float(np.dot(w, co_skew))
@@ -5820,7 +6161,8 @@ class UnifiedPortfolioAllocator:
         # Empirical Sample Rockafellar & Uryasev Optimization
         R = returns_df.values  # T x n
         try:
-            is_phase27 = (int(version) >= 27)
+            is_phase28 = (int(version) >= 28)
+            is_phase27 = (int(version) >= 27) or is_phase28
             is_phase26 = (int(version) >= 26) or is_phase27
             is_phase25 = (int(version) >= 25) or is_phase26
             is_phase24 = (int(version) >= 24) or is_phase25
@@ -5835,7 +6177,10 @@ class UnifiedPortfolioAllocator:
             def obj_cvar(var):
                 w = var[:n]
                 cvar_part = float(var[n] + (1.0 / ((1.0 - alpha) * T)) * np.sum(var[n + 1:]))
-                if is_phase27:
+                if is_phase28:
+                    extreme_losses = np.maximum(0.0, var[n + 1:])
+                    cvar_part += float(0.15 * np.mean(np.power(extreme_losses, 2.0)))
+                elif is_phase27:
                     extreme_losses = np.maximum(0.0, var[n + 1:])
                     cvar_part += float(0.14 * np.mean(np.power(extreme_losses, 2.0)))
                 elif is_phase26:
