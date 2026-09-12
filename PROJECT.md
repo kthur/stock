@@ -94,6 +94,12 @@
 | F137.1 | Lurie Beilinson-Flach Motivic Barycenter & Trans-Singular-Supreme EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{beilinson}}=[2.40, 1.90, 1.85, 2.95]$ and $25! = 15,511,210,043,330,985,984,000,000$ tail bounds | M2 (P29) | Phase 29 R2 |
 | F137.2 | KNK Phantom-Chameleon-Quintom-Tachyon 8-Dark-Energy L3 & Preemptive OMS | Kerr-Newman-Kiselev 8-dark-energy ($w_{\text{phantom\_chameleon\_quintom\_tachyon}} = -10/3$), 0.00000001 maker floor, 99.99995% dark ATS, 99.99999% anti-gaming, tick shading $-0.999995 \cdot \text{spread} \cdot (h-0.010)$ | M3 (P29) | Phase 29 R3 |
 | F138 | Phase 29 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase29_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P29) | Phase 29 R4 |
+| F139 | Motivic Kolyvagin Euler System & Iwasawa Main Conjecture Coupler | Kolyvagin derivative classes defect obstruction $E_{\text{kolyvagin}}$ and Iwasawa $p$-adic $L$-function zero invariant $Z_{\text{iwasawa}}$ | M1 (P30) | Phase 30 R1 |
+| F140.1 | 25th-Order Hyper-Convex Rank Modulation | $g_{\text{v30}}(r) = 0.50 + 1.24 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{25})$ with regime-adaptive $\gamma_{\text{top}}$ up to 3.10 | M1 (P30) | Phase 30 R1 |
+| F140.2 | 84th-Order Tetraoctacontagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{84})$ eliminating noise leakage to $< 10^{-44}$ | M1 (P30) | Phase 30 R1 |
+| F141.1 | Lurie Kolyvagin-Iwasawa Motivic Barycenter & Trans-Singular-Infinity EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{kolyvagin}}=[2.45, 1.95, 1.90, 3.00]$ and $26! = 403,291,461,126,605,635,584,000,000$ tail bounds | M2 (P30) | Phase 30 R2 |
+| F141.2 | KNK Phantom-Chameleon-Quintom-Tachyon-Ghost 9-Dark-Energy L3 & Preemptive OMS | Kerr-Newman-Kiselev 9-dark-energy ($w_{\text{phantom\_chameleon\_quintom\_tachyon\_ghost}} = -11/3$), 0.000000005 maker floor, 99.99998% dark ATS, 99.999995% anti-gaming, tick shading $-0.999998 \cdot \text{spread} \cdot (h-0.008)$ | M3 (P30) | Phase 30 R3 |
+| F142 | Phase 30 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase30_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P30) | Phase 30 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -144,6 +150,10 @@
 | M2 (P29) | Phase 29 Portfolio Allocation & Trans-Singular-Supreme EVaR (R2) | F137.1: Lurie Beilinson-Flach Motivic Barycenter, 25th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P29) | DONE |
 | M3 (P29) | Phase 29 Microstructure Hydrodynamics & Preemptive OMS (R3) | F137.2: KNK Phantom-Chameleon-Quintom-Tachyon 8-Dark-Energy L3, 99.99995% dark ATS, 0.00000001 maker floor, 99.99999% anti-gaming, tick shading | M2 (P29) | DONE |
 | M4 (P29) | Phase 29 Benchmark Engine & Forensic Verification (R4) | F138: `benchmark_phase29_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P29) | DONE |
+| M1 (P30) | Phase 30 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F139, F140.1, F140.2: Motivic Kolyvagin Coupler, 25th-order rank modulation, 84th-order deadband | none | DONE |
+| M2 (P30) | Phase 30 Portfolio Allocation & Trans-Singular-Infinity EVaR (R2) | F141.1: Lurie Kolyvagin-Iwasawa Motivic Barycenter, 26th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P30) | DONE |
+| M3 (P30) | Phase 30 Microstructure Hydrodynamics & Preemptive OMS (R3) | F141.2: KNK Phantom-Chameleon-Quintom-Tachyon-Ghost 9-Dark-Energy L3, 99.99998% dark ATS, 0.000000005 maker floor, 99.999995% anti-gaming, tick shading | M2 (P30) | DONE |
+| M4 (P30) | Phase 30 Benchmark Engine & Forensic Verification (R4) | F142: `benchmark_phase30_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P30) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -168,6 +178,7 @@
 - `trading_system/scripts/benchmark_phase27_quant_performance.py`: Phase 27 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase28_quant_performance.py`: Phase 28 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase29_quant_performance.py`: Phase 29 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase30_quant_performance.py`: Phase 30 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
