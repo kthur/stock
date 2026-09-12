@@ -3167,6 +3167,83 @@ class PortfolioAllocator:
     singular_hyper_evar_risk_measure = compute_trans_singular_hyper_evar_risk_measure
     compute_trans_singular_evar = compute_trans_singular_hyper_evar_risk_measure
 
+    # ── Phase 29 (F137.1): Lurie Beilinson-Flach Motivic Fisher-Rao Barycenter ──
+    @staticmethod
+    def compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 29 (Feature F137.1): Lurie Beilinson-Flach Motivic Fisher-Rao Barycenter Blending.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_beilinson_flach_barycenter = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_beilinson_flach_fisher_rao_barycenter = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_beilinson_flach_barycenter = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_lurie_beilinson_barycenter = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_lurie_flach_barycenter = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_beilinson_fisher_rao_barycenter = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_flach_fisher_rao_barycenter = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_beilinson_flach_fisher_rao_barycenter_blend = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_lurie_beilinson_flach_barycenter_blend = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_phase29_fisher_rao_barycenter = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_beilinson_barycenter = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+    compute_flach_barycenter = compute_lurie_beilinson_flach_motivic_fisher_rao_barycenter_blend
+
+    # ── Phase 29 (F137.1): 25th-Cumulant Trans-Singular-Supreme EVaR ──────────
+    @staticmethod
+    def compute_trans_singular_supreme_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        xi_25: Optional[float] = None,
+        xi_singular_supreme: float = 0.99,
+        xi_trans_singular_supreme: float = 0.99,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 29 (Feature F137.1): 25th-Cumulant Expansion Trans-Singular-Supreme EVaR Tail Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.compute_trans_singular_supreme_evar_risk_measure.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        rets = returns if returns is not None else (-np.asarray(losses, dtype=float) if losses is not None else np.array([]))
+        xi_25_val = xi_25 if xi_25 is not None else (kwargs.get("xi_trans_singular_supreme", kwargs.get("xi_singular_supreme", xi_singular_supreme)))
+        return alloc.compute_trans_singular_supreme_evar_risk_measure(
+            returns=rets,
+            alpha=alpha,
+            xi_25=xi_25_val,
+            xi_singular_supreme=xi_25_val,
+            **kwargs,
+        )
+
+    compute_trans_singular_supreme_evar = compute_trans_singular_supreme_evar_risk_measure
+    trans_singular_supreme_evar_risk_measure = compute_trans_singular_supreme_evar_risk_measure
+    compute_trans_singular_supreme_evar_blend = compute_trans_singular_supreme_evar_risk_measure
+    compute_singular_supreme_evar = compute_trans_singular_supreme_evar_risk_measure
+    singular_supreme_evar_risk_measure = compute_trans_singular_supreme_evar_risk_measure
+    compute_trans_singular_supreme_evar_phase29 = compute_trans_singular_supreme_evar_risk_measure
+    compute_25th_cumulant_evar = compute_trans_singular_supreme_evar_risk_measure
+    compute_phase29_evar = compute_trans_singular_supreme_evar_risk_measure
+    compute_supreme_evar = compute_trans_singular_supreme_evar_risk_measure
+    compute_supreme_evar_risk_measure = compute_trans_singular_supreme_evar_risk_measure
+
     # ── Phase 28 (F133.1): Lurie Tannakian Motivic Fisher-Rao Barycenter ──
     @staticmethod
     def compute_lurie_tannakian_motivic_fisher_rao_barycenter_blend(
