@@ -3167,6 +3167,85 @@ class PortfolioAllocator:
     singular_hyper_evar_risk_measure = compute_trans_singular_hyper_evar_risk_measure
     compute_trans_singular_evar = compute_trans_singular_hyper_evar_risk_measure
 
+    # ── Phase 27 (F129.1.1): Lurie Anabelian Grothendieck Fisher-Rao Barycenter ──
+    @staticmethod
+    def compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 27 (Feature F129.1.1): Lurie Anabelian Grothendieck Section Conjecture Fisher-Rao Barycenter Blending.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_anabelian_grothendieck_barycenter = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_lurie_anabelian_barycenter = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_anabelian_grothendieck_fisher_rao_barycenter = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_anabelian_grothendieck_barycenter = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_anabelian_grothendieck_fisher_rao_barycenter_blend = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_lurie_anabelian_grothendieck_barycenter_blend = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_anabelian_barycenter = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_anabelian_fisher_rao_barycenter_blend = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_grothendieck_barycenter = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_grothendieck_barycenter_blend = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_grothendieck_fisher_rao_barycenter = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_grothendieck_fisher_rao_barycenter_blend = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_lurie_anabelian_barycenter_blend = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_lurie_anabelian_fisher_rao_barycenter_blend = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+    compute_phase27_fisher_rao_barycenter = compute_lurie_anabelian_grothendieck_fisher_rao_barycenter_blend
+
+    # ── Phase 27 (F129.1.2): 23rd-Cumulant Trans-Singular-Ultra EVaR ──────────
+    @staticmethod
+    def compute_trans_singular_ultra_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        xi_23: Optional[float] = None,
+        xi_singular_ultra: float = 0.95,
+        xi_trans_singular_ultra: float = 0.95,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 27 (Feature F129.1.2): 23rd-Cumulant Expansion Trans-Singular-Ultra EVaR Tail Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.compute_trans_singular_ultra_evar_risk_measure.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        rets = returns if returns is not None else (-np.asarray(losses, dtype=float) if losses is not None else np.array([]))
+        xi_23_val = xi_23 if xi_23 is not None else (kwargs.get("xi_trans_singular_ultra", kwargs.get("xi_singular_ultra", xi_singular_ultra)))
+        return alloc.compute_trans_singular_ultra_evar_risk_measure(
+            returns=rets,
+            alpha=alpha,
+            xi_23=xi_23_val,
+            xi_singular_ultra=xi_23_val,
+            **kwargs,
+        )
+
+    compute_trans_singular_ultra_evar = compute_trans_singular_ultra_evar_risk_measure
+    trans_singular_ultra_evar_risk_measure = compute_trans_singular_ultra_evar_risk_measure
+    compute_trans_singular_ultra_evar_blend = compute_trans_singular_ultra_evar_risk_measure
+    compute_singular_ultra_evar = compute_trans_singular_ultra_evar_risk_measure
+    singular_ultra_evar_risk_measure = compute_trans_singular_ultra_evar_risk_measure
+    compute_trans_singular_evar = compute_trans_singular_ultra_evar_risk_measure
+    compute_trans_singular_evar_phase27 = compute_trans_singular_ultra_evar_risk_measure
+    compute_23rd_cumulant_evar = compute_trans_singular_ultra_evar_risk_measure
+    compute_phase27_evar = compute_trans_singular_ultra_evar_risk_measure
+
 
 
 

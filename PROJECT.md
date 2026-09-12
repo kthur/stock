@@ -76,6 +76,12 @@
 | F125.1 | Lurie Mochizuki IUT Barycenter & Trans-Singular-Hyper EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{mochizuki}}=[2.25, 1.75, 1.70, 2.80]$ and $22! = 1,124,000,727,777,607,680,000$ tail bounds | M2 (P26) | Phase 26 R2 |
 | F125.2 | KNK Chameleon 5-Dark-Energy L3 & Preemptive OMS | Kerr-Newman-Kiselev 5-dark-energy ($w_{\text{chameleon}} = -7/3$), 0.0000001 maker floor, 99.9995% dark ATS, 99.9999% anti-gaming, tick shading $-0.99995 \cdot \text{spread} \cdot (h-0.020)$ | M3 (P26) | Phase 26 R3 |
 | F126 | Phase 26 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase26_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P26) | Phase 26 R4 |
+| F127 | Anabelian Grothendieck Section Conjecture Coupler | Étale fundamental group section obstruction $H_{\text{anabelian}}$ and arithmetic Grothendieck invariant $Z_{\text{anabelian}}$ | M1 (P27) | Phase 27 R1 |
+| F128.1 | 22nd-Order Hyper-Convex Rank Modulation | $g_{\text{v27}}(r) = 0.50 + 1.18 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{22})$ with regime-adaptive $\gamma_{\text{top}}$ up to 2.80 | M1 (P27) | Phase 27 R1 |
+| F128.2 | 72nd-Order Heptaduo-gonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{72})$ eliminating noise leakage to $< 10^{-38}$ | M1 (P27) | Phase 27 R1 |
+| F129.1 | Lurie Anabelian Grothendieck Barycenter & Trans-Singular-Ultra EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{anabelian}}=[2.30, 1.80, 1.75, 2.85]$ and $23! = 25,852,016,738,884,976,640,000$ tail bounds | M2 (P27) | Phase 27 R2 |
+| F129.2 | KNK Phantom-Chameleon 6-Dark-Energy L3 & Preemptive OMS | Kerr-Newman-Kiselev 6-dark-energy ($w_{\text{phantom\_chameleon}} = -8/3$), 0.00000005 maker floor, 99.9998% dark ATS, 99.99995% anti-gaming, tick shading $-0.99998 \cdot \text{spread} \cdot (h-0.015)$ | M3 (P27) | Phase 27 R3 |
+| F130 | Phase 27 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase27_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P27) | Phase 27 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -135,6 +141,7 @@
 - `trading_system/scripts/benchmark_phase22_quant_performance.py`: Phase 22 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase23_quant_performance.py`: Phase 23 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase26_quant_performance.py`: Phase 26 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase27_quant_performance.py`: Phase 27 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
