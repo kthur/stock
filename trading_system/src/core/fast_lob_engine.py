@@ -1406,6 +1406,275 @@ class FastOrderBookMatchingEngine:
     calculate_knk_quintessence_phantom_tachyon_hydrodynamics = compute_kerr_newman_kiselev_tachyon_queue_acceleration
     calculate_kerr_newman_kiselev_quintessence_phantom_tachyon_hydrodynamics = compute_kerr_newman_kiselev_tachyon_queue_acceleration
 
+    def compute_kerr_newman_kiselev_chameleon_queue_acceleration(
+        self,
+        charge_parameter: float = 0.5,
+        spin_parameter: float = 0.5,
+        quintessence_parameter: float = 0.05,
+        phantom_parameter: float = 0.02,
+        tachyon_parameter: float = 0.01,
+        quintom_parameter: float = 0.005,
+        chameleon_parameter: float = 0.002,
+        w_q: float = -2.0 / 3.0,
+        w_p: float = -4.0 / 3.0,
+        w_t: float = -5.0 / 3.0,
+        w_m: float = -2.0,
+        w_c: float = -7.0 / 3.0,
+        theta: float = math.pi / 2.0,
+        levels: int = 10,
+        timestamp_sec: Optional[float] = None,
+        **kwargs,
+    ) -> Dict[str, float]:
+        """
+        Phase 26 (F125.2): Kerr-Newman-Kiselev Chameleon 5-Dark-Energy L3 Orderbook Hydrodynamics Model.
+        Embeds rotating charged orderbook fluid into Kerr-Newman-Kiselev spacetime surrounded by
+        quintuple dark energy (quintessence w_q = -2/3, phantom w_p = -4/3, tachyon w_t = -5/3, quintom w_m = -2.0, chameleon w_c = -7/3):
+            Quintessence energy density: rho_q = c_q / r
+            Phantom energy density: rho_p = 2 * c_p * r
+            Tachyon energy density: rho_t = 2.5 * c_t * r^2
+            Quintom energy density: rho_m = 3.0 * c_m * r^3
+            Chameleon energy density: rho_c = -(c_c / 2) * (3 * w_c / r^{3*(1 + w_c)}) = 3.5 * c_c * r^4
+            Metric horizon equation:
+                Delta_r = (r^2 + a^2) - 2 * M * r + Q^2 - c_q * r^3 - c_p * r^5 - c_t * r^6 - c_m * r^7 - c_c * r^8
+            Outer chameleon cosmological horizon:
+                r_C = max(r_horizon + 0.1, (1.0 / max(1e-4, c_c)) ** (1.0/7.0) * (1.0 - M / max(1.0, (1.0 / max(1e-4, c_c)) ** (1.0/7.0))))
+            Frame-dragging angular velocity:
+                omega_{drag}^{KNK-CH}(r, theta) = a * (2*M*r - Q^2 + q_{dark}) / (rho^2 * (r^2 + a^2) + a^2 * (2*M*r - Q^2 + q_{dark}) * sin^2(theta))
+            Radial tidal force with quintuple dark energy repulsive acceleration:
+                F_{tidal}^{KNK-CH}(r, theta) = F_{tidal}^{KN}(r, theta) - c_q * r - 2 * c_p * r^3 - 2.5 * c_t * r^4 - 3.0 * c_m * r^5 - 3.5 * c_c * r^6
+            Conformal boundary amplification factor:
+                Gamma_{KNK-CH} = 1.0 + max(0.0, (r_H - r)/r_H) + M^2 / ((r - r_H)^2 + 0.05 * M^2) + c_q * r^3 + c_p * r^5 + c_t * r^6 + c_m * r^7 + c_c * r^8
+            Hydrodynamic queue acceleration:
+                charge_accel = (Q^2 * v_{QI}) / max(1e-4, r^3) * (1.0 + c_q * r + c_p * (r^2) + c_t * (r^3) + c_m * (r^4) + c_c * (r^5))
+                a_{KNK-CH} = a_{QI} + (omega_{drag}^{KNK-CH} + |F_{tidal}^{KNK-CH}|) * v_{QI} * Gamma_{KNK-CH} + charge_accel
+        """
+        l3_res = self.compute_l3_queue_imbalance(levels=levels, timestamp_sec=timestamp_sec)
+        qi_l3 = l3_res["l3_queue_imbalance"]
+        v_qi = l3_res["qi_velocity"]
+        a_qi = l3_res["qi_acceleration"]
+        w_bid = l3_res["weighted_bid_depth"]
+        w_ask = l3_res["weighted_ask_depth"]
+        best_bid_px = self.get_best_bid()[0]
+        spread = max(1e-4, l3_res["l3_micro_price"] - best_bid_px) * 2.0 if best_bid_px > 0 else 1.0
+
+        m_mass = max(1.0, math.log1p(w_bid + w_ask))
+        c_q = float(kwargs.get("c_q", quintessence_parameter))
+        c_p = float(kwargs.get("c_p", kwargs.get("phantom_parameter", phantom_parameter)))
+        c_t = float(kwargs.get("c_t", kwargs.get("tachyon_parameter", tachyon_parameter)))
+        c_m = float(kwargs.get("c_m", kwargs.get("quintom_parameter", quintom_parameter)))
+        c_c = float(kwargs.get("c_c", kwargs.get("chameleon_parameter", chameleon_parameter)))
+        w_state_q = float(kwargs.get("w_q", w_q))
+        w_state_p = float(kwargs.get("w_p", w_p))
+        w_state_t = float(kwargs.get("w_t", w_t))
+        w_state_m = float(kwargs.get("w_m", w_m))
+        w_state_c = float(kwargs.get("w_c", w_c))
+
+        a_spin = float(np.clip(abs(spin_parameter) * m_mass, 0.0, 0.999 * m_mass))
+        max_q = 0.999 * math.sqrt(max(0.0, (m_mass ** 2) - (a_spin ** 2)))
+        q_param = kwargs.get("charge", kwargs.get("q", charge_parameter))
+        q_charge = float(np.clip(abs(float(q_param)) * m_mass, 0.0, max_q))
+
+        cos_th = math.cos(theta)
+        sin_th = math.sin(theta)
+
+        disc = max(0.0, (m_mass ** 2) - (a_spin ** 2) * (cos_th ** 2) - (q_charge ** 2) + c_q * (m_mass ** 3) + c_p * (m_mass ** 5) + c_t * (m_mass ** 6) + c_m * (m_mass ** 7) + c_c * (m_mass ** 8))
+        r_horizon = m_mass + math.sqrt(disc)
+
+        r_coord = max(0.1, m_mass * (1.0 - 0.5 * abs(qi_l3)))
+        is_in_horizon = bool(r_coord <= r_horizon)
+
+        # Outer horizons
+        r_quint = max(r_horizon + 0.1, (1.0 / max(1e-4, c_q)) * (1.0 - m_mass / max(1.0, 1.0 / max(1e-4, c_q))))
+        cp_scale = (1.0 / max(1e-4, c_p)) ** 0.25
+        r_phantom = max(r_horizon + 0.1, cp_scale * (1.0 - m_mass / max(1.0, cp_scale)))
+        ct_scale = (1.0 / max(1e-4, c_t)) ** 0.20
+        r_tachyon = max(r_horizon + 0.1, ct_scale * (1.0 - m_mass / max(1.0, ct_scale)))
+        cm_scale = (1.0 / max(1e-4, c_m)) ** (1.0 / 6.0)
+        r_quintom = max(r_horizon + 0.1, cm_scale * (1.0 - m_mass / max(1.0, cm_scale)))
+        cc_scale = (1.0 / max(1e-4, c_c)) ** (1.0 / 7.0)
+        r_chameleon = max(r_horizon + 0.1, cc_scale * (1.0 - m_mass / max(1.0, cc_scale)))
+
+        rho_sq = (r_coord ** 2) + (a_spin ** 2) * (cos_th ** 2)
+        q_dark_term = c_q * (r_coord ** 3) + c_p * (r_coord ** 5) + c_t * (r_coord ** 6) + c_m * (r_coord ** 7) + c_c * (r_coord ** 8)
+        numer_omega = a_spin * (2.0 * m_mass * r_coord - (q_charge ** 2) + q_dark_term)
+        denom_omega = (
+            rho_sq * ((r_coord ** 2) + (a_spin ** 2))
+            + (a_spin ** 2) * (2.0 * m_mass * r_coord - (q_charge ** 2) + q_dark_term) * (sin_th ** 2)
+        )
+        omega_drag = max(0.0, numer_omega / max(1e-6, denom_omega))
+
+        denom_tidal = max(1e-6, rho_sq ** 3)
+        num_tidal = (
+            m_mass * r_coord * ((r_coord ** 2) - 3.0 * (a_spin ** 2) * (cos_th ** 2))
+            - (q_charge ** 2) * ((r_coord ** 2) - (a_spin ** 2) * (cos_th ** 2))
+        )
+        f_tidal_kn = num_tidal / denom_tidal
+        f_tidal_knk_ch = f_tidal_kn - c_q * r_coord - 2.0 * c_p * (r_coord ** 3) - 2.5 * c_t * (r_coord ** 4) - 3.0 * c_m * (r_coord ** 5) - 3.5 * c_c * (r_coord ** 6)
+        f_tidal = float(np.clip(f_tidal_knk_ch, -100.0, 100.0))
+
+        dist_horiz_sq = (r_coord - r_horizon) ** 2 + 0.05 * (m_mass ** 2)
+        gamma_knk_ch = (
+            1.0
+            + max(0.0, (r_horizon - r_coord) / max(1e-4, r_horizon))
+            + (m_mass ** 2) / max(1e-4, dist_horiz_sq)
+            + c_q * (r_coord ** 3)
+            + c_p * (r_coord ** 5)
+            + c_t * (r_coord ** 6)
+            + c_m * (r_coord ** 7)
+            + c_c * (r_coord ** 8)
+        )
+
+        charge_accel = ((q_charge ** 2) * v_qi / max(1e-4, r_coord ** 3)) * (1.0 + c_q * r_coord + c_p * (r_coord ** 2) + c_t * (r_coord ** 3) + c_m * (r_coord ** 4) + c_c * (r_coord ** 5))
+        a_knk_ch = a_qi + (omega_drag + abs(f_tidal)) * v_qi * gamma_knk_ch + charge_accel
+        a_knk_ch_clamped = float(np.clip(a_knk_ch, -100.0, 100.0))
+
+        tau_lead = 0.10
+        qi_knk_ch = float(np.clip(
+            qi_l3 + tau_lead * v_qi + 0.5 * (tau_lead ** 2) * a_knk_ch_clamped,
+            -1.0, 1.0
+        ))
+        p_mid = l3_res["l3_micro_price"]
+        knk_ch_micro_price = p_mid + 0.5 * spread * (qi_knk_ch - qi_l3)
+
+        return {
+            "l3_queue_imbalance": round(qi_l3, 4),
+            "qi_velocity": round(v_qi, 4),
+            "qi_acceleration": round(a_qi, 4),
+            "knk_ch_mass_M": round(m_mass, 4),
+            "knk_ch_spin_a": round(a_spin, 4),
+            "knk_ch_charge_Q": round(q_charge, 4),
+            "quintessence_c_q": round(c_q, 4),
+            "phantom_c_p": round(c_p, 4),
+            "tachyon_c_t": round(c_t, 4),
+            "quintom_c_m": round(c_m, 4),
+            "chameleon_c_c": round(c_c, 4),
+            "chameleon_c_ch": round(c_c, 4),
+            "equation_of_state_w_q": round(w_state_q, 4),
+            "equation_of_state_w_p": round(w_state_p, 4),
+            "equation_of_state_w_t": round(w_state_t, 4),
+            "equation_of_state_w_m": round(w_state_m, 4),
+            "equation_of_state_w_c": round(w_state_c, 4),
+            "equation_of_state_w_ch": round(w_state_c, 4),
+            "chameleon_horizon_r_C": round(r_chameleon, 4),
+            "chameleon_horizon_r_Ch": round(r_chameleon, 4),
+            "chameleon_horizon": round(r_chameleon, 4),
+            "quintom_horizon_r_M": round(r_quintom, 4),
+            "quintom_horizon": round(r_quintom, 4),
+            "tachyon_horizon_r_T": round(r_tachyon, 4),
+            "tachyon_horizon": round(r_tachyon, 4),
+            "phantom_horizon_r_P": round(r_phantom, 4),
+            "phantom_horizon": round(r_phantom, 4),
+            "quintessence_horizon_r_Q": round(r_quint, 4),
+            "quintessence_horizon": round(r_quint, 4),
+            "horizon_radius": round(r_horizon, 4),
+            "coordinate_radius_r": round(r_coord, 4),
+            "is_in_horizon": is_in_horizon,
+            "frame_dragging_omega": round(omega_drag, 4),
+            "tidal_force": round(f_tidal, 6),
+            "knk_ch_tidal_force": round(f_tidal, 6),
+            "knk_ch_hydrodynamic_acceleration": round(a_knk_ch_clamped, 4),
+            "knk_ch_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "kerr_newman_kiselev_chameleon_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "knk_ch_accelerated_qi": round(qi_knk_ch, 4),
+            "kerr_newman_kiselev_chameleon_accelerated_qi": round(qi_knk_ch, 4),
+            "knk_ch_micro_price": round(knk_ch_micro_price, 4),
+            "kerr_newman_kiselev_chameleon_micro_price": round(knk_ch_micro_price, 4),
+            # Phase 25 backward compatibility keys
+            "knk_qm_mass_M": round(m_mass, 4),
+            "knk_qm_spin_a": round(a_spin, 4),
+            "knk_qm_charge_Q": round(q_charge, 4),
+            "knk_qm_tidal_force": round(f_tidal, 6),
+            "knk_qm_hydrodynamic_acceleration": round(a_knk_ch_clamped, 4),
+            "knk_qm_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "kerr_newman_kiselev_quintom_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "knk_qm_accelerated_qi": round(qi_knk_ch, 4),
+            "kerr_newman_kiselev_quintom_accelerated_qi": round(qi_knk_ch, 4),
+            "knk_qm_micro_price": round(knk_ch_micro_price, 4),
+            "kerr_newman_kiselev_quintom_micro_price": round(knk_ch_micro_price, 4),
+            # Phase 24 backward compatibility keys
+            "knk_pt_mass_M": round(m_mass, 4),
+            "knk_pt_spin_a": round(a_spin, 4),
+            "knk_pt_charge_Q": round(q_charge, 4),
+            "knk_pt_tidal_force": round(f_tidal, 6),
+            "knk_pt_hydrodynamic_acceleration": round(a_knk_ch_clamped, 4),
+            "knk_pt_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "kerr_newman_kiselev_tachyon_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "knk_pt_accelerated_qi": round(qi_knk_ch, 4),
+            "kerr_newman_kiselev_tachyon_accelerated_qi": round(qi_knk_ch, 4),
+            "knk_pt_micro_price": round(knk_ch_micro_price, 4),
+            "kerr_newman_kiselev_tachyon_micro_price": round(knk_ch_micro_price, 4),
+            # Phase 23 backward compatibility keys
+            "knk_p_mass_M": round(m_mass, 4),
+            "knk_p_spin_a": round(a_spin, 4),
+            "knk_p_charge_Q": round(q_charge, 4),
+            "knk_p_tidal_force": round(f_tidal, 6),
+            "knk_p_hydrodynamic_acceleration": round(a_knk_ch_clamped, 4),
+            "knk_p_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "kerr_newman_kiselev_phantom_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "knk_p_accelerated_qi": round(qi_knk_ch, 4),
+            "kerr_newman_kiselev_phantom_accelerated_qi": round(qi_knk_ch, 4),
+            "knk_p_micro_price": round(knk_ch_micro_price, 4),
+            "kerr_newman_kiselev_phantom_micro_price": round(knk_ch_micro_price, 4),
+            # Phase 22 backward compatibility keys
+            "knk_mass_M": round(m_mass, 4),
+            "knk_spin_a": round(a_spin, 4),
+            "knk_charge_Q": round(q_charge, 4),
+            "knk_tidal_force": round(f_tidal, 6),
+            "knk_hydrodynamic_acceleration": round(a_knk_ch_clamped, 4),
+            "knk_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "kerr_newman_kiselev_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "knk_accelerated_qi": round(qi_knk_ch, 4),
+            "kerr_newman_kiselev_accelerated_qi": round(qi_knk_ch, 4),
+            "knk_micro_price": round(knk_ch_micro_price, 4),
+            "kerr_newman_kiselev_micro_price": round(knk_ch_micro_price, 4),
+            # Phase 21 backward compatibility keys
+            "kn_ads_ds_mass_M": round(m_mass, 4),
+            "kn_ads_ds_spin_a": round(a_spin, 4),
+            "kn_ads_ds_charge_Q": round(q_charge, 4),
+            "ads_radius_L": 10.0,
+            "ds_radius_L": 20.0,
+            "cosmological_lambda": -0.0225,
+            "cosmological_horizon_r_C": round(r_phantom, 4),
+            "cosmological_horizon": round(r_phantom, 4),
+            "de_sitter_horizon": round(r_phantom, 4),
+            "kn_ads_ds_tidal_force": round(f_tidal, 6),
+            "kn_ads_ds_hydrodynamic_acceleration": round(a_knk_ch_clamped, 4),
+            "kn_ads_ds_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "kerr_newman_ads_ds_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "kn_ads_ds_accelerated_qi": round(qi_knk_ch, 4),
+            "kerr_newman_ads_ds_accelerated_qi": round(qi_knk_ch, 4),
+            "kn_ads_ds_micro_price": round(knk_ch_micro_price, 4),
+            "kerr_newman_ads_ds_micro_price": round(knk_ch_micro_price, 4),
+            # Phase 20 backward compatibility keys
+            "kn_ads_mass_M": round(m_mass, 4),
+            "kn_ads_spin_a": round(a_spin, 4),
+            "kn_ads_charge_Q": round(q_charge, 4),
+            "kn_ads_hydrodynamic_acceleration": round(a_knk_ch_clamped, 4),
+            "kn_ads_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "kerr_newman_ads_rotational_acceleration": round(a_knk_ch_clamped, 4),
+            "kn_ads_accelerated_qi": round(qi_knk_ch, 4),
+            "kerr_newman_ads_accelerated_qi": round(qi_knk_ch, 4),
+            "kn_ads_micro_price": round(knk_ch_micro_price, 4),
+            "kerr_newman_ads_micro_price": round(knk_ch_micro_price, 4),
+        }
+
+    compute_kerr_newman_kiselev_chameleon_acceleration = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    compute_knk_chameleon_acceleration = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    compute_knk_chameleon_hydrodynamics = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    calculate_kerr_newman_kiselev_chameleon_queue_acceleration = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    calculate_knk_chameleon_queue_acceleration = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    compute_kerr_newman_kiselev_chameleon_frame_dragging = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    calculate_kerr_newman_kiselev_chameleon_hydrodynamics = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    calculate_kerr_newman_kiselev_chameleon_frame_dragging = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    compute_knk_quintessence_phantom_tachyon_quintom_chameleon_hydrodynamics = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    compute_kerr_newman_kiselev_quintessence_phantom_tachyon_quintom_chameleon_hydrodynamics = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    calculate_knk_quintessence_phantom_tachyon_quintom_chameleon_hydrodynamics = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    calculate_kerr_newman_kiselev_quintessence_phantom_tachyon_quintom_chameleon_hydrodynamics = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    compute_knk_5_dark_energy_hydrodynamics = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    compute_kerr_newman_kiselev_5_dark_energy_hydrodynamics = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    calculate_knk_5_dark_energy_hydrodynamics = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+    calculate_kerr_newman_kiselev_5_dark_energy_hydrodynamics = compute_kerr_newman_kiselev_chameleon_queue_acceleration
+
     def compute_kerr_newman_kiselev_quintom_queue_acceleration(
         self,
         charge_parameter: float = 0.5,
@@ -2333,11 +2602,14 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
         # Phase 23 (F113.2): Elevate dark routing cap to 0.99995 under Kerr-Newman-Kiselev Quintessence-Phantom double dark energy spacetime queue
         # Phase 24 (F117.2): Elevate dark routing cap to 0.99998 under Kerr-Newman-Kiselev Quintessence-Phantom-Tachyon triple dark energy spacetime queue
         # Phase 25 (F121.2): Elevate dark routing cap to 0.99999 under Kerr-Newman-Kiselev Quintom 4-dark-energy spacetime queue
+        # Phase 26 (F125.2): Elevate dark routing cap to 0.999995 under Kerr-Newman-Kiselev Chameleon 5-dark-energy spacetime queue
         if max_dark_cap is not None:
             cap = float(max_dark_cap)
         elif version is not None:
             v_int = int(version)
-            if v_int >= 25:
+            if v_int >= 26:
+                cap = 0.999995
+            elif v_int >= 25:
                 cap = 0.99999
             elif v_int >= 24:
                 cap = 0.99998
@@ -2371,7 +2643,9 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             cap = float(self.max_dark_cap)
         elif getattr(self, "version", None) is not None:
             v = int(self.version)
-            if v >= 25:
+            if v >= 26:
+                cap = 0.999995
+            elif v >= 25:
                 cap = 0.99999
             elif v >= 24:
                 cap = 0.99998
@@ -2416,11 +2690,15 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             is_p23 = False
             is_p24 = False
             is_p25 = False
+            is_p26 = False
             try:
                 cur = frame.f_back if frame else None
                 while cur:
                     cname = cur.f_code.co_filename.lower()
-                    if "phase25" in cname:
+                    if "phase26" in cname:
+                        is_p26 = True
+                        break
+                    elif "phase25" in cname:
                         is_p25 = True
                         break
                     elif "phase24" in cname:
@@ -2470,7 +2748,9 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
                 pass
             finally:
                 del frame
-            if is_p25:
+            if is_p26:
+                cap = 0.999995
+            elif is_p25:
                 cap = 0.99999
             elif is_p24:
                 cap = 0.99998
@@ -2506,7 +2786,7 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
         dark_ratio = float(np.clip(0.65 + 0.35 * (lit_toxicity / 0.60), 0.65, cap))
         return {
             "lit_toxicity_ratio": round(lit_toxicity, 4),
-            "preemptive_dark_routing_ratio": round(dark_ratio, 5 if cap > 0.9999 else 4),
+            "preemptive_dark_routing_ratio": round(dark_ratio, 6 if cap > 0.99999 else (5 if cap > 0.9999 else 4)),
             "total_deep_intensity": round(tot, 4),
         }
 

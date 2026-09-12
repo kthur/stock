@@ -1500,9 +1500,19 @@ class ExecutionOMSEngine:
             jerk_tox_damp = max(0.0, 1.0 - 0.95 * gamma_composite)
             jerk_shift = direction * spr * (0.10 * math.tanh(0.50 * j_val) + 0.15 * math.tanh(1.20 * d_ofi)) * jerk_tox_damp
 
-        # 9. Multivariate Hawkes Cross-Excitation Preemptive Shading (Phase 10 F61.2, Phase 11 F65.2, Phase 12 F69.2, Phase 13 F73.2, Phase 14 F77.2, Phase 15 F81.2, Phase 16 F85.2, Phase 17 F89.2, Phase 18 F93.2.3, Phase 19 F97.2, Phase 20 F101.2.3, Phase 21 F105.2.5, Phase 22 F109.2.3, Phase 23 F113.2.2, Phase 24 F117.2, Phase 25 F121.2)
+        # 9. Multivariate Hawkes Cross-Excitation Preemptive Shading (Phase 10 F61.2, Phase 11 F65.2, Phase 12 F69.2, Phase 13 F73.2, Phase 14 F77.2, Phase 15 F81.2, Phase 16 F85.2, Phase 17 F89.2, Phase 18 F93.2.3, Phase 19 F97.2, Phase 20 F101.2.3, Phase 21 F105.2.5, Phase 22 F109.2.3, Phase 23 F113.2.2, Phase 24 F117.2, Phase 25 F121.2, Phase 26 F125.2)
         hawkes_shift = 0.0
-        if int(version) >= 25:
+        if int(version) >= 26:
+            h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
+            if isinstance(h_int, dict):
+                h_val = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
+            elif h_int is not None and math.isfinite(float(h_int)):
+                h_val = float(h_int)
+            else:
+                h_val = 0.0
+            if h_val > 0.020:
+                hawkes_shift = -direction * 0.99995 * spr * (h_val - 0.020)
+        elif int(version) >= 25:
             h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
             if isinstance(h_int, dict):
                 h_val = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
@@ -2213,9 +2223,19 @@ class AlmgrenChrissScheduler:
             jerk_tox_damp = max(0.0, 1.0 - 0.95 * gamma_composite)
             jerk_shift = direction * spr * (0.10 * math.tanh(0.50 * j_val) + 0.15 * math.tanh(1.20 * d_ofi)) * jerk_tox_damp
 
-        # 9. Multivariate Hawkes Cross-Excitation Preemptive Shading (Phase 10 F61.2, Phase 11 F65.2, Phase 12 F69.2, Phase 13 F73.2, Phase 14 F77.2, Phase 15 F81.2, Phase 16 F85.2, Phase 17 F89.2, Phase 18 F93.2.3, Phase 19 F97.2, Phase 20 F101.2.3, Phase 21 F105.2.5, Phase 22 F109.2.3, Phase 23 F113.2.2, Phase 24 F117.2, Phase 25 F121.2)
+        # 9. Multivariate Hawkes Cross-Excitation Preemptive Shading (Phase 10 F61.2, Phase 11 F65.2, Phase 12 F69.2, Phase 13 F73.2, Phase 14 F77.2, Phase 15 F81.2, Phase 16 F85.2, Phase 17 F89.2, Phase 18 F93.2.3, Phase 19 F97.2, Phase 20 F101.2.3, Phase 21 F105.2.5, Phase 22 F109.2.3, Phase 23 F113.2.2, Phase 24 F117.2, Phase 25 F121.2, Phase 26 F125.2)
         hawkes_shift = 0.0
-        if int(version) >= 25:
+        if int(version) >= 26:
+            h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
+            if isinstance(h_int, dict):
+                h_val = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
+            elif h_int is not None and math.isfinite(float(h_int)):
+                h_val = float(h_int)
+            else:
+                h_val = 0.0
+            if h_val > 0.020:
+                hawkes_shift = -direction * 0.99995 * spr * (h_val - 0.020)
+        elif int(version) >= 25:
             h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
             if isinstance(h_int, dict):
                 h_val = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))

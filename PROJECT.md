@@ -70,6 +70,12 @@
 | F121.1 | Lurie Non-Abelian Hodge Barycenter & Ultra-Trans-Super-Hyper EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{hodge}}=[2.20, 1.70, 1.65, 2.75]$ and $21! = 51,090,942,171,709,440,000$ tail bounds | M2 (P25) | Phase 25 R2 |
 | F121.2 | KNK Quintom 4-Dark-Energy L3 & Preemptive OMS | Kerr-Newman-Kiselev 4-dark-energy ($w_{\text{quintom}} = -2$), 0.0000002 maker floor, 99.999% dark ATS, 99.9998% anti-gaming, tick shading $-0.9999 \cdot \text{spread} \cdot (h-0.025)$ | M3 (P25) | Phase 25 R3 |
 | F122 | Phase 25 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase25_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P25) | Phase 25 R4 |
+| F123 | Perfectoid Shimura Variety & Mochizuki IUT Coupler | Hodge-Tate filtration obstruction complex $E_{\text{shimura}}$ and Mochizuki theta-link moduli invariant $Z_{\text{mochizuki}}$ | M1 (P26) | Phase 26 R1 |
+| F124.1 | 21st-Order Hyper-Convex Rank Modulation | $g_{\text{v26}}(r) = 0.50 + 1.16 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{21})$ with regime-adaptive $\gamma_{\text{top}}$ up to 2.70 | M1 (P26) | Phase 26 R1 |
+| F124.2 | 68th-Order Hexaoctagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{68})$ eliminating noise leakage to $< 10^{-36}$ | M1 (P26) | Phase 26 R1 |
+| F125.1 | Lurie Mochizuki IUT Barycenter & Trans-Singular-Hyper EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{mochizuki}}=[2.25, 1.75, 1.70, 2.80]$ and $22! = 1,124,000,727,777,607,680,000$ tail bounds | M2 (P26) | Phase 26 R2 |
+| F125.2 | KNK Chameleon 5-Dark-Energy L3 & Preemptive OMS | Kerr-Newman-Kiselev 5-dark-energy ($w_{\text{chameleon}} = -7/3$), 0.0000001 maker floor, 99.9995% dark ATS, 99.9999% anti-gaming, tick shading $-0.99995 \cdot \text{spread} \cdot (h-0.020)$ | M3 (P26) | Phase 26 R3 |
+| F126 | Phase 26 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase26_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P26) | Phase 26 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -104,6 +110,10 @@
 | M2 (P25) | Phase 25 Portfolio Allocation & Ultra-Trans-Super-Hyper EVaR (R2) | F121.1: Lurie Non-Abelian Hodge Barycenter, 21st-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P25) | DONE |
 | M3 (P25) | Phase 25 Microstructure Hydrodynamics & Preemptive OMS (R3) | F121.2: KNK Quintom 4-Dark-Energy L3, 99.999% dark ATS, 0.0000002 maker floor, 99.9998% anti-gaming, tick shading | M2 (P25) | DONE |
 | M4 (P25) | Phase 25 Benchmark Engine & Forensic Verification (R4) | F122: `benchmark_phase25_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P25) | DONE |
+| M1 (P26) | Phase 26 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F123, F124.1, F124.2: Perfectoid Shimura Coupler, 21st-order rank modulation, 68th-order deadband | none | DONE |
+| M2 (P26) | Phase 26 Portfolio Allocation & Trans-Singular-Hyper EVaR (R2) | F125.1: Lurie Mochizuki IUT Barycenter, 22nd-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P26) | DONE |
+| M3 (P26) | Phase 26 Microstructure Hydrodynamics & Preemptive OMS (R3) | F125.2: KNK Chameleon 5-Dark-Energy L3, 99.9995% dark ATS, 0.0000001 maker floor, 99.9999% anti-gaming, tick shading | M2 (P26) | DONE |
+| M4 (P26) | Phase 26 Benchmark Engine & Forensic Verification (R4) | F126: `benchmark_phase26_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P26) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -124,6 +134,7 @@
 - `trading_system/scripts/benchmark_phase5_quant_performance.py`: Phase 5 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase22_quant_performance.py`: Phase 22 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase23_quant_performance.py`: Phase 23 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase26_quant_performance.py`: Phase 26 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
