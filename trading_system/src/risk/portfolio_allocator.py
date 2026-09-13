@@ -3167,6 +3167,83 @@ class PortfolioAllocator:
     singular_hyper_evar_risk_measure = compute_trans_singular_hyper_evar_risk_measure
     compute_trans_singular_evar = compute_trans_singular_hyper_evar_risk_measure
 
+    # ── Phase 38 (F173.1): Lurie Langlands-Scholze Motivic Fisher-Rao Barycenter ──
+    @staticmethod
+    def compute_lurie_langlands_scholze_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 38 (Feature F173.1): Lurie Langlands-Scholze Motivic Fisher-Rao Barycenter Blending.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_langlands_scholze_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_langlands_scholze_barycenter = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+    compute_lurie_scholze_barycenter = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+    compute_langlands_scholze_fisher_rao_barycenter = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+    compute_langlands_scholze_barycenter = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+    compute_phase38_fisher_rao_barycenter = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+    compute_phase38_barycenter_blend = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+    compute_scholze_barycenter = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+    compute_scholze_fisher_rao_barycenter = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+    compute_scholze_fisher_rao_barycenter_blend = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+    compute_motivic_scholze_barycenter_blend = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+    compute_fargues_fontaine_scholze_barycenter_blend = compute_lurie_langlands_scholze_fisher_rao_barycenter_blend
+
+    # ── Phase 38 (F173.1): 34th-Cumulant Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Scholze EVaR ────
+    @staticmethod
+    def compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        xi_34: Optional[float] = None,
+        xi_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze: float = 0.99999,
+        xi_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze: float = 0.99999,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 38 (Feature F173.1): 34th-Cumulant Expansion Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Scholze EVaR Tail Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        rets = returns if returns is not None else (-np.asarray(losses, dtype=float) if losses is not None else np.array([]))
+        xi_34_val = xi_34 if xi_34 is not None else (kwargs.get("xi_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze", kwargs.get("xi_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze", xi_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze)))
+        return alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure(
+            returns=rets,
+            alpha=alpha,
+            xi_34=xi_34_val,
+            xi_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze=xi_34_val,
+            **kwargs,
+        )
+
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+    trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_blend = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+    compute_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+    singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_phase38 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+    compute_34th_cumulant_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+    compute_phase38_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+    compute_trans_scholze_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_scholze_evar_risk_measure
+
     # ── Phase 37 (F169.1): Lurie Wiles-Taylor-Kisin Motivic Fisher-Rao Barycenter ──
     @staticmethod
     def compute_lurie_wiles_taylor_kisin_fisher_rao_barycenter_blend(
