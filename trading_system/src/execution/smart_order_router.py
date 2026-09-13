@@ -38,6 +38,7 @@ class SmartOrderRouter:
         self.continuous_hawkes = bool(continuous_hawkes)
         self.use_logistic_dark_fill = bool(use_logistic_dark_fill)
         self.version = int(version)
+        self.is_phase32 = (self.version >= 32)
         self.is_phase31 = (self.version >= 31)
         self.is_phase30 = (self.version >= 30)
         self.is_phase29 = (self.version >= 29)
@@ -45,7 +46,9 @@ class SmartOrderRouter:
 
     @staticmethod
     def _resolve_max_dark_cap(v_eff: int = 6) -> float:
-        if v_eff >= 31:
+        if v_eff >= 32:
+            return 0.99999995
+        elif v_eff >= 31:
             return 0.9999999
         elif v_eff >= 30:
             return 0.9999998
@@ -140,7 +143,8 @@ class SmartOrderRouter:
         qi_accel = qi_acceleration if qi_acceleration is not None else order_plan.get("qi_acceleration")
         cross_tox = cross_asset_toxicity if cross_asset_toxicity is not None else order_plan.get("cross_asset_toxicity")
 
-        is_phase31 = (v_eff >= 31)
+        is_phase32 = (v_eff >= 32)
+        is_phase31 = is_phase32 or (v_eff >= 31)
         is_phase30 = is_phase31 or (v_eff >= 30)
         is_phase29 = is_phase30 or (v_eff >= 29)
         is_phase28 = is_phase29 or (v_eff >= 28)
@@ -180,14 +184,19 @@ class SmartOrderRouter:
         else:
             eff_dark_ratio = float(self.dark_probe_ratio)
 
-        # F50, F54, F58, F61, F65, F69, F73, F77, F81, F85, F89, F93, F97, F101.2, F105.2.3, F109.2.1, F113.2.2, F117.2, F121.2, F125.2, F129.2, F137.2, F141.2 & F145.2: Lit Queue Imbalance & Acceleration Preemption (preemptively route up to 0.9999999 to dark ATS)
+        # F50, F54, F58, F61, F65, F69, F73, F77, F81, F85, F89, F93, F97, F101.2, F105.2.3, F109.2.1, F113.2.2, F117.2, F121.2, F125.2, F129.2, F137.2, F141.2, F145.2 & F149.2: Lit Queue Imbalance & Acceleration Preemption (preemptively route up to 0.99999995 to dark ATS)
         if qi is not None or qi_accel is not None:
             qi_f = float(qi) if (qi is not None and math.isfinite(float(qi))) else 0.0
             qi_aligned = qi_f if action in ["BUY", "BID", "LONG"] else -qi_f
             a_f = float(qi_accel) if (qi_accel is not None and math.isfinite(float(qi_accel))) else 0.0
             a_aligned = a_f if action in ["BUY", "BID", "LONG"] else -a_f
 
-            if is_phase31 and (qi_aligned > 0.0005 or a_aligned > 0.00005):
+            if is_phase32 and (qi_aligned > 0.0003 or a_aligned > 0.00003):
+                eff_dark_ratio = float(np.clip(
+                    eff_dark_ratio + 0.76 * max(0.0, qi_aligned) + 0.66 * math.tanh(max(0.0, a_aligned)),
+                    self.dark_probe_ratio, 0.99999995
+                ))
+            elif is_phase31 and (qi_aligned > 0.0005 or a_aligned > 0.00005):
                 eff_dark_ratio = float(np.clip(
                     eff_dark_ratio + 0.74 * max(0.0, qi_aligned) + 0.64 * math.tanh(max(0.0, a_aligned)),
                     self.dark_probe_ratio, 0.9999999
@@ -331,7 +340,10 @@ class SmartOrderRouter:
         if g_dir is not None:
             gamma_toxic = float(np.clip(float(g_dir), 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase31 and gamma_toxic > 0.80:
+            if is_phase32 and gamma_toxic > 0.80:
+                # F149.2: Kerr-Newman-Kiselev PCQTGBD 11-Dark-Energy L3 preemption contracts lit maker floor to 0.000000001
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.999999998571 * gamma_toxic), 0.000000001, 0.70))
+            elif is_phase31 and gamma_toxic > 0.80:
                 # F145.2: Kerr-Newman-Kiselev Phantom-Chameleon-Quintom-Tachyon-Ghost-Brane 10-Dark-Energy L3 preemption contracts lit maker floor to 0.000000002
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.999999997143 * gamma_toxic), 0.000000002, 0.70))
             elif is_phase30 and gamma_toxic > 0.80:
@@ -422,7 +434,9 @@ class SmartOrderRouter:
                 gamma_raw = (hb_val - base_hwk) / (1.5 * base_hwk) - 0.35 * min(0.0, delta_dir)
             gamma_toxic = float(np.clip(gamma_raw, 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase31 and gamma_toxic > 0.80:
+            if is_phase32 and gamma_toxic > 0.80:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.999999998571 * gamma_toxic), 0.000000001, 0.70))
+            elif is_phase31 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.999999997143 * gamma_toxic), 0.000000002, 0.70))
             elif is_phase30 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.999999992857 * gamma_toxic), 0.000000005, 0.70))
@@ -509,7 +523,9 @@ class SmartOrderRouter:
             g_cross = float(np.clip(float(cross_tox), 0.0, 1.0))
             gamma_toxic = float(np.clip(0.65 * gamma_toxic + 0.35 * g_cross, 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase31 and gamma_toxic > 0.80:
+            if is_phase32 and gamma_toxic > 0.80:
+                maker_ratio = float(np.clip(0.70 * (1.0 - 0.999999998571 * gamma_toxic), 0.000000001, 0.70))
+            elif is_phase31 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.999999997143 * gamma_toxic), 0.000000002, 0.70))
             elif is_phase30 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.999999992857 * gamma_toxic), 0.000000005, 0.70))
@@ -560,10 +576,12 @@ class SmartOrderRouter:
             elif is_phase7 and gamma_toxic > 0.80:
                 maker_ratio = float(np.clip(0.70 * (1.0 - 0.8571 * gamma_toxic), 0.10, 0.70))
 
-        # F44, F50, F54, F58, F61, F65, F69, F73, F77, F81, F85, F89, F93, F97, F101.2, F105.2.4, F109.2.4, F113.2.2, F117.2, F121.2, F125.2, F129.2, F137.2, F141.2 & F145.2: Anti-Gaming Dynamic MinQty (adapting up to 99.999998% in F145.2)
+        # F44, F50, F54, F58, F61, F65, F69, F73, F77, F81, F85, F89, F93, F97, F101.2, F105.2.4, F109.2.4, F113.2.2, F117.2, F121.2, F125.2, F129.2, F137.2, F141.2, F145.2 & F149.2: Anti-Gaming Dynamic MinQty (adapting up to 99.999999% in F149.2)
         min_ratio = 0.20
         if is_toxic_flow or gamma_toxic > 0.50 or dp_score >= 0.60:
-            if is_phase31 and (gamma_toxic > 0.002 or is_accum):
+            if is_phase32 and (gamma_toxic > 0.001 or is_accum):
+                min_ratio = float(np.clip(0.20 + 0.99999 * gamma_toxic + 0.999 * dp_score, 0.20, 0.99999999))
+            elif is_phase31 and (gamma_toxic > 0.002 or is_accum):
                 min_ratio = float(np.clip(0.20 + 0.99998 * gamma_toxic + 0.998 * dp_score, 0.20, 0.99999998))
             elif is_phase30 and (gamma_toxic > 0.003 or is_accum):
                 min_ratio = float(np.clip(0.20 + 0.99995 * gamma_toxic + 0.995 * dp_score, 0.20, 0.99999995))
@@ -690,7 +708,7 @@ class SmartOrderRouter:
                     "target_price": target_price,
                     "expected_rebate_bps": maker_rebate,
                     "priority": 2,
-                    "maker_ratio": round(float(maker_ratio), 9 if (is_phase31 or is_phase30) else (8 if is_phase27 else (7 if is_phase24 else 6))),
+                    "maker_ratio": round(float(maker_ratio), 10 if is_phase32 else (9 if (is_phase31 or is_phase30) else (8 if is_phase27 else (7 if is_phase24 else 6)))),
                 }
                 if dest.get("venue") == "KRX_ATS_NEXTRADE":
                     maker_leg["lot_size"] = 1
@@ -737,10 +755,10 @@ class SmartOrderRouter:
             "toxic_flow_detected": is_toxic_flow,
             "gamma_toxic": round(float(gamma_toxic), 4),
             "darkpool_fill_probability": round(float(p_fill_dark), 4),
-            "maker_ratio": round(float(maker_ratio), 9 if (is_phase31 or is_phase30) else (8 if is_phase27 else (7 if (is_phase26 or is_phase25 or is_phase24) else 6))),
+            "maker_ratio": round(float(maker_ratio), 10 if is_phase32 else (9 if (is_phase31 or is_phase30) else (8 if is_phase27 else (7 if (is_phase26 or is_phase25 or is_phase24) else 6)))),
             "queue_imbalance": round(float(qi), 4) if (qi is not None and math.isfinite(float(qi))) else None,
             "arrival_imbalance": round(float(arr_imb), 4) if (arr_imb is not None and math.isfinite(float(arr_imb))) else None,
-            "min_ratio": round(float(min_ratio), 8 if (is_phase31 or is_phase30) else (7 if is_phase27 else (6 if (is_phase26 or is_phase25 or is_phase24) else (5 if is_phase23 else 4)))),
+            "min_ratio": round(float(min_ratio), 8 if (is_phase32 or is_phase31 or is_phase30) else (7 if is_phase27 else (6 if (is_phase26 or is_phase25 or is_phase24) else (5 if is_phase23 else 4)))),
         }
 
     def determine_destination(self, symbol: str, market: Optional[str] = None) -> Dict[str, Any]:
