@@ -124,6 +124,12 @@
 | F157.1 | Lurie BSD-Gross-Zagier Motivic Barycenter & Trans-Singular-Eternal-Omni-Cosmic-Infinite EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{bsd}}=[2.65, 2.15, 2.10, 3.20]$ and $30! = 265,252,859,812,191,058,636,308,480,000,000$ tail bounds | M2 (P34) | Phase 34 R2 |
 | F157.2 | KNK 13-Dark-Energy PCQTGBDDD Dunkl L3 & Preemptive OMS | Kerr-Newman-Kiselev 13-dark-energy ($w_{\text{pcqtgbddd}} = -5.0$), 0.0000000002 maker floor, 99.999999% dark ATS, 99.9999998% anti-gaming, tick shading $-0.9999999 \cdot \text{spread} \cdot (h-0.003)$ | M3 (P34) | Phase 34 R3 |
 | F158 | Phase 34 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase34_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P34) | Phase 34 R4 |
+| F159 | Motivic Shafarevich-Fontaine-Mazur Factor Coupler | Shafarevich-Tate obstruction action and Fontaine-Mazur geometric deformation across 5 canonical pillars | M1 (P35) | Phase 35 R1 |
+| F160.1 | 30th-Order Hyper-Convex Rank Modulation | $g_{\text{v35}}(r) = 0.50 + 1.34 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{30})$ with regime-adaptive $\gamma_{\text{top}}$ up to 3.60 | M1 (P35) | Phase 35 R1 |
+| F160.2 | 104th-Order Tetracentagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{104})$ eliminating noise leakage to $< 10^{-54}$ | M1 (P35) | Phase 35 R1 |
+| F161.1 | Lurie Shafarevich-Fontaine-Mazur Motivic Barycenter & Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{sha}}=[2.70, 2.20, 2.15, 3.25]$ and $31! = 8,222,838,654,177,922,817,721,562,880,000,000$ tail bounds | M2 (P35) | Phase 35 R2 |
+| F161.2 | KNK 14-Dark-Energy PCQTGBDDDD Dunkl-Hecke L3 & Preemptive OMS | Kerr-Newman-Kiselev 14-dark-energy ($w_{\text{pcqtgbdddd}} = -16/3, k_{\text{hecke}}=0.06$), 0.0000000001 maker floor, 99.9999995% dark ATS, 99.9999999% anti-gaming, tick shading $-0.99999995 \cdot \text{spread} \cdot (h-0.002)$ | M3 (P35) | Phase 35 R3 |
+| F162 | Phase 35 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase35_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P35) | Phase 35 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -194,6 +200,10 @@
 | M2 (P34) | Phase 34 Portfolio Allocation & Trans-Singular-Eternal-Omni-Cosmic-Infinite EVaR (R2) | F157.1: Lurie BSD-Gross-Zagier Motivic Barycenter, 30th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P34) | DONE |
 | M3 (P34) | Phase 34 Microstructure Hydrodynamics & Preemptive OMS (R3) | F157.2: KNK 13-Dark-Energy PCQTGBDDD Dunkl L3, 99.999999% dark ATS, 0.0000000002 maker floor, 99.9999998% anti-gaming, tick shading | M2 (P34) | DONE |
 | M4 (P34) | Phase 34 Benchmark Engine & Forensic Verification (R4) | F158: `benchmark_phase34_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P34) | DONE |
+| M1 (P35) | Phase 35 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F159, F160.1, F160.2: Motivic Shafarevich-Fontaine-Mazur Coupler, 30th-order rank modulation, 104th-order deadband | none | DONE |
+| M2 (P35) | Phase 35 Portfolio Allocation & Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme EVaR (R2) | F161.1: Lurie Shafarevich-Fontaine-Mazur Motivic Barycenter, 31st-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P35) | DONE |
+| M3 (P35) | Phase 35 Microstructure Hydrodynamics & Preemptive OMS (R3) | F161.2: KNK 14-Dark-Energy PCQTGBDDDD Dunkl-Hecke L3, 99.9999995% dark ATS, 0.0000000001 maker floor, 99.9999999% anti-gaming, tick shading | M2 (P35) | DONE |
+| M4 (P35) | Phase 35 Benchmark Engine & Forensic Verification (R4) | F162: `benchmark_phase35_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P35) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -223,6 +233,7 @@
 - `trading_system/scripts/benchmark_phase32_quant_performance.py`: Phase 32 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase33_quant_performance.py`: Phase 33 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase34_quant_performance.py`: Phase 34 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase35_quant_performance.py`: Phase 35 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine

@@ -3167,6 +3167,82 @@ class PortfolioAllocator:
     singular_hyper_evar_risk_measure = compute_trans_singular_hyper_evar_risk_measure
     compute_trans_singular_evar = compute_trans_singular_hyper_evar_risk_measure
 
+    # ── Phase 35 (F161.1): Lurie Shafarevich-Fontaine-Mazur Motivic Fisher-Rao Barycenter ──
+    @staticmethod
+    def compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 35 (Feature F161.1): Lurie Shafarevich-Fontaine-Mazur Motivic Fisher-Rao Barycenter Blending.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_shafarevich_fontaine_mazur_barycenter = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+    compute_lurie_shafarevich_barycenter = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+    compute_fontaine_mazur_fisher_rao_barycenter = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+    compute_shafarevich_fontaine_mazur_fisher_rao_barycenter = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+    compute_phase35_fisher_rao_barycenter = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+    compute_shafarevich_barycenter = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+    compute_fontaine_mazur_barycenter = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+    compute_shafarevich_fontaine_mazur_barycenter = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+    compute_lurie_shafarevich_fisher_rao_barycenter = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+    compute_lurie_shafarevich_fontaine_mazur_barycenter_blend = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+    compute_shafarevich_fisher_rao_barycenter_blend = compute_lurie_shafarevich_fontaine_mazur_fisher_rao_barycenter_blend
+
+    # ── Phase 35 (F161.1): 31st-Cumulant Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme EVaR ────
+    @staticmethod
+    def compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        xi_31: Optional[float] = None,
+        xi_singular_eternal_omni_cosmic_infinite_supreme: float = 0.9999,
+        xi_trans_singular_eternal_omni_cosmic_infinite_supreme: float = 0.9999,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 35 (Feature F161.1): 31st-Cumulant Expansion Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme EVaR Tail Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        rets = returns if returns is not None else (-np.asarray(losses, dtype=float) if losses is not None else np.array([]))
+        xi_31_val = xi_31 if xi_31 is not None else (kwargs.get("xi_trans_singular_eternal_omni_cosmic_infinite_supreme", kwargs.get("xi_singular_eternal_omni_cosmic_infinite_supreme", xi_singular_eternal_omni_cosmic_infinite_supreme)))
+        return alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure(
+            returns=rets,
+            alpha=alpha,
+            xi_31=xi_31_val,
+            xi_singular_eternal_omni_cosmic_infinite_supreme=xi_31_val,
+            **kwargs,
+        )
+
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure
+    trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_blend = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure
+    compute_singular_eternal_omni_cosmic_infinite_supreme_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure
+    singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_phase35 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure
+    compute_31st_cumulant_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure
+    compute_phase35_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_evar_risk_measure
+
     # ── Phase 34 (F157.1): Lurie BSD-Gross-Zagier Motivic Fisher-Rao Barycenter ──
     @staticmethod
     def compute_lurie_bsd_gross_zagier_fisher_rao_barycenter_blend(
