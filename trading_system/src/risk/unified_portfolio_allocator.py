@@ -3643,13 +3643,20 @@ class UnifiedPortfolioAllocator:
             else:
                 log_mgf = math.log(max(1e-12, float(np.mean(np.exp(z)))))
 
-            cumulant_35_term = xi_35_eff * (m35 / fact_35) * (t_val ** 35)
+            if abs(m35) < 1e-25:
+                cumulant_35_term = 0.0
+            else:
+                try:
+                    t_clamped = min(float(t_val), 500.0)
+                    cumulant_35_term = xi_35_eff * (m35 / fact_35) * (t_clamped ** 35)
+                except OverflowError:
+                    cumulant_35_term = float("inf") if m35 > 0 else float("-inf")
             log_smgf = log_mgf + cumulant_35_term
             return float((log_smgf - math.log(alpha_clamped)) / t_val)
 
         best_ts = float("inf")
         best_t_ts = opt_t
-        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        candidate_t = [min(500.0, opt_t * m) for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
         if t_grid is not None:
             candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
 
@@ -3836,13 +3843,20 @@ class UnifiedPortfolioAllocator:
             else:
                 log_mgf = math.log(max(1e-12, float(np.mean(np.exp(z)))))
 
-            cumulant_34_term = xi_34_eff * (m34 / fact_34) * (t_val ** 34)
+            if abs(m34) < 1e-25:
+                cumulant_34_term = 0.0
+            else:
+                try:
+                    t_clamped = min(float(t_val), 500.0)
+                    cumulant_34_term = xi_34_eff * (m34 / fact_34) * (t_clamped ** 34)
+                except OverflowError:
+                    cumulant_34_term = float("inf") if m34 > 0 else float("-inf")
             log_smgf = log_mgf + cumulant_34_term
             return float((log_smgf - math.log(alpha_clamped)) / t_val)
 
         best_ts = float("inf")
         best_t_ts = opt_t
-        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        candidate_t = [min(500.0, opt_t * m) for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
         if t_grid is not None:
             candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
 
@@ -4023,13 +4037,20 @@ class UnifiedPortfolioAllocator:
             else:
                 log_mgf = math.log(max(1e-12, float(np.mean(np.exp(z)))))
 
-            cumulant_33_term = xi_33_eff * (m33 / fact_33) * (t_val ** 33)
+            if abs(m33) < 1e-25:
+                cumulant_33_term = 0.0
+            else:
+                try:
+                    t_clamped = min(float(t_val), 500.0)
+                    cumulant_33_term = xi_33_eff * (m33 / fact_33) * (t_clamped ** 33)
+                except OverflowError:
+                    cumulant_33_term = float("inf") if m33 > 0 else float("-inf")
             log_smgf = log_mgf + cumulant_33_term
             return float((log_smgf - math.log(alpha_clamped)) / t_val)
 
         best_ts = float("inf")
         best_t_ts = opt_t
-        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        candidate_t = [min(500.0, opt_t * m) for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
         if t_grid is not None:
             candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
 
@@ -4205,13 +4226,20 @@ class UnifiedPortfolioAllocator:
             else:
                 log_mgf = math.log(max(1e-12, float(np.mean(np.exp(z)))))
 
-            cumulant_32_term = xi_32_eff * (m32 / fact_32) * (t_val ** 32)
+            if abs(m32) < 1e-25:
+                cumulant_32_term = 0.0
+            else:
+                try:
+                    t_clamped = min(float(t_val), 500.0)
+                    cumulant_32_term = xi_32_eff * (m32 / fact_32) * (t_clamped ** 32)
+                except OverflowError:
+                    cumulant_32_term = float("inf") if m32 > 0 else float("-inf")
             log_smgf = log_mgf + cumulant_32_term
             return float((log_smgf - math.log(alpha_clamped)) / t_val)
 
         best_ts = float("inf")
         best_t_ts = opt_t
-        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        candidate_t = [min(500.0, opt_t * m) for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
         if t_grid is not None:
             candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
 
@@ -4383,13 +4411,20 @@ class UnifiedPortfolioAllocator:
             else:
                 log_mgf = math.log(max(1e-12, float(np.mean(np.exp(z)))))
 
-            cumulant_31_term = xi_31_eff * (m31 / fact_31) * (t_val ** 31)
+            if abs(m31) < 1e-25:
+                cumulant_31_term = 0.0
+            else:
+                try:
+                    t_clamped = min(float(t_val), 500.0)
+                    cumulant_31_term = xi_31_eff * (m31 / fact_31) * (t_clamped ** 31)
+                except OverflowError:
+                    cumulant_31_term = float("inf") if m31 > 0 else float("-inf")
             log_smgf = log_mgf + cumulant_31_term
             return float((log_smgf - math.log(alpha_clamped)) / t_val)
 
         best_ts = float("inf")
         best_t_ts = opt_t
-        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        candidate_t = [min(500.0, opt_t * m) for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
         if t_grid is not None:
             candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
 
@@ -4557,13 +4592,20 @@ class UnifiedPortfolioAllocator:
             else:
                 log_mgf = math.log(max(1e-12, float(np.mean(np.exp(z)))))
 
-            cumulant_30_term = xi_30_eff * (m30 / fact_30) * (t_val ** 30)
+            if abs(m30) < 1e-25:
+                cumulant_30_term = 0.0
+            else:
+                try:
+                    t_clamped = min(float(t_val), 500.0)
+                    cumulant_30_term = xi_30_eff * (m30 / fact_30) * (t_clamped ** 30)
+                except OverflowError:
+                    cumulant_30_term = float("inf") if m30 > 0 else float("-inf")
             log_smgf = log_mgf + cumulant_30_term
             return float((log_smgf - math.log(alpha_clamped)) / t_val)
 
         best_ts = float("inf")
         best_t_ts = opt_t
-        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        candidate_t = [min(500.0, opt_t * m) for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
         if t_grid is not None:
             candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
 
@@ -4727,13 +4769,20 @@ class UnifiedPortfolioAllocator:
             else:
                 log_mgf = math.log(max(1e-12, float(np.mean(np.exp(z)))))
 
-            cumulant_29_term = xi_29_eff * (m29 / fact_29) * (t_val ** 29)
+            if abs(m29) < 1e-25:
+                cumulant_29_term = 0.0
+            else:
+                try:
+                    t_clamped = min(float(t_val), 500.0)
+                    cumulant_29_term = xi_29_eff * (m29 / fact_29) * (t_clamped ** 29)
+                except OverflowError:
+                    cumulant_29_term = float("inf") if m29 > 0 else float("-inf")
             log_smgf = log_mgf + cumulant_29_term
             return float((log_smgf - math.log(alpha_clamped)) / t_val)
 
         best_ts = float("inf")
         best_t_ts = opt_t
-        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        candidate_t = [min(500.0, opt_t * m) for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
         if t_grid is not None:
             candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
 
@@ -4893,13 +4942,20 @@ class UnifiedPortfolioAllocator:
             else:
                 log_mgf = math.log(max(1e-12, float(np.mean(np.exp(z)))))
 
-            cumulant_28_term = xi_28_eff * (m28 / fact_28) * (t_val ** 28)
+            if abs(m28) < 1e-25:
+                cumulant_28_term = 0.0
+            else:
+                try:
+                    t_clamped = min(float(t_val), 500.0)
+                    cumulant_28_term = xi_28_eff * (m28 / fact_28) * (t_clamped ** 28)
+                except OverflowError:
+                    cumulant_28_term = float("inf") if m28 > 0 else float("-inf")
             log_smgf = log_mgf + cumulant_28_term
             return float((log_smgf - math.log(alpha_clamped)) / t_val)
 
         best_ts = float("inf")
         best_t_ts = opt_t
-        candidate_t = [opt_t * m for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
+        candidate_t = [min(500.0, opt_t * m) for m in [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0] if opt_t * m > 0]
         if t_grid is not None:
             candidate_t.extend([float(tg) for tg in t_grid if tg > 0])
 
