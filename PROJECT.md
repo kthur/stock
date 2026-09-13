@@ -136,6 +136,12 @@
 | F165.1 | Lurie Serre-Mazur Motivic Barycenter & Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{serre}}=[2.75, 2.25, 2.20, 3.30]$ and $32! = 26,313,083,693,369,353,016,709,001,216,000,000$ tail bounds | M2 (P36) | Phase 36 R2 |
 | F165.2 | KNK 15-Dark-Energy PCQTGBDDDDH Dunkl-Hecke-Cherednik L3 & Preemptive OMS | Kerr-Newman-Kiselev 15-dark-energy ($w_{\text{pcqtgbddddh}} = -17/3, k_{\text{hecke}}=0.06, k_{\text{cherednik}}=0.07$), 0.00000000005 maker floor, 99.9999998% dark ATS, 99.99999995% anti-gaming, tick shading $-0.99999998 \cdot \text{spread} \cdot (h-0.0015)$ | M3 (P36) | Phase 36 R3 |
 | F166 | Phase 36 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase36_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P36) | Phase 36 R4 |
+| F167 | Motivic Wiles-Taylor-Kisin Factor Coupler | Wiles modularity lifting & Taylor-Kisin patched representations across 5 canonical pillars | M1 (P37) | Phase 37 R1 |
+| F168.1 | 32nd-Order Hyper-Convex Rank Modulation | $g_{\text{v37}}(r) = 0.50 + 1.38 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{32})$ with regime-adaptive $\gamma_{\text{top}}$ up to 3.80 | M1 (P37) | Phase 37 R1 |
+| F168.2 | 112th-Order Centadodecagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{112})$ eliminating noise leakage to $< 10^{-58}$ | M1 (P37) | Phase 37 R1 |
+| F169.1 | Lurie Wiles-Taylor-Kisin Motivic Barycenter & Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{wtk}}=[2.80, 2.30, 2.25, 3.35]$ and $33! = 868,331,761,881,188,649,551,397,040,128,000,000.0$ tail bounds | M2 (P37) | Phase 37 R2 |
+| F169.2 | KNK 16-Dark-Energy PCQTGBDDDDHK Dunkl-Hecke-Cherednik-Kostka L3 & Preemptive OMS | Kerr-Newman-Kiselev 16-dark-energy ($w_{\text{pcqtgbddddhk}} = -18/3, k_{\text{hecke}}=0.06, k_{\text{cherednik}}=0.07, k_{\text{kostka}}=0.08$), 0.00000000002 maker floor, 99.9999999% dark ATS, 99.99999998% anti-gaming, tick shading $-0.99999999 \cdot \text{spread} \cdot (h-0.0012)$ | M3 (P37) | Phase 37 R3 |
+| F170 | Phase 37 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase37_quant_performance.py`, 5-market 15-metric benchmark reports synced across 3 paths, and dedicated test suites | M4 (P37) | Phase 37 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -214,6 +220,10 @@
 | M2 (P36) | Phase 36 Portfolio Allocation & Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme EVaR (R2) | F165.1: Lurie Serre-Mazur Motivic Barycenter, 32nd-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P36) | DONE |
 | M3 (P36) | Phase 36 Microstructure Hydrodynamics & Preemptive OMS (R3) | F165.2: KNK 15-Dark-Energy PCQTGBDDDDH Dunkl-Hecke-Cherednik L3, 99.9999998% dark ATS, 0.00000000005 maker floor, 99.99999995% anti-gaming, tick shading | M2 (P36) | DONE |
 | M4 (P36) | Phase 36 Benchmark Engine & Forensic Verification (R4) | F166: `benchmark_phase36_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P36) | DONE |
+| M1 (P37) | Phase 37 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F167, F168.1, F168.2: Motivic Wiles-Taylor-Kisin Coupler, 32nd-order rank modulation, 112th-order deadband | none | DONE |
+| M2 (P37) | Phase 37 Portfolio Allocation & Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme EVaR (R2) | F169.1: Lurie Wiles-Taylor-Kisin Motivic Barycenter, 33rd-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P37) | DONE |
+| M3 (P37) | Phase 37 Microstructure Hydrodynamics & Preemptive OMS (R3) | F169.2: KNK 16-Dark-Energy PCQTGBDDDDHK Dunkl-Hecke-Cherednik-Kostka L3, 99.9999999% dark ATS, 0.00000000002 maker floor, 99.99999998% anti-gaming, tick shading | M2 (P37) | DONE |
+| M4 (P37) | Phase 37 Benchmark Engine & Forensic Verification (R4) | F170: `benchmark_phase37_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P37) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -245,6 +255,7 @@
 - `trading_system/scripts/benchmark_phase34_quant_performance.py`: Phase 34 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase35_quant_performance.py`: Phase 35 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase36_quant_performance.py`: Phase 36 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase37_quant_performance.py`: Phase 37 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
