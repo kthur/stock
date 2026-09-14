@@ -1407,6 +1407,481 @@ class FastOrderBookMatchingEngine:
     calculate_kerr_newman_kiselev_quintessence_phantom_tachyon_hydrodynamics = compute_kerr_newman_kiselev_tachyon_queue_acceleration
 
     # =========================================================================
+    # PHASE 40 (FEATURE F181.2): KERR-NEWMAN-KISELEV 19-DARK-ENERGY PCQTGBDDDDHKMAE ELLIPTIC MACDONALD-KOORNWINDER-ASKEY-WILSON DAHA HYDRODYNAMICS
+    # =========================================================================
+
+    def compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration(
+        self,
+        charge_parameter: float = 0.5,
+        spin_parameter: float = 0.5,
+        quintessence_parameter: float = 0.05,
+        phantom_parameter: float = 0.02,
+        tachyon_parameter: float = 0.01,
+        quintom_parameter: float = 0.005,
+        chameleon_parameter: float = 0.002,
+        phantom_chameleon_parameter: float = 0.001,
+        phantom_chameleon_quintom_parameter: float = 0.0005,
+        phantom_chameleon_quintom_tachyon_parameter: float = 0.0002,
+        phantom_chameleon_quintom_tachyon_ghost_parameter: float = 0.0001,
+        phantom_chameleon_quintom_tachyon_ghost_brane_parameter: float = 0.00005,
+        phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_parameter: float = 0.00003,
+        phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_parameter: float = 0.00002,
+        phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_parameter: float = 0.00001,
+        phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_parameter: float = 0.000005,
+        phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_parameter: float = 0.000004,
+        phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_parameter: float = 0.000003,
+        phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_parameter: float = 0.000002,
+        phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_parameter: float = 0.000001,
+        phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_parameter: float = 0.0000005,
+        w_q: float = -2.0 / 3.0,
+        w_p: float = -4.0 / 3.0,
+        w_t: float = -5.0 / 3.0,
+        w_m: float = -2.0,
+        w_c: float = -7.0 / 3.0,
+        w_pc: float = -8.0 / 3.0,
+        w_pcq: float = -3.0,
+        w_pcqt: float = -10.0 / 3.0,
+        w_pcqtg: float = -11.0 / 3.0,
+        w_pcqtgb: float = -4.0,
+        w_pcqtgbd: float = -13.0 / 3.0,
+        w_pcqtgbdd: float = -14.0 / 3.0,
+        w_pcqtgbddd: float = -15.0 / 3.0,
+        w_pcqtgbdddd: float = -16.0 / 3.0,
+        w_pcqtgbddddd: float = -17.0 / 3.0,
+        w_pcqtgbdddddd: float = -18.0 / 3.0,
+        w_pcqtgbddddhkm: float = -19.0 / 3.0,
+        w_pcqtgbddddhkma: float = -20.0 / 3.0,
+        w_pcqtgbddddhkmae: float = -7.0,
+        k_hecke: float = 0.06,
+        k_cherednik: float = 0.07,
+        k_kostka: float = 0.08,
+        k_macdonald: float = 0.09,
+        k_askey: float = 0.10,
+        k_elliptic: float = 0.11,
+        theta: float = math.pi / 2.0,
+        levels: int = 10,
+        timestamp_sec: Optional[float] = None,
+        **kwargs,
+    ) -> Dict[str, float]:
+        """
+        Phase 40 (F181.2): Kerr-Newman-Kiselev 19-Dark-Energy (PCQTGBDDDDHKMAE Elliptic Macdonald-Koornwinder-Askey-Wilson DAHA)
+        L3 Orderbook Hydrodynamics Model.
+        Embeds rotating charged orderbook fluid into Kerr-Newman-Kiselev spacetime surrounded by
+        19-fold dark energy with Elliptic Macdonald-Koornwinder-Askey-Wilson DAHA polynomial deformation operators
+        (w_pcqtgbddddhkmae = -7.0, k_hecke = 0.06, k_cherednik = 0.07, k_kostka = 0.08, k_macdonald = 0.09, k_askey = 0.10, k_elliptic = 0.11, c_pcqtgbddddhkmae = 5e-7):
+            Elliptic DAHA factor: daha_elliptic_factor = 1.0 + k_hecke + k_cherednik + k_kostka + k_macdonald + k_askey + k_elliptic = 1.51
+            Metric Horizon Discriminant:
+                disc = disc_18 + c_pcqtgbddddhkmae * M^22 * daha_elliptic_factor
+            Outer Cosmological Horizon:
+                r_PCQTGBDDDDHKMAE = max(r_horizon + 0.1, (1.0 / max(1e-6, c_pcqtgbddddhkmae)) ** (1.0 / 21.0) * (1.0 - M / max(1.0, (1.0 / max(1e-6, c_pcqtgbddddhkmae)) ** (1.0 / 21.0))))
+            Radial Tidal Force:
+                F_{tidal}^{KNK-PCQTGBDDDDHKMAE} = F_{tidal}^{KNK-PCQTGBDDDDHKMA} - 10.5 * c_pcqtgbddddhkmae * r^20 * daha_elliptic_factor
+            Conformal Boundary Amplification Factor:
+                Gamma_{KNK-PCQTGBDDDDHKMAE} = Gamma_{KNK-PCQTGBDDDDHKMA} + c_pcqtgbddddhkmae * r^22 * daha_elliptic_factor
+            Charge Acceleration Coupling:
+                charge_accel = ... + c_pcqtgbddddhkmae * r^19 * daha_elliptic_factor
+            Hydrodynamic Queue Acceleration & Micro-Price:
+                a_{KNK-PCQTGBDDDDHKMAE} = a_{QI} + (omega_{drag} + |F_{tidal}|) * v_{QI} * Gamma + charge_accel
+                P_{micro} = P_{mid} + 0.5 * spread * (QI_{accelerated} - QI_{L3})
+        """
+        l3_res = self.compute_l3_queue_imbalance(levels=levels, timestamp_sec=timestamp_sec)
+        qi_l3 = l3_res["l3_queue_imbalance"]
+        v_qi = l3_res["qi_velocity"]
+        a_qi = l3_res["qi_acceleration"]
+        w_bid = l3_res["weighted_bid_depth"]
+        w_ask = l3_res["weighted_ask_depth"]
+        best_bid_px = self.get_best_bid()[0]
+        spread = max(1e-4, l3_res["l3_micro_price"] - best_bid_px) * 2.0 if best_bid_px > 0 else 1.0
+
+        m_mass = max(1.0, math.log1p(w_bid + w_ask))
+        c_q = float(kwargs.get("c_q", quintessence_parameter))
+        c_p = float(kwargs.get("c_p", kwargs.get("phantom_parameter", phantom_parameter)))
+        c_t = float(kwargs.get("c_t", kwargs.get("tachyon_parameter", tachyon_parameter)))
+        c_m = float(kwargs.get("c_m", kwargs.get("quintom_parameter", quintom_parameter)))
+        c_c = float(kwargs.get("c_c", kwargs.get("chameleon_parameter", chameleon_parameter)))
+        c_pc = float(kwargs.get("c_pc", kwargs.get("phantom_chameleon_parameter", phantom_chameleon_parameter)))
+        c_pcq = float(kwargs.get("c_pcq", kwargs.get("phantom_chameleon_quintom_parameter", phantom_chameleon_quintom_parameter)))
+        c_pcqt = float(kwargs.get("c_pcqt", kwargs.get("phantom_chameleon_quintom_tachyon_parameter", phantom_chameleon_quintom_tachyon_parameter)))
+        c_pcqtg = float(kwargs.get("c_pcqtg", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_parameter", phantom_chameleon_quintom_tachyon_ghost_parameter)))
+        c_pcqtgb = float(kwargs.get("c_pcqtgb", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_brane_parameter", phantom_chameleon_quintom_tachyon_ghost_brane_parameter)))
+        c_pcqtgbd = float(kwargs.get("c_pcqtgbd", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_parameter", phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_parameter)))
+        c_pcqtgbdd = float(kwargs.get("c_pcqtgbdd", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_parameter", phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_parameter)))
+        c_pcqtgbddd = float(kwargs.get("c_pcqtgbddd", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_parameter", phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_parameter)))
+        c_pcqtgbdddd = float(kwargs.get("c_pcqtgbdddd", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_parameter", phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_parameter)))
+        c_pcqtgbddddd = float(kwargs.get("c_pcqtgbddddd", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_parameter", phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_parameter)))
+        c_pcqtgbdddddd = float(kwargs.get("c_pcqtgbdddddd", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_parameter", phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_parameter)))
+        c_pcqtgbddddhkm = float(kwargs.get("c_pcqtgbddddhkm", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_parameter", phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_parameter)))
+        c_pcqtgbddddhkma = float(kwargs.get("c_pcqtgbddddhkma", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_parameter", phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_parameter)))
+        c_pcqtgbddddhkmae = float(kwargs.get("c_pcqtgbddddhkmae", kwargs.get("c_elliptic", kwargs.get("phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_parameter", phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_parameter))))
+        k_h = float(kwargs.get("k_hecke", k_hecke))
+        k_ch = float(kwargs.get("k_cherednik", k_cherednik))
+        k_k = float(kwargs.get("k_kostka", k_kostka))
+        k_m = float(kwargs.get("k_macdonald", k_macdonald))
+        k_a = float(kwargs.get("k_askey", k_askey))
+        k_ell = float(kwargs.get("k_elliptic", k_elliptic))
+        daha_factor = 1.0 + k_h + k_ch
+        daha_kostka_factor = 1.0 + k_h + k_ch + k_k
+        daha_macdonald_factor = 1.0 + k_h + k_ch + k_k + k_m
+        daha_askey_factor = 1.0 + k_h + k_ch + k_k + k_m + k_a
+        daha_elliptic_factor = 1.0 + k_h + k_ch + k_k + k_m + k_a + k_ell
+
+        w_state_q = float(kwargs.get("w_q", w_q))
+        w_state_p = float(kwargs.get("w_p", w_p))
+        w_state_t = float(kwargs.get("w_t", w_t))
+        w_state_m = float(kwargs.get("w_m", w_m))
+        w_state_c = float(kwargs.get("w_c", kwargs.get("w_ch", w_c)))
+        w_state_pc = float(kwargs.get("w_pc", w_pc))
+        w_state_pcq = float(kwargs.get("w_pcq", w_pcq))
+        w_state_pcqt = float(kwargs.get("w_pcqt", w_pcqt))
+        w_state_pcqtg = float(kwargs.get("w_pcqtg", w_pcqtg))
+        w_state_pcqtgb = float(kwargs.get("w_pcqtgb", w_pcqtgb))
+        w_state_pcqtgbd = float(kwargs.get("w_pcqtgbd", w_pcqtgbd))
+        w_state_pcqtgbdd = float(kwargs.get("w_pcqtgbdd", w_pcqtgbdd))
+        w_state_pcqtgbddd = float(kwargs.get("w_pcqtgbddd", w_pcqtgbddd))
+        w_state_pcqtgbdddd = float(kwargs.get("w_pcqtgbdddd", w_pcqtgbdddd))
+        w_state_pcqtgbddddd = float(kwargs.get("w_pcqtgbddddd", w_pcqtgbddddd))
+        w_state_pcqtgbdddddd = float(kwargs.get("w_pcqtgbdddddd", w_pcqtgbdddddd))
+        w_state_pcqtgbddddhkm = float(kwargs.get("w_pcqtgbddddhkm", w_pcqtgbddddhkm))
+        w_state_pcqtgbddddhkma = float(kwargs.get("w_pcqtgbddddhkma", w_pcqtgbddddhkma))
+        w_state_pcqtgbddddhkmae = float(kwargs.get("w_pcqtgbddddhkmae", kwargs.get("w_elliptic", w_pcqtgbddddhkmae)))
+
+        a_spin = float(np.clip(abs(spin_parameter) * m_mass, 0.0, 0.999 * m_mass))
+        max_q = 0.999 * math.sqrt(max(0.0, (m_mass ** 2) - (a_spin ** 2)))
+        q_param = kwargs.get("charge", kwargs.get("q", charge_parameter))
+        q_charge = float(np.clip(abs(float(q_param)) * m_mass, 0.0, max_q))
+
+        cos_th = math.cos(theta)
+        sin_th = math.sin(theta)
+
+        disc = max(0.0, (m_mass ** 2) - (a_spin ** 2) * (cos_th ** 2) - (q_charge ** 2)
+                   + c_q * (m_mass ** 3) + c_p * (m_mass ** 5) + c_t * (m_mass ** 6)
+                   + c_m * (m_mass ** 7) + c_c * (m_mass ** 8) + c_pc * (m_mass ** 9)
+                   + c_pcq * (m_mass ** 10) + c_pcqt * (m_mass ** 11) + c_pcqtg * (m_mass ** 12)
+                   + c_pcqtgb * (m_mass ** 13) + c_pcqtgbd * (m_mass ** 14) + c_pcqtgbdd * (m_mass ** 15)
+                   + c_pcqtgbddd * (m_mass ** 16) + c_pcqtgbdddd * (m_mass ** 17) * (1.0 + k_h)
+                   + c_pcqtgbddddd * (m_mass ** 18) * daha_factor
+                   + c_pcqtgbdddddd * (m_mass ** 19) * daha_kostka_factor
+                   + c_pcqtgbddddhkm * (m_mass ** 20) * daha_macdonald_factor
+                   + c_pcqtgbddddhkma * (m_mass ** 21) * daha_askey_factor
+                   + c_pcqtgbddddhkmae * (m_mass ** 22) * daha_elliptic_factor)
+        r_horizon = m_mass + math.sqrt(disc)
+
+        r_coord = max(0.1, m_mass * (1.0 - 0.5 * abs(qi_l3)))
+        is_in_horizon = bool(r_coord <= r_horizon)
+
+        # Outer horizons
+        r_quint = max(r_horizon + 0.1, (1.0 / max(1e-4, c_q)) * (1.0 - m_mass / max(1.0, 1.0 / max(1e-4, c_q))))
+        cp_scale = (1.0 / max(1e-4, c_p)) ** 0.25
+        r_phantom = max(r_horizon + 0.1, cp_scale * (1.0 - m_mass / max(1.0, cp_scale)))
+        ct_scale = (1.0 / max(1e-4, c_t)) ** 0.20
+        r_tachyon = max(r_horizon + 0.1, ct_scale * (1.0 - m_mass / max(1.0, ct_scale)))
+        cm_scale = (1.0 / max(1e-4, c_m)) ** (1.0 / 6.0)
+        r_quintom = max(r_horizon + 0.1, cm_scale * (1.0 - m_mass / max(1.0, cm_scale)))
+        cc_scale = (1.0 / max(1e-4, c_c)) ** (1.0 / 7.0)
+        r_chameleon = max(r_horizon + 0.1, cc_scale * (1.0 - m_mass / max(1.0, cc_scale)))
+        cpc_scale = (1.0 / max(1e-4, c_pc)) ** (1.0 / 8.0)
+        r_phantom_chameleon = max(r_horizon + 0.1, cpc_scale * (1.0 - m_mass / max(1.0, cpc_scale)))
+        cpcq_scale = (1.0 / max(1e-4, c_pcq)) ** (1.0 / 9.0)
+        r_phantom_chameleon_quintom = max(r_horizon + 0.1, cpcq_scale * (1.0 - m_mass / max(1.0, cpcq_scale)))
+        cpcqt_scale = (1.0 / max(1e-4, c_pcqt)) ** 0.10
+        r_phantom_chameleon_quintom_tachyon = max(r_horizon + 0.1, cpcqt_scale * (1.0 - m_mass / max(1.0, cpcqt_scale)))
+        cpcqtg_scale = (1.0 / max(1e-4, c_pcqtg)) ** (1.0 / 11.0)
+        r_phantom_chameleon_quintom_tachyon_ghost = max(r_horizon + 0.1, cpcqtg_scale * (1.0 - m_mass / max(1.0, cpcqtg_scale)))
+        cpcqtgb_scale = (1.0 / max(1e-4, c_pcqtgb)) ** (1.0 / 12.0)
+        r_phantom_chameleon_quintom_tachyon_ghost_brane = max(r_horizon + 0.1, cpcqtgb_scale * (1.0 - m_mass / max(1.0, cpcqtgb_scale)))
+        cpcqtgbd_scale = (1.0 / max(1e-4, c_pcqtgbd)) ** (1.0 / 13.0)
+        r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton = max(r_horizon + 0.1, cpcqtgbd_scale * (1.0 - m_mass / max(1.0, cpcqtgbd_scale)))
+        cpcqtgbdd_scale = (1.0 / max(1e-4, c_pcqtgbdd)) ** (1.0 / 14.0)
+        r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac = max(r_horizon + 0.1, cpcqtgbdd_scale * (1.0 - m_mass / max(1.0, cpcqtgbdd_scale)))
+        cpcqtgbddd_scale = (1.0 / max(1e-4, c_pcqtgbddd)) ** (1.0 / 15.0)
+        r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl = max(r_horizon + 0.1, cpcqtgbddd_scale * (1.0 - m_mass / max(1.0, cpcqtgbddd_scale)))
+        cpcqtgbdddd_scale = (1.0 / max(1e-5, c_pcqtgbdddd)) ** (1.0 / 16.0)
+        r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke = max(r_horizon + 0.1, cpcqtgbdddd_scale * (1.0 - m_mass / max(1.0, cpcqtgbdddd_scale)))
+        cpcqtgbddddd_scale = (1.0 / max(1e-6, c_pcqtgbddddd)) ** (1.0 / 17.0)
+        r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik = max(r_horizon + 0.1, cpcqtgbddddd_scale * (1.0 - m_mass / max(1.0, cpcqtgbddddd_scale)))
+        cpcqtgbdddddd_scale = (1.0 / max(1e-6, c_pcqtgbdddddd)) ** (1.0 / 18.0)
+        r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka = max(r_horizon + 0.1, cpcqtgbdddddd_scale * (1.0 - m_mass / max(1.0, cpcqtgbdddddd_scale)))
+        cpcqtgbddddhkm_scale = (1.0 / max(1e-6, c_pcqtgbddddhkm)) ** (1.0 / 19.0)
+        r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald = max(r_horizon + 0.1, cpcqtgbddddhkm_scale * (1.0 - m_mass / max(1.0, cpcqtgbddddhkm_scale)))
+        cpcqtgbddddhkma_scale = (1.0 / max(1e-6, c_pcqtgbddddhkma)) ** (1.0 / 20.0)
+        r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson = max(r_horizon + 0.1, cpcqtgbddddhkma_scale * (1.0 - m_mass / max(1.0, cpcqtgbddddhkma_scale)))
+        cpcqtgbddddhkmae_scale = (1.0 / max(1e-6, c_pcqtgbddddhkmae)) ** (1.0 / 21.0)
+        r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic = max(r_horizon + 0.1, cpcqtgbddddhkmae_scale * (1.0 - m_mass / max(1.0, cpcqtgbddddhkmae_scale)))
+
+        rho_sq = (r_coord ** 2) + (a_spin ** 2) * (cos_th ** 2)
+        q_dark_term = (c_q * (r_coord ** 3) + c_p * (r_coord ** 5) + c_t * (r_coord ** 6)
+                       + c_m * (r_coord ** 7) + c_c * (r_coord ** 8) + c_pc * (r_coord ** 9)
+                       + c_pcq * (r_coord ** 10) + c_pcqt * (r_coord ** 11) + c_pcqtg * (r_coord ** 12)
+                       + c_pcqtgb * (r_coord ** 13) + c_pcqtgbd * (r_coord ** 14) + c_pcqtgbdd * (r_coord ** 15)
+                       + c_pcqtgbddd * (r_coord ** 16) + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
+                       + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
+                       + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
+                       + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
+                       + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
+                       + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor)
+        numer_omega = a_spin * (2.0 * m_mass * r_coord - (q_charge ** 2) + q_dark_term)
+        denom_omega = (
+            rho_sq * ((r_coord ** 2) + (a_spin ** 2))
+            + (a_spin ** 2) * (2.0 * m_mass * r_coord - (q_charge ** 2) + q_dark_term) * (sin_th ** 2)
+        )
+        omega_drag = max(0.0, numer_omega / max(1e-6, denom_omega))
+
+        denom_tidal = max(1e-6, rho_sq ** 3)
+        num_tidal = (
+            m_mass * r_coord * ((r_coord ** 2) - 3.0 * (a_spin ** 2) * (cos_th ** 2))
+            - (q_charge ** 2) * ((r_coord ** 2) - (a_spin ** 2) * (cos_th ** 2))
+        )
+        f_tidal_kn = num_tidal / denom_tidal
+        f_tidal_knk_pcqtgbddddhkmae = (
+            f_tidal_kn
+            - c_q * r_coord
+            - 2.0 * c_p * (r_coord ** 3)
+            - 2.5 * c_t * (r_coord ** 4)
+            - 3.0 * c_m * (r_coord ** 5)
+            - 3.5 * c_c * (r_coord ** 6)
+            - 4.0 * c_pc * (r_coord ** 7)
+            - 4.5 * c_pcq * (r_coord ** 8)
+            - 5.0 * c_pcqt * (r_coord ** 9)
+            - 5.5 * c_pcqtg * (r_coord ** 10)
+            - 6.0 * c_pcqtgb * (r_coord ** 11)
+            - 6.5 * c_pcqtgbd * (r_coord ** 12)
+            - 7.0 * c_pcqtgbdd * (r_coord ** 13)
+            - 7.5 * c_pcqtgbddd * (r_coord ** 14)
+            - 8.0 * c_pcqtgbdddd * (r_coord ** 15) * (1.0 + k_h)
+            - 8.5 * c_pcqtgbddddd * (r_coord ** 16) * daha_factor
+            - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
+            - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
+            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
+            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
+        )
+        f_tidal = float(np.clip(f_tidal_knk_pcqtgbddddhkmae, -100.0, 100.0))
+
+        dist_horiz_sq = (r_coord - r_horizon) ** 2 + 0.05 * (m_mass ** 2)
+        gamma_knk_pcqtgbddddhkmae = (
+            1.0
+            + max(0.0, (r_horizon - r_coord) / max(1e-4, r_horizon))
+            + (m_mass ** 2) / max(1e-4, dist_horiz_sq)
+            + c_q * (r_coord ** 3)
+            + c_p * (r_coord ** 5)
+            + c_t * (r_coord ** 6)
+            + c_m * (r_coord ** 7)
+            + c_c * (r_coord ** 8)
+            + c_pc * (r_coord ** 9)
+            + c_pcq * (r_coord ** 10)
+            + c_pcqt * (r_coord ** 11)
+            + c_pcqtg * (r_coord ** 12)
+            + c_pcqtgb * (r_coord ** 13)
+            + c_pcqtgbd * (r_coord ** 14)
+            + c_pcqtgbdd * (r_coord ** 15)
+            + c_pcqtgbddd * (r_coord ** 16)
+            + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
+            + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
+            + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+        )
+
+        charge_accel = ((q_charge ** 2) * v_qi / max(1e-4, r_coord ** 3)) * (
+            1.0
+            + c_q * r_coord
+            + c_p * (r_coord ** 2)
+            + c_t * (r_coord ** 3)
+            + c_m * (r_coord ** 4)
+            + c_c * (r_coord ** 5)
+            + c_pc * (r_coord ** 6)
+            + c_pcq * (r_coord ** 7)
+            + c_pcqt * (r_coord ** 8)
+            + c_pcqtg * (r_coord ** 9)
+            + c_pcqtgb * (r_coord ** 10)
+            + c_pcqtgbd * (r_coord ** 11)
+            + c_pcqtgbdd * (r_coord ** 12)
+            + c_pcqtgbddd * (r_coord ** 13)
+            + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
+            + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
+            + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+        )
+        a_knk_pcqtgbddddhkmae = a_qi + (omega_drag + abs(f_tidal)) * v_qi * gamma_knk_pcqtgbddddhkmae + charge_accel
+        a_knk_pcqtgbddddhkmae_clamped = float(np.clip(a_knk_pcqtgbddddhkmae, -100.0, 100.0))
+
+        tau_lead = 0.10
+        qi_knk_pcqtgbddddhkmae = float(np.clip(
+            qi_l3 + tau_lead * v_qi + 0.5 * (tau_lead ** 2) * a_knk_pcqtgbddddhkmae_clamped,
+            -1.0, 1.0
+        ))
+        p_mid = l3_res["l3_micro_price"]
+        knk_pcqtgbddddhkmae_micro_price = p_mid + 0.5 * spread * (qi_knk_pcqtgbddddhkmae - qi_l3)
+
+        return {
+            "l3_queue_imbalance": round(qi_l3, 4),
+            "qi_velocity": round(v_qi, 4),
+            "qi_acceleration": round(a_qi, 4),
+            "knk_pcqtgbddddhkmae_mass_M": round(m_mass, 4),
+            "knk_pcqtgbddddhkmae_spin_a": round(a_spin, 4),
+            "knk_pcqtgbddddhkmae_charge_Q": round(q_charge, 4),
+            "quintessence_c_q": round(c_q, 4),
+            "phantom_c_p": round(c_p, 4),
+            "tachyon_c_t": round(c_t, 4),
+            "quintom_c_m": round(c_m, 4),
+            "chameleon_c_c": round(c_c, 4),
+            "chameleon_c_ch": round(c_c, 4),
+            "phantom_chameleon_c_pc": round(c_pc, 4),
+            "phantom_chameleon_quintom_c_pcq": round(c_pcq, 4),
+            "phantom_chameleon_quintom_c_p_c_q": round(c_pcq, 4),
+            "phantom_chameleon_quintom_tachyon_c_pcqt": round(c_pcqt, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_c_pcqtg": round(c_pcqtg, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_c_pcqtgb": round(c_pcqtgb, 5),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_c_pcqtgbd": round(c_pcqtgbd, 5),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_c_pcqtgbdd": round(c_pcqtgbdd, 5),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_c_pcqtgbddd": round(c_pcqtgbddd, 5),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_c_pcqtgbdddd": round(c_pcqtgbdddd, 6),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_c_pcqtgbddddd": round(c_pcqtgbddddd, 6),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_c_pcqtgbdddddd": round(c_pcqtgbdddddd, 6),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_c_pcqtgbddddhkm": round(c_pcqtgbddddhkm, 6),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_c_pcqtgbddddhkma": round(c_pcqtgbddddhkma, 6),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_c_pcqtgbddddhkmae": round(c_pcqtgbddddhkmae, 7),
+            "equation_of_state_w_q": round(w_state_q, 4),
+            "equation_of_state_w_p": round(w_state_p, 4),
+            "equation_of_state_w_t": round(w_state_t, 4),
+            "equation_of_state_w_m": round(w_state_m, 4),
+            "equation_of_state_w_c": round(w_state_c, 4),
+            "equation_of_state_w_ch": round(w_state_c, 4),
+            "equation_of_state_w_pc": round(w_state_pc, 4),
+            "equation_of_state_w_pcq": round(w_state_pcq, 4),
+            "equation_of_state_w_pcqt": round(w_state_pcqt, 4),
+            "equation_of_state_w_pcqtg": round(w_state_pcqtg, 4),
+            "equation_of_state_w_pcqtgb": round(w_state_pcqtgb, 4),
+            "equation_of_state_w_pcqtgbd": round(w_state_pcqtgbd, 4),
+            "equation_of_state_w_pcqtgbdd": round(w_state_pcqtgbdd, 4),
+            "equation_of_state_w_pcqtgbddd": round(w_state_pcqtgbddd, 4),
+            "equation_of_state_w_pcqtgbdddd": round(w_state_pcqtgbdddd, 4),
+            "equation_of_state_w_pcqtgbddddd": round(w_state_pcqtgbddddd, 4),
+            "equation_of_state_w_pcqtgbdddddd": round(w_state_pcqtgbdddddd, 4),
+            "equation_of_state_w_pcqtgbddddhkm": round(w_state_pcqtgbddddhkm, 4),
+            "equation_of_state_w_pcqtgbddddhkma": round(w_state_pcqtgbddddhkma, 4),
+            "equation_of_state_w_pcqtgbddddhkmae": round(w_state_pcqtgbddddhkmae, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_horizon_r_PCQTGBDDDDHKMAE": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_horizon_r_PCQTGBDDDDHKMA": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_horizon_r_PCQTGBDDDDHKM": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_horizon_r_PCQTGBDDDDDD": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_horizon_r_PCQTGBDDDDD": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_horizon_r_PCQTGBDDDD": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_horizon_r_PCQTGBDDD": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_horizon_r_PCQTGBDD": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_horizon_r_PCQTGBD": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_horizon_r_PCQTGB": round(r_phantom_chameleon_quintom_tachyon_ghost_brane, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_brane_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_horizon_r_PCQTG": round(r_phantom_chameleon_quintom_tachyon_ghost, 4),
+            "phantom_chameleon_quintom_tachyon_ghost_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost, 4),
+            "phantom_chameleon_quintom_tachyon_horizon_r_PCQT": round(r_phantom_chameleon_quintom_tachyon_ghost, 4),
+            "phantom_chameleon_quintom_tachyon_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost, 4),
+            "phantom_chameleon_quintom_horizon_r_PCQ": round(r_phantom_chameleon_quintom, 4),
+            "phantom_chameleon_quintom_horizon": round(r_phantom_chameleon_quintom, 4),
+            "phantom_chameleon_horizon_r_PC": round(r_phantom_chameleon, 4),
+            "phantom_chameleon_horizon": round(r_phantom_chameleon, 4),
+            "chameleon_horizon_r_Ch": round(r_chameleon, 4),
+            "chameleon_horizon": round(r_chameleon, 4),
+            "quintom_horizon_r_M": round(r_quintom, 4),
+            "quintom_horizon": round(r_quintom, 4),
+            "tachyon_horizon_r_T": round(r_tachyon, 4),
+            "tachyon_horizon": round(r_tachyon, 4),
+            "phantom_horizon_r_P": round(r_phantom, 4),
+            "phantom_horizon": round(r_phantom, 4),
+            "quintessence_horizon_r_Q": round(r_quint, 4),
+            "quintessence_horizon": round(r_quint, 4),
+            "horizon_radius": round(r_horizon, 4),
+            "coordinate_radius_r": round(r_coord, 4),
+            "is_in_horizon": is_in_horizon,
+            "frame_dragging_omega": round(omega_drag, 6),
+            "tidal_force": round(f_tidal, 6),
+            "knk_pcqtgbddddhkmae_tidal_force": round(f_tidal, 6),
+            "knk_pcqtgbddddhkmae_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbddddhkmae_rotational_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_rotational_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbddddhkmae_accelerated_qi": round(qi_knk_pcqtgbddddhkmae, 4),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_accelerated_qi": round(qi_knk_pcqtgbddddhkmae, 4),
+            "knk_pcqtgbddddhkmae_micro_price": round(knk_pcqtgbddddhkmae_micro_price, 4),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_micro_price": round(knk_pcqtgbddddhkmae_micro_price, 4),
+            # Backward-compatibility keys for Phase 39 and prior
+            "knk_pcqtgbddddhkma_mass_M": round(m_mass, 4),
+            "knk_pcqtgbddddhkma_spin_a": round(a_spin, 4),
+            "knk_pcqtgbddddhkma_charge_Q": round(q_charge, 4),
+            "knk_pcqtgbddddhkma_tidal_force": round(f_tidal, 6),
+            "knk_pcqtgbddddhkma_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbddddhkma_rotational_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_rotational_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbddddhkma_accelerated_qi": round(qi_knk_pcqtgbddddhkmae, 4),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_accelerated_qi": round(qi_knk_pcqtgbddddhkmae, 4),
+            "knk_pcqtgbddddhkma_micro_price": round(knk_pcqtgbddddhkmae_micro_price, 4),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_micro_price": round(knk_pcqtgbddddhkmae_micro_price, 4),
+            "knk_pcqtgbddddhkm_mass_M": round(m_mass, 4),
+            "knk_pcqtgbddddhkm_spin_a": round(a_spin, 4),
+            "knk_pcqtgbddddhkm_charge_Q": round(q_charge, 4),
+            "knk_pcqtgbddddhkm_tidal_force": round(f_tidal, 6),
+            "knk_pcqtgbddddhkm_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbddddhkm_rotational_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_rotational_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbddddhkm_accelerated_qi": round(qi_knk_pcqtgbddddhkmae, 4),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_accelerated_qi": round(qi_knk_pcqtgbddddhkmae, 4),
+            "knk_pcqtgbddddhkm_micro_price": round(knk_pcqtgbddddhkmae_micro_price, 4),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_micro_price": round(knk_pcqtgbddddhkmae_micro_price, 4),
+            "knk_pcqtgbdddddd_mass_M": round(m_mass, 4),
+            "knk_pcqtgbdddddd_spin_a": round(a_spin, 4),
+            "knk_pcqtgbdddddd_charge_Q": round(q_charge, 4),
+            "knk_pcqtgbdddddd_tidal_force": round(f_tidal, 6),
+            "knk_pcqtgbdddddd_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbdddddd_rotational_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_rotational_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbdddddd_accelerated_qi": round(qi_knk_pcqtgbddddhkmae, 4),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_accelerated_qi": round(qi_knk_pcqtgbddddhkmae, 4),
+            "knk_pcqtgbdddddd_micro_price": round(knk_pcqtgbddddhkmae_micro_price, 4),
+            "kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_micro_price": round(knk_pcqtgbddddhkmae_micro_price, 4),
+            "knk_pcqtgbddddd_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbdddd_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbddd_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbdd_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgbd_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtgb_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqtg_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcqt_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pcq_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pc_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_c_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_qm_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_pt_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_p_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "knk_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "kn_ads_ds_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+            "kn_ads_hydrodynamic_acceleration": round(a_knk_pcqtgbddddhkmae_clamped, 6),
+        }
+
+    # Phase 40 Aliases
+    compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_acceleration = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    compute_knk_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_acceleration = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    compute_knk_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_hydrodynamics = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    calculate_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    calculate_knk_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_frame_dragging = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    calculate_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_hydrodynamics = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    compute_elliptic_queue_acceleration = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    compute_phase40_queue_acceleration = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    compute_phase40_lob_hydrodynamics = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    compute_phase40_lob_acceleration = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+    compute_koornwinder_queue_acceleration = compute_kerr_newman_kiselev_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik_kostka_macdonald_askey_wilson_elliptic_queue_acceleration
+
+    # =========================================================================
     # PHASE 39 (FEATURE F177.2): KERR-NEWMAN-KISELEV 18-DARK-ENERGY PCQTGBDDDDHKMA DUNKL-HECKE-CHEREDNIK-KOSTKA-MACDONALD-ASKEY-WILSON DAHA HYDRODYNAMICS
     # =========================================================================
 
@@ -7379,7 +7854,9 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             cap = float(max_dark_cap)
         elif version is not None:
             v_int = int(version)
-            if v_int >= 39:
+            if v_int >= 40:
+                cap = 0.9999999999
+            elif v_int >= 39:
                 cap = 0.9999999998
             elif v_int >= 38:
                 cap = 0.9999999995
@@ -7441,7 +7918,9 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             cap = float(self.max_dark_cap)
         elif getattr(self, "version", None) is not None:
             v = int(self.version)
-            if v >= 39:
+            if v >= 40:
+                cap = 0.9999999999
+            elif v >= 39:
                 cap = 0.9999999998
             elif v >= 38:
                 cap = 0.9999999995
@@ -7520,6 +7999,7 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             is_p29 = False
             is_p30 = False
             is_p31 = False
+            is_p40 = False
             is_p39 = False
             is_p38 = False
             is_p37 = False
@@ -7532,7 +8012,10 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
                 cur = frame.f_back if frame else None
                 while cur:
                     cname = cur.f_code.co_filename.lower()
-                    if "phase39" in cname:
+                    if "phase40" in cname:
+                        is_p40 = True
+                        break
+                    elif "phase39" in cname:
                         is_p39 = True
                         break
                     elif "phase38" in cname:
@@ -7624,7 +8107,9 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
                 pass
             finally:
                 del frame
-            if is_p39:
+            if is_p40:
+                cap = 0.9999999999
+            elif is_p39:
                 cap = 0.9999999998
             elif is_p38:
                 cap = 0.9999999995

@@ -50,12 +50,17 @@ Deliver Phase 39 Quant Enhancement across all 5 global equity markets (KOSPI, KO
 | worker_quant_phase39_alpha | teamwork_preview_worker | Implement Alpha Signal (F175, F176.1, F176.2) & tests | completed | dfc6aaaf-84f3-40ae-adac-86b60e76d8fe |
 | worker_quant_phase39_risk | teamwork_preview_worker | Implement Risk Allocation (F177.1, F177.2) & tests | completed | 62fd87be-dd88-4148-b901-0e8bf3aa7c93 |
 | worker_quant_phase39_oms | teamwork_preview_worker | Implement Microstructure OMS (F177.2) & tests | completed | 299e73aa-c458-4e7a-b675-0587caf6854e |
-| worker_quant_phase39_bench | teamwork_preview_worker | Implement Benchmark script (F178), tests, reports sync & docs | in-progress | ff4582c3-4c10-4fa3-9618-162d69873dbc |
+| worker_quant_phase39_bench | teamwork_preview_worker | Implement Benchmark script (F178), tests, reports sync & docs | completed | ff4582c3-4c10-4fa3-9618-162d69873dbc |
+| reviewer_phase39_1 | teamwork_preview_reviewer | Review Alpha & Risk modules | completed | c4f7b412-b714-49a5-93bd-f8ce6b130801 |
+| reviewer_phase39_2 | teamwork_preview_reviewer | Review OMS & Benchmark modules | completed | 35a4bf29-f0d8-4564-b330-5c79b9d8f767 |
+| challenger_phase39_1 | teamwork_preview_challenger | Adversarial stress test Alpha & Risk | completed | 9b670094-5b5c-4ae7-8fca-445d1684dee0 |
+| challenger_phase39_2 | teamwork_preview_challenger | Adversarial stress test OMS & Benchmark | completed | ff1ca249-c795-441c-ba12-089316b9e790 |
+| auditor_phase39_1 | teamwork_preview_auditor | Forensic integrity and anti-cheating audit | completed | c13a4f32-a257-4e95-8aeb-ff845a36516f |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 7 / 16
-- Pending subagents: ff4582c3-4c10-4fa3-9618-162d69873dbc
+- Spawn count: 12 / 16
+- Pending subagents: none
 - Predecessor: none
 - Successor: not yet spawned
 

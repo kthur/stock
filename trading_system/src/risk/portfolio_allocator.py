@@ -3167,6 +3167,96 @@ class PortfolioAllocator:
     singular_hyper_evar_risk_measure = compute_trans_singular_hyper_evar_risk_measure
     compute_trans_singular_evar = compute_trans_singular_hyper_evar_risk_measure
 
+    # ── Phase 40 (F181.1): Lurie-Langlands-Deligne Motivic Fisher-Rao Barycenter ──
+    @staticmethod
+    def compute_lurie_langlands_deligne_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 40 (Feature F181.1): Lurie-Langlands-Deligne Motivic Fisher-Rao Barycenter Blending.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_langlands_deligne_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_langlands_deligne_barycenter = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_lurie_deligne_langlands_barycenter = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_langlands_deligne_fisher_rao_barycenter = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_langlands_deligne_barycenter = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_deligne_fisher_rao_barycenter = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_deligne_barycenter = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_phase40_fisher_rao_barycenter = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_phase40_barycenter_blend = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_langlands_deligne_fisher_rao_barycenter_blend = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_motivic_langlands_deligne_barycenter_blend = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_analytic_langlands_deligne_barycenter_blend = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_deligne_regulator_barycenter_blend = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_hodge_deligne_barycenter_blend = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_deligne_fisher_rao_barycenter_blend = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_motivic_deligne_barycenter_blend = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_analytic_deligne_barycenter_blend = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+    compute_geometric_langlands_deligne_barycenter_blend = compute_lurie_langlands_deligne_fisher_rao_barycenter_blend
+
+    # ── Phase 40 (F181.1): 36th-Cumulant Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Clausen-Scholze-Deligne EVaR ────
+    @staticmethod
+    def compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        xi_36: Optional[float] = None,
+        xi_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne: float = 0.999996,
+        xi_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne: float = 0.999996,
+        xi_deligne: float = 0.999996,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 40 (Feature F181.1): 36th-Cumulant Expansion Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Clausen-Scholze-Deligne EVaR Tail Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        rets = returns if returns is not None else (-np.asarray(losses, dtype=float) if losses is not None else np.array([]))
+        xi_36_val = xi_36 if xi_36 is not None else (kwargs.get("xi_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne", kwargs.get("xi_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne", kwargs.get("xi_deligne", xi_deligne))))
+        return alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure(
+            returns=rets,
+            alpha=alpha,
+            xi_36=xi_36_val,
+            xi_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne=xi_36_val,
+            xi_deligne=xi_36_val,
+            **kwargs,
+        )
+
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_blend = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_phase40 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_36th_cumulant_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_phase40_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_trans_deligne_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_trans_clausen_scholze_deligne_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_clausen_scholze_deligne_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_deligne_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_transcendent_deligne_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_transcendent_deligne_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_evar_risk_measure
+
     # ── Phase 39 (F177.1): Lurie-Clausen-Scholze Motivic Fisher-Rao Barycenter ──
     @staticmethod
     def compute_lurie_clausen_scholze_fisher_rao_barycenter_blend(

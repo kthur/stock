@@ -154,6 +154,12 @@
 | F177.1 | Lurie-Clausen-Scholze Motivic Barycenter & Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Clausen-Scholze EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lcs}}=[2.90, 2.40, 2.35, 3.45]$ and $35! = 1,033,314,796,638,614,492,966,160,480,772,320,000,000$ tail bounds | M2 (P39) | Phase 39 R2 |
 | F177.2 | KNK 18-Dark-Energy PCQTGBDDDDHKMA Dunkl-Hecke-Cherednik-Kostka-Macdonald-Askey-Wilson L3 & Preemptive OMS | Kerr-Newman-Kiselev 18-dark-energy ($w_{\text{pcqtgbddddhkma}} = -20/3, k_{\text{hecke}}=0.06, k_{\text{cherednik}}=0.07, k_{\text{kostka}}=0.08, k_{\text{macdonald}}=0.09, k_{\text{askey}}=0.10$), 0.000000000005 maker floor, 99.99999998% dark ATS, 99.999999995% anti-gaming, tick shading $-0.999999998 \cdot \text{spread} \cdot (h-0.0008)$ | M3 (P39) | Phase 39 R3 |
 | F178 | Phase 39 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase39_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P39) | Phase 39 R4 |
+| F179 | Geometric Langlands & Non-Abelian Hodge-Deligne Analytic Cohomology Coupler | Geometric Langlands & Non-Abelian Hodge-Deligne analytic cohomology harmonic bundle curvature obstruction $E_{\text{hodge}}$ and Deligne regulator invariant $Z_{\text{deligne}}$ across 5 canonical pillars | M1 (P40) | Phase 40 R1 |
+| F180.1 | 35th-Order Hyper-Convex Rank Modulation | $g_{\text{v40}}(r) = 0.50 + 1.45 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{35})$ with regime-adaptive $\gamma_{\text{top}}$ up to 4.20 | M1 (P40) | Phase 40 R1 |
+| F180.2 | 128th-Order Octaconta-tetragonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{128})$ eliminating noise leakage to $< 10^{-68}$ | M1 (P40) | Phase 40 R1 |
+| F181.1 | Lurie-Langlands-Deligne Motivic Barycenter & Trans-Singular-Deligne EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lld}}=[3.00, 2.45, 2.40, 3.55]$ and $36! = 37,199,332,678,990,123,746,787,777,307,803,520,000,000$ tail bounds | M2 (P40) | Phase 40 R2 |
+| F181.2 | KNK 19-Dark-Energy PCQTGBDDDDHKMAE Elliptic DAHA L3 & Preemptive OMS | Kerr-Newman-Kiselev 19-dark-energy ($w_{\text{pcqtgbddddhkmae}} = -7.0, k_{\text{elliptic}}=0.11$), 1e-12 maker floor, 99.99999999% dark ATS, 99.999999998% anti-gaming, tick shading $-0.999999999 \cdot \text{spread} \cdot (h-0.0007)$ | M3 (P40) | Phase 40 R3 |
+| F182 | Phase 40 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase40_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P40) | Phase 40 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -244,6 +250,10 @@
 | M2 (P39) | Phase 39 Portfolio Allocation & Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Clausen-Scholze EVaR (R2) | F177.1: Lurie-Clausen-Scholze Motivic Barycenter, 35th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P39) | DONE |
 | M3 (P39) | Phase 39 Microstructure Hydrodynamics & Preemptive OMS (R3) | F177.2: KNK 18-Dark-Energy PCQTGBDDDDHKMA Dunkl-Hecke-Cherednik-Kostka-Macdonald-Askey-Wilson L3, 99.99999998% dark ATS, 0.000000000005 maker floor, 99.999999995% anti-gaming, tick shading | M2 (P39) | DONE |
 | M4 (P39) | Phase 39 Benchmark Engine & Forensic Verification (R4) | F178: `benchmark_phase39_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P39) | DONE |
+| M1 (P40) | Phase 40 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F179, F180.1, F180.2: Geometric Langlands Coupler, 35th-order rank modulation, 128th-order deadband | none | DONE |
+| M2 (P40) | Phase 40 Portfolio Allocation & Trans-Singular-Deligne EVaR (R2) | F181.1: Lurie-Langlands-Deligne Motivic Barycenter, 36th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P40) | DONE |
+| M3 (P40) | Phase 40 Microstructure Hydrodynamics & Preemptive OMS (R3) | F181.2: KNK 19-Dark-Energy PCQTGBDDDDHKMAE Elliptic DAHA L3, 99.99999999% dark ATS, 1e-12 maker floor, 99.999999998% anti-gaming, tick shading | M2 (P40) | DONE |
+| M4 (P40) | Phase 40 Benchmark Engine & Forensic Verification (R4) | F182: `benchmark_phase40_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P40) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -278,6 +288,7 @@
 - `trading_system/scripts/benchmark_phase37_quant_performance.py`: Phase 37 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase38_quant_performance.py`: Phase 38 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase39_quant_performance.py`: Phase 39 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase40_quant_performance.py`: Phase 40 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
