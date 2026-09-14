@@ -160,6 +160,12 @@
 | F181.1 | Lurie-Langlands-Deligne Motivic Barycenter & Trans-Singular-Deligne EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lld}}=[3.00, 2.45, 2.40, 3.55]$ and $36! = 37,199,332,678,990,123,746,787,777,307,803,520,000,000$ tail bounds | M2 (P40) | Phase 40 R2 |
 | F181.2 | KNK 19-Dark-Energy PCQTGBDDDDHKMAE Elliptic DAHA L3 & Preemptive OMS | Kerr-Newman-Kiselev 19-dark-energy ($w_{\text{pcqtgbddddhkmae}} = -7.0, k_{\text{elliptic}}=0.11$), 1e-12 maker floor, 99.99999999% dark ATS, 99.999999998% anti-gaming, tick shading $-0.999999999 \cdot \text{spread} \cdot (h-0.0007)$ | M3 (P40) | Phase 40 R3 |
 | F182 | Phase 40 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase40_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P40) | Phase 40 R4 |
+| F183 | Drinfeld-Lafforgue & Fargues-Fontaine Curve Analytic Cohomology Coupler | Drinfeld-Lafforgue & Fargues-Fontaine curve analytic cohomology Artin stack obstruction $E_{\text{fargues}}$ and divisor invariant $Z_{\text{fontaine}}$ across 5 canonical pillars | M1 (P41) | Phase 41 R1 |
+| F184.1 | 36th-Order Hyper-Convex Rank Modulation | $g_{\text{v41}}(r) = 0.50 + 1.48 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{36})$ with regime-adaptive $\gamma_{\text{top}}$ up to 4.40 | M1 (P41) | Phase 41 R1 |
+| F184.2 | 136th-Order Centatriacontaoctagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{136})$ eliminating noise leakage to $< 10^{-74}$ | M1 (P41) | Phase 41 R1 |
+| F185.1 | Lurie-Fargues-Fontaine Motivic Barycenter & Trans-Singular-Fargues EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lff}}=[3.10, 2.50, 2.45, 3.65]$ and $37! = 1,376,375,309,122,634,578,631,147,760,388,730,240,000,000$ tail bounds | M2 (P41) | Phase 41 R2 |
+| F185.2 | KNK 20-Dark-Energy PCQTGBDDDDHKMAEE Elliptic-Trigonometric DAHA L3 & Preemptive OMS | Kerr-Newman-Kiselev 20-dark-energy ($w = -22/3, k_{\text{elliptic\_trig}}=0.12$), 1e-13 maker floor, 99.999999995% dark ATS, 99.999999999% anti-gaming, tick shading $-0.9999999995 \cdot \text{spread} \cdot (h-0.0006)$ | M3 (P41) | Phase 41 R3 |
+| F186 | Phase 41 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase41_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P41) | Phase 41 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -254,6 +260,10 @@
 | M2 (P40) | Phase 40 Portfolio Allocation & Trans-Singular-Deligne EVaR (R2) | F181.1: Lurie-Langlands-Deligne Motivic Barycenter, 36th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P40) | DONE |
 | M3 (P40) | Phase 40 Microstructure Hydrodynamics & Preemptive OMS (R3) | F181.2: KNK 19-Dark-Energy PCQTGBDDDDHKMAE Elliptic DAHA L3, 99.99999999% dark ATS, 1e-12 maker floor, 99.999999998% anti-gaming, tick shading | M2 (P40) | DONE |
 | M4 (P40) | Phase 40 Benchmark Engine & Forensic Verification (R4) | F182: `benchmark_phase40_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P40) | DONE |
+| M1 (P41) | Phase 41 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F183, F184.1, F184.2: Drinfeld-Lafforgue Coupler, 36th-order rank modulation, 136th-order deadband | none | DONE |
+| M2 (P41) | Phase 41 Portfolio Allocation & Trans-Singular-Fargues EVaR (R2) | F185.1: Lurie-Fargues-Fontaine Motivic Barycenter, 37th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P41) | DONE |
+| M3 (P41) | Phase 41 Microstructure Hydrodynamics & Preemptive OMS (R3) | F185.2: KNK 20-Dark-Energy PCQTGBDDDDHKMAEE Elliptic-Trigonometric DAHA L3, 99.999999995% dark ATS, 1e-13 maker floor, 99.999999999% anti-gaming, tick shading | M2 (P41) | DONE |
+| M4 (P41) | Phase 41 Benchmark Engine & Forensic Verification (R4) | F186: `benchmark_phase41_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P41) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -289,6 +299,7 @@
 - `trading_system/scripts/benchmark_phase38_quant_performance.py`: Phase 38 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase39_quant_performance.py`: Phase 39 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase40_quant_performance.py`: Phase 40 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase41_quant_performance.py`: Phase 41 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine

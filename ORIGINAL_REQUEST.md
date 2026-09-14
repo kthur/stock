@@ -654,5 +654,46 @@ Geometric Langlands & Non-Abelian Hodge-Deligne Analytic Cohomology 기반 팩�
 ---
 *Phase 39 baseline: Net Return 146.99%, Sharpe 26.78, MDD -0.00005%, Friction 0.00010 bps, Slippage 0.00010 bps, Top-Decile 121.82%*
 
+## 2026-09-14T10:14:28Z
 
+풀 팀(Full Team) — 알파 시그널, 리스크 배분, 미시구조 OMS, 퀀트 검증의 4개 전문 역할로 분업 수행
 
+글로벌 5대 주식 시장(KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)을 대상으로 시스템의 수익률과 샤프 지수를 추가 극대화하기 위해 Phase 41 퀀트 고도화(Drinfeld-Lafforgue & Fargues-Fontaine Curve Analytic Cohomology 팩터 결합, 36차 초볼록 순위 변조, 136차 Centatriacontaoctagonal 쌍곡선 데드밴드, Lurie-Fargues-Fontaine Fisher-Rao 바리센터 및 37차 큐뮬런트 Trans-Singular-Fargues EVaR, Kerr-Newman-Kiselev 20-Dark-Energy PCQTGBDDDDHKMAEE Elliptic-Trigonometric Macdonald-Koornwinder-Askey-Wilson DAHA L3 수력학 및 99.999999995% 다크풀 선제 체결)를 수행하고, 개선 결과를 정량 비교표로 산출합니다.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: demo
+
+## Requirements
+
+### R1. 37대 전략 다이나믹 알파 결합 및 신호 고도화 (Phase 41)
+Drinfeld-Lafforgue & Fargues-Fontaine Curve Analytic Cohomology 기반 팩터 얽힘 해소 커플러(F183, 아르틴 스택 장애 복합체 $E_{\text{fargues}}$, 파르그-퐁텐 곡선 인자 불변량 $Z_{\text{fontaine}}$)를 `ensemble_scorer.py`와 `factor_suppression.py`에 구현합니다. 상위 0.000000000000000000000000001% 초극단 확신 자본 집중을 위한 36차 초볼록 순위 변조 함수 $g_{\text{v41}}(r) = 0.50 + 1.48 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{36})$ (F184.1, 레짐 적응형 $\gamma_{\text{top}}$ 최대 4.40)와 136차($\alpha=136.0$) Centatriacontaoctagonal 쌍곡선 데드밴드(F184.2, 노이즈 누출률 $< 10^{-74}$)를 `factor_suppression.py`에 추가하고, `ensemble_scorer.py`의 버전 분기(version >= 41)에서 이를 호출하여 Rank-IC와 선형 예측력을 추가 개선합니다.
+
+### R2. Lurie-Fargues-Fontaine 바리센터 및 37차 큐뮬런트 Trans-Singular-Fargues EVaR (Phase 41)
+`unified_portfolio_allocator.py`에 Lurie-Fargues-Fontaine Motivic Fisher-Rao 다양체 바리센터 블렌딩(F185.1, 메트릭 가중치 $\mu_{\text{lff}} = [3.10, 2.50, 2.45, 3.65]$)을 버전 분기(version >= 41)로 추가하고, `portfolio_allocator.py`에 37차 큐뮬런트 전개 기반 Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Clausen-Scholze-Deligne-Fargues EVaR 꼬리위험 예산화($37! = 1,376,375,309,122,634,578,631,147,760,388,730,240,000,000$, $\xi_{\text{fargues}} = 0.999997$)를 구현합니다. MDD $\le -0.00002\%$, 샤프 지수 $\ge 27.95$ 달성이 목표입니다.
+
+### R3. KNK 20-Dark-Energy Elliptic-Trigonometric DAHA L3 수력학 및 마찰비용 극소화 (Phase 41)
+`fast_lob_engine.py`에 Kerr-Newman-Kiselev 20-Dark-Energy PCQTGBDDDDHKMAEE Elliptic-Trigonometric Macdonald-Koornwinder-Askey-Wilson ($w = -22/3$, $k_{\text{elliptic\_trig}} = 0.12$) DAHA L3 오더북 수력학 모델(F185.2)을 적용하고, `smart_order_router.py`에 메이커 플로어 $1 \times 10^{-13}$, `oms_engine.py`에 선제적 틱 셰이딩 계수 $-0.9999999995 \cdot \text{spread} \cdot (h - 0.0006)$, 다크풀 라우팅 99.999999995% ATS, Anti-Gaming MinQty 99.999999999%를 구현하여 체결 슬리피지와 총 거래 마찰비용을 최소화합니다.
+
+### R4. 5대 시장 실증 퀀트 벤치마크 및 결과 표 출력 (Phase 41)
+`trading_system/scripts/benchmark_phase41_quant_performance.py`(F186)를 신규 작성하고, 전용 테스트 스위트(`tests/test_phase41_*.py`)를 구현하여 100% 통과를 검증합니다. 5대 시장 대상 15대 핵심 퀀트 지표 비교표 3종([표 1] 15대 종합 지표 비교표, [표 2] 5대 시장별 성과표, [표 3] 전략 팩터 기여도표)을 `reports/quant_benchmark_comparison_phase41.md`, `trading_system/result/quant_benchmark_comparison_phase41.md`, `trading_system/reports/quant_benchmark_comparison_phase41.md`, `reports/quant_benchmark_comparison.md`에 저장하고 최종 출력합니다. `AGENTS.md` Key Files 테이블에 `benchmark_phase41_quant_performance.py` 항목을 추가하고, Requirements History에 R57 항목을 추가합니다.
+
+## Acceptance Criteria
+
+### 1. Performance Targets (5-Market Aggregate Portfolio)
+- [ ] Net Expected Return: >= 151.15% (Phase 40 대비 +2.10%p 이상 개선, 목표: 151.19%)
+- [ ] Annualized Sharpe Ratio: >= 27.95 (+0.60 이상 개선, 목표: 27.98)
+- [ ] Maximum Drawdown (MDD): <= -0.00002% (하방 꼬리위험 33.3% 극단적 압축, 목표: -0.00002%)
+- [ ] Trading & Friction Costs: <= 0.00004 bps (목표: 0.00003 bps)
+- [ ] Execution Slippage: <= 0.00004 bps (기관급 최저 슬리피지 엄격 유지, 목표: 0.00003 bps)
+- [ ] Top-Decile Alpha Spread: >= 126.40% (+2.30%p 이상 확장, 목표: 126.42%)
+
+### 2. Verification & Deliverables
+- [ ] 15대 퀀트 지표 비교표([표 1]), 5대 시장별 성과표([표 2]), 전략 팩터 기여도표([표 3])가 온전히 작성되어 출력될 것
+- [ ] 전용 단위/통합 테스트 스위트(`tests/test_phase41_*.py`)가 작성되고 Phase 40 대비 회귀 없이 100% 통과할 것
+- [ ] 벤치마크 리포트 파일(`reports/quant_benchmark_comparison_phase41.md`)이 정상적으로 생성 및 4개 경로에 동기화될 것
+- [ ] `AGENTS.md` Key Files 및 Requirements History(R57), `PROJECT.md` 업데이트 완료
+- [ ] 이전 모든 페이즈(Phase 1~40)와의 완전한 하위 호환성 검증
+- [ ] Victory Auditor의 3단계 사후 감사(산출물 무결성 → 비하드코딩 검증 → 전수 테스트 재실행)를 거쳐 VICTORY CONFIRMED 획득
+
+---
+*Phase 40 baseline: Net Return 149.09%, Sharpe 27.38, MDD -0.00003%, Friction 0.00005 bps, Slippage 0.00005 bps, Top-Decile 124.12%*
