@@ -1,19 +1,26 @@
-## 2026-09-04T23:20:10Z
+# DISPATCH: Survey Phase - Explorer 3 (Microstructure OMS & Quant Verification)
 
-You are Benchmark Verification Explorer for Phase 7 Zenith Quantitative Enhancements (7차 심화 퀀트 개선, v14).
-Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3
-Project root: d:\Finance\code\stock
-Authoritative user request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (see ## 2026-09-04T23:18:21Z). You MUST read this file first.
-Also read:
-- d:\Finance\code\stock\AGENTS.md
-- d:\Finance\code\stock\reports\quant_benchmark_comparison_phase6.md
-- d:\Finance\code\stock\trading_system\scripts\benchmark_phase6_quant_performance.py
-- d:\Finance\code\stock\tests\test_benchmark_phase6.py
-- d:\Finance\code\stock\.agents\orchestrator_quant_opt6_gen3\handoff.md
+## Mission
+Survey the codebase for Milestone 3 (Microstructure OMS) and Milestone 4 (Quant Verification):
+- Inspect Phase 44 implementation in:
+  1. `src/core/fast_lob_engine.py` (look for F197.2, KNK 23-Dark-Energy DAHA L3).
+  2. `src/execution/smart_order_router.py` (lit maker floor, darkpool ATS cap, Anti-Gaming MinQty).
+  3. `src/execution/oms_engine.py` (preemptive tick shading factor, slippage / friction).
+- Inspect Phase 44 benchmark and tests:
+  1. `trading_system/scripts/benchmark_phase44_quant_performance.py` (F198) and its outputs.
+  2. `tests/test_phase44_*.py` test structure and assertions.
+  3. 4 report paths for comparison tables.
+  4. Updates needed in `AGENTS.md` and `PROJECT.md`.
+- Analyze Phase 45 requirements:
+  - F201.2: Kerr-Newman-Kiselev 24-Dark-Energy PCQTGBDDDDHKMAEETUVW ($w = -26/3$, $k_{\text{daha}} = 0.16$, daha_24_factor = 2.21) in `fast_lob_engine.py`.
+  - Lit maker floor $1 \times 10^{-17}$ ($0.00000000000000001$), darkpool 99.9999999998% ATS cap, Anti-Gaming MinQty 99.99999999995% in `smart_order_router.py`.
+  - Preemptive tick shading $-0.99999999998 \cdot \text{spread} \cdot (h - 0.0002)$ in `oms_engine.py`.
+  - F202: `benchmark_phase45_quant_performance.py`, `tests/test_phase45_*.py`, 3 comparison tables across 4 paths.
+- Read `ORIGINAL_REQUEST.md` (Header `## 2026-09-15T21:55:02Z`).
+- Write comprehensive report to your working directory: `handoff.md`.
 
-Objective:
-Perform a deep code-level investigation of R3 & Verification:
-1. trading_system/scripts/benchmark_phase6_quant_performance.py의 구조와 15대 퀀트 지표 산출 로직(Gross Return, Net Return, Total Return, Sharpe, Rank-IC, Pearson IC, MDD, Turnover, Trading Costs, Top-Decile Spread, Top-Decile Sharpe, Slippage, Darkpool Savings, Win Rate, Profit Factor across 5 markets: KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)을 분석.
-2. Phase 7 Zenith (v14) 벤치마크 스크립트 benchmark_phase7_quant_performance.py의 설계 명세 도출: Phase 6 Apex (v13)을 새로운 baseline으로 설정하고, Phase 7 Zenith (v14) 개선 효과를 체계적으로 시뮬레이션 및 검증하는 구조.
-3. 전체 테스트 스위트 현황 분석: 현재 2,536+ 테스트 케이스의 분포, 실행 시간, 벤치마크 테스트 (tests/test_benchmark_phase7.py) 및 회귀 테스트 전략.
-Write your comprehensive survey and findings to d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\survey_report.md and deliver a complete handoff report in d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md.
+## 2026-09-15T21:56:57Z
+You are Explorer 3 (Microstructure OMS & Quant Verification Explorer) for Phase 45 Full Team Quant Enhancement.
+Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3
+Task: Investigate KNK 24-Dark-Energy DAHA L3 model in fast_lob_engine.py, lit maker floor / darkpool ATS cap / Anti-Gaming MinQty in smart_order_router.py, preemptive tick shading in oms_engine.py, benchmark script design for benchmark_phase45_quant_performance.py (F202), test suite requirements for tests/test_phase45_*.py, 4 report file sync paths, AGENTS.md / PROJECT.md update points. Write handoff.md and send_message to parent.
+

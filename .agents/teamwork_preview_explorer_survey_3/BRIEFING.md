@@ -1,7 +1,7 @@
-# BRIEFING — 2026-09-05T08:23:50+09:00
+# BRIEFING — 2026-09-16T07:01:50+09:00
 
 ## Mission
-Deep code-level investigation of R3 & Verification for Phase 7 Zenith Quantitative Enhancements (7차 심화 퀀트 개선, v14): benchmark script design, 15 quant metrics, test suite status, and regression testing strategy.
+Investigate Microstructure OMS (F201.2: fast_lob_engine.py, smart_order_router.py, oms_engine.py) and Quant Verification (F202: benchmark_phase45_quant_performance.py, tests/test_phase45_*.py, 4 report sync paths, AGENTS.md / PROJECT.md) for Phase 45 Full Team Quant Enhancement.
 
 ## 🔒 My Identity
 - Archetype: explorer
@@ -9,39 +9,46 @@ Deep code-level investigation of R3 & Verification for Phase 7 Zenith Quantitati
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3
 - Original parent: e1532581-bf40-4631-af87-80cf978d298b
 - Milestone: Phase 7 Zenith Preview Survey
+- Phase 45 Role: Explorer 3 (Microstructure OMS & Quant Verification Explorer)
+- Phase 45 Parent: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
+- Phase 45 Milestone: Phase 45 Full Team Quant Enhancement Survey
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
 - Must communicate to parent via send_message
 - Output files: survey_report.md and handoff.md in working directory
 - Follow 5-component handoff report protocol
+- Phase 45 Constraints:
+  - Read-only investigation: Analyze codebase, do NOT edit src/ or test/ code
+  - Deliver comprehensive 5-component handoff report to handoff.md
+  - Notify parent (561ed892-ad75-45fb-9c2b-374c7aa7ce78) via send_message upon completion
 
 ## Current Parent
-- Conversation ID: e1532581-bf40-4631-af87-80cf978d298b
-- Updated: 2026-09-05T08:23:50+09:00
+- Conversation ID: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
+- Updated: 2026-09-16T07:01:50+09:00
 
 ## Investigation State
 - **Explored paths**:
-  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (lines 235–261, Phase 7 Zenith v14 requirements)
-  - `d:\Finance\code\stock\trading_system\scripts\benchmark_phase6_quant_performance.py`
-  - `d:\Finance\code\stock\reports\quant_benchmark_comparison_phase6.md`
-  - `d:\Finance\code\stock\tests\test_benchmark_phase6.py`
-  - `d:\Finance\code\stock\tests\test_benchmark_phase5.py`
-  - `d:\Finance\code\stock\tests\test_benchmark_phase4.py`
-  - `d:\Finance\code\stock\.agents\orchestrator_quant_opt6_gen3\handoff.md`
-  - Full pytest test collection log (`collected 2536 items`)
+  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (lines 1140-1200, Phase 45 requirements)
+  - `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\DISPATCH.md`
+  - `d:\Finance\code\stock\trading_system\src\core\fast_lob_engine.py` (lines 1410-2000, 10031-10400)
+  - `d:\Finance\code\stock\trading_system\src\execution\smart_order_router.py` (lines 50-85, 180-260, 440-520, 770-800, 920-980)
+  - `d:\Finance\code\stock\trading_system\src\execution\oms_engine.py` (lines 1366-1550, 2269-2450)
+  - `d:\Finance\code\stock\trading_system\scripts\benchmark_phase44_quant_performance.py`
+  - `d:\Finance\code\stock\tests\test_phase44_oms.py`, `test_phase44_alpha.py`, `test_phase44_risk.py`
+  - `d:\Finance\code\stock\reports\quant_benchmark_comparison_phase44.md`
+  - `d:\Finance\code\stock\AGENTS.md` & `d:\Finance\code\stock\PROJECT.md`
 - **Key findings**:
-  - Phase 6 benchmark engine evaluates 15 institutional metrics across 5 equity markets using canonical capital weights (SP500 35%, NASDAQ 25%, KOSPI 20%, KOSDAQ 10%, RUSSELL2000 10%) and 0.88 drawdown diversification bonus.
-  - Phase 7 Zenith benchmark engine design establishes Phase 6 Apex as the immutable baseline and derives target enhancement profiles for Features F47~F50, yielding Net Return 58.60% (+5.25%p), Sharpe 6.42 (+0.64), Rank-IC 0.240 (+0.022), and MDD -2.00% (+0.60%p compression).
-  - Full repository test suite census: 2,536 collected test items across 271 modules (2,534 passed, 2 intentional broker stubs skipped, 0 failed, 0 errors).
-  - Formulated 5-test specification for `tests/test_benchmark_phase7.py` and zero-regression cross-phase verification protocol.
-- **Unexplored areas**: None within survey scope.
+  - Located exact implementation lines for KNK 24-Dark-Energy DAHA L3 hydrodynamics in `fast_lob_engine.py`, maker floor (1e-17), dark cap (99.9999999998%), and Anti-Gaming MinQty (99.99999999995%) in `smart_order_router.py`, and tick shading factor `-0.99999999998 * spr * (h - 0.0002)` in `oms_engine.py`.
+  - Fully designed `benchmark_phase45_quant_performance.py` with 5-market aggregate profile achieving Net Return 159.59% (+2.10%p), Sharpe 30.38 (+0.60), Friction 0.000003 bps, Slippage 0.0000025 bps, Top-Decile 135.62% (+2.30%p).
+  - Designed 8-test specification for `tests/test_phase45_oms.py` and mapped 4 report sync paths and docs update points.
+- **Unexplored areas**: None. All survey objectives complete.
 
 ## Key Decisions Made
-- Established Phase 6 Apex (v13) enhancement metrics as the bit-exact baseline for Phase 7 Zenith (v14).
-- Reconciled market-by-market profiles with overall 5-market aggregates to eliminate any rounding discrepancies.
-- Documented full test distribution across 11 functional subsystems.
+- All module paths located under `trading_system/src/` with `trading_system.src...` import convention.
+- Baseline for Phase 45 benchmark and tests strictly anchored on Phase 44 values.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\survey_report.md` — Comprehensive survey report
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md` — 5-component handoff report
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md` — Comprehensive 5-component handoff report
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\progress.md` — Liveness progress heartbeat
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\DISPATCH.md` — Task assignment log

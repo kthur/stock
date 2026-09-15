@@ -1,10 +1,11 @@
-# BRIEFING — 2026-09-05T08:24:00Z
+# BRIEFING — 2026-09-15T21:57:00Z
 
 ## Mission
-Deep code-level investigation of Phase 7 Zenith Enhancement (v14) R1:
-1. 37-strategy 5-pillar cross-tensor synergy & jump-diffusion regime transition weights.
-2. Markov normal distribution departure penalty & adaptive noise deadband fine-tuning under volatility regimes.
-3. Formulations, signatures, modifications, impact analysis, and backwards-compatibility preservation for 2,536+ tests.
+Phase 45 Full Team Quant Enhancement - Milestone 1 Alpha Signal Investigation:
+1. Quantum Geometric Langlands Chiral Affine Lie Superalgebra Kac-Moody Whittaker Coupler (F199, obstruction complex E_km_whit, invariant Z_km_whit, kappa=8.50, theta_0=0.50, FERI_v45).
+2. 40th-order ultra-convex rank modulation g_v45(r) = 0.50 + 1.52 * r * exp(gamma_top * r^40) (F200.1, regime-adaptive gamma_top <= 5.10).
+3. 168th-order (alpha=168.0) Centahexaoctagonal hyperbolic deadband (F200.2, noise leakage < 10^-96) in factor_suppression.py for |z| <= 0.0003.
+4. Version branching (version >= 45) in ensemble_scorer.py to raise 5-market cross-sectional Rank-IC >= 0.990.
 
 ## 🔒 My Identity
 - Archetype: explorer
@@ -12,39 +13,38 @@ Deep code-level investigation of Phase 7 Zenith Enhancement (v14) R1:
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
 - Original parent: e1532581-bf40-4631-af87-80cf978d298b
 - Milestone: Phase 7 Zenith Quantitative Enhancements (v14) R1 Deep Survey
+- Current Assignment: Phase 45 Alpha Signal Explorer (Milestone 1)
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
 - File operations restricted to own directory (.agents/teamwork_preview_explorer_survey_1)
 - Backward compatibility: 2,536+ existing tests must pass with 0 regressions
+- Preserve backwards compatibility for all previous phases (Phase 1~44)
 
 ## Current Parent
-- Conversation ID: e1532581-bf40-4631-af87-80cf978d298b
-- Updated: 2026-09-05T08:24:00Z
+- Conversation ID: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
+- Updated: 2026-09-15T21:57:00Z
 
 ## Investigation State
 - **Explored paths**:
-  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
-  - `.agents/orchestrator_quant_opt6_gen3/handoff.md`
-  - `trading_system/src/ai/ensemble_scorer.py`
-  - `trading_system/src/ai/factor_suppression.py`
-  - `trading_system/src/ai/score_normalizer.py`
-  - `tests/test_phase6_signal_enhancement.py` (6/6 passing in 19.6s)
-  - `tests/test_phase6_m1_challenger1_adversarial.py` & `challenger2` (39/39 passing in 29.8s)
+  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (Header ## 2026-09-15T21:55:02Z)
+  - `trading_system/src/ai/ensemble_scorer.py` (lines 30-420, 12555-12620, 13830-13950, 15430-15850, 18716-18850, 20740-20800, 21280-21350)
+  - `trading_system/src/ai/factor_suppression.py` (lines 440-580, 2835-2870, 3650-3700, 3920-3990)
+  - `tests/test_phase44_alpha.py` (9/9 passed in 12.17s)
+  - `trading_system/scripts/benchmark_phase44_quant_performance.py`
+  - `reports/quant_benchmark_comparison_phase44.md`
 - **Key findings**:
-  1. `compute_quint_pillar_tensor_synergy` (lines 4457-4687): 37 strategies across 5 pillars (`val`, `mom`, `flow`, `cat`, `net`). Can be upgraded with economic triplet weighting ($\Omega_{\text{tri}}$), Pillar Harmony Regularizer ($\mathcal{H}_{\text{pillar}}$), and expanding Bull Low Vol cap from 0.180 to 0.220 (1.220x).
-  2. Jump-Diffusion Regime Transition Base Weights: Merton jump mixture blending continuous diffusion weights with target regime weights upon jump detection ($d_{TV} > 0.25$).
-  3. Markov Stationary Departure Penalty: Directional volatility skew $S_{\text{vol}}$ scaling $\kappa_{\text{Markov}} \in [0.25, 0.45]$ to prevent stale signals during high-vol shocks.
-  4. True Quintic Hyperbolic Deadband: $z \cdot \tanh((|z|/\delta)^5)$ in `factor_suppression.py` and `ensemble_scorer.py`, cutting near-zero leakage 22-fold.
-  5. Version 7 Bilateral Richards S-curve with quartic rank modulation $g_{\text{v7}}(r) = 0.60 + 0.25r + 0.25r^2 + 0.40r^3 + 0.35r^4$, expanding Top-Decile alpha spread by +18% to +22%.
-- **Unexplored areas**: None within R1 survey scope.
+  1. F199: `QuantumGeometricLanglandsKacMoodyWhittakerCoupler` with $\kappa=8.50$, $\theta_0=0.50$, $\lambda_{\text{kac\_moody}}=0.62$, $\lambda_{\text{whittaker}}=0.38$, $\lambda_{\text{geometric\_langlands}}=0.26$, $\lambda_{\text{superalgebra}}=0.190$, $\lambda_{\text{chiral\_affine}}=0.140$, $\text{FERI}_{\text{v45}}$.
+  2. F200.1: 40th-order ultra-convex rank modulation $g_{\text{v45}}(r) = 0.50 + 1.52 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{40})$ with regime-adaptive $\gamma_{\text{top}} \le 5.10$.
+  3. F200.2: 168th-order ($\alpha=168.0$) Centahexaoctagonal hyperbolic deadband with noise leakage $< 10^{-96}$ for $|z| \le 0.0003$ and $100.000\%$ transmission for $|z| \ge 0.150$.
+  4. Integration in `ensemble_scorer.py` via `version >= 45` branching in `combine_predictions` (rank modulation and harmony factor $+ 2.55 \cdot h_{\text{km\_whit}} \cdot z_{\text{km\_whit}}$), `apply_smooth_noise_deadband`, and `get_regime_adaptive_gamma_top` to achieve cross-sectional Rank-IC $\ge 0.990$.
+- **Unexplored areas**: None within Milestone 1 survey scope.
 
 ## Key Decisions Made
-- All mathematical formulations, exact code signatures, target lines, and zero-regression safeguards designed and documented in `survey_report.md`.
+- Fully designed mathematical specifications, class signatures, parameter dictionaries, and test suite design for Milestone 1 in `handoff.md`.
 
 ## Artifact Index
-- DISPATCH.md — Recorded dispatch instructions
+- DISPATCH.md — Recorded dispatch instructions and timestamps
 - BRIEFING.md — Working memory and context
 - progress.md — Heartbeat and step tracking
-- survey_report.md — Comprehensive technical investigation and formula design
-- handoff.md — 5-component handoff report
+- handoff.md — 5-component handoff report for Phase 45 Milestone 1 Alpha Signal Survey

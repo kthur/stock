@@ -1,7 +1,7 @@
-# BRIEFING — 2026-09-04T23:24:00Z
+# BRIEFING — 2026-09-15T22:00:00Z
 
 ## Mission
-Investigate Phase 7 Zenith Quantitative Enhancements R2: Copula Tail Dependency & Euler CCVaR portfolio allocation and Level-3 queue imbalance & Hawkes micro-price pegging with darkpool/ATS routing.
+Survey codebase and architect Phase 45 (Milestone 2: Risk Allocation) enhancements: F201.1 Lurie-Kac-Moody-Whittaker Fisher-Rao Barycenter Blending (metric weights mu_lkmw = [3.50, 2.70, 2.65, 4.05]) and 41st-order cumulant expansion Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Clausen-Scholze-Deligne-Beilinson-W-Algebra-Virasoro-Kac-Moody EVaR tail risk budgeting (41! approx 3.345e49, xi_km = 0.9999998).
 
 ## 🔒 My Identity
 - Archetype: explorer
@@ -9,43 +9,45 @@ Investigate Phase 7 Zenith Quantitative Enhancements R2: Copula Tail Dependency 
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2
 - Original parent: e1532581-bf40-4631-af87-80cf978d298b
 - Milestone: Phase 7 Zenith Quantitative Enhancements R2 Survey
+- Current task: Phase 45 Full Team Quant Enhancement (Milestone 2 - Risk Allocation)
+- Current parent ID: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement code changes in production codebase
 - Files for content delivery, Messages for coordination
 - Scope: R2 Portfolio & Execution Architecture Exploration
 - Maintain backward compatibility with all legacy tests
+- Phase 45 Milestone 2 Scope: F201.1 Lurie-Kac-Moody-Whittaker Fisher-Rao Barycenter & 41st-order cumulant EVaR tail risk budgeting
+- Target: Maintain MDD <= -0.00001% and annual Sharpe ratio >= 30.35 (target: 30.38)
 
 ## Current Parent
-- Conversation ID: e1532581-bf40-4631-af87-80cf978d298b
-- Updated: 2026-09-04T23:24:00Z
+- Conversation ID: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
+- Updated: 2026-09-15T22:00:00Z
 
 ## Investigation State
 - **Explored paths**:
   - `trading_system/src/risk/unified_portfolio_allocator.py`
-  - `trading_system/src/core/fast_lob_engine.py`
-  - `trading_system/src/execution/smart_order_router.py`
-  - `trading_system/src/execution/oms_engine.py`
-  - `tests/test_phase6_portfolio_execution.py`
-  - `tests/test_phase6_m2_f43_challenger.py`
-  - `tests/test_phase6_m2_f44_challenger.py`
+  - `trading_system/src/risk/portfolio_allocator.py`
+  - `trading_system/scripts/benchmark_phase44_quant_performance.py`
+  - `tests/test_phase44_risk.py`
+  - `.agents/ORIGINAL_REQUEST.md` (Header ## 2026-09-15T21:55:02Z)
 - **Key findings**:
-  1. `UnifiedPortfolioAllocator` log-odds 4-model blending relies on Gaussian/elliptical metrics ($DR, \text{disp}$) and omits Archimedean Clayton ($\lambda_L$) and Gumbel ($\lambda_U$) copula tail dependence.
-  2. Downside Sortino tilting lacks asset-specific systemic copula lower-tail contagion drag ($\lambda_{L, i}$).
-  3. Euler CCVaR budgeting uses Gaussian covariance $\Sigma$ and redistributes trimmed weight pro-rata to $w_j$ rather than residual risk headroom $\max(0, \text{TRC}_{\text{cap}} - \text{TRC}_j)$.
-  4. L3 micro-price imbalance lacks physical price distance decay and order fragmentation adjustments.
-  5. `calculate_peg_limit_price` in both `ExecutionOMSEngine` and `AlmgrenChrissScheduler` steps up buy prices for buried queue positions ($u_q > 0.40$) without dampening for Hawkes directional toxicity, facilitating adverse selection.
-  6. SmartOrderRouter lacks real-time coupling with lit Queue Imbalance to preemptively route to dark ATS before lit spread exhaustion.
-- **Unexplored areas**: None within R2 scope. All 44 baseline and challenger tests verified passing (100%).
+  1. Phase 44 (F197.1) implemented Lurie-Virasoro-Whittaker Motivic Fisher-Rao Barycenter with $\mu_{\text{lvw}} = [3.40, 2.65, 2.60, 3.95]$ and 40th-cumulant EVaR with $40! \approx 8.159 \times 10^{47}$, $\xi_{\text{vir}} = 0.9999995$.
+  2. Phase 45 (F201.1) requires scaling metric weights to $\mu_{\text{lkmw}} = [3.50, 2.70, 2.65, 4.05]$, prioritizing EVT-CVaR (4.05) and Black-Litterman conviction (3.50).
+  3. Phase 45 41st-order cumulant EVaR uses $41! \approx 3.34525 \times 10^{49}$ and $\xi_{\text{km}} = 0.9999998$, strictly bounding $EVaR_{41} \ge EVaR_{40}$.
+  4. In `compute_information_theoretic_blend_weights()`, `is_phase45 = int(version) >= 45` branch applies $\epsilon_w = 0.475$, $\delta_{\text{kac\_moody\_whittaker}}$, $\alpha_{\text{iep}} = 2.60$, $\text{contagion\_damp} = \max(0, 1 - 7.4 \lambda_{\text{casc}})$, and calls the new barycenter method.
+  5. Both classes (`UnifiedPortfolioAllocator` and `PortfolioAllocator`) expose identical method signatures and extensive alias suites.
+  6. Phase 44 risk test suite verified passing 100% (7/7 tests passed).
+- **Unexplored areas**: None within Milestone 2 scope. Complete architectural specification provided in `handoff.md`.
 
 ## Key Decisions Made
-- Formulated rigorous mathematical expressions for Archimedean Clayton/Gumbel tail dependence log-odds updates, copula contagion drag, tail-stressed Euler CCVaR headroom redistribution, distance-decayed L3 Queue Imbalance ($\text{QI}_{\text{L3}}^*$), and Hawkes toxicity-shaded peg pricing.
-- Designed function signatures with optional default `None` parameters to preserve 100% backward compatibility and exact dual-class parity between `ExecutionOMSEngine` and `AlmgrenChrissScheduler`.
-- Authored comprehensive survey report in `survey_report.md` and complete 5-component handoff in `handoff.md`.
+- Established exact mathematical parameters and bounds for F201.1 ($41!$, $\xi_{\text{km}}=0.9999998$, $\mu_{\text{lkmw}}=[3.50, 2.70, 2.65, 4.05]$).
+- Specified exact line numbers and code snippets to add in `unified_portfolio_allocator.py` and `portfolio_allocator.py`.
+- Formulated full 7-test suite structure for `tests/test_phase45_risk.py`.
+- Authored 5-component hard handoff report in `handoff.md`.
 
 ## Artifact Index
 - d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\DISPATCH.md — Dispatch log
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\BRIEFING.md — Situational awareness
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\BRIEFING.md — Persistent situational awareness
 - d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\progress.md — Liveness heartbeat
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\survey_report.md — Comprehensive survey report
 - d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md — 5-component handoff report

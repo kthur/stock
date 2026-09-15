@@ -178,6 +178,18 @@
 | F193.1 | Lurie-W-Algebra Motivic Barycenter & Trans-Singular-W-Algebra EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lwa}}=[3.30, 2.60, 2.55, 3.85]$ and $39! \approx 2.040 \times 10^{46}$ tail bounds | M2 (P43) | Phase 43 R2 |
 | F193.2 | KNK 22-Dark-Energy PCQTGBDDDDHKMAEETU Elliptic-Hypergeometric-Askey-Wilson DAHA L3 & Preemptive OMS | Kerr-Newman-Kiselev 22-dark-energy ($w = -24/3 = -8, k_{\text{daha}}=0.14$), 1e-15 maker floor, 99.999999999% dark ATS, 99.9999999998% anti-gaming, tick shading $-0.9999999999 \cdot \text{spread} \cdot (h-0.0004)$ | M3 (P43) | Phase 43 R3 |
 | F194 | Phase 43 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase43_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P43) | Phase 43 R4 |
+| F195 | Quantum Geometric Langlands Categorical Oper Duality & Virasoro-Whittaker Coupler | Quantum Geometric Langlands categorical oper duality & Virasoro-Whittaker chiral oper obstruction vanishing $E_{\text{vir\_whit}}$ and topological invariant $Z_{\text{vir\_whit}}$ | M1 (P44) | Phase 44 R1 |
+| F196.1 | 39th-Order Hyper-Convex Rank Modulation | $g_{\text{v44}}(r) = 0.50 + 1.54 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{39})$ with regime-adaptive $\gamma_{\text{top}}$ up to 4.90 | M1 (P44) | Phase 44 R1 |
+| F196.2 | 160th-Order Centahexacontagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{160})$ eliminating noise leakage to $< 10^{-90}$ | M1 (P44) | Phase 44 R1 |
+| F197.1 | Lurie-Virasoro-Whittaker Motivic Barycenter & Trans-Singular-Virasoro EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lvw}}=[3.40, 2.65, 2.60, 3.95]$ and $40! \approx 8.159 \times 10^{47}$ tail bounds | M2 (P44) | Phase 44 R2 |
+| F197.2 | KNK 23-Dark-Energy PCQTGBDDDDHKMAEETUV Virasoro DAHA L3 & Preemptive OMS | Kerr-Newman-Kiselev 23-dark-energy ($w = -25/3, k_{\text{daha}}=0.15$), 1e-16 maker floor, 99.9999999995% dark ATS, 99.9999999999% anti-gaming, tick shading $-0.99999999995 \cdot \text{spread} \cdot (h-0.0003)$ | M3 (P44) | Phase 44 R3 |
+| F198 | Phase 44 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase44_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P44) | Phase 44 R4 |
+| F199 | Quantum Geometric Langlands Chiral Affine Kac-Moody Whittaker Coupler | Quantum Geometric Langlands chiral affine Lie superalgebra Kac-Moody Whittaker oper obstruction $E_{\text{km\_whit}}$ and topological invariant $Z_{\text{km\_whit}}$ ($\kappa_{\text{km\_whit}}=8.50$) | M1 (P45) | Phase 45 R1 |
+| F200.1 | 40th-Order Hyper-Convex Rank Modulation | $g_{\text{v45}}(r) = 0.50 + 1.52 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{40})$ with regime-adaptive $\gamma_{\text{top}}$ up to 5.10 | M1 (P45) | Phase 45 R1 |
+| F200.2 | 168th-Order Centahexaoctagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{168})$ eliminating noise leakage to $< 10^{-96}$ | M1 (P45) | Phase 45 R1 |
+| F201.1 | Lurie-Kac-Moody-Whittaker Motivic Barycenter & Trans-Singular-Kac-Moody-Whittaker EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lkmw}}=[3.50, 2.70, 2.65, 4.05]$ and $41! \approx 3.345 \times 10^{49}$ tail bounds | M2 (P45) | Phase 45 R2 |
+| F201.2 | KNK 24-Dark-Energy PCQTGBDDDDHKMAEETUVW Whittaker DAHA L3 & Preemptive OMS | Kerr-Newman-Kiselev 24-dark-energy ($w = -26/3, k_{\text{daha}}=0.16, \text{daha\_24\_factor}=2.21$), 1e-17 maker floor, 99.9999999998% dark ATS, 99.99999999995% anti-gaming, tick shading $-0.99999999998 \cdot \text{spread} \cdot (h-0.0002)$ | M3 (P45) | Phase 45 R3 |
+| F202 | Phase 45 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase45_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P45) | Phase 45 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -288,6 +300,10 @@
 | M2 (P44) | Phase 44 Portfolio Allocation & Trans-Singular-Virasoro EVaR (R2) | F197.1: Lurie-Virasoro-Whittaker Fisher-Rao Barycenter, 40th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P44) | DONE |
 | M3 (P44) | Phase 44 Microstructure Hydrodynamics & Preemptive OMS (R3) | F197.2: KNK 23-Dark-Energy PCQTGBDDDDHKMAEETUV Virasoro DAHA L3, 99.9999999995% dark ATS, 1e-16 maker floor, 99.9999999999% anti-gaming, tick shading | M2 (P44) | DONE |
 | M4 (P44) | Phase 44 Benchmark Engine & Forensic Verification (R4) | F198: `benchmark_phase44_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P44) | DONE |
+| M1 (P45) | Phase 45 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F199, F200.1, F200.2: Quantum Geometric Langlands Kac-Moody Whittaker Oper Coupler, 40th-order rank modulation, 168th-order deadband | none | DONE |
+| M2 (P45) | Phase 45 Portfolio Allocation & Trans-Singular-Kac-Moody-Whittaker EVaR (R2) | F201.1: Lurie-Kac-Moody-Whittaker Fisher-Rao Barycenter, 41st-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P45) | DONE |
+| M3 (P45) | Phase 45 Microstructure Hydrodynamics & Preemptive OMS (R3) | F201.2: KNK 24-Dark-Energy PCQTGBDDDDHKMAEETUVW Whittaker DAHA L3, 99.9999999998% dark ATS, 1e-17 maker floor, 99.99999999995% anti-gaming, tick shading | M2 (P45) | DONE |
+| M4 (P45) | Phase 45 Benchmark Engine & Forensic Verification (R4) | F202: `benchmark_phase45_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P45) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -327,6 +343,7 @@
 - `trading_system/scripts/benchmark_phase42_quant_performance.py`: Phase 42 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase43_quant_performance.py`: Phase 43 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase44_quant_performance.py`: Phase 44 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase45_quant_performance.py`: Phase 45 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine

@@ -1,17 +1,24 @@
-## 2026-09-04T00:33:52Z
-You are Explorer 1: Benchmark & Prior Phase Survey Explorer.
-Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
-Maintain progress.md in your working directory.
+# DISPATCH: Survey Phase - Explorer 1 (Alpha Signal)
 
-## 2026-09-04T23:20:08Z
-You are Signal Synergy Explorer for Phase 7 Zenith Quantitative Enhancements (7차 심화 퀀트 개선, v14).
-Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
-Project root: d:\Finance\code\stock
-Authoritative user request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (see ## 2026-09-04T23:18:21Z).
+## Mission
+Survey the codebase for Milestone 1 (Alpha Signal):
+- Inspect Phase 44 implementation in `src/ai/ensemble_scorer.py` and `src/ai/factor_suppression.py` (look for F195, F196.1, F196.2, version >= 44).
+- Analyze exact formula requirements for Phase 45:
+  1. Quantum Geometric Langlands Chiral Affine Lie Superalgebra Kac-Moody Whittaker Coupler (F199, Kac-Moody Whittaker obstruction complex $E_{\text{km\_whit}}$, quantum geometric Langlands topological invariant $Z_{\text{km\_whit}}$, $\kappa_{\text{km\_whit}}=8.50$, $\theta_0=0.50$, $\text{FERI}_{\text{v45}}$).
+  2. 40th-order ultra-convex rank modulation function $g_{\text{v45}}(r) = 0.50 + 1.52 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{40})$ (F200.1, regime-adaptive $\gamma_{\text{top}} \le 5.10$).
+  3. 168th-order ($\alpha=168.0$) Centahexaoctagonal hyperbolic deadband (F200.2, noise leakage $< 10^{-96}$) in `factor_suppression.py` eliminating micro-noise for $|z| \le 0.0003$.
+  4. Integration in `ensemble_scorer.py` for version >= 45, cross-sectional Rank-IC >= 0.990.
+- Read `ORIGINAL_REQUEST.md` (Header `## 2026-09-15T21:55:02Z`).
+- Write comprehensive report to your working directory: `handoff.md`.
 
-Objective:
-Perform a deep code-level investigation of R1:
-1. 37대 전략 간 5대 기둥(가치, 모멘텀, 수급, 퀄리티, 감성) 교차 텐서 시너지 및 레짐 전이 점프-확산(Jump-Diffusion) 가중치 고도화 방안 분석 (현재 ensemble_scorer.py의 compute_quint_pillar_tensor_synergy, _apply_right_tail_convexity, get_regime_adaptive_half_lives, 레짐 가중치 행렬 구조와 어떻게 연결되어 있는지 line-by-line 분석).
-2. 변동성 체제별 마르코프 정상 분포 이탈 페널티 및 적응형 노이즈 데드밴드 미세 조정 방안 분석 (현재 factor_suppression.py의 apply_quintic_hyperbolic_deadband 및 ensemble_scorer.py 내 감쇠/억제 로직 분석).
-3. 구체적인 수식, 함수 시그니처, 수정/추가 대상 위치, 예상 영향, 하위 호환성 유지 방안(레거시 테스트 통과)을 설계.
-Write your comprehensive survey and findings to d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\survey_report.md and deliver a complete handoff report in d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md.
+## 2026-09-15T21:57:00Z
+Explorer 1 (Alpha Signal Explorer) for Phase 45 Full Team Quant Enhancement:
+- Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (Header ## 2026-09-15T21:55:02Z)
+- Read d:\Finance\code\stock\src\ai\ensemble_scorer.py
+- Read d:\Finance\code\stock\src\ai\factor_suppression.py
+Investigate how Phase 44 (F195, F196.1, F196.2) was implemented and how Phase 45 (F199, F200.1, F200.2) should be structured:
+1. Quantum Geometric Langlands Chiral Affine Lie Superalgebra Kac-Moody Whittaker Coupler (F199, obstruction complex E_km_whit, invariant Z_km_whit, kappa=8.50, theta_0=0.50, FERI_v45).
+2. 40th-order ultra-convex rank modulation g_v45(r) = 0.50 + 1.52 * r * exp(gamma_top * r^40) (F200.1, regime-adaptive gamma_top <= 5.10).
+3. 168th-order (alpha=168.0) Centahexaoctagonal hyperbolic deadband (F200.2, noise leakage < 10^-96) in factor_suppression.py for |z| <= 0.0003.
+4. Version branching (version >= 45) in ensemble_scorer.py to raise 5-market cross-sectional Rank-IC >= 0.990.
+Write findings to handoff.md, notify parent.
