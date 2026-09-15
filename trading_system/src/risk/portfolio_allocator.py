@@ -3167,6 +3167,45 @@ class PortfolioAllocator:
     singular_hyper_evar_risk_measure = compute_trans_singular_hyper_evar_risk_measure
     compute_trans_singular_evar = compute_trans_singular_hyper_evar_risk_measure
 
+    # ── Phase 42 (F185.1/F189.1): Lurie-Beilinson-Drinfeld Motivic Fisher-Rao Barycenter ──
+    @staticmethod
+    def compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend(
+        model_weights: Union[Dict[str, float], List[Dict[str, float]], np.ndarray],
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+    ) -> Dict[str, float]:
+        """
+        Phase 42 (Feature F185.1/F189.1): Lurie-Beilinson-Drinfeld Motivic Fisher-Rao Barycenter Blending.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        return alloc.compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_beilinson_drinfeld_barycenter = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_lurie_drinfeld_beilinson_barycenter = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_beilinson_drinfeld_fisher_rao_barycenter = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_beilinson_drinfeld_barycenter = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_drinfeld_fisher_rao_barycenter = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_drinfeld_barycenter = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_phase42_fisher_rao_barycenter = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_phase42_barycenter_blend = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_beilinson_drinfeld_fisher_rao_barycenter_blend = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_motivic_beilinson_drinfeld_barycenter_blend = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_analytic_beilinson_drinfeld_barycenter_blend = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_chiral_beilinson_drinfeld_barycenter_blend = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_kac_moody_beilinson_drinfeld_barycenter_blend = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_vertex_algebra_beilinson_drinfeld_barycenter_blend = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+    compute_chiral_oper_beilinson_drinfeld_barycenter_blend = compute_lurie_beilinson_drinfeld_fisher_rao_barycenter_blend
+
     # ── Phase 41 (F185.1): Lurie-Fargues-Fontaine Motivic Fisher-Rao Barycenter ──
     @staticmethod
     def compute_lurie_fargues_fontaine_fisher_rao_barycenter_blend(
@@ -3206,6 +3245,60 @@ class PortfolioAllocator:
     compute_drinfeld_lafforgue_fargues_fontaine_barycenter_blend = compute_lurie_fargues_fontaine_fisher_rao_barycenter_blend
     compute_drinfeld_fargues_fontaine_barycenter_blend = compute_lurie_fargues_fontaine_fisher_rao_barycenter_blend
     compute_artin_stack_fargues_fontaine_barycenter_blend = compute_lurie_fargues_fontaine_fisher_rao_barycenter_blend
+
+    # ── Phase 42 (F185.1/F189.1): 38th-Cumulant Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Clausen-Scholze-Deligne-Fargues-Beilinson EVaR ────
+    @staticmethod
+    def compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure(
+        returns: Union[np.ndarray, pd.Series, List[float]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        xi_38: Optional[float] = None,
+        xi_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson: float = 0.999998,
+        xi_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson: float = 0.999998,
+        xi_beilinson: float = 0.999998,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 42 (Feature F185.1/F189.1): 38th-Cumulant Expansion Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Clausen-Scholze-Deligne-Fargues-Beilinson EVaR Tail Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        rets = returns if returns is not None else (-np.asarray(losses, dtype=float) if losses is not None else np.array([]))
+        xi_38_val = xi_38 if xi_38 is not None else (kwargs.get("xi_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson", kwargs.get("xi_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson", kwargs.get("xi_beilinson", xi_beilinson))))
+        return alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure(
+            returns=rets,
+            alpha=alpha,
+            xi_38=xi_38_val,
+            xi_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson=xi_38_val,
+            xi_beilinson=xi_38_val,
+            **kwargs,
+        )
+
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_blend = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_phase42 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_38th_cumulant_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_phase42_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_trans_beilinson_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_trans_fargues_beilinson_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_trans_deligne_fargues_beilinson_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_trans_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_clausen_scholze_deligne_fargues_beilinson_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_deligne_fargues_beilinson_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_fargues_beilinson_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_beilinson_drinfeld_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_beilinson_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_transcendent_beilinson_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
+    compute_eternal_omni_cosmic_infinite_supreme_transcendent_beilinson_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_fargues_beilinson_evar_risk_measure
 
     # ── Phase 41 (F185.1): 37th-Cumulant Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Clausen-Scholze-Deligne-Fargues EVaR ────
     @staticmethod

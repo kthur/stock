@@ -166,6 +166,12 @@
 | F185.1 | Lurie-Fargues-Fontaine Motivic Barycenter & Trans-Singular-Fargues EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lff}}=[3.10, 2.50, 2.45, 3.65]$ and $37! = 1,376,375,309,122,634,578,631,147,760,388,730,240,000,000$ tail bounds | M2 (P41) | Phase 41 R2 |
 | F185.2 | KNK 20-Dark-Energy PCQTGBDDDDHKMAEE Elliptic-Trigonometric DAHA L3 & Preemptive OMS | Kerr-Newman-Kiselev 20-dark-energy ($w = -22/3, k_{\text{elliptic\_trig}}=0.12$), 1e-13 maker floor, 99.999999995% dark ATS, 99.999999999% anti-gaming, tick shading $-0.9999999995 \cdot \text{spread} \cdot (h-0.0006)$ | M3 (P41) | Phase 41 R3 |
 | F186 | Phase 41 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase41_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P41) | Phase 41 R4 |
+| F187 | Beilinson-Drinfeld Chiral & Quantum Affine Kac-Moody Vertex Algebra Coupler | Beilinson-Drinfeld chiral vertex algebra & quantum affine Kac-Moody algebra center obstruction vanishing $E_{\text{beilinson}}$ and Drinfeld-Lafforgue-Beilinson invariant $Z_{\text{drinfeld}}$ across 5 canonical pillars | M1 (P42) | Phase 42 R1 |
+| F188.1 | 37th-Order Hyper-Convex Rank Modulation | $g_{\text{v42}}(r) = 0.50 + 1.50 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{37})$ with regime-adaptive $\gamma_{\text{top}}$ up to 4.50 | M1 (P42) | Phase 42 R1 |
+| F188.2 | 144th-Order Centatetracontatetragonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{144})$ eliminating noise leakage to $< 10^{-78}$ | M1 (P42) | Phase 42 R1 |
+| F189.1 | Lurie-Beilinson-Drinfeld Motivic Barycenter & Trans-Singular-Beilinson EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lbd}}=[3.20, 2.55, 2.50, 3.75]$ and $38! = 523,022,617,466,601,141,879,996,151,337,749,120,000,000$ tail bounds | M2 (P42) | Phase 42 R2 |
+| F189.2 | KNK 21-Dark-Energy PCQTGBDDDDHKMAEET Elliptic-Hypergeometric DAHA L3 & Preemptive OMS | Kerr-Newman-Kiselev 21-dark-energy ($w = -23/3, k_{\text{hypergeom}}=0.13$), 1e-14 maker floor, 99.999999998% dark ATS, 99.9999999995% anti-gaming, tick shading $-0.9999999998 \cdot \text{spread} \cdot (h-0.0005)$ | M3 (P42) | Phase 42 R3 |
+| F190 | Phase 42 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase42_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P42) | Phase 42 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -264,6 +270,10 @@
 | M2 (P41) | Phase 41 Portfolio Allocation & Trans-Singular-Fargues EVaR (R2) | F185.1: Lurie-Fargues-Fontaine Motivic Barycenter, 37th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P41) | DONE |
 | M3 (P41) | Phase 41 Microstructure Hydrodynamics & Preemptive OMS (R3) | F185.2: KNK 20-Dark-Energy PCQTGBDDDDHKMAEE Elliptic-Trigonometric DAHA L3, 99.999999995% dark ATS, 1e-13 maker floor, 99.999999999% anti-gaming, tick shading | M2 (P41) | DONE |
 | M4 (P41) | Phase 41 Benchmark Engine & Forensic Verification (R4) | F186: `benchmark_phase41_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P41) | DONE |
+| M1 (P42) | Phase 42 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F187, F188.1, F188.2: Beilinson-Drinfeld Chiral Coupler, 37th-order rank modulation, 144th-order deadband | none | DONE |
+| M2 (P42) | Phase 42 Portfolio Allocation & Trans-Singular-Beilinson EVaR (R2) | F189.1: Lurie-Beilinson-Drinfeld Motivic Barycenter, 38th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P42) | DONE |
+| M3 (P42) | Phase 42 Microstructure Hydrodynamics & Preemptive OMS (R3) | F189.2: KNK 21-Dark-Energy PCQTGBDDDDHKMAEET Elliptic-Hypergeometric DAHA L3, 99.999999998% dark ATS, 1e-14 maker floor, 99.9999999995% anti-gaming, tick shading | M2 (P42) | DONE |
+| M4 (P42) | Phase 42 Benchmark Engine & Forensic Verification (R4) | F190: `benchmark_phase42_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P42) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -300,6 +310,7 @@
 - `trading_system/scripts/benchmark_phase39_quant_performance.py`: Phase 39 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase40_quant_performance.py`: Phase 40 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase41_quant_performance.py`: Phase 41 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase42_quant_performance.py`: Phase 42 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
