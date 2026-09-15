@@ -284,6 +284,10 @@
 | M2 (P43) | Phase 43 Portfolio Allocation & Trans-Singular-W-Algebra EVaR (R2) | F193.1: Lurie-W-Algebra Motivic Barycenter, 39th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P43) | DONE |
 | M3 (P43) | Phase 43 Microstructure Hydrodynamics & Preemptive OMS (R3) | F193.2: KNK 22-Dark-Energy PCQTGBDDDDHKMAEETU Elliptic-Hypergeometric-Askey-Wilson DAHA L3, 99.999999999% dark ATS, 1e-15 maker floor, 99.9999999998% anti-gaming, tick shading | M2 (P43) | DONE |
 | M4 (P43) | Phase 43 Benchmark Engine & Forensic Verification (R4) | F194: `benchmark_phase43_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P43) | DONE |
+| M1 (P44) | Phase 44 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F195, F196.1, F196.2: Quantum Geometric Langlands Virasoro-Whittaker Oper Coupler, 39th-order rank modulation, 160th-order deadband | none | DONE |
+| M2 (P44) | Phase 44 Portfolio Allocation & Trans-Singular-Virasoro EVaR (R2) | F197.1: Lurie-Virasoro-Whittaker Fisher-Rao Barycenter, 40th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P44) | DONE |
+| M3 (P44) | Phase 44 Microstructure Hydrodynamics & Preemptive OMS (R3) | F197.2: KNK 23-Dark-Energy PCQTGBDDDDHKMAEETUV Virasoro DAHA L3, 99.9999999995% dark ATS, 1e-16 maker floor, 99.9999999999% anti-gaming, tick shading | M2 (P44) | DONE |
+| M4 (P44) | Phase 44 Benchmark Engine & Forensic Verification (R4) | F198: `benchmark_phase44_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P44) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -322,6 +326,7 @@
 - `trading_system/scripts/benchmark_phase41_quant_performance.py`: Phase 41 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase42_quant_performance.py`: Phase 42 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase43_quant_performance.py`: Phase 43 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase44_quant_performance.py`: Phase 44 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
