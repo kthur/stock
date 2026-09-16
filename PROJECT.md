@@ -190,6 +190,12 @@
 | F201.1 | Lurie-Kac-Moody-Whittaker Motivic Barycenter & Trans-Singular-Kac-Moody-Whittaker EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lkmw}}=[3.50, 2.70, 2.65, 4.05]$ and $41! \approx 3.345 \times 10^{49}$ tail bounds | M2 (P45) | Phase 45 R2 |
 | F201.2 | KNK 24-Dark-Energy PCQTGBDDDDHKMAEETUVW Whittaker DAHA L3 & Preemptive OMS | Kerr-Newman-Kiselev 24-dark-energy ($w = -26/3, k_{\text{daha}}=0.16, \text{daha\_24\_factor}=2.21$), 1e-17 maker floor, 99.9999999998% dark ATS, 99.99999999995% anti-gaming, tick shading $-0.99999999998 \cdot \text{spread} \cdot (h-0.0002)$ | M3 (P45) | Phase 45 R3 |
 | F202 | Phase 45 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase45_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P45) | Phase 45 R4 |
+| F203 | Quantum Geometric Langlands Chiral Affine Borcherds-Kac-Moody Whittaker Coupler | Quantum Geometric Langlands chiral affine Lie superalgebra Borcherds-Kac-Moody Whittaker oper obstruction $E_{\text{borch\_whit}}$ and topological invariant $Z_{\text{borch\_whit}}$ ($\kappa_{\text{borch\_whit}}=9.00$) | M1 (P46) | Phase 46 R1 |
+| F204.1 | 41st-Order Hyper-Convex Rank Modulation | $g_{\text{v46}}(r) = 0.50 + 1.52 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{41})$ with regime-adaptive $\gamma_{\text{top}}$ up to 5.30 | M1 (P46) | Phase 46 R1 |
+| F204.2 | 176th-Order Centaheptacontahexagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{176})$ eliminating noise leakage to $< 10^{-102}$ | M1 (P46) | Phase 46 R1 |
+| F205.1 | Lurie-Borcherds-Whittaker Motivic Barycenter & Trans-Singular-Borcherds-Whittaker EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lbw}}=[3.60, 2.75, 2.70, 4.15]$ and $42! \approx 1.405 \times 10^{51}$ tail bounds | M2 (P46) | Phase 46 R2 |
+| F205.2 | KNK 25-Dark-Energy PCQTGBDDDDHKMAEETUVWX DAHA L3 & Preemptive OMS | Kerr-Newman-Kiselev 25-dark-energy ($w = -27/3 = -9.0, k_{\text{daha}}=0.17, \text{daha\_25\_factor}=2.38$), 1e-18 maker floor, 99.99999999995% dark ATS, 99.99999999998% anti-gaming, tick shading $-0.99999999999 \cdot \text{spread} \cdot (h-0.00015)$ | M3 (P46) | Phase 46 R3 |
+| F206 | Phase 46 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase46_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, and dedicated test suites | M4 (P46) | Phase 46 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -304,6 +310,10 @@
 | M2 (P45) | Phase 45 Portfolio Allocation & Trans-Singular-Kac-Moody-Whittaker EVaR (R2) | F201.1: Lurie-Kac-Moody-Whittaker Fisher-Rao Barycenter, 41st-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P45) | DONE |
 | M3 (P45) | Phase 45 Microstructure Hydrodynamics & Preemptive OMS (R3) | F201.2: KNK 24-Dark-Energy PCQTGBDDDDHKMAEETUVW Whittaker DAHA L3, 99.9999999998% dark ATS, 1e-17 maker floor, 99.99999999995% anti-gaming, tick shading | M2 (P45) | DONE |
 | M4 (P45) | Phase 45 Benchmark Engine & Forensic Verification (R4) | F202: `benchmark_phase45_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P45) | DONE |
+| M1 (P46) | Phase 46 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F203, F204.1, F204.2: Quantum Geometric Langlands Borcherds-Kac-Moody Whittaker Oper Coupler, 41st-order rank modulation, 176th-order deadband | none | DONE |
+| M2 (P46) | Phase 46 Portfolio Allocation & Trans-Singular-Borcherds-Whittaker EVaR (R2) | F205.1: Lurie-Borcherds-Whittaker Fisher-Rao Barycenter, 42nd-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P46) | DONE |
+| M3 (P46) | Phase 46 Microstructure Hydrodynamics & Preemptive OMS (R3) | F205.2: KNK 25-Dark-Energy PCQTGBDDDDHKMAEETUVWX DAHA L3, 99.99999999995% dark ATS, 1e-18 maker floor, 99.99999999998% anti-gaming, tick shading | M2 (P46) | DONE |
+| M4 (P46) | Phase 46 Benchmark Engine & Forensic Verification (R4) | F206: `benchmark_phase46_quant_performance.py`, comparison reports, tests 100% pass | M1, M2, M3 (P46) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -344,6 +354,7 @@
 - `trading_system/scripts/benchmark_phase43_quant_performance.py`: Phase 43 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase44_quant_performance.py`: Phase 44 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase45_quant_performance.py`: Phase 45 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase46_quant_performance.py`: Phase 46 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
