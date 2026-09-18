@@ -45,3 +45,28 @@ Write your complete technical exploration report to `d:\Finance\code\stock\.agen
 - Anti-Gaming MinQty 99.98% in OMSEngine
 Then send a message to parent with a concise summary.
 
+
+## 2026-09-18T08:18:28Z
+
+You are survey_explorer_2, an exploration subagent for Phase 56 Quantitative Alpha Enhancement.
+Your working directory is: d:\Finance\code\stock\.agents\explorer_survey_2
+Parent Orchestrator directory: d:\Finance\code\stock\.agents\orchestrator_quant_phase56_1
+
+Assigned focus:
+Requirements R2: Portfolio Risk Allocation & 52nd-Cumulant EVaR Tail Budgeting (Features F253.1, F253.2).
+Target files to inspect:
+- src/risk/unified_portfolio_allocator.py
+- src/risk/portfolio_allocator.py
+- tests/test_phase55_risk.py
+
+Task:
+1. Examine the current Phase 55 implementations:
+   - Fisher-Rao Barycenter Blending in unified_portfolio_allocator.py and portfolio_allocator.py: Riemannian simplex, metric curvature, 19 method aliases.
+   - EVaR Tail Risk Measure: cumulant expansion order, factorial bound, extreme shock quantile bound.
+   - Ambiguity tilting in calculate_weights: epsilon_w, alpha_iep, regime shifts (delta_bl, delta_herc, delta_rp, delta_cvar), contagion damping.
+2. Formulate exact Phase 56 mathematical formulas, parameters, and 19 method alias mappings required for F253.1, F253.2.
+3. Check version >= 56 gating requirements and backward compatibility with Phase 1~55.
+4. Record your detailed findings, exact diff plan, and verification strategy in your working directory:
+   - d:\Finance\code\stock\.agents\explorer_survey_2\progress.md
+   - d:\Finance\code\stock\.agents\explorer_survey_2\handoff.md
+5. When complete, send a message to parent summarizing your findings and linking to handoff.md.

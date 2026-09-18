@@ -1,30 +1,37 @@
-## 2026-09-06T15:04:03Z
-You are an Explorer subagent (identity: explorer_survey_3).
-Working directory: d:\Finance\code\stock\.agents\explorer_survey_3
-Original Request Path: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Please read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (specifically section ## 2026-09-06T15:02:05Z).
+## 2026-09-18T08:18:28Z
 
-Your mission:
-Investigate the codebase for Phase 19 Quant Enhancement R4 (Verification, Benchmarks, Reports, AGENTS.md).
-Specifically examine:
-1. `trading_system/scripts/benchmark_phase18_quant_performance.py` (and previous phases e.g. phase17, phase16):
-   - What are the 15 Core Quant Metrics? How are they calculated?
-   - How are the 5 markets evaluated (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)?
-   - How is strategy factor contribution calculated across the 37 strategies?
-   - How are the 3 standard tables generated and formatted?
-   - What are the baseline metrics from Phase 18 and previous phases?
-2. Existing tests:
-   - Search for `tests/test_phase18_*.py` or similar phase tests (`test_phase17_*.py`, etc.).
-   - How are the tests structured? What fixtures, assertions, and components do they test?
-3. Report synchronization:
-   - Check `reports/quant_benchmark_comparison_phase18.md` and `trading_system/result/quant_benchmark_comparison_phase18.md`.
-4. `AGENTS.md`:
-   - How is `benchmark_phase18_quant_performance.py` documented in Key Files and Requirements History?
+<USER_REQUEST>
+You are survey_explorer_3, an exploration subagent for Phase 56 Quantitative Alpha Enhancement.
+Your working directory is: d:\Finance\code\stock\.agents\explorer_survey_3
+Parent Orchestrator directory: d:\Finance\code\stock\.agents\orchestrator_quant_phase56_1
 
-Requirements for your output:
-Write your complete technical exploration report to `d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md`. Include exact line numbers, templates, structures, and recommendations for implementing:
-- `trading_system/scripts/benchmark_phase19_quant_performance.py` (F98)
-- Dedicated test suite `tests/test_phase19_quant.py`
-- Reports `reports/quant_benchmark_comparison_phase19.md` and `trading_system/result/quant_benchmark_comparison_phase19.md`
-- `AGENTS.md` updates (Key Files and Requirements History R35)
-Then send a message to parent with a concise summary.
+MANDATORY FIRST STEP: Read the user request files:
+- d:\Finance\code\stock\ORIGINAL_REQUEST.md
+- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+- d:\Finance\code\stock\.agents\orchestrator_quant_phase56_1\DISPATCH.md
+
+Your assigned focus:
+Requirements R3 & R4: Microstructure L3 Spacetime Hydrodynamics, Preemptive OMS, and Verification Benchmarking (Features F254.1, F254.2, F255).
+Target files to inspect:
+- src/core/fast_lob_engine.py
+- src/execution/smart_order_router.py
+- src/execution/oms_engine.py
+- trading_system/scripts/benchmark_phase55_quant_performance.py
+- tests/test_phase55_oms.py
+- tests/test_phase55_adversarial_challenger1.py
+- tests/test_phase55_adversarial_oms_benchmark.py
+- reports/quant_benchmark_comparison_phase55.md (and the other 3 paths)
+- AGENTS.md and PROJECT.md
+
+Task:
+1. Examine current Phase 55 microstructure and OMS implementations:
+   - fast_lob_engine.py: Kerr-Newman-Kiselev DAHA L3 Spacetime Hydrodynamics, dark energy component, k_daha, k_monster, daha factor, c_monster, repulsive acceleration, aliases, stack inspection.
+   - smart_order_router.py: lit maker ratio floor, dark ATS routing cap, anti-gaming MinQty.
+   - oms_engine.py: ExecutionOMSEngine & AlmgrenChrissScheduler preemptive micro-tick shading activation threshold and formula.
+2. Examine Phase 55 benchmark script and test suites: structure, 15 institutional metrics, market baselines, report generation, assertions.
+3. Formulate exact Phase 56 requirements, parameters, aliases, and file paths.
+4. Record your detailed findings, exact diff plan, and verification strategy in your working directory:
+   - d:\Finance\code\stock\.agents\explorer_survey_3\progress.md
+   - d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md
+5. When complete, send a message to parent summarizing your findings and linking to handoff.md.
+</USER_REQUEST>
