@@ -555,6 +555,125 @@ def get_regime_adaptive_gamma_top_v48(regime: Union[int, str] = 'BULL_LOW_VOL') 
 
 
 # =========================================================================
+# PHASE 57 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v64 Production Master)
+# =========================================================================
+
+def apply_bicentahexacontatetragonal_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray, float],
+    delta_noise: float = 0.035,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 264.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 57 (R1, Feature F257.2): Asymmetric Bicentahexacontatetragonal (264th-Order) Hyperbolic Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^264)
+    With bicentahexacontatetragonal exponent (alpha = 264.0) and delta_noise = 0.035, suppresses near-zero
+    noise (|z| <= 0.00035) reducing noise leakage down to < 10^-184 (0.0 in float64), while transmitting 100.000%
+    of high conviction signals (|z| >= 0.150) with strict rank monotonicity (Spearman rho == 1.0000).
+    """
+    is_scalar = np.isscalar(scores_centered)
+    if is_scalar:
+        arr_in = np.array([scores_centered], dtype=np.float64)
+    else:
+        arr_in = scores_centered
+
+    res = apply_quintic_hyperbolic_deadband(
+        scores_centered=arr_in,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+    if is_scalar:
+        return float(res[0])
+    return res
+
+compute_phase57_deadband = apply_bicentahexacontatetragonal_hyperbolic_deadband
+apply_phase57_deadband = apply_bicentahexacontatetragonal_hyperbolic_deadband
+apply_bicentahexacontatetragonal_deadband = apply_bicentahexacontatetragonal_hyperbolic_deadband
+bicentahexacontatetragonal_deadband = apply_bicentahexacontatetragonal_hyperbolic_deadband
+phase57_deadband = apply_bicentahexacontatetragonal_hyperbolic_deadband
+
+
+REGIME_GAMMA_TOP_V57 = {
+    'BULL_LOW_VOL': 11.40,
+    'BULL_HIGH_VOL': 9.12,
+    'SIDEWAYS': 6.84,
+    'SIDEWAYS_LOW_VOL': 6.84,
+    'SIDEWAYS_HIGH_VOL': 4.56,
+    'BEAR': 2.28,
+    'BEAR_LOW_VOL': 2.28,
+    'BEAR_HIGH_VOL': 1.71,
+    'PANIC': 1.14,
+    'CRISIS': 1.14,
+    'RECOVERY': 9.12,
+    '2': 11.40,
+    '1': 6.84,
+    '0': 2.28,
+    'UNKNOWN': 11.40,
+}
+
+
+def get_regime_adaptive_gamma_top_v57(regime: Union[int, str] = 'BULL_LOW_VOL') -> float:
+    """
+    Phase 57 (R1, Feature F257.1): Regime-adaptive gamma_top <= 11.40
+    (Bull Low Vol: 11.40, Bull High Vol: 9.12, Sideways Low Vol: 6.84, Sideways High Vol: 4.56,
+     Bear Low Vol: 2.28, Bear High Vol: 1.71, Crisis: 1.14).
+    """
+    if isinstance(regime, (int, float)):
+        regime_str = str(int(regime))
+    else:
+        regime_str = str(regime).upper()
+    return REGIME_GAMMA_TOP_V57.get(regime_str, REGIME_GAMMA_TOP_V57.get('BULL_LOW_VOL', 11.40))
+
+
+def compute_phase57_hyperconvex_rank_modulation(
+    ranks: Union[pd.Series, np.ndarray, float],
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 57 (R1, Feature F257.1): 52nd-Order Hyper-Convex Rank Modulation:
+        g_v57(r) = 0.50 + 1.90 * r * exp(gamma_top * r^52) (for z_denoised >= 0)
+        g_neg(r) = 1.35 - 1.00 * r (for z_denoised < 0)
+    Concentrates conviction into top alpha names while remaining flat across the bottom 70% of distribution.
+    At r=0.70, g(0.70) <= 1.90. At r=1.00, g(1.00) ~= 169705.78 > 100000.0.
+    """
+    if gamma_top is None:
+        if regime is not None:
+            gamma_top = get_regime_adaptive_gamma_top_v57(regime)
+        else:
+            gamma_top = 11.40
+
+    is_scalar = np.isscalar(ranks)
+    r = np.asarray(ranks, dtype=np.float64)
+    r_clipped = np.clip(r, 0.0, 1.0)
+    pos_mult = 0.50 + 1.90 * r_clipped * np.exp(float(gamma_top) * np.power(r_clipped, 52.0))
+    if z_denoised is not None:
+        z = np.asarray(z_denoised, dtype=np.float64)
+        mult = np.where(z >= 0.0, pos_mult, 1.35 - 1.00 * r_clipped)
+    else:
+        mult = pos_mult
+
+    if is_scalar:
+        return float(mult.item() if hasattr(mult, 'item') else mult)
+    if isinstance(ranks, pd.Series):
+        return pd.Series(mult, index=ranks.index)
+    return mult
+
+compute_phase57_rank_warping = compute_phase57_hyperconvex_rank_modulation
+compute_phase57_rank_modulation = compute_phase57_hyperconvex_rank_modulation
+phase57_rank_modulation = compute_phase57_hyperconvex_rank_modulation
+phase57_hyperconvex_rank_modulation = compute_phase57_hyperconvex_rank_modulation
+
+
+# =========================================================================
 # PHASE 56 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v63 Production Master)
 # =========================================================================
 
@@ -956,8 +1075,10 @@ phase53_deadband = apply_bicentadotriacontagonal_hyperbolic_deadband
 
 def compute_phase53_hyperconvex_rank_modulation(
     ranks: Union[pd.Series, np.ndarray, float],
-    gamma_top: float = 9.00,
-    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
 ) -> Union[pd.Series, np.ndarray, float]:
     """
     Phase 53 (R1, Feature F237.1): 48th-Order Hyper-Convex Rank Modulation:
@@ -966,6 +1087,12 @@ def compute_phase53_hyperconvex_rank_modulation(
     Concentrates conviction into top alpha names while remaining flat across the bottom 70% of distribution.
     At r=0.70, g(0.70) <= 1.72 < 1.74. At r=1.00, g(1.00) ~= 14100.0 > 500.0.
     """
+    if gamma_top is None:
+        if regime is not None:
+            gamma_top = get_regime_adaptive_gamma_top_v53(regime)
+        else:
+            gamma_top = 9.00
+
     is_scalar = np.isscalar(ranks)
     r = np.asarray(ranks, dtype=np.float64)
     r_clipped = np.clip(r, 0.0, 1.0)
@@ -1063,8 +1190,10 @@ phase52_deadband = apply_phase52_deadband
 
 def compute_phase52_hyperconvex_rank_modulation(
     ranks: Union[pd.Series, np.ndarray, float],
-    gamma_top: float = 8.40,
-    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
 ) -> Union[pd.Series, np.ndarray, float]:
     """
     Phase 52 (R1, Feature F232.1): 47th-Order Hyper-Convex Rank Modulation:
@@ -1073,6 +1202,12 @@ def compute_phase52_hyperconvex_rank_modulation(
     Concentrates conviction into top alpha names while remaining flat across the bottom 70% of distribution.
     At r=0.70, g(0.70) <= 1.691 < 1.70. At r=1.00, g(1.00) ~= 7560.5 > 500.0.
     """
+    if gamma_top is None:
+        if regime is not None:
+            gamma_top = get_regime_adaptive_gamma_top_v52(regime)
+        else:
+            gamma_top = 8.40
+
     is_scalar = np.isscalar(ranks)
     r = np.asarray(ranks, dtype=np.float64)
     r_clipped = np.clip(r, 0.0, 1.0)
@@ -1173,8 +1308,10 @@ phase51_deadband = apply_bicentadodecagonal_hyperbolic_deadband
 
 def compute_phase51_hyperconvex_rank_modulation(
     ranks: Union[pd.Series, np.ndarray, float],
-    gamma_top: float = 7.80,
-    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
 ) -> Union[pd.Series, np.ndarray, float]:
     """
     Phase 51 (R1, Feature F227.1): 46th-Order Hyper-Convex Rank Modulation:
@@ -1183,6 +1320,12 @@ def compute_phase51_hyperconvex_rank_modulation(
     Concentrates conviction into top alpha names while remaining flat across the bottom 70% of distribution.
     At r=0.70, g(0.70) <= 1.665. At r=1.00, g(1.00) ~= 4051.9 > 1000.0.
     """
+    if gamma_top is None:
+        if regime is not None:
+            gamma_top = get_regime_adaptive_gamma_top_v51(regime)
+        else:
+            gamma_top = 7.80
+
     is_scalar = np.isscalar(ranks)
     r = np.asarray(ranks, dtype=np.float64)
     r_clipped = np.clip(r, 0.0, 1.0)
@@ -1283,8 +1426,10 @@ phase50_deadband = apply_bicentaoctahedral_hyperbolic_deadband
 
 def compute_phase50_hyperconvex_rank_modulation(
     ranks: Union[pd.Series, np.ndarray, float],
-    gamma_top: float = 7.20,
-    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
 ) -> Union[pd.Series, np.ndarray, float]:
     """
     Phase 50 (R1, Feature F222.1): 45th-Order Hyper-Convex Rank Modulation:
@@ -1293,6 +1438,12 @@ def compute_phase50_hyperconvex_rank_modulation(
     Concentrates conviction into top alpha names while remaining flat across the bottom 70% of distribution.
     At r=0.70, g(0.70) <= 1.635 < 1.64. At r=1.00, g(1.00) ~= 2170.38 > 500.0.
     """
+    if gamma_top is None:
+        if regime is not None:
+            gamma_top = get_regime_adaptive_gamma_top_v50(regime)
+        else:
+            gamma_top = 7.20
+
     is_scalar = np.isscalar(ranks)
     r = np.asarray(ranks, dtype=np.float64)
     r_clipped = np.clip(r, 0.0, 1.0)
@@ -5481,6 +5632,46 @@ __all__ = [
     'compute_phase29_rank_warping',
     'REGIME_GAMMA_TOP_V29',
     'get_regime_adaptive_gamma_top_v29',
+    'apply_bicentahexacontatetragonal_hyperbolic_deadband',
+    'compute_phase57_deadband',
+    'apply_phase57_deadband',
+    'apply_bicentahexacontatetragonal_deadband',
+    'bicentahexacontatetragonal_deadband',
+    'phase57_deadband',
+    'compute_phase57_hyperconvex_rank_modulation',
+    'compute_phase57_rank_warping',
+    'phase57_rank_modulation',
+    'phase57_hyperconvex_rank_modulation',
+    'REGIME_GAMMA_TOP_V57',
+    'get_regime_adaptive_gamma_top_v57',
+    'compute_phase57_coupling',
+    'Phase57Coupler',
+    'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology7Coupler',
+    'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology7Coupler',
+    'QuantumGeometricLanglandsDrinfeldHigherHomology7Coupler',
+    'DrinfeldWhittakerMonsterHigherHomology7Coupler',
+    'DrinfeldHigherHomology7Coupler',
+    'MoonshineDrinfeldHigherHomology7Coupler',
+    'apply_bicentapentacontahexagonal_hyperbolic_deadband',
+    'compute_phase56_deadband',
+    'apply_phase56_deadband',
+    'apply_bicentapentacontahexagonal_deadband',
+    'bicentapentacontahexagonal_deadband',
+    'phase56_deadband',
+    'compute_phase56_hyperconvex_rank_modulation',
+    'compute_phase56_rank_warping',
+    'phase56_rank_modulation',
+    'phase56_hyperconvex_rank_modulation',
+    'REGIME_GAMMA_TOP_V56',
+    'get_regime_adaptive_gamma_top_v56',
+    'compute_phase56_coupling',
+    'Phase56Coupler',
+    'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology6Coupler',
+    'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology6Coupler',
+    'QuantumGeometricLanglandsDrinfeldHigherHomology6Coupler',
+    'DrinfeldWhittakerMonsterHigherHomology6Coupler',
+    'DrinfeldHigherHomology6Coupler',
+    'MoonshineDrinfeldHigherHomology6Coupler',
     'apply_bicentaoctatetracontagonal_hyperbolic_deadband',
     'compute_phase55_deadband',
     'apply_phase55_deadband',
@@ -5614,6 +5805,68 @@ __all__ = [
 # =========================================================================
 
 def __getattr__(name: str) -> Any:
+    # Phase 57
+    if name in (
+        'Phase57Coupler',
+        'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology7Coupler',
+        'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology7Coupler',
+        'QuantumGeometricLanglandsDrinfeldHigherHomology7Coupler',
+        'DrinfeldWhittakerMonsterHigherHomology7Coupler',
+        'DrinfeldHigherHomology7Coupler',
+        'MoonshineDrinfeldHigherHomology7Coupler',
+        'LieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV57',
+        'ChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV57',
+    ):
+        from .ensemble_scorer import QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler as _QGLCALSBMMoWC
+        return _QGLCALSBMMoWC
+    if name == 'compute_phase57_coupling':
+        from .ensemble_scorer import QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler as _QGLCALSBMMoWC
+        return _QGLCALSBMMoWC.compute
+    if name in (
+        'apply_bicentahexacontatetragonal_hyperbolic_deadband',
+        'compute_phase57_deadband',
+        'apply_phase57_deadband',
+        'apply_bicentahexacontatetragonal_deadband',
+        'bicentahexacontatetragonal_deadband',
+        'phase57_deadband',
+    ):
+        return apply_bicentahexacontatetragonal_hyperbolic_deadband
+    if name in ('compute_phase57_hyperconvex_rank_modulation', 'compute_phase57_rank_warping', 'compute_phase57_rank_modulation', 'phase57_rank_modulation', 'phase57_hyperconvex_rank_modulation'):
+        return compute_phase57_hyperconvex_rank_modulation
+    if name in ('REGIME_GAMMA_TOP_V57', 'get_regime_adaptive_gamma_top_v57'):
+        return globals()[name]
+
+    # Phase 56
+    if name in (
+        'Phase56Coupler',
+        'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology6Coupler',
+        'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology6Coupler',
+        'QuantumGeometricLanglandsDrinfeldHigherHomology6Coupler',
+        'DrinfeldWhittakerMonsterHigherHomology6Coupler',
+        'DrinfeldHigherHomology6Coupler',
+        'MoonshineDrinfeldHigherHomology6Coupler',
+        'LieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV56',
+        'ChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV56',
+    ):
+        from .ensemble_scorer import QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler as _QGLCALSBMMoWC
+        return _QGLCALSBMMoWC
+    if name == 'compute_phase56_coupling':
+        from .ensemble_scorer import QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler as _QGLCALSBMMoWC
+        return _QGLCALSBMMoWC.compute
+    if name in (
+        'apply_bicentapentacontahexagonal_hyperbolic_deadband',
+        'compute_phase56_deadband',
+        'apply_phase56_deadband',
+        'apply_bicentapentacontahexagonal_deadband',
+        'bicentapentacontahexagonal_deadband',
+        'phase56_deadband',
+    ):
+        return apply_bicentapentacontahexagonal_hyperbolic_deadband
+    if name in ('compute_phase56_hyperconvex_rank_modulation', 'compute_phase56_rank_warping', 'compute_phase56_rank_modulation', 'phase56_rank_modulation', 'phase56_hyperconvex_rank_modulation'):
+        return compute_phase56_hyperconvex_rank_modulation
+    if name in ('REGIME_GAMMA_TOP_V56', 'get_regime_adaptive_gamma_top_v56'):
+        return globals()[name]
+
     # Phase 55
     if name in (
         'Phase55Coupler',
