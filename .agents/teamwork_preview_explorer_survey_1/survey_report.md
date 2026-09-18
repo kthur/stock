@@ -1,395 +1,340 @@
-# Deep Quantitative Architectural Survey & Engineering Design Report
-## Phase 7 Zenith Quantitative Enhancements (7차 심화 퀀트 개선, v14) — Requirement R1
-**Document**: `survey_report.md`  
-**Author**: Signal Synergy Explorer (M1 R1 Investigator)  
-**Target Scope**: 37-Strategy Dynamic Alpha Signal Synergy, Right-Tail Convexity & Regime Noise Deadband  
-**Project Root**: `d:\Finance\code\stock`  
-**Date**: 2026-09-05  
+# Comprehensive Survey Report: Phase 55 Alpha Signal Enhancements (Features F246, F247.1, F247.2)
+
+**Author**: Survey Explorer 1  
+**Target Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1`  
+**Target Milestone**: Phase 55 Alpha Signal Disentanglement & Ultra-Convex Rank Modulation (v62 Production Master)  
+**Date**: 2026-09-18  
 
 ---
 
-## 1. Executive Summary & Problem Boundary
+## Executive Summary
 
-### 1.1 Objective
-This investigation delivers a forensic code-level and mathematical architecture survey for **Requirement R1** of the **Phase 7 Zenith Quantitative Enhancements (7차 심화 퀀트 개선, v14)** as mandated by `ORIGINAL_REQUEST.md` (timestamp `2026-09-04T23:18:21Z`):
-1. **37-Strategy 5-Pillar Cross-Tensor Synergy & Jump-Diffusion Regime Transition Weights**:
-   - Advanced high-order tensor contraction with economic pillar grouping and harmony regularizer ($\mathcal{H}_{\text{pillar}}$).
-   - Merton-style Jump-Diffusion regime transition weight blending ($w_{\text{Zenith}}^*$) integrating transition jump intensity and VIX velocity into dynamic factor weighting.
-2. **Markov Stationary Distribution Volatility Departure Penalty & Quintic-Hyperbolic Deadband**:
-   - Asymmetric volatility-directional Markov departure penalty ($S_{\text{vol}}, \kappa_{\text{Markov}}$) adjusting strategy decay half-lives.
-   - Smooth $C^\infty$ quintic-hyperbolic tangent deadband soft-thresholding ($z \cdot \tanh((|z|/\delta)^5)$) with bilateral kurtosis-adaptive thresholds, squashing $>99.9\%$ of near-zero noise while guaranteeing $100\%$ signal transmission for top conviction and strict rank monotonicity ($\rho_s = 1.0000$).
-3. **Engineering Specification & Backwards Compatibility**:
-   - Concrete mathematical formulations, exact function signatures, line-by-line modification locations in `trading_system/src/ai/ensemble_scorer.py` and `trading_system/src/ai/factor_suppression.py`.
-   - Zero-regression guarantee preserving exact parity with all 2,536+ repository tests (including Phase 6 test suites).
+This survey report provides the authoritative architectural and mathematical specification for **Phase 55 Alpha Signal Enhancements (Features F246, F247.1, F247.2)** within the 37-strategy automated quantitative trading system. The codebase has been analyzed across `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/ai/factor_suppression.py`, `tests/test_phase54_alpha.py`, and `tests/test_phase54_adversarial_challenger1.py`.
+
+Phase 55 advances the Alpha Signal layer from Phase 54 (v61) to Phase 55 (v62 Production Master) by:
+1. **F246**: Extending the Quantum Geometric Langlands Chiral Affine Lie Superalgebra Borcherds-Moonshine Monster Whittaker Coupler with Monster module $V^\natural$ partition polynomial deformation to 90th/92nd order and topological invariant defect to 45th/46th order ($\kappa_{\text{monster\_whit}}=14.00$, $\lambda_{\text{monster}}=0.98$, $\text{FERI}_{\text{v55}}$), exporting 28+ backward-compatible aliases and elevating the harmony factor boost to $3.55 \cdot h_{\text{monster\_whit}} \cdot z_{\text{monster\_whit}}$ under `version >= 55`.
+2. **F247.1**: Implementing 50th-order hyper-convex rank modulation $g_{\text{v55}}(r) = 0.50 + 1.82 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{50})$ with regime-adaptive $\gamma_{\text{top}}$ up to $10.20$ (`BULL_LOW_VOL`), dampening the lower 70% below 1.82 ($g(0.70) \approx 1.774$) while expanding top 1% convexity to $g(1.0) \approx 48964 > 500.0$.
+3. **F247.2**: Implementing 248th-order bicentaoctatetracontagonal hyperbolic noise deadband $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{248})$ ($\alpha=248.0, \delta_{\text{noise}}=0.035$), squashing near-zero boundary noise ($|z| \le 0.00035$) with leakage strictly $< 10^{-168}$ ($0.0$ in float64) while guaranteeing 100.000% transmission of high-conviction signals ($|z| \ge 0.150$) and strict rank monotonicity.
 
 ---
 
-## 2. Forensic Code-Level Analysis of Existing Implementation
+## 1. Codebase Audit: Exact Locations, Line Numbers & Existing Structures
 
-### 2.1 Quint-Pillar Economic Decomposition & Tensor Synergy (`compute_quint_pillar_tensor_synergy`)
+### 1.1 `trading_system/src/ai/ensemble_scorer.py`
 
-#### 2.1.1 Location and Call Chain
-- **Definition**: `trading_system/src/ai/ensemble_scorer.py`, lines 4457–4687.
-- **Invoked at**: `trading_system/src/ai/ensemble_scorer.py`, line 3266 inside `combine_predictions` during Phase 2-B score combination:
-  ```python
-  # Phase 2-B: Quint-Pillar High-Order Tensor Synergy Kernel (F41.1) vs Quad-Pillar Baseline
-  if int(version) >= 6:
-      synergy_mult = self.compute_quint_pillar_tensor_synergy(
-          scores_df=merged,
-          regime=regime,
-          kappa=8.0,
-          regime_adaptive_cap=True
-      )
-  ```
+| Component | Line Numbers | Description & Current State (Phase 54) |
+|---|---|---|
+| **Phase 54 Deadband & Rank Top-level Bindings** | Lines 32–150 | Top-level definitions of `apply_bicentatetracontagonal_hyperbolic_deadband` ($\alpha=240$), `REGIME_GAMMA_TOP_V54` ($\le 9.60$), `get_regime_adaptive_gamma_top_v54`, `compute_phase54_hyperconvex_rank_modulation`, and aliases (`compute_phase54_deadband`, `apply_phase54_deadband`, etc.) |
+| **Coupler Class Definition** | Lines 801–1112 | `class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler`: Evaluates 5 canonical pillars (`val`, `mom`, `flow`, `cat`, `net`). Currently implements partition polynomial terms up to 86th/88th order (lines 1006–1007) and topological defect terms up to 43rd/44th order (lines 1048–1049). Returns `h_monster_whit`, `z_monster_whit`, `e_monster_whit`, `FERI_v54`, `FERI_v53`, ..., `Z_monster_whit`, `E_monster_whit`. |
+| **Coupler Module Aliases** | Lines 1115–1180 | Exported aliases including `Phase54Coupler`, `compute_phase54_coupling`, `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology4Coupler`, `Phase53Coupler`, ..., `Phase48Coupler`, and 28+ historical alias names. |
+| **Dynamic Injection into `factor_suppression`** | Lines 1187–1250 | `setattr(_fs_module, ...)` calls binding Coupler classes, compute methods, deadbands, and rank modulation into `factor_suppression`. |
+| **Confluence & Harmony Boost in `combine_predictions`** | Lines 18705–18712, Line 18791 | Coupler call for `version >= 48` calculating `h_monster_whit` and `z_monster_whit`. Line 18791 applies harmony factor boost: currently `(3.45 if version >= 54 else (3.35 if version >= 53 ...)) * h_monster_whit * z_monster_whit if version >= 48 else 0.0`. |
+| **`EnsembleScoringEngine` Class Static Bindings** | Lines 21845–21865 | Static methods on `EnsembleScoringEngine`: `apply_bicentatetracontagonal_hyperbolic_deadband`, `compute_phase54_deadband`, `Phase54Coupler`, `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology4Coupler`, etc. |
+| **`apply_smooth_noise_deadband` Class Method** | Lines 25067–25150 | Version gating for smooth noise deadband: lines 25090–25099 check `if int(version) >= 54: eff_alpha = 240.0 ... return apply_bicentatetracontagonal_hyperbolic_deadband(...)`. |
+| **Module Export Aliases** | Lines 25653–25657 | Global aliases `apply_smooth_deadband_attenuation = apply_smooth_noise_deadband`. |
 
-#### 2.1.2 5-Pillar Disjoint Partitioning
-All 37 canonical strategies are partitioned across 5 disjoint pillars without omission or overlap (`tests/test_phase6_signal_enhancement.py:40-55`):
-| Pillar Identifier | Pillar Name | Count | Canonical Strategy Score Columns |
-| :--- | :--- | :---: | :--- |
-| **`val`** | Val_Qual | 6 | `rim_score`, `valueup_catalyst_score`, `accruals_quality_score`, `arm_score`, `factor_neutralized_score`, `reg_score` |
-| **`mom`** | Mom_Trend | 9 | `surge_score`, `vcp_ml_score`, `trend_efficiency_score`, `sector_score`, `range_expansion_score`, `mq_score`, `ll_score`, `vcp_rule_score`, `lstm_score` |
-| **`flow`** | Micro_Flow | 9 | `order_flow_score`, `inst_foreign_sector_score`, `darkpool_score`, `microstructure_score`, `overnight_gap_score`, `stat_arb_score`, `iv_skew_score`, `reversal_score`, `vol_target_score` |
-| **`cat`** | Corp_Cat | 6 | `event_score`, `sentiment_score`, `short_squeeze_score`, `gamma_squeeze_score`, `insider_buying_score`, `earnings_tone_drift_score` |
-| **`net`** | Network_Macro | 7 | `supply_chain_score`, `supply_chain_gnn_score`, `cross_asset_spillover_score`, `dual_correction_score`, `index_rebalance_score`, `card_score`, `latr_score` |
-| **Total** | **5 Pillars** | **37** | **Strict disjoint partition (Intersection = $\emptyset$, Union = 37 strategies)** |
+### 1.2 `trading_system/src/ai/factor_suppression.py`
 
-#### 2.1.3 Pillar Conviction Softplus Activation
-For each pillar $p \in \{\text{val}, \text{mom}, \text{flow}, \text{cat}, \text{net}\}$, scores are aggregated using convex combination of max and mean:
-$$\bar{s}_p = \left(0.70 \cdot \max_{j \in \mathcal{S}_p}(s_j) + 0.30 \cdot \frac{1}{|\mathcal{S}_p|}\sum_{j \in \mathcal{S}_p} s_j\right) \in [0, 1]$$
-Excess conviction above neutral ($0.50$) is activated via shifted Softplus:
-$$\text{Softplus}_\kappa(\bar{s}_p) = \ln(1 + \exp(\kappa(\bar{s}_p - 0.50))) - \ln(2)$$
-Normalized conviction $\psi_p \in [0, 1]$:
-$$\psi_p = \begin{cases} \text{clip}\left(\frac{\text{Softplus}_\kappa(\bar{s}_p)}{\text{Softplus}_\kappa(1.0)}, 0.0, 1.0\right) & \text{if } \bar{s}_p > 0.50 \\ 0.0 & \text{otherwise} \end{cases}$$
-
-#### 2.1.4 Current Tensor Contraction and Regime Capping
-Contraction evaluates multi-linear degrees 2, 3, 4, and 5:
-- **2nd-Order Bilinear (10 pairs)**:
-  $$\Xi_{(2)} = \sum_{1 \le i < j \le 5} \omega_{(p_i, p_j)}(R) \cdot (\psi_{p_i} \cdot \psi_{p_j})$$
-- **3rd-Order Trilinear (10 triplets)**:
-  $$\Xi_{(3)} = w_{\text{tri}}(R) \sum_{1 \le i < j < k \le 5} (\psi_{p_i} \cdot \psi_{p_j} \cdot \psi_{p_k})$$
-- **4th-Order Quadruplets (5 quads)**:
-  $$\Xi_{(4)} = w_{\text{quad}}(R) \sum_{1 \le i < j < k < l \le 5} (\psi_{p_i} \cdot \psi_{p_j} \cdot \psi_{p_k} \cdot \psi_{p_l})$$
-- **5th-Order Quintuplet (1 hyper-contraction)**:
-  $$\Xi_{(5)} = w_{\text{quint}}(R) \cdot (\psi_1 \cdot \psi_2 \cdot \psi_3 \cdot \psi_4 \cdot \psi_5)$$
-
-Total synergy multiplier:
-$$M_{\text{synergy}} = 1.0 + \text{clip}\left(\Xi_{(2)} + \Xi_{(3)} + \Xi_{(4)} + \Xi_{(5)}, 0.0, C_{\text{regime}}\right)$$
-Current regime caps $C_{\text{regime}}$ in Phase 6:
-- `BULL_LOW_VOL`: $C = 0.180$ ($M \le 1.180\times$)
-- `BULL_HIGH_VOL`: $C = 0.145$ ($M \le 1.145\times$)
-- `SIDEWAYS_LOW_VOL`: $C = 0.115$ ($M \le 1.115\times$)
-- `SIDEWAYS_HIGH_VOL`: $C = 0.070$ ($M \le 1.070\times$)
-- `BEAR_LOW_VOL`: $C = 0.085$ ($M \le 1.085\times$)
-- `BEAR_HIGH_VOL`: $C = 0.045$ ($M \le 1.045\times$)
-- `CRISIS`: $C = 0.040$ ($M \le 1.040\times$)
-
-#### 2.1.5 Structural Limitations in Phase 6
-1. **Uniform Higher-Order Weighting**:
-   All 10 triplets share an identical scalar $w_{\text{tri}}(R)$, and all 5 quadruplets share $w_{\text{quad}}(R)$. Economically, $(\text{val} \times \text{mom} \times \text{flow})$ represents the core structural alpha intersection (asness-frazzini multi-factor sweet spot), whereas $(\text{cat} \times \text{net} \times \text{flow})$ is tactical. Treating them uniformly dilutes the signal-to-noise ratio.
-2. **Product Contraction Attenuation**:
-   Strict multiplicative contraction $\prod \psi_i$ drops excessively fast when one pillar is moderately lower (e.g. $0.9^4 \times 0.5 = 0.328$), creating an unnatural cliff between 4-pillar and 5-pillar assets.
-3. **Decoupling from Regime Jump Dynamics**:
-   Caps and weights are static conditional on the current regime label, ignoring whether the market is experiencing an active regime jump shock ($d_{TV} > 0.35$).
+| Component | Line Numbers | Description & Current State (Phase 54) |
+|---|---|---|
+| **Deadband Function Definition** | Lines 561–600 | `def apply_bicentatetracontagonal_hyperbolic_deadband(...)` with default `alpha_pos=240.0`, `delta_noise=0.035`. Aliases `compute_phase54_deadband`, `apply_phase54_deadband`, `apply_bicentatetracontagonal_deadband`, `bicentatetracontagonal_deadband`, `phase54_deadband`. |
+| **Regime Gamma Dictionary & Getter** | Lines 602–632 | `REGIME_GAMMA_TOP_V54` with `BULL_LOW_VOL: 9.60`, `BULL_HIGH_VOL: 7.68`, `SIDEWAYS: 5.76`, `BEAR: 1.92`, `CRISIS: 0.96`, etc. Function `get_regime_adaptive_gamma_top_v54`. |
+| **Hyper-Convex Rank Modulation** | Lines 634–673 | `def compute_phase54_hyperconvex_rank_modulation(ranks, gamma_top, z_denoised, regime)`: $g(r) = 0.50 + 1.78 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{49})$. Aliases `compute_phase54_rank_warping`, `phase54_rank_modulation`, `phase54_hyperconvex_rank_modulation`. |
+| **`RegimeFactorSuppressionEngine` Static Bindings** | Lines 4960–4966 | `apply_bicentatetracontagonal_hyperbolic_deadband`, `compute_phase54_deadband`, `apply_phase54_deadband`, `compute_phase54_hyperconvex_rank_modulation`, `compute_phase54_rank_warping`. |
+| **Module `__all__` List** | Lines 5242–5261 | Export symbols for Phase 54 deadbands, rank modulation, gamma dictionary, getter, and Coupler aliases. |
+| **Module `__getattr__` Dynamic Fallback** | Lines 5354–5385 | Dynamic lazy resolution for Coupler aliases (`Phase54Coupler`, etc.), deadbands, rank modulation, and gamma dictionaries. |
 
 ---
 
-### 2.2 Right-Tail Convexity Scaling Architecture
+## 2. Phase 55 Alpha Mathematical Specifications & Formulas
 
-#### 2.2.1 Component 1: `apply_top_decile_convex_boost` (Lines 1722–1820)
-- Uses Hölder generalized $p$-mean:
-  $$M_p(x_{\text{top}}) = \left(\frac{1}{K}\sum_{k=1}^K x_{(k)}^p\right)^{1/p}$$
-  where $p(R) \in [1.25, 2.50]$:
-  `BULL_LOW_VOL` (2.50) $\to$ `BULL_HIGH_VOL` (2.25) $\to$ `SIDEWAYS_LOW_VOL` (2.00) $\to$ `SIDEWAYS_HIGH_VOL` (1.75) $\to$ `BEAR_LOW_VOL` (1.80) $\to$ `BEAR_HIGH_VOL` (1.50) $\to$ `CRISIS` (1.25).
-- By Jensen's Inequality, $p_1 > p_2 \implies M_{p_1} \ge M_{p_2}$, monotonically elevating top-decile conviction in bull regimes.
-- Dispersion Sigmoid Gating:
-  $$\text{Gate}_i = \frac{1}{1 + \exp(-12.0 \cdot (s_i - \theta_{\text{gate}}))}, \quad \theta_{\text{gate}} = \text{clip}(0.65 - 0.50(\sigma_{\text{cross}} - 0.10), 0.55, 0.75)$$
-  $$s_{\text{boosted}} = (1 - \lambda \cdot \text{Gate}_i) s_{\text{base}} + (\lambda \cdot \text{Gate}_i) M_p$$
+### 2.1 Feature F246: Quantum Geometric Langlands Monster Whittaker Coupler (90th/92nd Partition & 45th/46th Defect)
 
-#### 2.2.2 Component 2: `apply_bessembinder_convex_power_law` (Lines 4786–4930)
-- Governed by `BessembinderParams(gamma, beta_right, u_thresh_right, beta_left, u_thresh_left, eta_right, eta_left)`.
-- Asymmetric Richards S-curve:
-  - Upper tail ($u > u_{th, R}$):
-    $$\text{Excess}_R = \frac{u - u_{th, R}}{1 - u_{th, R}}, \quad M_{\text{convex}} = 1.0 + \beta_R \cdot (\text{Excess}_R)^{\eta_R}$$
-  - Lower tail ($u < -u_{th, L}$):
-    $$\text{Excess}_L = \frac{|u| - u_{th, L}}{1 - u_{th, L}}, \quad M_{\text{damp}} = 1.0 - \beta_L \cdot (\text{Excess}_L)^{\eta_L}$$
-- Version 6 parameters in `BULL_LOW_VOL`: $\gamma=1.85, \beta_R=0.60, u_{th, R}=0.38, \eta_R=2.40$.
+#### Mathematical Definition
+The Coupler models the 5 canonical economic pillars ($p = [p_{\text{val}}, p_{\text{mom}}, p_{\text{flow}}, p_{\text{cat}}, p_{\text{net}}] \in [0, 1]^5$) using the chiral affine Lie superalgebra Borcherds-Moonshine Monster Whittaker oper obstruction complex:
 
-#### 2.2.3 Component 3: Inline Convex Return Modulation in `combine_predictions` (Lines 3396–3423)
-- Ranks $r_i \in (0, 1]$ modulate excess score $z_{\text{denoised}}$:
-  $$\text{mult}(r_i) = \begin{cases} 0.60 + 0.30 r_i + 0.30 r_i^2 + 0.55 r_i^3 & \text{in BULL (Version 6)} \\ 0.60 + 0.80 r_i & \text{in Normal/Sideways} \end{cases}$$
-- Richards power-law exponent $\gamma_{\text{tail}} \in [1.05, 1.45]$:
-  $$\text{convex\_alpha}_i = \text{sign}(u_i) \cdot \text{clip}\left(\frac{|2 u_i|^{\gamma_{\text{tail}}}}{\gamma_{\text{tail}}}, 0.0, 1.0\right)$$
-  $$\text{raw\_exp\_ret}_i = \text{convex\_alpha}_i \cdot \text{RegimeMultiplier} \cdot \sqrt{h/20} \cdot \text{Elasticity}$$
+1. **Spatial Distance Weighting**:
+   $$\omega_{jk} = \frac{1}{|j - k|^{1.35}} \quad (j \ne k)$$
 
----
+2. **Monster Module $V^\natural$ Partition Polynomial Deformation (Extended to 90th and 92nd order)**:
+   For each pair $(j, k)$ with difference $\Delta_{jk} = |p_j - p_k|$:
+   $$A_{\text{monster\_whit}}(\Delta_{jk}) = \sum_{m=1}^{12} \frac{1}{m} \lambda_m \Delta_{jk}^m + \sum_{m \in \{14, 16, \dots, 88\}} c_m \Delta_{jk}^m + c_{90} \Delta_{jk}^{90} + c_{92} \Delta_{jk}^{92}$$
+   Where:
+   - Order 86 (Phase 54): $\frac{1}{86} (\lambda_{\text{conformal}} \times 1 \times 10^{-11}) \Delta_{jk}^{86}$
+   - Order 88 (Phase 54): $\frac{1}{88} (\lambda_{\text{conformal}} \times 4 \times 10^{-12}) \Delta_{jk}^{88}$
+   - **Order 90 (Phase 55)**:
+     $$\frac{1}{90} (\lambda_{\text{conformal}} \times 1.0 \times 10^{-12}) \cdot \Delta_{jk}^{90}$$
+   - **Order 92 (Phase 55)**:
+     $$\frac{1}{92} (\lambda_{\text{conformal}} \times 4.0 \times 10^{-13}) \cdot \Delta_{jk}^{92}$$
 
-### 2.3 Markov Stationary Distribution & Signal Half-Life (`get_regime_adaptive_half_lives`)
+3. **Topological Invariant Defect (Extended to 45th and 46th order)**:
+   $$\text{Defect}_{jk} = \left| (p_j^2 - p_k^2) + \sum_{m=3}^{12} \lambda_m (p_j^m - p_k^m) + \sum_{m=13}^{44} d_m (p_j^m - p_k^m) + d_{45} (p_j^{45} - p_k^{45}) + d_{46} (p_j^{46} - p_k^{46}) \right|$$
+   Where:
+   - Order 43 (Phase 54): $(\lambda_{\text{vertex}} \times 1 \times 10^{-13}) (p_j^{43} - p_k^{43})$
+   - Order 44 (Phase 54): $(\lambda_{\text{vertex}} \times 4 \times 10^{-14}) (p_j^{44} - p_k^{44})$
+   - **Order 45 (Phase 55)**:
+     $$(\lambda_{\text{vertex}} \times 1.0 \times 10^{-14}) \cdot (p_j^{45} - p_k^{45})$$
+   - **Order 46 (Phase 55)**:
+     $$(\lambda_{\text{vertex}} \times 4.0 \times 10^{-15}) \cdot (p_j^{46} - p_k^{46})$$
 
-#### 2.3.1 Location and Formulation
-- **Definition**: `trading_system/src/ai/ensemble_scorer.py`, lines 4032–4114.
-- Ergodic stationary distribution across 7 market regimes:
-  $$\pi_\infty = [0.20, 0.15, 0.25, 0.15, 0.12, 0.08, 0.05]$$
-  for `['BULL_LOW_VOL', 'BULL_HIGH_VOL', 'SIDEWAYS_LOW_VOL', 'SIDEWAYS_HIGH_VOL', 'BEAR_LOW_VOL', 'BEAR_HIGH_VOL', 'CRISIS']`.
-- Three dynamic attenuation factors:
-  1. **Shannon Transition Entropy**:
-     $$\phi_{\text{entropy}} = \exp\left(-0.35 \cdot H_{\text{norm}}^2\right), \quad H_{\text{norm}} = \frac{-\sum \pi_m \ln \pi_m}{\ln 7}$$
-  2. **Total Variation Jump Penalty**:
-     $$\phi_{\text{jump}} = \exp\left(-0.50 \cdot \max(0, d_{TV} - 0.25)\right), \quad d_{TV} = \frac{1}{2}\sum_m |\pi_{m, t} - \pi_{m, t-1}|$$
-  3. **Stationary Distribution Kullback-Leibler Divergence**:
-     $$D_{KL}(\pi \parallel \pi_\infty) = \sum_{m=1}^7 \pi_m \ln \left(\frac{\pi_m + 10^{-12}}{\pi_{\infty, m} + 10^{-12}}\right)$$
-     $$\phi_{KL} = \exp\left(-0.25 \cdot \max(0, D_{KL})\right)$$
-- **4-Tier Strategy-Class Elasticity $\nu_k$**:
-  - Class A (Microstructure, HFT, Flow: $\nu = 1.30$)
-  - Class B (Momentum, Breakout, Trend: $\nu = 1.00$)
-  - Class C (Catalyst, Sentiment, Network: $\nu = 0.75$)
-  - Class D (Fundamentals, Accounting, Risk Parity: $\nu = 0.40$)
-- Combined effective half-life:
-  $$\tau_k^*(\pi) = \max\left(0.10, \text{round}\left(\sum_{m=1}^7 \pi_m \tau_k(R_m) \cdot (\phi_{\text{entropy}} \cdot \phi_{\text{jump}} \cdot \phi_{KL})^{\nu_k}, 2\right)\right)$$
+4. **Parameters & Output Metrics**:
+   - $\kappa_{\text{monster\_whit}} = 14.00$ (default test parameter; increased from $13.50$ in Phase 54)
+   - $\lambda_{\text{monster}} = 0.98$ (increased from $0.96$ in Phase 54)
+   - Obstruction Energy: $E_{\text{monster\_whit}} = \sum_{j < k} \omega_{jk} A_{\text{monster\_whit}}(\Delta_{jk})$
+   - Topological Invariant: $Z_{\text{monster\_whit}} = \frac{1}{1 + \sum_{j < k} \omega_{jk} \text{Defect}_{jk}}$
+   - Harmonic Coupling: $h_{\text{monster\_whit}} = \text{clip}\left(\exp(-\kappa_{\text{monster\_whit}} E_{\text{monster\_whit}}) \cdot Z_{\text{monster\_whit}}, \epsilon_{\text{reg}}, 1.0\right)$
+   - Factor Entanglement Robustness Index v55:
+     $$\text{FERI}_{\text{v55}} = \frac{1}{1 + E_{\text{monster\_whit}} + (1 - Z_{\text{monster\_whit}})}$$
+   - Output dictionary must export `"FERI_v55": f_out_55`, `"feri_v55": f_out_55`, and maintain backward compatibility keys `"FERI_v54"`, `"FERI_v53"`, ..., `"FERI_v48"`.
 
----
+5. **Harmony Factor Boost in `combine_predictions`**:
+   At line 18791 in `ensemble_scorer.py`:
+   $$\text{boost}_{\text{v55}} = 3.55 \cdot h_{\text{monster\_whit}} \cdot z_{\text{monster\_whit}} \quad (\text{for } \text{version} \ge 55)$$
+   Gated as:
+   ```python
+   ((3.55 if version >= 55 else (3.45 if version >= 54 else (3.35 if version >= 53 else (3.25 if version >= 52 else (3.15 if version >= 51 else (3.05 if version >= 50 else 2.95 if version >= 49 else 2.85)))))) * h_monster_whit * z_monster_whit if version >= 48 else 0.0)
+   ```
 
-### 2.4 Noise Deadband Filtering Analysis (`apply_smooth_noise_deadband`)
-
-#### 2.4.1 Location and Formulation
-- **Definition**: `trading_system/src/ai/ensemble_scorer.py`, lines 4952–5058.
-- Bilateral thresholds:
-  $$\delta^+ = \delta_0(R) \cdot (1 + 0.40 H_{\text{norm}}), \quad \delta^- = \delta^+ \cdot \chi_{\text{bear}}(R)$$
-  Where $\chi_{\text{bear}} \in [1.00, 1.40]$ ($\chi = 1.40$ in `CRISIS`, $1.35$ in `BEAR_HIGH_VOL`, $1.00$ in `BULL_LOW_VOL`).
-- Denoising function:
-  $$z_{\text{denoised}} = z \cdot \tanh\left( \left(\frac{|z|}{\delta_{\text{eff}}}\right)^{\alpha_{\text{eff}}} \right)$$
-  Where:
-  $$\delta_{\text{eff}} = \begin{cases} \delta^+ & z \ge 0 \\ \delta^- & z < 0 \end{cases}, \quad \alpha_{\text{eff}} = \begin{cases} \alpha_{\text{pos}} = 3.0 & z \ge 0 \\ 4.0 & z < 0 \text{ in Crisis/High-Vol} \\ 3.5 & z < 0 \text{ in Bear Low-Vol} \\ \alpha_{\text{pos}} & \text{when regime is None} \end{cases}$$
-
-#### 2.4.2 Analysis of `factor_suppression.py` vs `ensemble_scorer.py` Deadband Logic
-- In `factor_suppression.py`:
-  - Contains `QUINT_PILLAR_MAP`, `RegimeFactorSuppressionEngine`, `compute_penalties`, `suppress_weights`, and `solve_single_stage_entropy_allocation`.
-  - Currently lacks a standalone `apply_quintic_hyperbolic_deadband` function. The deadband logic was previously embedded solely in `ensemble_scorer.py`.
-  - **Requirement R1 specifically mandates analyzing and harmonizing `apply_quintic_hyperbolic_deadband` in `factor_suppression.py`**.
-  - Defining `apply_quintic_hyperbolic_deadband` in `factor_suppression.py` with identical $C^\infty$ hyperbolic tangent semantics and true quintic exponent ($\alpha=5.0$) provides modular factor noise filtering before correlation suppression, and can be imported/aliased cleanly by `ensemble_scorer.py`.
+6. **Complete List of 28+ Exported Aliases**:
+   - `Phase55Coupler`
+   - `compute_phase55_coupling`
+   - `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology5Coupler`
+   - `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology5Coupler`
+   - `QuantumGeometricLanglandsDrinfeldHigherHomology5Coupler`
+   - `DrinfeldWhittakerMonsterHigherHomology5Coupler`
+   - `DrinfeldHigherHomology5Coupler`
+   - `MoonshineDrinfeldHigherHomology5Coupler`
+   - Plus full preservation of existing Phase 54, 53, 52, 51, 50, 49, 48 aliases (28+ aliases total, including `Phase54Coupler`, `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology4Coupler`, `LieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler`, `ChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler`, etc.).
 
 ---
 
-## 3. Phase 7 Zenith (v14) Mathematical Innovations
+### 2.2 Feature F247.1: 50th-Order Hyper-Convex Rank Modulation
 
-### 3.1 Innovation 1: Economically-Weighted Tensor Contraction & Pillar Harmony Regularizer ($\mathcal{H}_{\text{pillar}}$)
+#### Mathematical Definition
+For cross-sectional rank $r \in [0.0, 1.0]$:
+$$g_{\text{v55}}(r) = \begin{cases}
+0.50 + 1.82 \cdot r \cdot \exp\left(\gamma_{\text{top}} \cdot r^{50}\right) & \text{for } z_{\text{denoised}} \ge 0 \text{ (long/bullish)} \\
+1.35 - 1.00 \cdot r & \text{for } z_{\text{denoised}} < 0 \text{ (short/bearish)}
+\end{cases}$$
 
-#### 3.1.1 Economic Motivation
-In quantitative equity trading, assets exhibiting simultaneous strength across orthogonal investment philosophies (e.g. Value + Momentum + Flow) demonstrate significantly higher Information Ratios and lower drawdown than assets driven by a single dominant style. To capture this in Phase 7 Zenith without introducing artificial step-functions:
-1. We assign **higher coupling weights to the fundamental sweet-spot triplets**:
-   $$\Omega_{\text{tri}}(\text{val}, \text{mom}, \text{flow}) = 1.40 \cdot w_{\text{tri}}(R)$$
-   $$\Omega_{\text{tri}}(\text{flow}, \text{cat}, \text{net}) = 1.20 \cdot w_{\text{tri}}(R)$$
-   $$\Omega_{\text{tri}}(\text{others}) = 1.00 \cdot w_{\text{tri}}(R)$$
-2. We introduce the **Pillar Harmony Regularizer ($\mathcal{H}_{\text{pillar}}$)**:
-   Given pillar convictions $\boldsymbol{\psi} = (\psi_1, \dots, \psi_5)^T$, let $\mu_\psi = \frac{1}{5}\sum_{p=1}^5 \psi_p$ and $\sigma_\psi = \sqrt{\frac{1}{5}\sum_{p=1}^5 (\psi_p - \mu_\psi)^2}$.
-   The pillar coefficient of variation is $\text{CV}_\psi = \frac{\sigma_\psi}{\mu_\psi + 10^{-4}}$.
-   We define Pillar Harmony:
-   $$\mathcal{H}_{\text{pillar}} = \exp\left(-1.20 \cdot \text{clip}(\text{CV}_\psi, 0.0, 2.0)^2\right) \in (0, 1]$$
-   When all 5 pillars have balanced, mutually confirming convictions, $\mathcal{H}_{\text{pillar}} \to 1.0$. If only one pillar is high and others are zero, $\text{CV}_\psi$ is large, driving $\mathcal{H}_{\text{pillar}} \to 0.0$.
-3. **Harmonic Synergy Formulation**:
-   $$\Xi_{\text{Zenith}} = 1.0 + \text{clip}\left(\left[ \Xi_{(2)} + \sum_{t} \Omega_t \psi_{t_1}\psi_{t_2}\psi_{t_3} + \Xi_{(4)} + \Xi_{(5)} \right] \cdot \left(1.0 + 0.25 \cdot \mathcal{H}_{\text{pillar}} \cdot \mathbf{1}_{\{\mu_\psi > 0.40\}}\right), 0.0, C_{\text{v7}}(R)\right)$$
-   In `BULL_LOW_VOL`, $C_{\text{v7}}$ expands to **$0.220$** ($1.220\times$ multiplier), expanding the Top-Decile return spread by an additional **$+18\%$ to $+22\%$** over Phase 6. In `CRISIS`, $C_{\text{v7}}$ remains capped at **$0.040$**.
+#### Regime-Adaptive Curvature $\gamma_{\text{top}}$ (`REGIME_GAMMA_TOP_V55`)
+Curvature scales dynamically based on 2D market regime up to $10.20$:
 
----
+| Regime Code / Label | $\gamma_{\text{top}}$ Value | Ratio to Top | Expected $g(1.0)$ |
+|---|---|---|---|
+| `BULL_LOW_VOL` | **10.20** | 1.00 | $0.50 + 1.82 \cdot \exp(10.20) \approx \mathbf{48964.28} \approx 49000 > 500.0$ |
+| `BULL_HIGH_VOL` | **8.16** | 0.80 | $0.50 + 1.82 \cdot \exp(8.16) \approx 6344.4$ |
+| `SIDEWAYS` / `SIDEWAYS_LOW_VOL` | **6.12** | 0.60 | $0.50 + 1.82 \cdot \exp(6.12) \approx 827.6$ |
+| `SIDEWAYS_HIGH_VOL` | **4.08** | 0.40 | $0.50 + 1.82 \cdot \exp(4.08) \approx 108.1$ |
+| `BEAR` / `BEAR_LOW_VOL` | **2.04** | 0.20 | $0.50 + 1.82 \cdot \exp(2.04) \approx 14.5$ |
+| `BEAR_HIGH_VOL` / `CRISIS` / `PANIC` | **1.02** | 0.10 | $0.50 + 1.82 \cdot \exp(1.02) \approx 5.5$ |
+| `RECOVERY` | **8.16** | 0.80 | $\approx 6344.4$ |
+| Integer mappings: `'2'` $\to 10.20$, `'1'` $\to 6.12$, `'0'` $\to 2.04$ | | | |
+| `UNKNOWN` | **10.20** | 1.00 | $\approx 48964.28$ |
 
-### 3.2 Innovation 2: Merton-Style Jump-Diffusion Regime Transition Base Weight Mixture ($w_{\text{Zenith}}^*$)
-
-#### 3.2.1 Mathematical Formulation
-Regime probabilities undergo continuous diffusion with discrete Poisson jumps:
-$$d\boldsymbol{\pi}_t = \boldsymbol{\mu}_\pi dt + \boldsymbol{\Sigma}_\pi d\mathbf{W}_t + \mathbf{J}_t dN_t$$
-We define the **Empirical Regime Jump Indicator**:
-$$J_{\text{regime}} = \text{clip}\left(\frac{\max(0, d_{TV} - 0.25)}{0.35}, 0.0, 1.0\right)$$
-where $d_{TV} = \frac{1}{2}\sum_m |\pi_{m, t} - \pi_{m, t-1}|$.
-- Continuous Diffusion Base Weights:
-  $$w_{\text{diffusion}} = \sum_{m=1}^7 \pi_{m, t} \cdot W_{2D}(R_m)$$
-- Jump Target Regime $R_{\text{jump}}$:
-  If $\Delta \pi_{\text{CRISIS}} > 0.15$ or $\Delta \pi_{\text{BEAR}} > 0.20$, $R_{\text{jump}} = \text{'CRISIS'}$.
-  Otherwise, $R_{\text{jump}} = \arg\max_m (\pi_{m, t} - \pi_{m, t-1})$.
-- **Jump-Diffusion Dynamic Mixture**:
-  $$w_{\text{Zenith}}^* = (1.0 - 0.60 \cdot J_{\text{regime}}) \cdot w_{\text{diffusion}} + (0.60 \cdot J_{\text{regime}}) \cdot W_{2D}(R_{\text{jump}})$$
-  followed by simplex normalization $\sum w_i = 1.0000$.
-- **Impact**: Under sudden market crashes, slow linear blending lags by holding onto stale bull weights. The Jump-Diffusion mixture instantaneously routes $60\%$ of transition mass to crisis-hedged factors (`stat_arb`, `vol_target`, `rim_valuation`), suppressing maximum drawdown by over **$-0.40\%p$**.
+#### Convexity and Damping Verification
+- **Bottom 70% Damping**: At $r = 0.70$, $r^{50} = 0.70^{50} \approx 1.798 \times 10^{-8}$.
+  $$\exp(10.20 \cdot 0.70^{50}) = \exp(1.834 \times 10^{-7}) \approx 1.000000183$$
+  $$g_{\text{v55}}(0.70) = 0.50 + 1.82 \cdot 0.70 \cdot 1.000000183 \approx 1.7740 \le 1.82$$
+  The lower 70% of assets experience flat, linear scaling with zero unwarranted amplification.
+- **Top 1% Hyper-Convexity**: At $r = 1.00$, $g_{\text{v55}}(1.00) \approx 48964.28 \approx 49000 \gg 500.0$.
+  Allocates overwhelming conviction to the single highest-decile/top-centile alpha opportunities.
+- **Monotonicity**:
+  $$\frac{dg_{\text{v55}}}{dr} = 1.82 \cdot \exp(\gamma_{\text{top}} r^{50}) \cdot (1 + 50 \gamma_{\text{top}} r^{50}) > 0 \quad \forall r \in [0, 1]$$
+  Guarantees strict rank preservation without inversions.
 
 ---
 
-### 3.3 Innovation 3: Asymmetric Volatility-Directional Markov Departure Penalty ($S_{\text{vol}}, \kappa_{\text{Markov}}$)
+### 2.3 Feature F247.2: 248th-Order Bicentaoctatetracontagonal Hyperbolic Deadband
 
-#### 3.3.1 Mathematical Formulation
-Let $\mathcal{V}_{\text{high}} = \{\text{CRISIS}, \text{BEAR\_HIGH\_VOL}, \text{SIDEWAYS\_HIGH\_VOL}, \text{BULL\_HIGH\_VOL}\}$.
-Define the Net Volatility Regime Shift:
-$$S_{\text{vol}}(\boldsymbol{\pi}) = \sum_{m \in \mathcal{V}_{\text{high}}} \pi_m - \sum_{m \in \mathcal{V}_{\text{high}}} \pi_{\infty, m}$$
-Define the Directional Markov Departure Exponent:
-$$\kappa_{\text{Markov}}(S_{\text{vol}}) = 0.25 \cdot \left(1.0 + 0.80 \cdot \max(0, S_{\text{vol}})\right) \in [0.25, 0.45]$$
-The adjusted Markov Stationary Distribution Divergence Penalty is:
-$$\phi_{\text{Markov}}^* = \exp\left(-\kappa_{\text{Markov}}(S_{\text{vol}}) \cdot \max(0, D_{KL}(\boldsymbol{\pi} \parallel \boldsymbol{\pi}_\infty))\right)$$
-- **Economic Mechanics**:
-  - When migrating toward high volatility ($S_{\text{vol}} > 0$), $\kappa_{\text{Markov}}$ scales up to $0.45$, sharply contracting the half-life of fast microstructure and momentum signals to eliminate stale signals.
-  - When migrating toward tranquil bull markets ($S_{\text{vol}} \le 0$), $\kappa_{\text{Markov}} = 0.25$, avoiding excessive signal decay and turnover churn.
+#### Mathematical Definition
+$$z_{\text{denoised}} = z \cdot \tanh\left(\left(\frac{|z|}{\delta_{\text{eff}}}\right)^{248}\right)$$
+Where $\alpha = 248.0$ and $\delta_{\text{noise}} = 0.035$.
 
----
+#### Noise Annihilation & Leakage Bound
+- At boundary noise $|z| \le 0.00035$:
+  $$\frac{|z|}{\delta_{\text{eff}}} \le \frac{0.00035}{0.035} = 0.01 = 10^{-2}$$
+  $$\left(\frac{|z|}{\delta_{\text{eff}}}\right)^{248} \le (10^{-2})^{248} = 10^{-496}$$
+  Because $\tanh(x) \approx x$ for $x \to 0$:
+  $$|z_{\text{denoised}}| \le 0.00035 \times 10^{-496} = 3.5 \times 10^{-500} \ll 10^{-168}$$
+  In IEEE 754 64-bit floating point arithmetic (where subnormal minimum is $\approx 4.9 \times 10^{-324}$), $10^{-496}$ completely underflows to **strictly $0.0$**, yielding zero leakage ($< 10^{-168}$).
 
-### 3.4 Innovation 4: True $C^\infty$ Quintic-Hyperbolic Noise Deadband ($\alpha=5.0$)
+#### High-Conviction Signal Preservation
+- At high conviction $|z| \ge 0.150$:
+  $$\frac{|z|}{\delta_{\text{eff}}} \ge \frac{0.150}{0.035} \approx 4.2857$$
+  $$(4.2857)^{248} \approx 10^{156.7}$$
+  $$\tanh(10^{156.7}) = 1.0000000000000000 \quad (\text{to full float64 precision})$$
+  $$z_{\text{denoised}} = z \cdot 1.0 = z \quad (100.000\% \text{ signal transmission})$$
 
-#### 3.4.1 Mathematical Formulation & Leakage Reduction
-The soft-thresholding deadband with quintic exponent ($\alpha=5$):
-$$f_{\text{quintic}}(z, \delta_{\text{eff}}, \alpha_{\text{eff}}) = z \cdot \tanh\left( \left(\frac{|z|}{\delta_{\text{eff}}}\right)^{\alpha_{\text{eff}}} \right)$$
-Where for Phase 7 Zenith (v14):
-- In `CRISIS` and `SIDEWAYS_HIGH_VOL`: $\alpha_{\text{eff}} = 5.0$ for both positive and negative noise.
-- Near-Zero Noise Squashing Comparison:
-  For noise at $z = 0.010$ with $\delta = 0.045$:
-  - Cubic ($\alpha=3$): $\text{Arg} = (0.010 / 0.045)^3 = 0.01097 \implies \tanh(\text{Arg}) = 0.01097 \implies 98.90\%$ squashing (1.10% leakage).
-  - **Quintic ($\alpha=5$)**: $\text{Arg} = (0.010 / 0.045)^5 = 0.00054 \implies \tanh(\text{Arg}) = 0.00054 \implies \mathbf{99.95\%}$ **squashing (0.05% leakage)**.
-  - **Result**: A **22-fold reduction in near-zero whipsaw leakage** while retaining $100.0\%$ $C^\infty$ smoothness, zero gradient discontinuity, and exact rank monotonicity ($\rho_s = 1.0000$).
-- High-Signal Transmission at $z = 0.150$:
-  $\text{Arg} = (0.150 / 0.045)^5 = 411.5 \implies \tanh(411.5) = 1.0000000 \implies \mathbf{100.0\%}$ transmission!
+#### Odd Symmetry and Monotonicity
+- Odd symmetry: $f(-z) = -z \cdot \tanh((|-z|/\delta)^{248}) = -f(z)$.
+- Strictly non-decreasing: $\frac{df}{dz} \ge 0$ across all $z \in [-\infty, +\infty]$.
 
 ---
 
-### 3.5 Innovation 5: Version 7 Bilateral Richards Power-Law & Quartic Rank Modulation ($g_{\text{v7}}(r)$)
+## 3. Implementation Blueprint for Implementing Agents
 
-#### 3.5.1 Quartic Rank Modulation
-In `combine_predictions`, for positive excess conviction ($z_{\text{denoised}} \ge 0$) under `version >= 7`:
-$$g_{\text{v7}}(r_i) = 0.60 + 0.25 r_i + 0.25 r_i^2 + 0.40 r_i^3 + 0.35 r_i^4 \quad (\text{in BULL})$$
-- Note that $\frac{d}{dr} g_{\text{v7}}(r) = 0.25 + 0.50 r + 1.20 r^2 + 1.40 r^3 > 0$ for all $r \in [0, 1]$, guaranteeing strict rank monotonicity.
-- At the 95th percentile ($r=0.95$): $g_{\text{v7}}(0.95) = 1.691$ vs $g_{\text{v6}}(0.95) = 1.627$ ($+3.9\%$ additional convex expansion).
-- Combined with $\gamma_{\text{tail}} = 2.10$ in `BULL_LOW_VOL` (up from $1.85$), the Top-Decile alpha spread expands by **$+18\%$ to $+22\%$**.
+### 3.1 Edits in `trading_system/src/ai/ensemble_scorer.py`
+
+1. **Top of File (Around Line 28)**:
+   Add Phase 55 section:
+   - `def apply_bicentaoctatetracontagonal_hyperbolic_deadband(scores_centered, delta_noise=0.035, ..., alpha_pos=248.0, ...)`
+   - Aliases: `compute_phase55_deadband`, `apply_phase55_deadband`, `apply_bicentaoctatetracontagonal_deadband`, `bicentaoctatetracontagonal_deadband`, `phase55_deadband`
+   - `REGIME_GAMMA_TOP_V55` dictionary (top 10.20) and `get_regime_adaptive_gamma_top_v55`
+   - `def compute_phase55_hyperconvex_rank_modulation(ranks, gamma_top=None, z_denoised=None, regime=None)`: $0.50 + 1.82 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{50})$
+   - Aliases: `compute_phase55_rank_warping`, `phase55_rank_modulation`, `phase55_hyperconvex_rank_modulation`
+   - Dynamic injection into `_fs_module`
+
+2. **Coupler Class `QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler` (Lines 801–1112)**:
+   - In partition polynomial deformation (lines 1006–1007):
+     ```python
+     + (1.0 / 90.0) * (self.lambda_conformal * 0.000000000001) * (diff ** 90)
+     + (1.0 / 92.0) * (self.lambda_conformal * 0.0000000000004) * (diff ** 92)
+     ```
+   - In topological invariant defect (lines 1048–1049):
+     ```python
+     + (self.lambda_vertex * 0.00000000000001) * (pn[j]**45 - pn[k]**45)
+     + (self.lambda_vertex * 0.000000000000004) * (pn[j]**46 - pn[k]**46)
+     ```
+   - Compute `feri_v55`:
+     ```python
+     feri_v55 = 1.0 / (1.0 + e_monster_whit + (1.0 - z_monster_whit))
+     feri_v54 = feri_v55
+     ...
+     ```
+   - Export keys: `"FERI_v55": f_out_55, "feri_v55": f_out_55, ...`
+
+3. **Coupler Aliases (Around Line 1115)**:
+   Add Phase 55 aliases:
+   - `Phase55Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler`
+   - `compute_phase55_coupling = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute`
+   - `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology5Coupler = ...`
+   - `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology5Coupler = ...`
+   - `QuantumGeometricLanglandsDrinfeldHigherHomology5Coupler = ...`
+   - `DrinfeldWhittakerMonsterHigherHomology5Coupler = ...`
+   - `DrinfeldHigherHomology5Coupler = ...`
+   - `MoonshineDrinfeldHigherHomology5Coupler = ...`
+   - Inject into `_fs_module`
+
+4. **Harmony Boost in `combine_predictions` (Line 18791)**:
+   Update multiplier to `3.55 if version >= 55 else (3.45 if version >= 54 else ...)`
+
+5. **`EnsembleScoringEngine` Class Static Bindings (Around Line 21845)**:
+   Add Phase 55 bindings block with `apply_bicentaoctatetracontagonal_hyperbolic_deadband`, `compute_phase55_deadband`, `Phase55Coupler`, `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology5Coupler`, etc.
+
+6. **`apply_smooth_noise_deadband` Class Method (Line 25090)**:
+   Add version 55 check at the very top:
+   ```python
+   if int(version) >= 55:
+       eff_alpha = 248.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, ..., 240.0) else alpha_pos
+       return apply_bicentaoctatetracontagonal_hyperbolic_deadband(
+           scores_centered=scores_centered,
+           delta_noise=delta_noise,
+           delta_neg=delta_neg,
+           alpha_pos=eff_alpha,
+           alpha_neg=alpha_neg,
+           regime=regime
+       )
+   elif int(version) >= 54:
+       ...
+   ```
 
 ---
 
-## 4. Engineering Implementation Blueprint & Code Signatures
+### 3.2 Edits in `trading_system/src/ai/factor_suppression.py`
 
-### 4.1 Target File 1: `trading_system/src/ai/factor_suppression.py`
+1. **Deadband & Modulation Definitions (Around Line 560)**:
+   Insert Phase 55 definitions above Phase 54:
+   - `def apply_bicentaoctatetracontagonal_hyperbolic_deadband(...)` ($\alpha=248.0, \delta=0.035$)
+   - Aliases: `compute_phase55_deadband`, `apply_phase55_deadband`, `apply_bicentaoctatetracontagonal_deadband`, `bicentaoctatetracontagonal_deadband`, `phase55_deadband`
+   - `REGIME_GAMMA_TOP_V55` dictionary and `get_regime_adaptive_gamma_top_v55`
+   - `def compute_phase55_hyperconvex_rank_modulation(ranks, gamma_top=None, z_denoised=None, regime=None)`: $0.50 + 1.82 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{50})$
+   - Aliases: `compute_phase55_rank_warping`, `phase55_rank_modulation`, `phase55_hyperconvex_rank_modulation`
 
-#### 4.1.1 Standalone `apply_quintic_hyperbolic_deadband` Function
-Add at module level in `factor_suppression.py`:
+2. **`RegimeFactorSuppressionEngine` Static Bindings (Around Line 4960)**:
+   Add:
+   - `apply_bicentaoctatetracontagonal_hyperbolic_deadband = staticmethod(apply_bicentaoctatetracontagonal_hyperbolic_deadband)`
+   - `compute_phase55_deadband = staticmethod(apply_bicentaoctatetracontagonal_hyperbolic_deadband)`
+   - `apply_phase55_deadband = staticmethod(apply_bicentaoctatetracontagonal_hyperbolic_deadband)`
+   - `compute_phase55_hyperconvex_rank_modulation = staticmethod(compute_phase55_hyperconvex_rank_modulation)`
+   - `compute_phase55_rank_warping = staticmethod(compute_phase55_hyperconvex_rank_modulation)`
+
+3. **`__all__` List (Around Line 5240)**:
+   Prepend Phase 55 exported names:
+   - Deadbands: `apply_bicentaoctatetracontagonal_hyperbolic_deadband`, `compute_phase55_deadband`, `apply_phase55_deadband`, `apply_bicentaoctatetracontagonal_deadband`, `bicentaoctatetracontagonal_deadband`, `phase55_deadband`
+   - Rank modulations: `compute_phase55_hyperconvex_rank_modulation`, `compute_phase55_rank_warping`, `phase55_rank_modulation`, `phase55_hyperconvex_rank_modulation`
+   - Regimes: `REGIME_GAMMA_TOP_V55`, `get_regime_adaptive_gamma_top_v55`
+   - Coupler aliases: `compute_phase55_coupling`, `Phase55Coupler`, `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology5Coupler`, etc.
+
+4. **`__getattr__` Dynamic Resolution (Around Line 5355)**:
+   Add Phase 55 dispatch blocks for Coupler aliases, deadbands, rank modulation, and gamma dictionary.
+
+---
+
+## 4. Test Suite Specification: `tests/test_phase55_alpha.py`
+
+Following the pattern established in `tests/test_phase54_alpha.py` (which achieved 100% pass across 9 tests in 10.05s), `tests/test_phase55_alpha.py` must contain the following test cases:
+
 ```python
-def apply_quintic_hyperbolic_deadband(
-    scores_centered: Union[pd.Series, np.ndarray],
-    delta_noise: float = 0.045,
-    delta_neg: Optional[float] = None,
-    alpha_pos: float = 5.0,
-    alpha_neg: Optional[float] = None,
-    regime: Optional[Union[str, int]] = None
-) -> Union[pd.Series, np.ndarray]:
-    """
-    Phase 7 Zenith (F47.2): Smooth C^infinity Quintic-Hyperbolic Tangent Deadband Filter:
-    z_denoised = z * tanh((|z| / delta_eff(z))^alpha_eff(z))
-    With true quintic exponent (alpha = 5.0), squashes >99.9% of near-zero noise (|z| <= 0.010)
-    while preserving 100.0% of high conviction signals (|z| >= 0.150) with strict rank
-    monotonicity (Spearman rho == 1.0000) and exact point symmetry when unconditioned.
-    """
-    is_series = isinstance(scores_centered, pd.Series)
-    z = scores_centered.values if is_series else np.asarray(scores_centered, dtype=np.float64)
+class TestPhase55AlphaEnhancements:
+    def test_feature_f246_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupler_properties(self):
+        # 1. Initialize Coupler with kappa_monster_whit=14.00, lambda_monster=0.98
+        # 2. Evaluate on 5 canonical pillars DataFrame
+        # 3. Assert FERI_v55, feri_v55, FERI_v54 in result
+        # 4. Assert bounded in [0.0, 1.0] for h, z, FERI
+        # 5. Assert dispersion/obstruction ordering: e increases, h decreases with divergence
+        # 6. Assert degenerate 1D vector: e ~= 0.0, z ~= 1.0, h ~= 1.0, FERI_v55 ~= 1.0
 
-    reg_str = str(regime).upper() if regime is not None else ''
-    if 'CRISIS' in reg_str:
-        chi_bear = 1.40
-        eff_alpha_neg = 5.0 if alpha_neg is None else alpha_neg
-        eff_alpha_pos = 5.0
-    elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
-        chi_bear = 1.35
-        eff_alpha_neg = 5.0 if alpha_neg is None else alpha_neg
-        eff_alpha_pos = alpha_pos
-    elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or 'BEAR' in reg_str:
-        chi_bear = 1.20
-        eff_alpha_neg = 4.0 if alpha_neg is None else alpha_neg
-        eff_alpha_pos = alpha_pos
-    elif 'SIDEWAYS_HIGH_VOL' in reg_str:
-        chi_bear = 1.15
-        eff_alpha_neg = 4.5 if alpha_neg is None else alpha_neg
-        eff_alpha_pos = alpha_pos
-    else:
-        chi_bear = 1.00
-        eff_alpha_neg = alpha_pos if alpha_neg is None else alpha_neg
-        eff_alpha_pos = alpha_pos
+    def test_feature_f246_quantum_geometric_langlands_aliases_and_exports(self):
+        # 1. Assert Phase55Coupler is Coupler class
+        # 2. Assert DrinfeldHigherHomology5Coupler aliases
+        # 3. Assert EnsembleScoringEngine static method returns FERI_v55
 
-    safe_delta_pos = max(1e-6, float(delta_noise))
-    safe_delta_neg = max(1e-6, float(delta_neg)) if delta_neg is not None else (safe_delta_pos * chi_bear)
+    def test_feature_f247_1_50th_order_rank_modulation_convexity(self):
+        # 1. Evaluate ranks linspace(0.0, 1.0, 100) with gamma_top=10.20
+        # 2. Assert g(0) == 0.50
+        # 3. Assert g(1.0) == 0.50 + 1.82 * exp(10.20) > 48900.0 > 500.0
+        # 4. Assert strict monotonicity: np.diff(g) >= 0
+        # 5. Assert lower 70% damping: g(0.70) <= 1.82
+        # 6. Assert negative conviction: g_neg(0) == 1.35, g_neg(1) == 0.35, np.diff <= 0
 
-    is_neg = (z < 0.0)
-    delta_eff = np.where(is_neg, safe_delta_neg, safe_delta_pos)
-    alpha_eff = np.where(is_neg, eff_alpha_neg, eff_alpha_pos)
+    def test_feature_f247_1_regime_adaptive_gamma_top(self):
+        # 1. Verify get_regime_adaptive_gamma_top_v55 across all regimes:
+        # BULL_LOW_VOL: 10.20, BULL_HIGH_VOL: 8.16, SIDEWAYS: 6.12, BEAR: 2.04, CRISIS: 1.02, UNKNOWN: 10.20
 
-    abs_z = np.abs(z)
-    ratio = np.clip(abs_z / delta_eff, 0.0, 50.0)
-    arg = np.clip(np.power(ratio, alpha_eff), 0.0, 50.0)
-    denoised = z * np.tanh(arg)
+    def test_feature_f247_2_248th_order_hyperbolic_deadband_leakage(self):
+        # 1. Small inputs |z| <= 0.00035: assert abs(val) < 1e-168 (strictly 0.0 in float64)
+        # 2. Strong signals |z| >= 0.150: assert allclose(denoised, sig_z, rtol=1e-9)
+        # 3. Monotonicity: np.diff(denoised_spectrum) >= 0
+        # 4. Odd symmetry: f(-z) == -f(z)
 
-    if is_series:
-        return pd.Series(denoised, index=scores_centered.index)
-    return denoised
+    def test_feature_f247_2_factor_suppression_delegation(self):
+        # 1. Scalar input delegation
+        # 2. pd.Series input delegation preserving index
+
+    def test_ensemble_scorer_apply_smooth_noise_deadband_version_55(self):
+        # 1. EnsembleScoringEngine.apply_smooth_noise_deadband(z_noise, version=55) < 1e-168
+
+    def test_combine_predictions_version_55_confluence_and_harmony(self):
+        # 1. Multi-strategy mock scores DataFrame
+        # 2. Combine under version=54 and version=55 (regime='BULL_LOW_VOL')
+        # 3. Assert finite, [0, 1] bounded
+        # 4. Assert top conviction v55 >= v54 - 1e-6
+
+    def test_strict_backward_compatibility_v54_and_prior(self):
+        # 1. Evaluate versions 55 down to 44
+        # 2. Assert leakages: v55 < 1e-168, v54 < 1e-160, v53 < 1e-152, ..., v44 < 1e-90
 ```
 
 ---
 
-### 4.2 Target File 2: `trading_system/src/ai/ensemble_scorer.py`
+## 5. Potential Pitfalls and Engineering Recommendations
 
-#### 4.2.1 Enhancing `compute_quint_pillar_tensor_synergy` (Lines 4457–4687)
-- Add `version: int = 6` parameter (default 6 for full backward compatibility; when called with `version >= 7`, activates Phase 7 Zenith logic).
-- Incorporate economic triplet weighting:
-  ```python
-  if int(version) >= 7:
-      # Economic triplet weighting
-      tri_weights = {
-          ('val', 'mom', 'flow'): 1.40 * w_tri,
-          ('flow', 'cat', 'net'): 1.20 * w_tri,
-      }
-      # Pillar Harmony calculation
-      p_vals = np.array([p_val.values, p_mom.values, p_flow.values, p_cat.values, p_net.values])
-      p_mean = np.mean(p_vals, axis=0)
-      p_std = np.std(p_vals, axis=0)
-      cv_p = p_std / (p_mean + 1e-4)
-      harmony = np.exp(-1.20 * np.clip(cv_p, 0.0, 2.0)**2)
-      harmony_factor = pd.Series(1.0 + 0.25 * harmony * (p_mean > 0.40).astype(float), index=scores_df.index)
-      total_confluence = (synergy_sum + tri_confluence + quad_confluence + quint_confluence) * harmony_factor
-      eff_cap = 0.220 if 'BULL_LOW_VOL' in reg_str else float(reg_cap)
-  ```
-
-#### 4.2.2 Enhancing `get_regime_adaptive_half_lives` (Lines 4032–4114)
-- When `int(version) >= 7`:
-  Calculate $S_{\text{vol}}$ across $\mathcal{V}_{\text{high}}$:
-  ```python
-  if int(version) >= 7:
-      high_vol_states = {'CRISIS', 'BEAR_HIGH_VOL', 'SIDEWAYS_HIGH_VOL', 'BULL_HIGH_VOL'}
-      s_vol = sum(pi_norm.get(s, 0.0) for s in high_vol_states) - sum(cls.PI_STATIONARY.get(s, 0.0) for s in high_vol_states)
-      kappa_markov = 0.25 * (1.0 + 0.80 * max(0.0, s_vol))
-      phi_kl = float(np.exp(-kappa_markov * max(0.0, d_kl)))
-  ```
-
-#### 4.2.3 Enhancing `get_base_weights` with Jump-Diffusion Mixture (Lines 1210–1249)
-- When `int(version) >= 7` and `prev_regime_probs` or jump indicators are present:
-  Compute $d_{TV} = 0.5 \sum |\pi_{m, t} - \pi_{m, t-1}|$.
-  If $d_{TV} > 0.25$, blend continuous diffusion weights with jump target regime weights.
-
-#### 4.2.4 Enhancing `apply_smooth_noise_deadband` & Aliasing
-- Add alias in `EnsembleScoringEngine`:
-  ```python
-  apply_quintic_hyperbolic_deadband = apply_smooth_noise_deadband
-  ```
-- When `int(version) >= 7`, use $\alpha = 5.0$ in high-volatility regimes.
-
----
-
-## 5. Backwards Compatibility & Legacy Invariant Verification
-
-| Legacy Test Suite | Scope | Invariants Verified | Compatibility Guarantee |
-| :--- | :--- | :--- | :--- |
-| `tests/test_phase6_signal_enhancement.py` | F41, F42 | - Hierarchy 5-Pillar > 4 > 3 > 2 > 1<br>- Multipliers in $[1.00, 1.18]$ for v6<br>- Crisis cap $\le 1.04001$<br>- $\rho_s = 1.0000$<br>- Class A decay > Class D | **100% PASS**: Parameter defaults `version=6` preserve bit-exact outputs. |
-| `tests/test_phase6_m1_challenger1_adversarial.py` | Adversarial | - Rank monotonicity under Cauchy, Pareto, Beta<br>- Pointwise strict monotonicity $y_{i+1} - y_i > 0$<br>- Zero & uniform vector boundary handling | **100% PASS**: $C^\infty$ smoothness and monotonic derivatives $g'(z) > 0$ preserved everywhere. |
-| `tests/test_phase6_m1_challenger2_adversarial.py` | Adversarial | - Top-decile spread expansion $\ge 15\%$<br>- Exact odd symmetry $g(-z) = -g(z)$ when unconditioned (`regime=None`)<br>- Throughput budget $<50$ms for 500 stocks $\times$ 37 strategies | **100% PASS**: Vectorized numpy array ops maintain $<10$ms execution. |
-| Repository Suite (2,536 tests) | All Modules | - Full regression test parity<br>- 0 failures, 0 regressions | **100% PASS**: Default signatures unchanged, new features activated via `version=7`. |
-
----
-
-## 6. Conclusion & Implementation Recommendations
-
-1. **Synthesis of Survey**:
-   The current Phase 6 implementation establishes a solid mathematical framework with 5 canonical pillars, Hölder $p$-norm boosting, and continuous half-life decay. However, it is constrained by uniform higher-order tensor weighting, static linear regime blending during jumps, symmetric Markov departure penalties, and cubic noise deadbands.
-2. **Phase 7 Zenith Upgrades**:
-   - Upgrading to **Economically-Weighted Trilinear Tensors** with **Pillar Harmony Regularization** ($\mathcal{H}_{\text{pillar}}$) and expanding the Bull Low Vol cap to **0.220** directly fulfills R1's mandate to expand the top-decile alpha spread.
-   - Implementing **Jump-Diffusion Regime Transition Base Weight Mixture** prevents sluggish lag during volatility shocks.
-   - Introducing the **Directional Volatility Markov Departure Penalty** ($\kappa_{\text{Markov}}(S_{\text{vol}})$) and **$C^\infty$ Quintic-Hyperbolic Deadband** ($\alpha=5.0$) slashes noise leakage by 22-fold.
-3. **Execution Readiness**:
-   The code modifications are strictly scoped to `factor_suppression.py` and `ensemble_scorer.py`, with complete version guarding (`version >= 7` vs `version <= 6`) ensuring zero disruption to existing production workflows.
-
----
-*Report compiled and delivered by Signal Synergy Explorer (M1 R1 Investigator).*
+1. **Float Overflow Protection in Rank Modulation**:
+   $g_{\text{v55}}(1.0) = 0.50 + 1.82 \cdot \exp(10.20) \approx 48964.28$. This is well within float64 dynamic range (max float64 $\approx 1.8 \times 10^{308}$). However, when raising ranks to the 50th power, `np.power(r_clipped, 50.0)` must always clip $r$ to $[0.0, 1.0]$ first to avoid overflow if out-of-bound values like $r > 1.0$ or $r > 10.0$ are accidentally passed.
+2. **Subnormal and Underflow Behavior in Hyperbolic Deadband**:
+   When evaluating $(|z|/\delta)^{248}$ for very small $z$ (e.g. $0.0001 / 0.035 \approx 0.002857$), $(0.002857)^{248} \approx 10^{-631}$, which underflows to `0.0` in float64. Python and numpy handle this gracefully by returning `0.0`, resulting in $\tanh(0.0) = 0.0$ without raising exceptions.
+3. **Cross-Module Circular Imports**:
+   Both `ensemble_scorer.py` and `factor_suppression.py` import or register symbols into each other. Use the existing dynamic binding pattern (`setattr(_fs_module, ...)` inside `try/except` and lazy `__getattr__` fallback) to prevent import cycle deadlocks.
+4. **Backward Compatibility Preservation**:
+   All new logic must be gated behind `version >= 55`. Existing branches for `version >= 54`, `version >= 53`, etc., must remain 100% intact so existing test suites (`test_phase54_alpha.py`, `test_phase53_alpha.py`, etc.) continue to pass with 0 regressions.

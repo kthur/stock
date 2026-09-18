@@ -1,26 +1,35 @@
-# DISPATCH: Survey Phase - Explorer 3 (Microstructure OMS & Quant Verification)
+# DISPATCH: Survey Explorer 3 — Benchmark & Quantitative Verification
 
-## Mission
-Survey the codebase for Milestone 3 (Microstructure OMS) and Milestone 4 (Quant Verification):
-- Inspect Phase 44 implementation in:
-  1. `src/core/fast_lob_engine.py` (look for F197.2, KNK 23-Dark-Energy DAHA L3).
-  2. `src/execution/smart_order_router.py` (lit maker floor, darkpool ATS cap, Anti-Gaming MinQty).
-  3. `src/execution/oms_engine.py` (preemptive tick shading factor, slippage / friction).
-- Inspect Phase 44 benchmark and tests:
-  1. `trading_system/scripts/benchmark_phase44_quant_performance.py` (F198) and its outputs.
-  2. `tests/test_phase44_*.py` test structure and assertions.
-  3. 4 report paths for comparison tables.
-  4. Updates needed in `AGENTS.md` and `PROJECT.md`.
-- Analyze Phase 45 requirements:
-  - F201.2: Kerr-Newman-Kiselev 24-Dark-Energy PCQTGBDDDDHKMAEETUVW ($w = -26/3$, $k_{\text{daha}} = 0.16$, daha_24_factor = 2.21) in `fast_lob_engine.py`.
-  - Lit maker floor $1 \times 10^{-17}$ ($0.00000000000000001$), darkpool 99.9999999998% ATS cap, Anti-Gaming MinQty 99.99999999995% in `smart_order_router.py`.
-  - Preemptive tick shading $-0.99999999998 \cdot \text{spread} \cdot (h - 0.0002)$ in `oms_engine.py`.
-  - F202: `benchmark_phase45_quant_performance.py`, `tests/test_phase45_*.py`, 3 comparison tables across 4 paths.
-- Read `ORIGINAL_REQUEST.md` (Header `## 2026-09-15T21:55:02Z`).
-- Write comprehensive report to your working directory: `handoff.md`.
+## Working Directory
+d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3
 
-## 2026-09-15T21:56:57Z
-You are Explorer 3 (Microstructure OMS & Quant Verification Explorer) for Phase 45 Full Team Quant Enhancement.
-Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3
-Task: Investigate KNK 24-Dark-Energy DAHA L3 model in fast_lob_engine.py, lit maker floor / darkpool ATS cap / Anti-Gaming MinQty in smart_order_router.py, preemptive tick shading in oms_engine.py, benchmark script design for benchmark_phase45_quant_performance.py (F202), test suite requirements for tests/test_phase45_*.py, 4 report file sync paths, AGENTS.md / PROJECT.md update points. Write handoff.md and send_message to parent.
+## Role & Mission
+You are Survey Explorer 3. Your mission is to explore and analyze the authoritative codebase for Phase 55 Verification Benchmarking (F250), 5 test suites, 4-path markdown report synchronization, and document updates.
 
+## Authoritative Files to Read
+1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (Header: `## 2026-09-18T03:36:46Z`)
+2. `d:\Finance\code\stock\.agents\orchestrator_quant_phase55_1\DISPATCH.md`
+3. `trading_system/scripts/benchmark_phase54_quant_performance.py`: Inspect the structure of the Phase 54 benchmark engine, 15 metrics across 5 markets, comparison tables, and report outputs.
+4. `reports/quant_benchmark_comparison_phase54.md` and `reports/quant_benchmark_comparison.md`: Inspect the formatting, markdown table structures, and report conventions.
+5. `tests/test_phase54_alpha.py`, `tests/test_phase54_risk.py`, `tests/test_phase54_oms.py`, `tests/test_phase54_adversarial_challenger1.py`, `tests/test_phase54_adversarial_oms_benchmark.py`: Inspect test suites and structure.
+6. `AGENTS.md` and `PROJECT.md`: Inspect where Phase 54 was documented and where Phase 55 features F246~F250 must be appended.
+
+## Deliverables
+Write a comprehensive report to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\survey_report.md` detailing:
+1. Exact structure and implementation plan for `trading_system/scripts/benchmark_phase55_quant_performance.py`:
+   - 15 metrics across 5 markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000).
+   - Baseline: Phase 54 (Net Return 178.49%, Sharpe 35.78, MDD -0.00001%, Costs 0.000000005859375 bps, Slippage 0.0000000048828125 bps, Alpha Spread 156.32%).
+   - Target: Phase 55 (Net Return >= 180.55%, Target 180.59%; Sharpe >= 36.35, Target 36.38; MDD <= -0.00001%; Costs <= 0.0000000029296875 bps; Slippage <= 0.00000000244140625 bps; Alpha Spread >= 158.60%, Target 158.62%; Win Rate 100.0%).
+2. Report generation and synchronization requirements across 4 canonical paths:
+   - `reports/quant_benchmark_comparison_phase55.md`
+   - `trading_system/result/quant_benchmark_comparison_phase55.md`
+   - `trading_system/reports/quant_benchmark_comparison_phase55.md`
+   - `reports/quant_benchmark_comparison.md` (prepended with Phase 55 section)
+3. Specifications for the 5 automated test suites:
+   - `tests/test_phase55_alpha.py`
+   - `tests/test_phase55_risk.py`
+   - `tests/test_phase55_oms.py`
+   - `tests/test_phase55_adversarial_challenger1.py`
+   - `tests/test_phase55_adversarial_oms_benchmark.py`
+4. Required updates to `AGENTS.md` and `PROJECT.md`.
+5. Write `handoff.md` and send completion message back to orchestrator.

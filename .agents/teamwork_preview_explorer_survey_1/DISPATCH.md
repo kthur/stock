@@ -1,24 +1,27 @@
-# DISPATCH: Survey Phase - Explorer 1 (Alpha Signal)
+# DISPATCH: Survey Explorer 1 — Alpha Signal Disentanglement & Ultra-Convex Rank Modulation
 
-## Mission
-Survey the codebase for Milestone 1 (Alpha Signal):
-- Inspect Phase 44 implementation in `src/ai/ensemble_scorer.py` and `src/ai/factor_suppression.py` (look for F195, F196.1, F196.2, version >= 44).
-- Analyze exact formula requirements for Phase 45:
-  1. Quantum Geometric Langlands Chiral Affine Lie Superalgebra Kac-Moody Whittaker Coupler (F199, Kac-Moody Whittaker obstruction complex $E_{\text{km\_whit}}$, quantum geometric Langlands topological invariant $Z_{\text{km\_whit}}$, $\kappa_{\text{km\_whit}}=8.50$, $\theta_0=0.50$, $\text{FERI}_{\text{v45}}$).
-  2. 40th-order ultra-convex rank modulation function $g_{\text{v45}}(r) = 0.50 + 1.52 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{40})$ (F200.1, regime-adaptive $\gamma_{\text{top}} \le 5.10$).
-  3. 168th-order ($\alpha=168.0$) Centahexaoctagonal hyperbolic deadband (F200.2, noise leakage $< 10^{-96}$) in `factor_suppression.py` eliminating micro-noise for $|z| \le 0.0003$.
-  4. Integration in `ensemble_scorer.py` for version >= 45, cross-sectional Rank-IC >= 0.990.
-- Read `ORIGINAL_REQUEST.md` (Header `## 2026-09-15T21:55:02Z`).
-- Write comprehensive report to your working directory: `handoff.md`.
+## Working Directory
+d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
 
-## 2026-09-15T21:57:00Z
-Explorer 1 (Alpha Signal Explorer) for Phase 45 Full Team Quant Enhancement:
-- Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (Header ## 2026-09-15T21:55:02Z)
-- Read d:\Finance\code\stock\src\ai\ensemble_scorer.py
-- Read d:\Finance\code\stock\src\ai\factor_suppression.py
-Investigate how Phase 44 (F195, F196.1, F196.2) was implemented and how Phase 45 (F199, F200.1, F200.2) should be structured:
-1. Quantum Geometric Langlands Chiral Affine Lie Superalgebra Kac-Moody Whittaker Coupler (F199, obstruction complex E_km_whit, invariant Z_km_whit, kappa=8.50, theta_0=0.50, FERI_v45).
-2. 40th-order ultra-convex rank modulation g_v45(r) = 0.50 + 1.52 * r * exp(gamma_top * r^40) (F200.1, regime-adaptive gamma_top <= 5.10).
-3. 168th-order (alpha=168.0) Centahexaoctagonal hyperbolic deadband (F200.2, noise leakage < 10^-96) in factor_suppression.py for |z| <= 0.0003.
-4. Version branching (version >= 45) in ensemble_scorer.py to raise 5-market cross-sectional Rank-IC >= 0.990.
-Write findings to handoff.md, notify parent.
+## Role & Mission
+You are Survey Explorer 1. Your mission is to explore and analyze the authoritative codebase for Phase 55 Alpha Signal Enhancements (F246, F247.1, F247.2).
+
+## Authoritative Files to Read
+1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (Header: `## 2026-09-18T03:36:46Z`)
+2. `d:\Finance\code\stock\.agents\orchestrator_quant_phase55_1\DISPATCH.md`
+3. `src/ai/ensemble_scorer.py`: Inspect Phase 54 implementation of the Monster Whittaker Coupler, polynomial deformation (86th/88th), topological defect (43rd/44th), $\kappa=13.50, \lambda=0.96, \text{FERI}_{\text{v54}}$, 28 aliases, harmony factor boost ($3.45 \cdot h \cdot z$) under `version >= 54`.
+4. `src/ai/factor_suppression.py`: Inspect Phase 54 implementation of 49th-order modulation $g_{\text{v54}}(r)$, $\gamma_{\text{top}}$ up to 9.60, and 240th-order deadband $z \cdot \tanh((|z|/\delta)^{240})$ ($\alpha=240, \delta=0.035$).
+5. `tests/test_phase54_alpha.py`: Inspect test coverage, assertions, tolerances, and design patterns.
+
+## Deliverables
+Write a comprehensive report to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\survey_report.md` detailing:
+1. Exact locations, line numbers, function names, class definitions, and existing aliases in `ensemble_scorer.py` and `factor_suppression.py`.
+2. Exact mathematical formulas and parameters required for Phase 55:
+   - 90th/92nd order partition polynomial deformation and 45th/46th order topological defect.
+   - $\kappa_{\text{monster\_whit}}=14.00, \lambda_{\text{monster}}=0.98, \text{FERI}_{\text{v55}}$.
+   - List of all 28+ aliases to export and maintain.
+   - Harmony factor boost: $3.55 \cdot h_{\text{monster\_whit}} \cdot z_{\text{monster\_whit}}$ gated by `version >= 55`.
+   - 50th-order hyper-convex rank modulation $g_{\text{v55}}(r) = 0.50 + 1.82 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{50})$, $\gamma_{\text{top}}$ up to $10.20$ (`BULL_LOW_VOL`), $g(1.0) \approx 49000$.
+   - 248th-order deadband $z \cdot \tanh((|z|/\delta_{\text{eff}})^{248})$, leakage $< 10^{-168}$.
+3. Required unit test specifications for `tests/test_phase55_alpha.py`.
+4. Write `handoff.md` and send completion message back to orchestrator.

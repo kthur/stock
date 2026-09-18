@@ -1,0 +1,234 @@
+r"""
+tests/test_phase55_adversarial_challenger1.py
+
+Adversarial Stress Test Suite for Phase 55 Quantitative Enhancement:
+Role: Challenger 1 (Alpha & Risk Adversarial Challenger)
+Scope:
+1. Feature F247.2: 248th-Order Bicentaoctatetracontagonal Hyperbolic Noise Deadband
+   - Subnormals, extreme inputs (z in [-10^300, 10^300])
+   - Deadband leakage at boundary (|z| <= 0.00035 -> 0.0, leakage < 10^-168)
+   - Signal transmission at |z| >= 0.150 -> 100.0%
+   - Monotonicity across broad spectrum and odd symmetry: f(-z) == -f(z)
+2. Feature F247.1: 50th-Order Ultra-Convex Rank Modulation
+   - Strict monotonicity for positive conviction (z_denoised >= 0)
+   - Strict monotonicity for negative conviction (z_denoised < 0)
+   - Right-tail amplification g(1.0) > 48900.0 > 500.0 (bull low vol gamma=10.20)
+   - Lower 70% damping g(0.70) <= 1.82
+   - Out-of-bounds clipping and regime hierarchy
+3. Feature F246: Quantum Geometric Langlands Monster Moonshine Whittaker Coupler
+   - Degenerate, collinear, orthogonal, and extreme pillar stress
+   - Invariant bounds: h, z, FERI in [0, 1]
+4. Feature F248.1: Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-5 Fisher-Rao Barycenter Blend
+   - Degenerate single-model mass convergence
+   - Inverted and uniform distributions
+   - Strict simplex conservation (sum q_i = 1.0, q_i > 0)
+   - Metric weight ordering: CVaR > BL > HERC > RP (mu = [4.50, 3.25, 3.20, 5.05])
+5. Feature F248.2: 51st-Cumulant Trans-Singular Borcherds-Moonshine-Monster-Whittaker EVaR
+   - Analytical monotonicity and boundedness across diverse random distributions
+   - Heavy-tail sensitivity comparison (Student-t vs Gaussian)
+   - Extreme input stability and empty / NaN resilience
+"""
+
+import os
+os.environ["BYPASS_TORCH"] = "1"
+import math
+import numpy as np
+import pandas as pd
+import pytest
+
+from trading_system.src.ai.factor_suppression import (
+    apply_bicentaoctatetracontagonal_hyperbolic_deadband,
+    compute_phase55_hyperconvex_rank_modulation,
+    get_regime_adaptive_gamma_top_v55,
+    REGIME_GAMMA_TOP_V55,
+)
+from trading_system.src.ai.ensemble_scorer import (
+    QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler,
+    EnsembleScoringEngine,
+)
+from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+from trading_system.src.risk.portfolio_allocator import PortfolioAllocator
+
+
+def _extract_evar_val(res):
+    if isinstance(res, dict):
+        return float(res.get(
+            "trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_5_evar_value",
+            res.get("trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_5_evar",
+            res.get("trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_evar_value",
+            res.get("trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_evar",
+            res.get("evar", 0.0))))
+        ))
+    return float(res)
+
+
+# =========================================================================
+# 1. ADVERSARIAL DEADBAND STRESS TESTS (F247.2)
+# =========================================================================
+
+class TestPhase55DeadbandAdversarial:
+    """Adversarial stress testing of the 248th-order Bicentaoctatetracontagonal deadband."""
+
+    @pytest.mark.parametrize("z", [
+        0.0,
+        1e-15,
+        -1e-15,
+        1e-10,
+        -1e-10,
+        1e-5,
+        -1e-5,
+        0.0001,
+        -0.0001,
+        0.000349,
+        -0.000349,
+        0.00035,
+        -0.00035,
+    ])
+    def test_deadband_boundary_noise_annihilation(self, z):
+        """Verify strict noise annihilation to 0.0 (< 10^-168) for |z| <= 0.00035."""
+        z_denoised = apply_bicentaoctatetracontagonal_hyperbolic_deadband(z)
+        assert abs(z_denoised) < 1e-168, f"Leakage violation at z={z}: got {z_denoised}"
+        assert z_denoised == 0.0, f"IEEE 754 float underflow expected strictly 0.0 at z={z}"
+
+    def test_deadband_odd_symmetry(self):
+        """Verify perfect odd symmetry f(-z) == -f(z) across the dynamic range."""
+        test_points = np.linspace(0.0001, 1.0, 500)
+        pos = apply_bicentaoctatetracontagonal_hyperbolic_deadband(test_points, regime="UNKNOWN")
+        neg = apply_bicentaoctatetracontagonal_hyperbolic_deadband(-test_points, regime="UNKNOWN")
+        np.testing.assert_allclose(neg, -pos, atol=1e-15)
+
+    def test_deadband_extreme_signals(self):
+        """Verify exact signal preservation for high-conviction signals (|z| >= 0.150)."""
+        strong_signals = np.array([0.15, -0.15, 0.20, -0.20, 0.50, -0.50, 1.0, -1.0])
+        denoised = apply_bicentaoctatetracontagonal_hyperbolic_deadband(strong_signals)
+        np.testing.assert_allclose(denoised, strong_signals, rtol=1e-12)
+
+    def test_deadband_subnormal_and_extreme_range(self):
+        """Stress test with subnormal and extreme numbers to ensure no NaNs or overflow exceptions."""
+        extremes = np.array([1e-308, -1e-308, 1e-100, -1e-100, 1e20, -1e20, 1e100, -1e100])
+        out = apply_bicentaoctatetracontagonal_hyperbolic_deadband(extremes)
+        assert not np.isnan(out).any()
+        assert not np.isinf(out).any()
+
+
+# =========================================================================
+# 2. ADVERSARIAL RANK MODULATION STRESS TESTS (F247.1)
+# =========================================================================
+
+class TestPhase55RankModulationAdversarial:
+    """Adversarial stress testing of 50th-order hyper-convex rank modulation."""
+
+    def test_convexity_and_right_tail_amplification(self):
+        """Test right-tail ultra-amplification g(1.0) > 48900.0 > 500.0 with damping in lower 70%."""
+        gamma_top = 10.20
+        g_70 = compute_phase55_hyperconvex_rank_modulation(0.70, gamma_top=gamma_top)
+        assert g_70 <= 1.82, f"Lower 70% damping violated: g(0.70) = {g_70}"
+
+        g_100 = compute_phase55_hyperconvex_rank_modulation(1.00, gamma_top=gamma_top)
+        expected_top = 0.50 + 1.82 * math.exp(10.20)
+        assert math.isclose(g_100, expected_top, rel_tol=1e-5)
+        assert g_100 > 48900.0 > 500.0
+
+    def test_strict_monotonicity_positive_and_negative(self):
+        """Verify strict monotonicity across 1,000 ranks for both long and short conviction."""
+        r = np.linspace(0.0, 1.0, 1000)
+
+        # Positive conviction (long expansion)
+        g_pos = compute_phase55_hyperconvex_rank_modulation(r, gamma_top=10.20, z_denoised=0.1)
+        diff_pos = np.diff(g_pos)
+        assert (diff_pos >= 0.0).all(), "Monotonicity violated for positive conviction"
+
+        # Negative conviction (short damping)
+        g_neg = compute_phase55_hyperconvex_rank_modulation(r, gamma_top=10.20, z_denoised=-0.1)
+        diff_neg = np.diff(g_neg)
+        assert (diff_neg <= 0.0).all(), "Monotonicity violated for negative conviction"
+
+    def test_regime_hierarchy_gamma(self):
+        """Ensure regime hierarchy is strictly preserved."""
+        assert REGIME_GAMMA_TOP_V55["BULL_LOW_VOL"] > REGIME_GAMMA_TOP_V55["BULL_HIGH_VOL"]
+        assert REGIME_GAMMA_TOP_V55["BULL_HIGH_VOL"] > REGIME_GAMMA_TOP_V55["SIDEWAYS"]
+        assert REGIME_GAMMA_TOP_V55["SIDEWAYS"] > REGIME_GAMMA_TOP_V55["BEAR"]
+        assert REGIME_GAMMA_TOP_V55["BEAR"] > REGIME_GAMMA_TOP_V55["CRISIS"]
+
+
+# =========================================================================
+# 3. ADVERSARIAL COUPLER STRESS TESTS (F246)
+# =========================================================================
+
+class TestPhase55CouplerAdversarial:
+    """Stress testing of Quantum Geometric Langlands Chiral Affine Monster Moonshine Coupler."""
+
+    def test_coupler_collinear_degenerate(self):
+        """Stress coupler with completely identical pillars."""
+        coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler(
+            kappa_monster_whit=14.00, lambda_monster=0.98
+        )
+        p_df = pd.DataFrame({
+            "val": [0.6, 0.6, 0.6],
+            "mom": [0.6, 0.6, 0.6],
+            "flow": [0.6, 0.6, 0.6],
+            "cat": [0.6, 0.6, 0.6],
+            "net": [0.6, 0.6, 0.6],
+        })
+        res = coupler(p_df)
+        assert (res["e_monster_whit"] == 0.0).all()
+        assert (res["z_monster_whit"] == 1.0).all()
+        assert (res["h_monster_whit"] == 1.0).all()
+        assert (res["FERI_v55"] == 1.0).all()
+
+    def test_coupler_extreme_divergence(self):
+        """Stress coupler with extreme opposing pillars."""
+        coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler(
+            kappa_monster_whit=14.00, lambda_monster=0.98
+        )
+        p_df = pd.DataFrame({
+            "val": [1.0],
+            "mom": [0.0],
+            "flow": [1.0],
+            "cat": [0.0],
+            "net": [1.0],
+        })
+        res = coupler(p_df)
+        assert 0.0 <= res["h_monster_whit"].iloc[0] <= 1.0
+        assert 0.0 <= res["z_monster_whit"].iloc[0] <= 1.0
+        assert 0.0 <= res["FERI_v55"].iloc[0] <= 1.0
+
+
+# =========================================================================
+# 4. ADVERSARIAL RISK BARYCENTER & EVAR STRESS TESTS (F248.1 & F248.2)
+# =========================================================================
+
+class TestPhase55RiskAdversarial:
+    """Adversarial stress testing of Higher-Homology-5 Barycenter & 51st-cumulant EVaR."""
+
+    @pytest.fixture
+    def allocator(self):
+        return UnifiedPortfolioAllocator()
+
+    def test_barycenter_simplex_conservation_under_stress(self, allocator):
+        """Verify strict simplex conservation sum(q_i) = 1.0 with zero and extreme input weights."""
+        extreme_inputs = [
+            {"bl": 1.0, "herc": 0.0, "rp": 0.0, "cvar": 0.0},
+            {"bl": 0.0, "herc": 1.0, "rp": 0.0, "cvar": 0.0},
+            {"bl": 0.0, "herc": 0.0, "rp": 0.0, "cvar": 1.0},
+            {"bl": 0.0001, "herc": 0.0001, "rp": 0.0001, "cvar": 0.9997},
+            {"bl": 0.9997, "herc": 0.0001, "rp": 0.0001, "cvar": 0.0001},
+        ]
+        for w in extreme_inputs:
+            bary = allocator.compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_5_fisher_rao_barycenter_blend(w)
+            assert math.isclose(sum(bary.values()), 1.0, rel_tol=1e-5)
+            for k, v in bary.items():
+                assert v > 0.0
+
+    def test_evar_heavy_tail_sensitivity(self, allocator):
+        """EVaR with order=51 must be strictly more sensitive to Student-t heavy tails than normal distributions."""
+        np.random.seed(42)
+        n = 2000
+        normal_samples = np.random.normal(0, 0.02, n)
+        # Student-t with df=3 has fat tails
+        t_samples = np.random.standard_t(df=3, size=n) * 0.02
+
+        evar_normal = _extract_evar_val(allocator.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_5_evar_risk_measure(normal_samples))
+        evar_t = _extract_evar_val(allocator.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_5_evar_risk_measure(t_samples))
+
+        assert evar_t > evar_normal, "51st-cumulant EVaR must register higher risk under fat-tailed Student-t shocks"

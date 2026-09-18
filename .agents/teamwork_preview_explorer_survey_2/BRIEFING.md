@@ -1,53 +1,54 @@
-# BRIEFING — 2026-09-15T22:00:00Z
+# BRIEFING — 2026-09-18T03:47:00Z
 
 ## Mission
-Survey codebase and architect Phase 45 (Milestone 2: Risk Allocation) enhancements: F201.1 Lurie-Kac-Moody-Whittaker Fisher-Rao Barycenter Blending (metric weights mu_lkmw = [3.50, 2.70, 2.65, 4.05]) and 41st-order cumulant expansion Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent-Clausen-Scholze-Deligne-Beilinson-W-Algebra-Virasoro-Kac-Moody EVaR tail risk budgeting (41! approx 3.345e49, xi_km = 0.9999998).
+Explore and analyze the codebase for Phase 55 Risk Allocation (F248.1, F248.2 in unified_portfolio_allocator.py and portfolio_allocator.py) and Microstructure OMS (F249.1, F249.2 in fast_lob_engine.py, smart_order_router.py, oms_engine.py, almgren_chriss.py).
 
 ## 🔒 My Identity
 - Archetype: explorer
 - Roles: investigation, synthesis
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2
-- Original parent: e1532581-bf40-4631-af87-80cf978d298b
-- Milestone: Phase 7 Zenith Quantitative Enhancements R2 Survey
-- Current task: Phase 45 Full Team Quant Enhancement (Milestone 2 - Risk Allocation)
-- Current parent ID: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
+- Original parent: e6810c66-9903-4b3e-8cae-28e5bf10584a
+- Milestone: Phase 55 Survey Explorer 2 (Risk Allocation & Microstructure OMS)
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement code changes in production codebase
 - Files for content delivery, Messages for coordination
-- Scope: R2 Portfolio & Execution Architecture Exploration
-- Maintain backward compatibility with all legacy tests
-- Phase 45 Milestone 2 Scope: F201.1 Lurie-Kac-Moody-Whittaker Fisher-Rao Barycenter & 41st-order cumulant EVaR tail risk budgeting
-- Target: Maintain MDD <= -0.00001% and annual Sharpe ratio >= 30.35 (target: 30.38)
+- Scope: Phase 55 Risk Allocation (F248.1, F248.2) & Microstructure OMS (F249.1, F249.2)
+- Compare with Phase 54 and tests/test_phase54_risk.py, test_phase54_oms.py
+- Maintain backward compatibility with all legacy phases (Phase 1~54)
 
 ## Current Parent
-- Conversation ID: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
-- Updated: 2026-09-15T22:00:00Z
+- Conversation ID: e6810c66-9903-4b3e-8cae-28e5bf10584a
+- Updated: 2026-09-18T03:47:00Z
 
 ## Investigation State
 - **Explored paths**:
   - `trading_system/src/risk/unified_portfolio_allocator.py`
   - `trading_system/src/risk/portfolio_allocator.py`
-  - `trading_system/scripts/benchmark_phase44_quant_performance.py`
-  - `tests/test_phase44_risk.py`
-  - `.agents/ORIGINAL_REQUEST.md` (Header ## 2026-09-15T21:55:02Z)
+  - `trading_system/src/core/fast_lob_engine.py`
+  - `trading_system/src/execution/smart_order_router.py`
+  - `trading_system/src/execution/oms_engine.py` (including `ExecutionOMSEngine` & `AlmgrenChrissScheduler`)
+  - `tests/test_phase54_risk.py`, `tests/test_phase54_oms.py`
+  - `tests/test_phase54_adversarial_challenger1.py`, `tests/test_phase54_adversarial_oms_benchmark.py`
 - **Key findings**:
-  1. Phase 44 (F197.1) implemented Lurie-Virasoro-Whittaker Motivic Fisher-Rao Barycenter with $\mu_{\text{lvw}} = [3.40, 2.65, 2.60, 3.95]$ and 40th-cumulant EVaR with $40! \approx 8.159 \times 10^{47}$, $\xi_{\text{vir}} = 0.9999995$.
-  2. Phase 45 (F201.1) requires scaling metric weights to $\mu_{\text{lkmw}} = [3.50, 2.70, 2.65, 4.05]$, prioritizing EVT-CVaR (4.05) and Black-Litterman conviction (3.50).
-  3. Phase 45 41st-order cumulant EVaR uses $41! \approx 3.34525 \times 10^{49}$ and $\xi_{\text{km}} = 0.9999998$, strictly bounding $EVaR_{41} \ge EVaR_{40}$.
-  4. In `compute_information_theoretic_blend_weights()`, `is_phase45 = int(version) >= 45` branch applies $\epsilon_w = 0.475$, $\delta_{\text{kac\_moody\_whittaker}}$, $\alpha_{\text{iep}} = 2.60$, $\text{contagion\_damp} = \max(0, 1 - 7.4 \lambda_{\text{casc}})$, and calls the new barycenter method.
-  5. Both classes (`UnifiedPortfolioAllocator` and `PortfolioAllocator`) expose identical method signatures and extensive alias suites.
-  6. Phase 44 risk test suite verified passing 100% (7/7 tests passed).
-- **Unexplored areas**: None within Milestone 2 scope. Complete architectural specification provided in `handoff.md`.
+  1. Complete line-by-line mapping and mathematical formulations established for Phase 55 F248.1, F248.2, F249.1, F249.2.
+  2. Higher-Homology-5 Barycenter requires metric curvature mu_lmbwdh5 = [4.50, 3.25, 3.20, 5.05] and 19 aliases.
+  3. 51st-cumulant EVaR Tail Risk Measure requires order=51, xi_monster = 0.9999999999, 51! approx 1.55112e66, and 18 aliases.
+  4. Ambiguity tilting in compute_information_theoretic_blend_weights requires eps_w = 0.550, alpha_iep = 3.25, shifts (delta_bl = -10.50, delta_herc = +6.75, delta_rp = -11.00, delta_cvar = +15.70), and damping max(0.0, 1.0 - 10.0 * lam_casc).
+  5. KNK 34-dark-energy DAHA L3 hydrodynamics requires w = -12.0, k_daha = 0.26, k_monster = 0.25, daha_34_factor = 4.20, c_monster = 1.220703125e-11, repulsive acceleration -18.0 * c_monster * r^35, and 28 aliases.
+  6. SmartOrderRouter lit maker floor contracted to 1e-27, dark cap to 0.9999999999999998, anti-gaming MinQty to 0.9999999999999998.
+  7. Preemptive micro-tick shading in ExecutionOMSEngine and AlmgrenChrissScheduler activates at h > 0.00001 with shift -direction * 0.99999999999999 * spread * (h - 0.00001).
+  8. Full test suite specifications formulated for tests/test_phase55_risk.py (9 tests) and tests/test_phase55_oms.py (8 tests).
+- **Unexplored areas**: None within survey scope. Production implementation will be executed by Risk Engineer and OMS Specialist.
 
 ## Key Decisions Made
-- Established exact mathematical parameters and bounds for F201.1 ($41!$, $\xi_{\text{km}}=0.9999998$, $\mu_{\text{lkmw}}=[3.50, 2.70, 2.65, 4.05]$).
-- Specified exact line numbers and code snippets to add in `unified_portfolio_allocator.py` and `portfolio_allocator.py`.
-- Formulated full 7-test suite structure for `tests/test_phase45_risk.py`.
-- Authored 5-component hard handoff report in `handoff.md`.
+- All Phase 55 modifications will follow strict backward-compatibility gating via version >= 55.
+- Exhaustive alias mappings (19 for Barycenter, 18 for EVaR, 28 for DAHA) defined to prevent API breaks.
+- Deliverables recorded in survey_report.md and handoff.md.
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\DISPATCH.md — Dispatch log
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\BRIEFING.md — Persistent situational awareness
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\progress.md — Liveness heartbeat
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md — 5-component handoff report
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\DISPATCH.md` — Dispatch log
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\BRIEFING.md` — Situational awareness
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\progress.md` — Liveness heartbeat
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\survey_report.md` — Full survey report
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md` — Self-contained 5-component handoff report
