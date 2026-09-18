@@ -1,0 +1,242 @@
+import pytest
+import math
+import numpy as np
+import pandas as pd
+
+from trading_system.src.ai.factor_suppression import (
+    apply_bicentagonal_hyperbolic_deadband,
+    compute_phase49_hyperconvex_rank_modulation,
+    compute_phase49_rank_warping,
+    REGIME_GAMMA_TOP_V49,
+    get_regime_adaptive_gamma_top_v49,
+    apply_centanonacontaduohedral_hyperbolic_deadband,
+)
+from trading_system.src.ai.ensemble_scorer import (
+    QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler,
+    QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerCoupler,
+    QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerFactorCoupler,
+    QuantumGeometricLanglandsBorcherdsMoonshineMonsterCoupler,
+    GeometricLanglandsBorcherdsMoonshineMonsterWhittakerCoupler,
+    GeometricLanglandsBorcherdsMoonshineMonsterCoupler,
+    BorcherdsMoonshineMonsterWhittakerSheafHomologyCoupler,
+    BorcherdsMoonshineMonsterWhittakerChiralOperCoupler,
+    BorcherdsMoonshineMonsterWhittakerHomologyCoupler,
+    BorcherdsMoonshineMonsterWhittakerCoupler,
+    BorcherdsMoonshineMonsterCoupler,
+    BorcherdsMonsterWhittakerSheafMoonshineHomologyCoupler,
+    BorcherdsMonsterWhittakerMoonshineCoupler,
+    BorcherdsMoonshineMonsterTensorCoupler,
+    WhittakerBorcherdsMoonshineMonsterSheafCoupler,
+    QuantumGeometricLanglandsBorcherdsMoonshineMonsterSuperalgebraCoupler,
+    Phase49Coupler,
+    Phase48Coupler,
+    QuantumGeometricLanglandsBorcherdsMoonshineMonsterChiralAffineCoupler,
+    CategoricalBorcherdsMoonshineMonsterChiralAffineDualityCoupler,
+    GeometricLanglandsBorcherdsMoonshineMonsterWhittakerDualityCoupler,
+    EnsembleScoringEngine,
+)
+
+
+class TestPhase49AlphaEnhancements:
+    def test_feature_f216_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupler_properties(self):
+        coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler(
+            kappa_monster_whit=10.50,
+            lambda_monster=0.82,
+        )
+        # 5 canonical pillars
+        p_df = pd.DataFrame({
+            'val': [0.50, 0.45, 0.10],
+            'mom': [0.50, 0.55, 0.90],
+            'flow': [0.50, 0.50, 0.20],
+            'cat': [0.50, 0.60, 0.80],
+            'net': [0.50, 0.40, 0.05],
+        })
+
+        res = coupler(p_df)
+        assert 'h_monster_whit' in res
+        assert 'z_monster_whit' in res
+        assert 'e_monster_whit' in res
+        assert 'FERI_v49' in res
+        assert 'feri_v49' in res
+        assert 'Z_monster_whit' in res
+        assert 'E_monster_whit' in res
+        assert 'h_borcherds_moonshine_monster_whittaker' in res
+        assert 'h_borcherds_moonshine_monster' in res
+        assert 'h_geometric_langlands_moonshine_monster' in res
+        assert 'h_langlands_moonshine_monster_whittaker' in res
+
+        h = res['h_monster_whit']
+        z = res['z_monster_whit']
+        feri = res['FERI_v49']
+
+        assert isinstance(h, pd.Series)
+        assert len(h) == 3
+        assert (h >= 0.0).all() and (h <= 1.0).all()
+        assert (z >= 0.0).all() and (z <= 1.0).all()
+        assert (feri >= 0.0).all() and (feri <= 1.0).all()
+
+        # Dispersion and obstruction ordering
+        assert res['e_monster_whit'].iloc[0] < res['e_monster_whit'].iloc[1] < res['e_monster_whit'].iloc[2]
+        assert h.iloc[0] > h.iloc[1] > h.iloc[2]
+
+        # 1D single-vector evaluation
+        vec_1d = np.array([0.5, 0.5, 0.5, 0.5, 0.5])
+        res_1d = coupler(vec_1d)
+        assert isinstance(res_1d['h_monster_whit'], float)
+        assert np.isclose(res_1d['e_monster_whit'], 0.0, atol=1e-7)
+        assert np.isclose(res_1d['z_monster_whit'], 1.0, atol=1e-7)
+        assert np.isclose(res_1d['h_monster_whit'], 1.0, atol=1e-7)
+        assert np.isclose(res_1d['FERI_v49'], 1.0, atol=1e-7)
+
+    def test_feature_f216_quantum_geometric_langlands_aliases_and_exports(self):
+        assert QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerFactorCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert QuantumGeometricLanglandsBorcherdsMoonshineMonsterCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert GeometricLanglandsBorcherdsMoonshineMonsterWhittakerCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert GeometricLanglandsBorcherdsMoonshineMonsterCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert BorcherdsMoonshineMonsterWhittakerSheafHomologyCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert BorcherdsMoonshineMonsterWhittakerChiralOperCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert BorcherdsMoonshineMonsterWhittakerHomologyCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert BorcherdsMoonshineMonsterWhittakerCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert BorcherdsMoonshineMonsterCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert BorcherdsMonsterWhittakerSheafMoonshineHomologyCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert BorcherdsMonsterWhittakerMoonshineCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert BorcherdsMoonshineMonsterTensorCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert WhittakerBorcherdsMoonshineMonsterSheafCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert QuantumGeometricLanglandsBorcherdsMoonshineMonsterSuperalgebraCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert Phase49Coupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert Phase48Coupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert QuantumGeometricLanglandsBorcherdsMoonshineMonsterChiralAffineCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert CategoricalBorcherdsMoonshineMonsterChiralAffineDualityCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+        assert GeometricLanglandsBorcherdsMoonshineMonsterWhittakerDualityCoupler is QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+
+        res_class = EnsembleScoringEngine.compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling(
+            np.array([[0.5, 0.6, 0.5, 0.7, 0.4]])
+        )
+        assert 'h_monster_whit' in res_class
+        assert 'FERI_v49' in res_class
+
+    def test_feature_f217_1_44th_order_rank_modulation_convexity(self):
+        # High convexity in top decile: r^44 concentrates conviction into top alpha slice
+        ranks = np.linspace(0.0, 1.0, 100)
+        g_mod = compute_phase49_hyperconvex_rank_modulation(ranks, gamma_top=6.50)
+
+        # Base value at r=0 is 0.50
+        assert np.isclose(g_mod[0], 0.50, atol=1e-5)
+
+        # Top value at r=1.0 is 0.50 + 1.58 * exp(6.50)
+        expected_top = 0.50 + 1.58 * math.exp(6.50)
+        assert np.isclose(g_mod[-1], expected_top, atol=1e-3)
+        assert g_mod[-1] > 1000.0 > 460.0
+
+        # Monotonicity test
+        diffs = np.diff(g_mod)
+        assert (diffs >= 0.0).all(), '44th-order rank modulation must be strictly monotonically increasing'
+
+        # Check that r=0.70 remains modest (< 1.62) while r=1.0 explodes
+        g_70 = compute_phase49_hyperconvex_rank_modulation(0.70, gamma_top=6.50)
+        assert g_70 < 1.62
+
+        # With negative z_denoised
+        g_neg = compute_phase49_hyperconvex_rank_modulation(ranks, gamma_top=6.50, z_denoised=-0.1)
+        assert np.isclose(g_neg[0], 1.35, atol=1e-5)
+        assert np.isclose(g_neg[-1], 0.35, atol=1e-5)
+        assert (np.diff(g_neg) <= 0.0).all()
+
+    def test_feature_f217_1_regime_adaptive_gamma_top(self):
+        assert get_regime_adaptive_gamma_top_v49('BULL_LOW_VOL') == 6.50
+        assert get_regime_adaptive_gamma_top_v49('BULL_HIGH_VOL') == 5.20
+        assert get_regime_adaptive_gamma_top_v49('SIDEWAYS') == 3.90
+        assert get_regime_adaptive_gamma_top_v49('BEAR') == 1.30
+        assert get_regime_adaptive_gamma_top_v49('CRISIS') == 0.65
+        assert get_regime_adaptive_gamma_top_v49('UNKNOWN') == 6.50
+
+    def test_feature_f217_2_200th_order_hyperbolic_deadband_leakage(self):
+        # Test extreme noise suppression: for |z| <= 0.00035, leakage is < 10^-120
+        small_z = np.array([0.0001, -0.0001, 0.0002, -0.0002, 0.0003, -0.0003, 0.00035, -0.00035])
+        denoised = apply_bicentagonal_hyperbolic_deadband(small_z, delta_noise=0.035, alpha_pos=200.0)
+
+        for val in denoised:
+            assert abs(val) < 1e-120, f'Noise leakage {val} not suppressed below 10^-120'
+
+        # Signal transmission for high conviction |z| >= 0.15
+        sig_z = np.array([0.15, -0.15, 0.30, -0.30])
+        sig_out = apply_bicentagonal_hyperbolic_deadband(sig_z, delta_noise=0.035, alpha_pos=200.0)
+        # Should transmit 100.0% of signal (relative error < 1e-9)
+        np.testing.assert_allclose(sig_out, sig_z, rtol=1e-9)
+
+        # Strict monotonicity across broad spectrum
+        spectrum = np.linspace(-0.5, 0.5, 1001)
+        denoised_spectrum = apply_bicentagonal_hyperbolic_deadband(spectrum, delta_noise=0.035, alpha_pos=200.0)
+        diffs = np.diff(denoised_spectrum)
+        assert (diffs >= 0.0).all(), 'Deadband must be strictly monotonically non-decreasing'
+
+    def test_feature_f217_2_factor_suppression_delegation(self):
+        # Test scalar handling
+        scalar_res = apply_bicentagonal_hyperbolic_deadband(0.0001)
+        assert isinstance(scalar_res, float)
+        assert abs(scalar_res) < 1e-120
+
+        # Test series handling
+        s_in = pd.Series([0.0001, 0.20], index=['a', 'b'])
+        s_out = apply_bicentagonal_hyperbolic_deadband(s_in)
+        assert isinstance(s_out, pd.Series)
+        assert abs(s_out['a']) < 1e-120
+        assert np.isclose(s_out['b'], 0.20, rtol=1e-9)
+
+    def test_ensemble_scorer_apply_smooth_noise_deadband_version_49(self):
+        engine = EnsembleScoringEngine()
+        z_noise = np.array([0.0002])
+        # Calling apply_smooth_noise_deadband with version=49 should route to 200th order deadband
+        res_v49 = engine.apply_smooth_noise_deadband(z_noise, version=49)
+        assert abs(res_v49[0]) < 1e-120
+
+    def test_combine_predictions_version_49_confluence_and_harmony(self):
+        engine = EnsembleScoringEngine()
+        n = 10
+        mock_scores = {
+            'symbol': [f'SYM_{i}' for i in range(n)],
+            'regression': pd.Series(np.linspace(0.1, 0.9, n)),
+            'surge': pd.Series(np.linspace(0.2, 0.8, n)),
+            'vcp': pd.Series(np.linspace(0.3, 0.7, n)),
+            'vcp_ml': pd.Series(np.linspace(0.4, 0.6, n)),
+            'lstm': pd.Series(np.linspace(0.2, 0.8, n)),
+            'stat_arb': pd.Series(np.linspace(0.1, 0.5, n)),
+            'sector_rotation': pd.Series(np.linspace(0.2, 0.7, n)),
+            'factor_neutralized': pd.Series(np.linspace(0.3, 0.8, n)),
+            'order_flow': pd.Series(np.linspace(0.4, 0.9, n)),
+            'event_driven': pd.Series(np.linspace(0.2, 0.6, n)),
+        }
+        df_scores = pd.DataFrame(mock_scores)
+
+        comb_v48 = engine.combine_predictions(df_scores, regime='BULL_LOW_VOL', version=48)
+        comb_v49 = engine.combine_predictions(df_scores, regime='BULL_LOW_VOL', version=49)
+
+        assert isinstance(comb_v49, pd.DataFrame)
+        assert not comb_v49.empty
+        assert 'ensemble_score' in comb_v49.columns
+        assert len(comb_v49) == n
+        assert np.all(np.isfinite(comb_v49['ensemble_score'].values))
+        assert np.all(comb_v49['ensemble_score'].values >= 0.0)
+        assert np.all(comb_v49['ensemble_score'].values <= 1.0)
+
+        # Top conviction in v49 should be >= v48
+        top_v48 = comb_v48.sort_values('ensemble_score', ascending=False).iloc[0]['ensemble_score']
+        top_v49 = comb_v49.sort_values('ensemble_score', ascending=False).iloc[0]['ensemble_score']
+        assert top_v49 >= top_v48 - 1e-6, f'Top conviction in v49 ({top_v49}) should be >= v48 ({top_v48})'
+
+    def test_strict_backward_compatibility_v48_and_prior(self):
+        z = np.array([0.0003, 0.05, 0.15])
+        out_v49 = EnsembleScoringEngine.apply_smooth_noise_deadband(z, version=49)
+        out_v48 = EnsembleScoringEngine.apply_smooth_noise_deadband(z, version=48)
+        out_v47 = EnsembleScoringEngine.apply_smooth_noise_deadband(z, version=47)
+        out_v46 = EnsembleScoringEngine.apply_smooth_noise_deadband(z, version=46)
+        out_v45 = EnsembleScoringEngine.apply_smooth_noise_deadband(z, version=45)
+        out_v44 = EnsembleScoringEngine.apply_smooth_noise_deadband(z, version=44)
+
+        assert abs(out_v49[0]) < 1e-120
+        assert abs(out_v48[0]) < 1e-114
+        assert abs(out_v47[0]) < 1e-108
+        assert abs(out_v46[0]) < 1e-102
+        assert abs(out_v45[0]) < 1e-96
+        assert abs(out_v44[0]) < 1e-90
