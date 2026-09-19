@@ -26,6 +26,131 @@ from .score_normalizer import CrossSectionalScoreNormalizer
 
 
 # =========================================================================
+# PHASE 61: QUANTUM GEOMETRIC LANGLANDS & BORCHERDS-MOONSHINE-MONSTER WHITTAKER-DRINFELD HIGHER HOMOLOGY 11 COUPLER
+# =========================================================================
+
+def apply_bicentanonacontahexagonal_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray, float],
+    delta_noise: float = 0.035,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 296.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 61 (R1, Feature F277.2): Asymmetric Bicentanonacontahexagonal (296th-Order) Hyperbolic Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^296)
+    With bicentanonacontahexagonal exponent (alpha = 296.0) and delta_noise = 0.035, suppresses near-zero
+    noise (|z| <= 0.00035) reducing noise leakage down to < 10^-216 (0.0 in float64), while transmitting 100.000%
+    of high conviction signals (|z| >= 0.150) with strict rank monotonicity (Spearman rho == 1.0000).
+    """
+    is_scalar = np.isscalar(scores_centered)
+    if is_scalar:
+        arr_in = np.array([scores_centered], dtype=np.float64)
+    else:
+        arr_in = scores_centered
+
+    res = apply_quintic_hyperbolic_deadband(
+        scores_centered=arr_in,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+    if is_scalar:
+        return float(res[0])
+    return res
+
+
+# Register into factor_suppression module dynamically
+try:
+    from . import factor_suppression as _fs_module
+    if not hasattr(_fs_module, 'apply_bicentanonacontahexagonal_hyperbolic_deadband'):
+        setattr(_fs_module, 'apply_bicentanonacontahexagonal_hyperbolic_deadband', apply_bicentanonacontahexagonal_hyperbolic_deadband)
+except Exception:
+    pass
+
+
+REGIME_GAMMA_TOP_V61 = {
+    'BULL_LOW_VOL': 13.80,
+    'BULL_HIGH_VOL': 11.04,
+    'SIDEWAYS': 8.28,
+    'SIDEWAYS_LOW_VOL': 8.28,
+    'SIDEWAYS_HIGH_VOL': 5.52,
+    'BEAR': 2.76,
+    'BEAR_LOW_VOL': 2.76,
+    'BEAR_HIGH_VOL': 2.07,
+    'PANIC': 1.38,
+    'CRISIS': 1.38,
+    'RECOVERY': 11.04,
+    '2': 13.80,
+    '1': 8.28,
+    '0': 2.76,
+    'UNKNOWN': 13.80,
+}
+
+def get_regime_adaptive_gamma_top_v61(regime: Union[int, str] = 'BULL_LOW_VOL') -> float:
+    """
+    Phase 61 (R1, Feature F277.1): Regime-adaptive gamma_top <= 13.80
+    (Bull Low Vol: 13.80, Bull High Vol: 11.04, Sideways Low Vol: 8.28, Sideways High Vol: 5.52,
+     Bear Low Vol: 2.76, Bear High Vol: 2.07, Crisis: 1.38).
+    """
+    if isinstance(regime, (int, float)):
+        regime_str = str(int(regime))
+    else:
+        regime_str = str(regime).upper()
+    return REGIME_GAMMA_TOP_V61.get(regime_str, REGIME_GAMMA_TOP_V61.get('BULL_LOW_VOL', 13.80))
+
+def compute_phase61_hyperconvex_rank_modulation(
+    ranks: Union[pd.Series, np.ndarray, float],
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 61 (R1, Feature F277.1): 56th-Order Hyper-Convex Rank Modulation:
+        g_v61(r) = 0.50 + 2.06 * r * exp(gamma_top * r^56) (for z_denoised >= 0)
+        g_neg(r) = 1.35 - 1.00 * r (for z_denoised < 0)
+    Concentrates conviction into top alpha names while remaining flat across the bottom 70% of distribution.
+    At r=0.70, g(0.70) <= 2.06. At r=1.00, g(1.00) ~= 2028288.9 > 100000.0.
+    """
+    if gamma_top is None:
+        if regime is not None:
+            gamma_top = get_regime_adaptive_gamma_top_v61(regime)
+        else:
+            gamma_top = 13.80
+
+    is_scalar = np.isscalar(ranks)
+    r = np.asarray(ranks, dtype=np.float64)
+    r_clipped = np.clip(r, 0.0, 1.0)
+    pos_mult = 0.50 + 2.06 * r_clipped * np.exp(float(gamma_top) * np.power(r_clipped, 56.0))
+    if z_denoised is not None:
+        z = np.asarray(z_denoised, dtype=np.float64)
+        mult = np.where(z >= 0.0, pos_mult, 1.35 - 1.00 * r_clipped)
+    else:
+        mult = pos_mult
+
+    if is_scalar:
+        return float(mult.item() if hasattr(mult, 'item') else mult)
+    if isinstance(ranks, pd.Series):
+        return pd.Series(mult, index=ranks.index)
+    return mult
+
+compute_phase61_rank_warping = compute_phase61_hyperconvex_rank_modulation
+compute_phase61_rank_modulation = compute_phase61_hyperconvex_rank_modulation
+phase61_rank_modulation = compute_phase61_hyperconvex_rank_modulation
+phase61_hyperconvex_rank_modulation = compute_phase61_hyperconvex_rank_modulation
+compute_phase61_deadband = apply_bicentanonacontahexagonal_hyperbolic_deadband
+apply_phase61_deadband = apply_bicentanonacontahexagonal_hyperbolic_deadband
+apply_bicentanonacontahexagonal_deadband = apply_bicentanonacontahexagonal_hyperbolic_deadband
+bicentanonacontahexagonal_deadband = apply_bicentanonacontahexagonal_hyperbolic_deadband
+phase61_deadband = apply_bicentanonacontahexagonal_hyperbolic_deadband
+
+
+# =========================================================================
 # PHASE 60: QUANTUM GEOMETRIC LANGLANDS & BORCHERDS-MOONSHINE-MONSTER WHITTAKER-DRINFELD HIGHER HOMOLOGY 10 COUPLER
 # =========================================================================
 
@@ -1594,8 +1719,8 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
     def __init__(
         self,
         theta_0: float = 0.50,
-        kappa_monster_whit: float = 16.50,
-        lambda_monster: float = 0.9995,
+        kappa_monster_whit: float = 17.00,
+        lambda_monster: float = 0.9998,
         lambda_moonshine: float = 0.72,
         lambda_borcherds: float = 0.48,
         lambda_whittaker: float = 0.32,
@@ -1796,10 +1921,12 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
                                      + (1.0 / 104.0) * (self.lambda_conformal * 0.000000000000004) * (diff ** 104)
                                      + (1.0 / 106.0) * (self.lambda_conformal * 0.000000000000001) * (diff ** 106)
                                      + (1.0 / 108.0) * (self.lambda_conformal * 0.0000000000000004) * (diff ** 108)
-                                     + (1.0 / 110.0) * (self.lambda_conformal * 0.0000000000000001) * (diff ** 110)
-                                     + (1.0 / 112.0) * (self.lambda_conformal * 0.00000000000000004) * (diff ** 112))
+                                      + (1.0 / 110.0) * (self.lambda_conformal * 0.0000000000000001) * (diff ** 110)
+                                      + (1.0 / 112.0) * (self.lambda_conformal * 0.00000000000000004) * (diff ** 112)
+                                      + (1.0 / 114.0) * (self.lambda_conformal * 0.00000000000000001) * (diff ** 114)
+                                      + (1.0 / 116.0) * (self.lambda_conformal * 0.000000000000000004) * (diff ** 116))
                     obs_energy += w * a_monster_whit
-                    # Quantum Geometric Langlands Monster invariant topological defect up to 56th order
+                    # Quantum Geometric Langlands Monster invariant topological defect up to 58th order
                     defect = abs((pn[j]**2 - pn[k]**2)
                                  + self.lambda_monster * (pn[j]**3 - pn[k]**3)
                                  + self.lambda_moonshine * (pn[j]**4 - pn[k]**4)
@@ -1851,14 +1978,17 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
                                  + (self.lambda_vertex * 0.00000000000000001) * (pn[j]**53 - pn[k]**53)
                                  + (self.lambda_vertex * 0.000000000000000004) * (pn[j]**54 - pn[k]**54)
                                  + (self.lambda_vertex * 0.000000000000000001) * (pn[j]**55 - pn[k]**55)
-                                 + (self.lambda_vertex * 0.0000000000000000004) * (pn[j]**56 - pn[k]**56))
+                                 + (self.lambda_vertex * 0.0000000000000000004) * (pn[j]**56 - pn[k]**56)
+                                 + (self.lambda_vertex * 0.0000000000000000001) * (pn[j]**57 - pn[k]**57)
+                                 + (self.lambda_vertex * 0.00000000000000000004) * (pn[j]**58 - pn[k]**58))
                     topol_defect += w * defect
             e_monster_whit[n] = obs_energy
             z_monster_whit[n] = 1.0 / (1.0 + topol_defect)
 
         h_decay = np.exp(-self.kappa_monster_whit * e_monster_whit)
         h_monster_whit = np.clip(h_decay * z_monster_whit, self.epsilon_reg, 1.0)
-        feri_v60 = 1.0 / (1.0 + e_monster_whit + (1.0 - z_monster_whit))
+        feri_v61 = 1.0 / (1.0 + e_monster_whit + (1.0 - z_monster_whit))
+        feri_v60 = feri_v61
         feri_v59 = feri_v60
         feri_v58 = feri_v59
         feri_v57 = feri_v58
@@ -1876,7 +2006,8 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
         z_out = float(z_monster_whit[0]) if is_single_1d else (pd.Series(z_monster_whit, index=index) if index is not None else z_monster_whit)
         e_out = float(e_monster_whit[0]) if is_single_1d else (pd.Series(e_monster_whit, index=index) if index is not None else e_monster_whit)
         d_out = float(h_decay[0]) if is_single_1d else (pd.Series(h_decay, index=index) if index is not None else h_decay)
-        f_out_60 = float(feri_v60[0]) if is_single_1d else (pd.Series(feri_v60, index=index) if index is not None else feri_v60)
+        f_out_61 = float(feri_v61[0]) if is_single_1d else (pd.Series(feri_v61, index=index) if index is not None else feri_v61)
+        f_out_60 = f_out_61
         f_out_59 = f_out_60
         f_out_58 = f_out_59
         f_out_57 = f_out_58
@@ -1890,6 +2021,8 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
             "z_monster_whit": z_out,
             "e_monster_whit": e_out,
             "h_decay": d_out,
+            "FERI_v61": f_out_61,
+            "feri_v61": f_out_61,
             "FERI_v60": f_out_60,
             "feri_v60": f_out_60,
             "FERI_v59": f_out_59,
@@ -1939,6 +2072,38 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
             "e_moon_whit": e_out,
         }
         return res_dict
+
+# Aliases for Phase 61
+Phase61Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+compute_phase61_coupling = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute
+QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+QuantumGeometricLanglandsDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+DrinfeldWhittakerMonsterHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+DrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+MoonshineDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+LieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV61 = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+ChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV61 = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+BorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+BorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+MonsterWhittakerDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+WhittakerDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+HigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+QuantumGeometricLanglandsHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+SuperalgebraBorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+AffineLieSuperalgebraHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+ChiralLieSuperalgebraHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+MoonshineMonsterWhittakerHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+BorcherdsMonsterHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+QuantumLanglandsHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+GeometricLanglandsHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+DrinfeldHigherHomology11SheafCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+MoonshineDrinfeldHigherHomology11SheafCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+MonsterDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+Phase61WhittakerDrinfeldCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+Phase61BorcherdsMoonshineCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+Phase61MonsterWhittakerCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
 
 # Aliases for Phase 60
 Phase60Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
@@ -2186,6 +2351,49 @@ try:
     setattr(_fs_module, 'compute_moonshine_monster_borcherds_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
     setattr(_fs_module, 'compute_whittaker_borcherds_moonshine_monster_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
     setattr(_fs_module, 'compute_monster_moonshine_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
+    setattr(_fs_module, 'Phase61Coupler', Phase61Coupler)
+    setattr(_fs_module, 'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology11Coupler', QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology11Coupler)
+    setattr(_fs_module, 'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler', QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler)
+    setattr(_fs_module, 'QuantumGeometricLanglandsDrinfeldHigherHomology11Coupler', QuantumGeometricLanglandsDrinfeldHigherHomology11Coupler)
+    setattr(_fs_module, 'DrinfeldWhittakerMonsterHigherHomology11Coupler', DrinfeldWhittakerMonsterHigherHomology11Coupler)
+    setattr(_fs_module, 'DrinfeldHigherHomology11Coupler', DrinfeldHigherHomology11Coupler)
+    setattr(_fs_module, 'MoonshineDrinfeldHigherHomology11Coupler', MoonshineDrinfeldHigherHomology11Coupler)
+    setattr(_fs_module, 'LieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV61', LieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV61)
+    setattr(_fs_module, 'ChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV61', ChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV61)
+    setattr(_fs_module, 'BorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology11Coupler', BorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology11Coupler)
+    setattr(_fs_module, 'BorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler', BorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler)
+    setattr(_fs_module, 'MonsterWhittakerDrinfeldHigherHomology11Coupler', MonsterWhittakerDrinfeldHigherHomology11Coupler)
+    setattr(_fs_module, 'WhittakerDrinfeldHigherHomology11Coupler', WhittakerDrinfeldHigherHomology11Coupler)
+    setattr(_fs_module, 'HigherHomology11Coupler', HigherHomology11Coupler)
+    setattr(_fs_module, 'QuantumGeometricLanglandsHigherHomology11Coupler', QuantumGeometricLanglandsHigherHomology11Coupler)
+    setattr(_fs_module, 'SuperalgebraBorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler', SuperalgebraBorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler)
+    setattr(_fs_module, 'AffineLieSuperalgebraHigherHomology11Coupler', AffineLieSuperalgebraHigherHomology11Coupler)
+    setattr(_fs_module, 'ChiralLieSuperalgebraHigherHomology11Coupler', ChiralLieSuperalgebraHigherHomology11Coupler)
+    setattr(_fs_module, 'MoonshineMonsterWhittakerHigherHomology11Coupler', MoonshineMonsterWhittakerHigherHomology11Coupler)
+    setattr(_fs_module, 'BorcherdsMonsterHigherHomology11Coupler', BorcherdsMonsterHigherHomology11Coupler)
+    setattr(_fs_module, 'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHomology11Coupler', QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHomology11Coupler)
+    setattr(_fs_module, 'QuantumLanglandsHigherHomology11Coupler', QuantumLanglandsHigherHomology11Coupler)
+    setattr(_fs_module, 'GeometricLanglandsHigherHomology11Coupler', GeometricLanglandsHigherHomology11Coupler)
+    setattr(_fs_module, 'DrinfeldHigherHomology11SheafCoupler', DrinfeldHigherHomology11SheafCoupler)
+    setattr(_fs_module, 'MoonshineDrinfeldHigherHomology11SheafCoupler', MoonshineDrinfeldHigherHomology11SheafCoupler)
+    setattr(_fs_module, 'MonsterDrinfeldHigherHomology11Coupler', MonsterDrinfeldHigherHomology11Coupler)
+    setattr(_fs_module, 'Phase61WhittakerDrinfeldCoupler', Phase61WhittakerDrinfeldCoupler)
+    setattr(_fs_module, 'Phase61BorcherdsMoonshineCoupler', Phase61BorcherdsMoonshineCoupler)
+    setattr(_fs_module, 'Phase61MonsterWhittakerCoupler', Phase61MonsterWhittakerCoupler)
+    setattr(_fs_module, 'compute_phase61_coupling', compute_phase61_coupling)
+    setattr(_fs_module, 'apply_bicentanonacontahexagonal_hyperbolic_deadband', apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'compute_phase61_deadband', apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'apply_phase61_deadband', apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'apply_bicentanonacontahexagonal_deadband', apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'bicentanonacontahexagonal_deadband', apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'phase61_deadband', apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'compute_phase61_hyperconvex_rank_modulation', compute_phase61_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'compute_phase61_rank_warping', compute_phase61_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'compute_phase61_rank_modulation', compute_phase61_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'phase61_rank_modulation', compute_phase61_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'phase61_hyperconvex_rank_modulation', compute_phase61_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'REGIME_GAMMA_TOP_V61', REGIME_GAMMA_TOP_V61)
+    setattr(_fs_module, 'get_regime_adaptive_gamma_top_v61', get_regime_adaptive_gamma_top_v61)
     setattr(_fs_module, 'Phase60Coupler', Phase60Coupler)
     setattr(_fs_module, 'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology10Coupler', QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology10Coupler)
     setattr(_fs_module, 'QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology10Coupler', QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology10Coupler)
@@ -18044,7 +18252,9 @@ class EnsembleScoringEngine:
 
         if len(ens_scores) >= 5:
             ranks = pd.Series(ens_scores).rank(pct=True).values
-            if int(version) >= 60:
+            if int(version) >= 61:
+                mult = compute_phase61_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 60:
                 mult = compute_phase60_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
             elif int(version) >= 59:
                 mult = compute_phase59_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
@@ -19964,7 +20174,7 @@ class EnsembleScoringEngine:
                        + (2.55 * h_km_whit * z_km_whit if version >= 45 else 0.0)
                        + (2.65 * h_borch_whit * z_borch_whit if version >= 46 else 0.0)
                        + (2.75 * h_moon_whit * z_moon_whit if version >= 47 else 0.0)
-                       + ((4.05 if version >= 60 else (3.95 if version >= 59 else (3.85 if version >= 58 else (3.75 if version >= 57 else (3.65 if version >= 56 else (3.55 if version >= 55 else (3.45 if version >= 54 else (3.35 if version >= 53 else (3.25 if version >= 52 else (3.15 if version >= 51 else (3.05 if version >= 50 else 2.95 if version >= 49 else 2.85))))))))))) * h_monster_whit * z_monster_whit if version >= 48 else 0.0)) * (p_mean > 0.35).astype(float),
+                       + ((4.15 if version >= 61 else (4.05 if version >= 60 else (3.95 if version >= 59 else (3.85 if version >= 58 else (3.75 if version >= 57 else (3.65 if version >= 56 else (3.55 if version >= 55 else (3.45 if version >= 54 else (3.35 if version >= 53 else (3.25 if version >= 52 else (3.15 if version >= 51 else (3.05 if version >= 50 else 2.95 if version >= 49 else 2.85)))))))))))) * h_monster_whit * z_monster_whit if version >= 48 else 0.0)) * (p_mean > 0.35).astype(float),
                 index=scores_df.index
             )
             total_confluence = raw_confluence * harmony_factor
@@ -23018,6 +23228,51 @@ class EnsembleScoringEngine:
         }
 
     # =========================================================================
+    # PHASE 61: QUANTUM GEOMETRIC LANGLANDS & BORCHERDS-MOONSHINE-MONSTER WHITTAKER DRINFELD HIGHER HOMOLOGY 11 STATIC BINDINGS
+    # =========================================================================
+
+    apply_bicentanonacontahexagonal_hyperbolic_deadband = staticmethod(apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    compute_phase61_deadband = staticmethod(apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    apply_phase61_deadband = staticmethod(apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    apply_bicentanonacontahexagonal_deadband = staticmethod(apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    bicentanonacontahexagonal_deadband = staticmethod(apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    phase61_deadband = staticmethod(apply_bicentanonacontahexagonal_hyperbolic_deadband)
+    compute_phase61_hyperconvex_rank_modulation = staticmethod(compute_phase61_hyperconvex_rank_modulation)
+    compute_phase61_rank_warping = staticmethod(compute_phase61_hyperconvex_rank_modulation)
+    compute_phase61_rank_modulation = staticmethod(compute_phase61_hyperconvex_rank_modulation)
+    phase61_rank_modulation = staticmethod(compute_phase61_hyperconvex_rank_modulation)
+    phase61_hyperconvex_rank_modulation = staticmethod(compute_phase61_hyperconvex_rank_modulation)
+    Phase61Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    QuantumGeometricLanglandsDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    DrinfeldWhittakerMonsterHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    DrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    MoonshineDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    LieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV61 = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    ChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCouplerV61 = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    BorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    BorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    MonsterWhittakerDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    WhittakerDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    HigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    QuantumGeometricLanglandsHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    SuperalgebraBorcherdsMoonshineMonsterWhittakerHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    AffineLieSuperalgebraHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    ChiralLieSuperalgebraHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    MoonshineMonsterWhittakerHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    BorcherdsMonsterHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    QuantumLanglandsHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    GeometricLanglandsHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    DrinfeldHigherHomology11SheafCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    MoonshineDrinfeldHigherHomology11SheafCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    MonsterDrinfeldHigherHomology11Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    Phase61WhittakerDrinfeldCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    Phase61BorcherdsMoonshineCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    Phase61MonsterWhittakerCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+
+    # =========================================================================
     # PHASE 60: QUANTUM GEOMETRIC LANGLANDS & BORCHERDS-MOONSHINE-MONSTER WHITTAKER DRINFELD HIGHER HOMOLOGY 10 STATIC BINDINGS
     # =========================================================================
 
@@ -23419,6 +23674,7 @@ class EnsembleScoringEngine:
     compute_moonshine_monster_borcherds_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
     compute_whittaker_borcherds_moonshine_monster_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
     compute_monster_moonshine_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
+    compute_phase61_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
     compute_phase60_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
     compute_phase59_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
     compute_phase58_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
@@ -26478,7 +26734,17 @@ class EnsembleScoringEngine:
         - Under version <= 6: Preserves Phase 6 cubic exponent (alpha = 3.0).
         """
         version = int(kwargs.get('version', version))
-        if int(version) >= 60:
+        if int(version) >= 61:
+            eff_alpha = 296.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0, 64.0, 68.0, 72.0, 76.0, 80.0, 84.0, 88.0, 92.0, 96.0, 100.0, 104.0, 108.0, 112.0, 116.0, 120.0, 128.0, 136.0, 144.0, 152.0, 160.0, 168.0, 176.0, 184.0, 192.0, 200.0, 208.0, 216.0, 224.0, 232.0, 240.0, 248.0, 256.0, 264.0, 272.0, 280.0, 288.0) else alpha_pos
+            return apply_bicentanonacontahexagonal_hyperbolic_deadband(
+                scores_centered=scores_centered,
+                delta_noise=delta_noise,
+                delta_neg=delta_neg,
+                alpha_pos=eff_alpha,
+                alpha_neg=alpha_neg,
+                regime=regime
+            )
+        elif int(version) >= 60:
             eff_alpha = 288.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0, 64.0, 68.0, 72.0, 76.0, 80.0, 84.0, 88.0, 92.0, 96.0, 100.0, 104.0, 108.0, 112.0, 116.0, 120.0, 128.0, 136.0, 144.0, 152.0, 160.0, 168.0, 176.0, 184.0, 192.0, 200.0, 208.0, 216.0, 224.0, 232.0, 240.0, 248.0, 256.0, 264.0, 272.0, 280.0) else alpha_pos
             return apply_bicentaoctaoctagonal_hyperbolic_deadband(
                 scores_centered=scores_centered,
