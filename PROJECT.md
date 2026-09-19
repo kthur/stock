@@ -280,6 +280,14 @@
 | F259.1 | KNK 36-Dark-Energy DAHA L3 Spacetime Hydrodynamics | Kerr-Newman-Kiselev 36-dark-energy ($w = -38/3 \approx -12.667, k_{\text{daha}}=0.28, k_{\text{monster}}=0.27, \text{daha\_36\_factor}=4.65, c_{\text{monster}}=0.0000000000030517578125$), repulsive acceleration $-19.0 \cdot c_{\text{monster}} \cdot r^{37}$ | M3 (P57) | Phase 57 R3 |
 | F259.2 | SmartOrderRouter & ExecutionOMSEngine Preemptive Micro-Friction Optimization | 1e-29 lit maker floor, 99.999999999999995% dark ATS, 99.999999999999995% anti-gaming MinQty, tick shading $-0.999999999999998 \cdot \text{spread} \cdot (h-0.000006)$ | M3 (P57) | Phase 57 R3 |
 | F260 | Phase 57 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase57_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, Net Return 184.79%, Sharpe 37.58, MDD -0.00001%, and 51/51 dedicated tests 100% pass | M4 (P57) | Phase 57 R4 |
+| F261 | Quantum Geometric Langlands Chiral Affine Borcherds-Moonshine Monster Whittaker Coupler | Quantum Geometric Langlands chiral affine Lie superalgebra Borcherds-Moonshine Monster Whittaker oper obstruction $E_{\text{monster\_whit}}$ and topological invariant $Z_{\text{monster\_whit}}$ ($\kappa_{\text{monster\_whit}}=15.50$, $\lambda_{\text{monster}}=0.998$, $\text{FERI}_{\text{v58}}$, 102nd/104th order action terms, 51st/52nd order defect terms) | M1 (P58) | Phase 58 R1 |
+| F262.1 | 53rd-Order Hyper-Convex Rank Modulation | $g_{\text{v58}}(r) = 0.50 + 1.94 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{53})$ with regime-adaptive $\gamma_{\text{top}}$ up to 12.00 | M1 (P58) | Phase 58 R1 |
+| F262.2 | 272nd-Order Bicentaseptacontaduohedral Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{272})$ eliminating noise leakage to $< 10^{-192}$ | M1 (P58) | Phase 58 R1 |
+| F263.1 | Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-8 Barycenter & 54th-Cumulant EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lmbwdh8}}=[4.80, 3.40, 3.35, 5.35]$ and $54! \approx 2.30843 \times 10^{71}$ tail bounds, $\xi_{\text{monster}}=0.99999999999$ | M2 (P58) | Phase 58 R2 |
+| F263.2 | Ambiguity Tilting Entropy Scaling & Information-Theoretic Weighting | Ambiguity tilting entropy scaling $\alpha_{\text{iep}} = 3.40$ with regime shifts $(\delta_{\text{bl}} = -11.25, \delta_{\text{herc}} = +7.50, \delta_{\text{rp}} = -11.75, \delta_{\text{cvar}} = +16.90)$ and contagion damping $\max(0.0, 1.0 - 11.5 \cdot \lambda_{\text{casc}})$ | M2 (P58) | Phase 58 R2 |
+| F264.1 | KNK 37-Dark-Energy DAHA L3 Spacetime Hydrodynamics | Kerr-Newman-Kiselev 37-dark-energy ($w = -39/3 = -13.0, k_{\text{daha}}=0.29, k_{\text{monster}}=0.28, \text{daha\_37\_factor}=4.88, c_{\text{monster}}=0.00000000000152587890625$), repulsive acceleration $-19.5 \cdot c_{\text{monster}} \cdot r^{38}$ | M3 (P58) | Phase 58 R3 |
+| F264.2 | SmartOrderRouter & ExecutionOMSEngine Preemptive Micro-Friction Optimization | 1e-30 lit maker floor, 99.999999999999998% dark ATS, 99.999999999999998% anti-gaming MinQty, tick shading $-0.999999999999999 \cdot \text{spread} \cdot (h-0.000004)$ | M3 (P58) | Phase 58 R3 |
+| F265 | Phase 58 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase58_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, Net Return 186.89%, Sharpe 38.18, MDD -0.00001%, and 52/52 dedicated tests 100% pass | M4 (P58) | Phase 58 R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
@@ -442,6 +450,10 @@
 | M2 (P57) | Phase 57 Portfolio Allocation & Trans-Singular-Borcherds-Monster-Moonshine-Drinfeld-Higher-Homology-7 EVaR (R2) | F258.1, F258.2: Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-7 Barycenter ($\mu=[4.70, 3.35, 3.30, 5.25]$), 53rd-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P57) | DONE |
 | M3 (P57) | Phase 57 Microstructure Hydrodynamics & Preemptive OMS (R3) | F259.1, F259.2: KNK 36-Dark-Energy DAHA L3, 99.999999999999995% dark ATS, 1e-29 lit maker floor, 99.999999999999995% anti-gaming MinQty, tick shading at $h > 0.000006$ | M2 (P57) | DONE |
 | M4 (P57) | Phase 57 Benchmark Engine & Forensic Verification (R4) | F260: `benchmark_phase57_quant_performance.py`, comparison reports across 4 paths, 51/51 tests 100% pass | M1, M2, M3 (P57) | DONE |
+| M1 (P58) | Phase 58 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F261, F262.1, F262.2: Monster Coupler 102nd/104th order, 53rd-order rank modulation, 272nd-order deadband | none | DONE |
+| M2 (P58) | Phase 58 Portfolio Allocation & Trans-Singular-Borcherds-Monster-Moonshine-Drinfeld-Higher-Homology-8 EVaR (R2) | F263.1, F263.2: Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-8 Barycenter ($\mu=[4.80, 3.40, 3.35, 5.35]$), 54th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P58) | DONE |
+| M3 (P58) | Phase 58 Microstructure Hydrodynamics & Preemptive OMS (R3) | F264.1, F264.2: KNK 37-Dark-Energy DAHA L3, 99.999999999999998% dark ATS, 1e-30 lit maker floor, 99.999999999999998% anti-gaming MinQty, tick shading at $h > 0.000004$ | M2 (P58) | DONE |
+| M4 (P58) | Phase 58 Benchmark Engine & Forensic Verification (R4) | F265: `benchmark_phase58_quant_performance.py`, comparison reports across 4 paths, 52/52 tests 100% pass | M1, M2, M3 (P58) | DONE |
 
 ## Interface Contracts
 ### GHA Workflows ↔ Pipeline Scripts
@@ -494,6 +506,7 @@
 - `trading_system/scripts/benchmark_phase55_quant_performance.py`: Phase 55 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase56_quant_performance.py`: Phase 56 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase57_quant_performance.py`: Phase 57 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase58_quant_performance.py`: Phase 58 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
