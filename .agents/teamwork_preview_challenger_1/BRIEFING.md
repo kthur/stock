@@ -1,7 +1,7 @@
-# BRIEFING — 2026-09-03T21:43:00+09:00
+# BRIEFING — 2026-09-20T22:22:00+09:00
 
 ## Mission
-Adversarial empirical testing on Alpha Signals, Score Normalization, Ensemble Scoring, and Factor Orthogonalization under extreme edge cases, singular matrices, sparse catalysts, and multi-horizon dynamics.
+Empirically stress-test numerical stability, boundary conditions, subnormal float handling, and distribution shocks for Phase 63 Features F286, F287.1, F287.2, F288.1, F288.2.
 
 ## 🔒 My Identity
 - Archetype: EMPIRICAL CHALLENGER
@@ -12,6 +12,8 @@ Adversarial empirical testing on Alpha Signals, Score Normalization, Ensemble Sc
 - Instance: 1 of 1
 - Current Parent Conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
 - Assigned Role: Alpha & Score Adversarial Challenger (Challenger 1)
+- Current Parent: 54cb38ed-b592-4bb7-85e9-3ed4698d888f (Phase 63 Orchestrator)
+- Milestone: Phase 63 Adversarial Empirical Verification
 
 ## 🔒 Key Constraints
 - Review & adversarial testing only — do NOT modify implementation code.
@@ -20,38 +22,40 @@ Adversarial empirical testing on Alpha Signals, Score Normalization, Ensemble Sc
 - Send message to parent upon completion.
 - Review-only — do NOT modify implementation code.
 - Do NOT place source code, tests, or data files in `.agents/`.
+- Must verify test execution independently via `.venv\Scripts\pytest.exe tests/test_phase63_adversarial_challenger1.py -v`.
 
 ## Current Parent
-- Conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
-- Updated: 2026-09-03T21:43:00+09:00
+- Conversation ID: 54cb38ed-b592-4bb7-85e9-3ed4698d888f
+- Updated: 2026-09-20T22:22:00+09:00
 
 ## Review Scope
-- **Target Modules**:
-  - `src/ai/score_normalizer.py`: `CrossSectionalScoreNormalizer.normalize()`
-  - `src/ai/ensemble_scorer.py`: `EnsembleScoringEngine` (multi-horizon decay, missing strategy shrinkage, US dot tickers)
-  - `src/ai/factor_orthogonalizer.py`: `FactorOrthogonalizerEngine` (ZCA whitening with `preserve_consensus_pc1=True` under collinearity)
-- **Review Criteria**: Robustness under degenerate inputs (all-zero, uniform, NaNs, infs, 95% zero sparse catalysts, collinear matrices), stability, zero crash, mathematical soundness.
+- **Files to review & stress-test**:
+  - `src/ai/factor_suppression.py`: F287.1 (58th-order hyper-convex rank modulation), F287.2 (312th-order hyperbolic deadband)
+  - `src/ai/ensemble_scorer.py`: F286 (Quantum Geometric Langlands Monster Moonshine Whittaker Coupler)
+  - `src/risk/unified_portfolio_allocator.py`: F288.1 (Higher-Homology-13 Fisher-Rao Barycenter Blending)
+  - `src/risk/portfolio_allocator.py`: F288.2 (59th-cumulant EVaR Tail Risk Measure)
+  - `tests/test_phase63_adversarial_challenger1.py`: Adversarial test suite
+- **Review criteria**: Numerical stability, float subnormals, boundary conditions, zero noise leakage (< 10^-232), simplex conservation, heavy-tail shock sensitivity.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. `CrossSectionalScoreNormalizer.normalize()` crashes or produces NaNs on all-zero vectors, uniform vectors, NaNs, infs, or fails 0.50 neutral mapping on inactive zero blocks ($N \ge 4$).
-  2. `CrossSectionalScoreNormalizer` distorts active scores or misclassifies inactive zeros in sparse catalyst factors (95% zeros, 5% positive).
-  3. `EnsembleScoringEngine` multi-horizon decay breaks or clips incorrectly across [1, 3, 5, 20, 60, 120, 200] days.
-  4. Missing strategy drop-out and Bayesian coverage shrinkage ($W_{valid} < 0.60$) misbehaves or collapses on sparse data.
-  5. US dot tickers (`BRK.B`, `BF.B`) are improperly handled or cause regex/fee parsing exceptions.
-  6. `FactorOrthogonalizerEngine` ZCA whitening with `preserve_consensus_pc1=True` produces NaN/inf eigenvalues or explodes under perfectly collinear/rank-deficient factor matrices.
-- **Vulnerabilities found**: TBD via empirical testing.
-- **Untested angles**: Full production network calls (mocked/offline by design).
+  1. F287.2 Deadband boundary noise leakage: values in [10^-300, 0.035] leak non-zero noise; values |z| >= 0.150 suffer distortion.
+  2. F287.1 Rank modulation: extreme rank convexity (r -> 1.0, r -> 0.0, subnormals) causes NaN/overflow or non-monotonicity.
+  3. F286 Coupler: degenerate, collinear, all-zero, all-one pillar inputs cause divergence or break [0, 1] bounds.
+  4. F288.1 Barycenter: extreme asymmetric priors or 2D inputs violate simplex sum = 1.0 or metric ordering CVaR > BL > HERC > RP.
+  5. F288.2 59th-cumulant EVaR: insensitive to fat-tail Student-t vs Gaussian shock, or exhibits non-monotonicity with volatility.
+- **Vulnerabilities found**: Pending empirical test execution.
+- **Untested angles**: Hardware-specific SIMD micro-divergence.
 
 ## Loaded Skills
 - None required
 
 ## Key Decisions Made
-- Designing and implementing `tests/test_adversarial_alpha_opt.py` to systematically test all 3 target modules across all required edge cases.
+- Executing `tests/test_phase63_adversarial_challenger1.py` and expanding tests if any boundary conditions require deeper probing.
 
 ## Artifact Index
-- `.agents/teamwork_preview_challenger_1/DISPATCH.md` — Inbound instructions log
-- `.agents/teamwork_preview_challenger_1/progress.md` — Heartbeat & status tracking
-- `tests/test_adversarial_alpha_opt.py` — New adversarial test suite
-- `.agents/teamwork_preview_challenger_1/handoff.md` — Comprehensive empirical handoff report
-
+- `.agents/teamwork_preview_challenger_1/DISPATCH.md` — Dispatch record
+- `.agents/teamwork_preview_challenger_1/BRIEFING.md` — Agent state and memory
+- `.agents/teamwork_preview_challenger_1/progress.md` — Liveness heartbeat
+- `.agents/teamwork_preview_challenger_1/handoff.md` — Final handoff report
+- `tests/test_phase63_adversarial_challenger1.py` — Adversarial test suite

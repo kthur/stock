@@ -1,64 +1,63 @@
-# BRIEFING — 2026-09-04T01:09:55Z
+# BRIEFING — 2026-09-20T13:10:30Z
 
 ## Mission
-Implement Milestone 2 (R2 / Features F28 to F33): Advanced Portfolio Execution & Allocation enhancements (Downside Semi-Covariance EVT-CVaR, Dynamic Model Conviction Blending, Market-Specific Leland Buffer Bands, Multi-Tier L2 OBI Micro-Price Pegging, Hawkes Arrival Intensity Adverse Selection Gating, and Closed-Loop Empirical Slippage Feedback Scaling).
+Implement Phase 63 Track B: Portfolio Risk Allocation & 59th-Cumulant EVaR Tail Budgeting (Features F288.1, F288.2) in unified_portfolio_allocator.py, portfolio_allocator.py, and tests/test_phase63_risk.py.
 
 ## 🔒 My Identity
 - Archetype: worker
 - Roles: implementer, qa
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2
-- Original parent: ba7893c9-9a12-479b-b906-f745cc7807b3
-- Milestone: M2 (Features F28 to F33)
+- Original parent: 54cb38ed-b592-4bb7-85e9-3ed4698d888f
+- Milestone: Phase 63 Track B (Features F288.1, F288.2)
 
 ## 🔒 Key Constraints
-- EXCLUSIVELY own and modify:
-  1. `trading_system/src/risk/unified_portfolio_allocator.py`
-  2. `trading_system/src/execution/smart_order_router.py`
-  3. `trading_system/src/execution/oms_engine.py`
-  4. `tests/test_phase4_portfolio_execution.py`
-- Do NOT modify any other files.
-- Integrity mandate: NO hardcoding, no dummy/facade implementations, genuine logic.
+- Exclusive file ownership:
+  - `src/risk/unified_portfolio_allocator.py`
+  - `src/risk/portfolio_allocator.py`
+  - `tests/test_phase63_risk.py`
+- DO NOT modify any files outside this exclusive list.
+- Integrity mandate: DO NOT cheat. All implementations must be genuine, maintain real state and real behavior. No dummy/facade implementations.
+- Maintain 100% backward compatibility for Phase 1~62.
+- 100% test pass rate on test_phase63_risk.py and test_phase62_risk.py.
 
 ## Current Parent
-- Conversation ID: ba7893c9-9a12-479b-b906-f745cc7807b3
-- Updated: 2026-09-04T01:09:55Z
+- Conversation ID: 54cb38ed-b592-4bb7-85e9-3ed4698d888f
+- Updated: 2026-09-20T13:10:30Z
 
 ## Task Summary
 - **What to build**:
-  - F28: Downside Semi-Covariance EVT-CVaR Optimization in `unified_portfolio_allocator.py`
-  - F29: Dynamic Model Conviction & Return-Dispersion Blending in `unified_portfolio_allocator.py`
-  - F30: Market-Specific STT & Fee-Aware Leland Dynamic Buffer Bands in `unified_portfolio_allocator.py`
-  - F31: Multi-Tier L2 OBI & Volume-Weighted Micro-Price Pegging in `oms_engine.py`
-  - F32: Hawkes Arrival Intensity Adverse Selection Gating in `smart_order_router.py`
-  - F33: Closed-Loop Empirical Slippage Feedback Scaling in `unified_portfolio_allocator.py` and `oms_engine.py`
-  - Comprehensive unit/property tests in `tests/test_phase4_portfolio_execution.py`
-- **Success criteria**: All existing tests and new test suites pass with 100% pass rate.
-- **Interface contracts**: `PROJECT.md`, `SCOPE.md`
+  - Feature F288.1: Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-13 Fisher-Rao Barycenter Blending with mu_lmbwdh13 = [5.30, 3.65, 3.60, 5.85], 37 aliases on UnifiedPortfolioAllocator & static delegation + 37 aliases on PortfolioAllocator.
+  - Feature F288.2: 59th-cumulant expansion Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent EVaR Tail Risk Measure with order 59, xi_monster = 0.9999999999999, 59! ~= 1.38683e80, 37 aliases on UnifiedPortfolioAllocator & static delegation + 37 aliases on PortfolioAllocator.
+  - Ambiguity Tilting & Post-Softmax Refinement in `compute_information_theoretic_blend_weights` under `version >= 63`.
+  - Comprehensive unit/integration test suite in `tests/test_phase63_risk.py` (8 tests).
+- **Success criteria**:
+  - All tests in `tests/test_phase63_risk.py` and `tests/test_phase62_risk.py` pass 100%.
+- **Interface contracts**: `ORIGINAL_REQUEST.md`, `DISPATCH.md`, and Explorer 2 `handoff.md`.
+- **Code layout**: `src/risk/`, `tests/`
 
 ## Key Decisions Made
-- F28: Blended `PortfolioAllocator.compute_downside_semi_cov` into `calculate_cvar_weights` with parametric Student-t EVT-CVaR expansion ($k_\alpha=2.40$), preserving upside momentum and boosting Sortino ratio.
-- F29: Evaluated cross-sectional alpha dispersion $\sigma(\hat{\mu})$ in `optimize_multi_model_blend`. When $\sigma(\hat{\mu}) > 0.03$ in Bull/Sideways regimes, scaled up Black-Litterman model weight ($w_{\text{BL}}^{\text{adj}} = w_{\text{BL}} \cdot (1 + 0.30 \tanh((\sigma - 0.03)/0.02))$), and boosted EVT-CVaR and HERC in high-volatility/crisis regimes, strictly renormalizing sum to 1.0000.
-- F30: Created `is_korean_asset` helper and added market-aware transaction cost sizing in `apply_leland_no_trade_buffers` ($c_i \ge 25$ bps for KRX to absorb 0.18% STT vs $c_i \le 8$ bps for US), cutting Korean churn while keeping US mega-cap execution sharp.
-- F31: Upgraded `calculate_peg_limit_price` in both `ExecutionOMSEngine` and `AlmgrenChrissScheduler` with $P_{\text{base}} = P_{\text{micro}}$ anchor and 3-tier composite OBI ($0.50 \cdot \text{OBI}_1 + 0.35 \cdot \text{OBI}_5 + 0.15 \cdot \text{OBI}_{10}$).
-- F32: Added Hawkes intensity adverse selection gating to `SmartOrderRouter.route_order`. When $\lambda(t) > 2.5 \cdot \mu$, maker ratio drops from 70% to 30% and Tier 1 dark midpoint probing expands to protect maker orders from toxic sweeps.
-- F33: Integrated closed-loop realized slippage feedback scaling $\kappa_{\text{eff}} = \kappa_0 \cdot \text{cost\_scaling\_factor} \cdot (1 - \phi_{\text{dark}})$ into `UnifiedPortfolioAllocator` and scaled $\eta$ and tranche schedules in `GatheralMarketImpactKernel`.
+- F288.1: Implemented Fisher-Rao barycenter blending on Riemannian probability simplex with metric curvature vector $\mu_{\text{lmbwdh13}} = [5.30, 3.65, 3.60, 5.85]$, maintaining exact simplex conservation $\sum q_i = 1.0$ and strict interior positivity ($q_i > 0$).
+- F288.2: Implemented 59th-order cumulant Taylor expansion with $59! \approx 1.386831185 \times 10^{80}$ and $\xi_{\text{monster}} = 0.9999999999999$, ensuring heavy-tailed sensitivity under Student-t shocks without numerical overflow.
+- Gated Phase 63 ambiguity tilting in `compute_information_theoretic_blend_weights` with $\epsilon_w = 0.630, \alpha_{\text{iep}} = 3.65$, regime shifts $\delta = [-12.50\epsilon_w - 6.60 u_H^2, +8.75\epsilon_w + 5.50 u_H, -13.00\epsilon_w, +19.00\epsilon_w + 8.25 c_{\text{crisis}}]$, contagion damping $\max(0.0, 1.0 - 14.0\lambda_{\text{casc}})$, and scaling $(1.0 + 0.31\alpha_{\text{iep}})$.
+- Added post-softmax Higher-Homology-13 barycenter refinement under `is_phase63`.
+- Added static delegation methods and full 37 aliases on `PortfolioAllocator`.
+- Built `tests/test_phase63_risk.py` with 8 comprehensive tests, confirming 100% pass on Phase 63, Phase 62, and Phase 61 test suites.
 
 ## Artifact Index
 - `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\DISPATCH.md` — Assignment instructions
 - `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\progress.md` — Progress tracker and heartbeat
 - `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md` — Final handoff report
-- `d:\Finance\code\stock\tests\test_phase4_portfolio_execution.py` — New unit/property test suite
+- `d:\Finance\code\stock\tests\test_phase63_risk.py` — Dedicated Phase 63 risk test suite
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/risk/unified_portfolio_allocator.py`: F28 downside semi-cov CVaR, F29 return dispersion BL scaling, F30 STT-aware Leland buffers, F33 slippage feedback
-  - `trading_system/src/execution/smart_order_router.py`: F32 Hawkes intensity toxic flow gating
-  - `trading_system/src/execution/oms_engine.py`: F31 micro-price & multi-tier OBI peg pricing, F33 Gatheral empirical slippage scaling
-  - `tests/test_phase4_portfolio_execution.py`: 18 new unit/property tests
-- **Build status**: All tests passing (79/79 M2 tests, 100% pass)
+  - `trading_system/src/risk/unified_portfolio_allocator.py`: Added F288.1 barycenter & 37 aliases, F288.2 59th-cumulant EVaR & 37 aliases, ambiguity tilting, and post-softmax refinement
+  - `trading_system/src/risk/portfolio_allocator.py`: Added F288.1 & F288.2 static delegations and 37 aliases each
+  - `tests/test_phase63_risk.py`: Created test suite with 8 comprehensive test cases
+- **Build status**: All tests pass (16/16 in test_phase63_risk.py + test_phase62_risk.py, 8/8 in test_phase61_risk.py)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: 79 passed in 9.29s (100% pass rate)
-- **Lint status**: Clean compilation, 0 errors
-- **Tests added/modified**: 18 tests in `tests/test_phase4_portfolio_execution.py`
+- **Build/test result**: 16 passed in 16.09s (100% pass rate)
+- **Lint status**: Clean, zero regressions
+- **Tests added/modified**: 8 tests in `tests/test_phase63_risk.py`

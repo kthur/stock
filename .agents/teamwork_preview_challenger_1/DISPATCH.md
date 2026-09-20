@@ -1,55 +1,29 @@
-# Dispatch Log
+# DISPATCH: Challenger 1 (Alpha & Risk Adversarial Challenger)
 
-## 2026-08-21T19:51:03+09:00
+## Working Directory
+d:\Finance\code\stock\.agents\teamwork_preview_challenger_1
 
-You are Challenger 1 (Mathematical & Numerical Adversarial Verifier) for the Stock Trading System.
-Your working directory is: D:\Finance\code\stock\.agents\teamwork_preview_challenger_1\
+## Objective
+Empirically challenge and stress-test the mathematical soundness, numerical stability, and robustness of Phase 63 Features F286, F287.1, F287.2, F288.1, F288.2.
 
-Read:
-1. D:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-2. D:\Finance\code\stock\system_improvement_report_v5.md
-3. Worker handoffs: M1 and M2 (`.agents/teamwork_preview_worker_m1/handoff.md`, `.agents/teamwork_preview_worker_m2/handoff.md`)
+Stress-test:
+- Extreme rank convexity ($r \to 1.0$, $r \to 0.0$, subnormal inputs).
+- 312th-order deadband noise leakage across fine-grained floating point grids ($|z| \in [10^{-300}, 0.035]$) and high conviction transmission ($|z| \ge 0.15$).
+- Degenerate and collinear pillar inputs for Monster Whittaker Coupler.
+- Higher-Homology-13 Fisher-Rao barycenter simplex conservation under extreme asymmetric priors and 2D arrays.
+- Fat-tail Student-t vs Gaussian shock sensitivity for 59th-cumulant EVaR.
 
-Your objective:
-Write and execute empirical stress tests and mathematical oracles to verify numerical robustness:
-- Stress test PCA-ZCA whitening on rank-deficient and singular score matrices ($N < K$, $N=1$, identical columns, $K=31$).
-- Verify Clayton copula PSD spectral projection on extreme negative correlations.
-- Verify Black-Litterman quadratic utility behavior under negative excess return regimes.
-- Verify HRP cluster variance numerical stability with zero-volatility assets ($\sigma \approx 0$).
-- Verify Platt scaling probability monotonicity across logit domains.
+Execute:
+```powershell
+.venv\Scripts\pytest.exe tests/test_phase63_adversarial_challenger1.py -v
+```
 
-Write your findings and verdict (PASS/FAIL) to `D:\Finance\code\stock\.agents\teamwork_preview_challenger_1\handoff.md`.
-Send message to parent when done.
+Write `handoff.md` with your explicit verdict: `APPROVE` (confirmed correct & robust) or `CHALLENGE_FAILED` / `REQUEST_CHANGES`.
+When done, send a message back to parent.
 
-## 2026-09-03T12:40:59Z
-
-You are a Challenger agent (teamwork_preview_challenger) conducting adversarial testing on Alpha Signals, Score Normalization, and Ensemble Scoring.
-Your identity: Alpha & Score Adversarial Challenger (Challenger 1)
-Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_1
-Parent conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
-
-MANDATORY FIRST STEP:
-Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md and the worker handoff reports.
-
-TASK:
-Write and execute an adversarial test harness (e.g. `tests/test_adversarial_alpha_opt.py` or directly in Python) to stress-test:
-1. `CrossSectionalScoreNormalizer.normalize()` with:
-   - All-zero input vector.
-   - Vector with 95% zeros and 5% positive values (sparse catalyst factors like short squeeze, darkpool).
-   - Inactive 0-score block isolation for N >= 4 ensuring neutral 0.50 mapping.
-   - Uniform vector (all identical values).
-   - Vectors containing NaNs and infs.
-2. `EnsembleScoringEngine`:
-   - Multi-horizon decay with horizons [1, 3, 5, 20, 60, 120, 200] days.
-   - Missing strategy drop-out and coverage shrinkage (<0.60 valid weight).
-   - US dot tickers (`BRK.B`, `BF.B`).
-3. `FactorOrthogonalizerEngine`:
-   - ZCA whitening with `preserve_consensus_pc1=True` under collinear/redundant factor matrices.
-
-Execute tests via `.venv\Scripts\python.exe`. Verify everything passes with zero crashes or unhandled exceptions.
-
-OUTPUT:
-Write your findings to `d:\Finance\code\stock\.agents\teamwork_preview_challenger_1\handoff.md`.
-Clearly state your verdict: **APPROVE** or **REQUEST_CHANGES**.
-Update `progress.md` and send message to parent when done.
-
+## 2026-09-20T13:21:28Z
+You are Challenger 1 specializing in Alpha & Risk Adversarial Stress-Testing.
+Working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_1
+Empirically stress-test numerical stability, boundary conditions, subnormal float handling, and distribution shocks for Features F286, F287.1, F287.2, F288.1, F288.2.
+Execute: `.venv\Scripts\pytest.exe tests/test_phase63_adversarial_challenger1.py -v`
+Deliver your handoff report with explicit verdict: `APPROVE` or `CHALLENGE_FAILED`. Message parent when done.

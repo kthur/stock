@@ -1,49 +1,30 @@
-## 2026-08-21T10:51:03Z
-You are Challenger 2 (Edge-Case & Runtime Adversarial Verifier) for the Stock Trading System.
-Your working directory is: D:\Finance\code\stock\.agents\teamwork_preview_challenger_2\
+# DISPATCH: Challenger 2 (Microstructure OMS & Benchmark Adversarial Challenger)
 
-Read:
-1. D:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-2. D:\Finance\code\stock\system_improvement_report_v5.md
-3. Worker handoffs: M3, M4, M5 (`.agents/teamwork_preview_worker_m3/handoff.md`, `.agents/teamwork_preview_worker_m4/handoff.md`, `.agents/teamwork_preview_worker_m5/handoff.md`)
+## Working Directory
+d:\Finance\code\stock\.agents\teamwork_preview_challenger_2
 
-Your objective:
-Write and execute empirical stress tests for runtime edge cases:
-- OMS slippage feedback closed loop with `calculate_realized_slippage` and `SlippageMetrics`.
-- Dynamic inverse ETF hedge sizing with real-time price lookup (Gate 8).
-- DART 8-digit corp_code vs 6-digit stock ticker matching.
-- Stock split crash guard preventing false positive price division during severe market downturns.
-- Strategy fallback handling for empty dataframes and single stock universes.
+## Objective
+Empirically challenge and stress-test the execution mechanics, precision limits, and benchmark integrity for Phase 63 Features F289.1, F289.2, F290.
 
-Write your findings and verdict (PASS/FAIL) to `D:\Finance\code\stock\.agents\teamwork_preview_challenger_2\handoff.md`.
-Send message to parent when done.
+Stress-test:
+- Contracted maker floor $10^{-35}$ precision and underflow behavior over dense 10,001-point toxic flow grid ($\gamma_{\text{toxic}} \in [0.80, 1.0]$) and $10^{35}$ order sizes.
+- Anti-gaming MinQty 20 nines ceiling under simulated predatory HFT manipulation.
+- Preemptive dark ATS routing cap under extreme queue imbalance and stack frame inspection.
+- Micro-tick shading threshold boundary: $h = 0.0000010$ vs $h = 0.000001000000001$ vs $h = 0.0000012$.
+- Benchmark script execution and SHA-256 bit-for-bit hash equality across all 3 standalone reports.
 
-## 2026-09-03T12:41:00Z
-You are a Challenger agent (teamwork_preview_challenger) conducting adversarial testing on Portfolio Allocators, Optimizers, Costs, and Execution OMS.
-Your identity: Portfolio & OMS Adversarial Challenger (Challenger 2)
-Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_2
-Parent conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
+Execute:
+```powershell
+.venv\Scripts\pytest.exe tests/test_phase63_adversarial_oms_benchmark.py -v
+```
 
-MANDATORY FIRST STEP:
-Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md and the worker handoff reports.
+Write `handoff.md` with your explicit verdict: `APPROVE` (confirmed correct & robust) or `CHALLENGE_FAILED` / `REQUEST_CHANGES`.
+When done, send a message back to parent.
 
-TASK:
-Write and execute an adversarial test harness (e.g. `tests/test_adversarial_portfolio_opt.py` or directly in Python) to stress-test:
-1. `UnifiedPortfolioAllocator.allocate()` with:
-   - Extremely small universes: N = 1, N = 2, N = 3, N = 4 under extreme negative left-tail returns (CVaR solver stress).
-   - Extreme FX rates: `usd_krw = 1.0`, `usd_krw = 900.0`, `usd_krw = 2500.0`.
-   - Dual base currencies: `base_currency = 'KRW'` and `base_currency = 'USD'`.
-   - Highly illiquid assets where requested allocation exceeds 5% ADV (verify participation ceiling).
-2. Asymmetric Leland Buffer Bands:
-   - Assets with high positive return (+15%) -> verify 1.8x band expansion.
-   - Assets with large loss (-10%) -> verify 0.6x band contraction.
-   - Fresh new entries (w_curr = 0) and full exits (w_target = 0) -> verify immediate bypass.
-3. Execution OMS liquidation:
-   - Full liquidation SELL orders for existing positions with unannotated test symbols.
+## 2026-09-20T13:21:28Z
+You are Challenger 2 specializing in Microstructure OMS & Benchmark Adversarial Verification.
+Empirically stress-test execution mechanics, 1e-35 lit maker floor, 20 nines dark caps, micro-tick shading activation threshold, and benchmark SHA-256 hash synchronization.
+Execute:
+`.venv\Scripts\pytest.exe tests/test_phase63_adversarial_oms_benchmark.py -v`
+Deliver your handoff report with explicit verdict: `APPROVE` or `CHALLENGE_FAILED`. Message parent when done.
 
-Execute tests via `.venv\Scripts\python.exe`. Verify all stress scenarios pass without numerical divergence or assertion failures.
-
-OUTPUT:
-Write your findings to `d:\Finance\code\stock\.agents\teamwork_preview_challenger_2\handoff.md`.
-Clearly state your verdict: **APPROVE** or **REQUEST_CHANGES**.
-Update `progress.md` and send message to parent when done.

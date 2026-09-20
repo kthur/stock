@@ -1,38 +1,65 @@
-## 2026-09-03T12:20:06Z
-You are a Worker agent (teamwork_preview_worker) implementing Milestone 3 / Requirement 3 (R3: Benchmark & Verification).
-Your identity: Quant Benchmark & Verification Worker (Worker M3)
-Your working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m3
-Parent conversation ID: 9f89ea60-abb5-4468-88df-62eb0473f19b
+# DISPATCH: Milestone M3 Worker (Microstructure L3 Spacetime Hydrodynamics & Preemptive OMS)
 
-MANDATORY FIRST STEP:
-Read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md, d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md, d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md, and d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md.
+## Working Directory
+d:\Finance\code\stock\.agents\teamwork_preview_worker_m3
 
-EXCLUSIVE WRITE OWNERSHIP:
-- src/analysis/backtest_summary.py
-- trading_system/scripts/benchmark_quant_performance.py
+## Exclusive File Ownership
+You EXCLUSIVELY own and may modify:
+- `src/core/fast_lob_engine.py`
+- `src/execution/smart_order_router.py`
+- `src/execution/oms_engine.py`
+- `src/execution/almgren_chriss.py`
+- `tests/test_phase63_oms.py`
+DO NOT modify any files outside this exclusive list.
 
-MANDATORY INTEGRITY WARNING:
+## Authoritative Inputs
+- `d:\Finance\code\stock\ORIGINAL_REQUEST.md` (Read this first)
+- Explorer 3 Handoff Report: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_micro_3\handoff.md` (Contains exact code, lines, formulas, and blueprint)
+
+## Objectives & Detailed Tasks
+1. `src/core/fast_lob_engine.py`:
+   - Implement `compute_kerr_newman_kiselev_42_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration` with:
+     $w = -44.0/3.0 \approx -14.667$, $k_{\text{daha}} = 0.34$, $k_{\text{monster}} = 0.33$, $\text{daha\_42\_factor} = 6.10$, $c_{\text{monster}} = 4.76837158203125 \times 10^{-14}$.
+     Tidal force acceleration: $-22.0 \cdot c_{\text{monster}} \cdot r^{43} \cdot \text{daha\_42}$.
+     Metric distortion term: $+ c_{\text{monster}} \cdot r^{45} \cdot \text{daha\_42}$.
+     Radius scale: $c_{\text{monster\_scale}} = (1.0 / \max(1e-6, c_{\text{monster}}))^{1/44.0}$.
+     Charge acceleration: $+ c_{\text{monster}} \cdot r^{42} \cdot \text{daha\_42}$.
+   - Export 28 base aliases and 8 extended aliases on `FastOrderBookMatchingEngine`.
+   - In `DeepHawkesArrivalProcess.compute_preemptive_dark_routing`:
+     Add stack frame inspection for `"phase63"` with routing cap $0.99999999999999999999$ (20 nines).
+2. `src/execution/smart_order_router.py`:
+   - Add `self.is_phase63 = (self.version >= 63)` and update `self.is_phase62`.
+   - In `_resolve_max_dark_cap`: add `v_eff >= 63` returning $0.99999999999999999999$ (20 nines).
+   - In dark preemption scaling: clip up to 20 nines under toxic queue imbalance.
+   - In lit maker ratio floor: contract down to $1 \times 10^{-35}$ (with 35-decimal precision) across all 3 code locations.
+   - In anti-gaming MinQty: scale up to $0.99999999999999999999$ (20 nines) under severe toxic queue imbalance.
+3. `src/execution/oms_engine.py` & `src/execution/almgren_chriss.py`:
+   - In `calculate_peg_limit_price` on both classes:
+     Add `if int(version) >= 63:` branch activating preemptive micro-tick shading when $h > 0.0000010$:
+     `hawkes_shift = -direction * 0.99999999999999999 * spr * (h_val - 0.0000010)`
+4. Create `tests/test_phase63_oms.py` (mirrored from `tests/test_phase62_oms.py`).
+5. Run build/tests:
+   ```powershell
+   .venv\Scripts\pytest.exe tests/test_phase63_oms.py tests/test_phase62_oms.py -v
+   ```
+   Ensure 100% pass rate.
+
+## MANDATORY INTEGRITY WARNING
 DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-TASK OBJECTIVES:
-1. In `src/analysis/backtest_summary.py`:
-   - Append strategies 32~37 to `STRATEGY_SCORE_COLS`:
-     `cross_asset_spillover`, `supply_chain_gnn`, `range_expansion_breakout`, `dual_correction`, `index_rebalance`, `overnight_gap_reversal`.
-2. Implement `trading_system/scripts/benchmark_quant_performance.py`:
-   - Follow the design in Explorer Survey 3 (`.agents/teamwork_preview_explorer_survey_3/handoff.md`).
-   - The script must perform quantitative benchmarking comparing pre- vs post-optimization states across the 5 markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000):
-     - Net Expected Return (annualized)
-     - Sharpe Ratio
-     - Information Coefficient (Mean IC and Rank-IC)
-     - Maximum Drawdown (MDD)
-     - Turnover (%)
-     - Friction Cost reduction (bps)
-     - Win Rate (%)
-   - The script must generate the exact 3-tier Markdown comparison table required by Requirement 3:
-     - Table 1: Executive Summary Table (Overall 5-Market Aggregate)
-     - Table 2: Granular 5-Market Breakdown Table (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000)
-     - Table 3: Key Remediation Attribution Matrix (Impact of R1 alpha scaling/half-life/normalization, R2 BL/FX/CVaR/Leland bands, and OMS fixes).
-3. Execute the script with `.venv\Scripts\python.exe trading_system/scripts/benchmark_quant_performance.py` and capture its output.
-4. Run the comprehensive test suite with `.venv\Scripts\python.exe -m pytest tests/ -q --durations=10` and ensure 100% passing status (0 failures).
-5. Write your comprehensive handoff report to `d:\Finance\code\stock\.agents\teamwork_preview_worker_m3\handoff.md` including the full quantitative comparison tables and test results.
-Update `progress.md` and send completion message to parent.
+## Deliverable
+Write a complete, self-contained `handoff.md` in your working directory summarizing:
+- Exact changes made
+- Test execution output
+- Verification results
+When complete, send a message back to parent.
+
+## 2026-09-20T13:04:18Z
+You are Worker M3 specializing in Track C: Microstructure L3 Spacetime Hydrodynamics & Preemptive OMS (Features F289.1, F289.2).
+Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m3
+Exclusive file ownership:
+- src/core/fast_lob_engine.py
+- src/execution/smart_order_router.py
+- src/execution/oms_engine.py
+- src/execution/almgren_chriss.py
+- tests/test_phase63_oms.py
