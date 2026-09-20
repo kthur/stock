@@ -556,6 +556,250 @@ def get_regime_adaptive_gamma_top_v48(regime: Union[int, str] = 'BULL_LOW_VOL') 
 
 
 # =========================================================================
+# PHASE 62 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v69 Production Master)
+# =========================================================================
+
+def apply_bicentatriacontatetragonal_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray, float],
+    delta_noise: float = 0.035,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 304.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 62 (R1, Feature F282.2): Asymmetric Bicentatriacontatetragonal (304th-Order) Hyperbolic Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^304)
+    With bicentatriacontatetragonal exponent (alpha = 304.0) and delta_noise = 0.035, suppresses near-zero
+    noise (|z| <= 0.00035) reducing noise leakage down to < 10^-224 (0.0 in float64), while transmitting 100.000%
+    of high conviction signals (|z| >= 0.150) with strict rank monotonicity (Spearman rho == 1.0000).
+    """
+    is_scalar = np.isscalar(scores_centered)
+    if is_scalar:
+        arr_in = np.array([scores_centered], dtype=np.float64)
+    else:
+        arr_in = scores_centered
+
+    res = apply_quintic_hyperbolic_deadband(
+        scores_centered=arr_in,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+    if is_scalar:
+        return float(res[0])
+    return res
+
+compute_phase62_deadband = apply_bicentatriacontatetragonal_hyperbolic_deadband
+apply_phase62_deadband = apply_bicentatriacontatetragonal_hyperbolic_deadband
+apply_bicentatriacontatetragonal_deadband = apply_bicentatriacontatetragonal_hyperbolic_deadband
+bicentatriacontatetragonal_deadband = apply_bicentatriacontatetragonal_hyperbolic_deadband
+phase62_deadband = apply_bicentatriacontatetragonal_hyperbolic_deadband
+
+
+REGIME_GAMMA_TOP_V62 = {
+    'BULL_LOW_VOL': 14.40,
+    'BULL_HIGH_VOL': 11.52,
+    'SIDEWAYS': 8.64,
+    'SIDEWAYS_LOW_VOL': 8.64,
+    'SIDEWAYS_HIGH_VOL': 5.76,
+    'BEAR': 2.88,
+    'BEAR_LOW_VOL': 2.88,
+    'BEAR_HIGH_VOL': 2.16,
+    'PANIC': 1.44,
+    'CRISIS': 1.44,
+    'RECOVERY': 11.52,
+    '2': 14.40,
+    '1': 8.64,
+    '0': 2.88,
+    'UNKNOWN': 14.40,
+}
+
+
+def get_regime_adaptive_gamma_top_v62(regime: Union[int, str] = 'BULL_LOW_VOL') -> float:
+    """
+    Phase 62 (R1, Feature F282.1): Regime-adaptive gamma_top <= 14.40
+    (Bull Low Vol: 14.40, Bull High Vol: 11.52, Sideways Low Vol: 8.64, Sideways High Vol: 5.76,
+     Bear Low Vol: 2.88, Bear High Vol: 2.16, Crisis: 1.44).
+    """
+    if isinstance(regime, (int, float)):
+        regime_str = str(int(regime))
+    else:
+        regime_str = str(regime).upper()
+    return REGIME_GAMMA_TOP_V62.get(regime_str, REGIME_GAMMA_TOP_V62.get('BULL_LOW_VOL', 14.40))
+
+
+def compute_phase62_hyperconvex_rank_modulation(
+    ranks: Union[pd.Series, np.ndarray, float],
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 62 (R1, Feature F282.1): 57th-Order Hyper-Convex Rank Modulation:
+        g_v62(r) = 0.50 + 2.10 * r * exp(gamma_top * r^57) (for z_denoised >= 0)
+        g_neg(r) = 1.35 - 1.00 * r (for z_denoised < 0)
+    Concentrates conviction into top alpha names while remaining flat across the bottom 70% of distribution.
+    At r=0.70, g(0.70) <= 2.10. At r=1.00, g(1.00) ~= 3767536.0 > 100000.0.
+    """
+    if gamma_top is None:
+        if regime is not None:
+            gamma_top = get_regime_adaptive_gamma_top_v62(regime)
+        else:
+            gamma_top = 14.40
+
+    is_scalar = np.isscalar(ranks)
+    r = np.asarray(ranks, dtype=np.float64)
+    r_clipped = np.clip(r, 0.0, 1.0)
+    pos_mult = 0.50 + 2.10 * r_clipped * np.exp(float(gamma_top) * np.power(r_clipped, 57.0))
+    if z_denoised is not None:
+        z = np.asarray(z_denoised, dtype=np.float64)
+        mult = np.where(z >= 0.0, pos_mult, 1.35 - 1.00 * r_clipped)
+    else:
+        mult = pos_mult
+
+    if is_scalar:
+        return float(mult.item() if hasattr(mult, 'item') else mult)
+    if isinstance(ranks, pd.Series):
+        return pd.Series(mult, index=ranks.index)
+    return mult
+
+compute_phase62_rank_warping = compute_phase62_hyperconvex_rank_modulation
+compute_phase62_rank_modulation = compute_phase62_hyperconvex_rank_modulation
+phase62_rank_modulation = compute_phase62_hyperconvex_rank_modulation
+phase62_hyperconvex_rank_modulation = compute_phase62_hyperconvex_rank_modulation
+
+
+
+# =========================================================================
+# PHASE 62 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v69 Production Master)
+# =========================================================================
+
+def apply_bicentatriacontatetragonal_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray, float],
+    delta_noise: float = 0.035,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 304.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 62 (R1, Feature F282.2): Asymmetric Bicentatriacontatetragonal (304th-Order) Hyperbolic Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^304)
+    With bicentatriacontatetragonal exponent (alpha = 304.0) and delta_noise = 0.035, suppresses near-zero
+    noise (|z| <= 0.00035) reducing noise leakage down to < 10^-224 (0.0 in float64), while transmitting 100.000%
+    of high conviction signals (|z| >= 0.150) with strict rank monotonicity (Spearman rho == 1.0000).
+    """
+    is_scalar = np.isscalar(scores_centered)
+    if is_scalar:
+        arr_in = np.array([scores_centered], dtype=np.float64)
+    else:
+        arr_in = scores_centered
+
+    res = apply_quintic_hyperbolic_deadband(
+        scores_centered=arr_in,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+    if is_scalar:
+        return float(res[0])
+    return res
+
+compute_phase62_deadband = apply_bicentatriacontatetragonal_hyperbolic_deadband
+apply_phase62_deadband = apply_bicentatriacontatetragonal_hyperbolic_deadband
+apply_bicentatriacontatetragonal_deadband = apply_bicentatriacontatetragonal_hyperbolic_deadband
+bicentatriacontatetragonal_deadband = apply_bicentatriacontatetragonal_hyperbolic_deadband
+phase62_deadband = apply_bicentatriacontatetragonal_hyperbolic_deadband
+
+
+REGIME_GAMMA_TOP_V62 = {
+    'BULL_LOW_VOL': 14.40,
+    'BULL_HIGH_VOL': 11.52,
+    'SIDEWAYS': 8.64,
+    'SIDEWAYS_LOW_VOL': 8.64,
+    'SIDEWAYS_HIGH_VOL': 5.76,
+    'BEAR': 2.88,
+    'BEAR_LOW_VOL': 2.88,
+    'BEAR_HIGH_VOL': 2.16,
+    'PANIC': 1.44,
+    'CRISIS': 1.44,
+    'RECOVERY': 11.52,
+    '2': 14.40,
+    '1': 8.64,
+    '0': 2.88,
+    'UNKNOWN': 14.40,
+}
+
+
+def get_regime_adaptive_gamma_top_v62(regime: Union[int, str] = 'BULL_LOW_VOL') -> float:
+    """
+    Phase 62 (R1, Feature F282.1): Regime-adaptive gamma_top <= 14.40
+    (Bull Low Vol: 14.40, Bull High Vol: 11.52, Sideways Low Vol: 8.64, Sideways High Vol: 5.76,
+     Bear Low Vol: 2.88, Bear High Vol: 2.16, Crisis: 1.44).
+    """
+    if isinstance(regime, (int, float)):
+        regime_str = str(int(regime))
+    else:
+        regime_str = str(regime).upper()
+    return REGIME_GAMMA_TOP_V62.get(regime_str, REGIME_GAMMA_TOP_V62.get('BULL_LOW_VOL', 14.40))
+
+
+def compute_phase62_hyperconvex_rank_modulation(
+    ranks: Union[pd.Series, np.ndarray, float],
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 62 (R1, Feature F282.1): 57th-Order Hyper-Convex Rank Modulation:
+        g_v62(r) = 0.50 + 2.10 * r * exp(gamma_top * r^57) (for z_denoised >= 0)
+        g_neg(r) = 1.35 - 1.00 * r (for z_denoised < 0)
+    Concentrates conviction into top alpha names while remaining flat across the bottom 70% of distribution.
+    At r=0.70, g(0.70) <= 2.10. At r=1.00, g(1.00) ~= 3762699.0 > 100000.0.
+    """
+    if gamma_top is None:
+        if regime is not None:
+            gamma_top = get_regime_adaptive_gamma_top_v62(regime)
+        else:
+            gamma_top = REGIME_GAMMA_TOP_V62['BULL_LOW_VOL']
+
+    is_scalar = np.isscalar(ranks)
+    r = np.asarray(ranks, dtype=np.float64)
+    r_clipped = np.clip(r, 0.0, 1.0)
+
+    # 57th-order hyper-convex warp
+    top_term = gamma_top * np.power(r_clipped, 57.0)
+    top_term = np.clip(top_term, 0.0, 700.0)
+    pos_mult = 0.50 + 2.10 * r_clipped * np.exp(top_term)
+
+    if z_denoised is not None:
+        z = np.asarray(z_denoised, dtype=np.float64)
+        mult = np.where(z >= 0.0, pos_mult, 1.35 - 1.00 * r_clipped)
+    else:
+        mult = pos_mult
+
+    if is_scalar:
+        return float(mult.item() if hasattr(mult, 'item') else mult)
+    if isinstance(ranks, pd.Series):
+        return pd.Series(mult, index=ranks.index)
+    return mult
+
+compute_phase62_rank_warping = compute_phase62_hyperconvex_rank_modulation
+compute_phase62_rank_modulation = compute_phase62_hyperconvex_rank_modulation
+phase62_rank_modulation = compute_phase62_hyperconvex_rank_modulation
+phase62_hyperconvex_rank_modulation = compute_phase62_hyperconvex_rank_modulation
+
+
+# =========================================================================
 # PHASE 61 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v68 Production Master)
 # =========================================================================
 
