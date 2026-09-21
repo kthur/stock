@@ -1559,3 +1559,97 @@ Integrity mode: development
 - [ ] Complete set of method aliases (30 for Coupler, 36 for Barycenter, 28 for L3 queue acceleration).
 - [ ] Bit-for-bit SHA-256 hash synchronization across all 3 standalone reports.
 - [ ] 100% pass rate across all dedicated Phase 64 tests and historical regression suites.
+
+## 2026-09-21T05:07:46Z
+
+This is a single self-contained fix; keep it small and focused.
+
+Implement **Phase 65 Quantitative Alpha Enhancement (v72 Production Master, Features F296~F300)** for the stock trading system at `d:\Finance\code\stock`.
+
+Working directory: `d:\Finance\code\stock`
+Integrity mode: development (100% genuine mathematical modeling, zero mock data, backward compatibility strictly preserved under `version >= 65`)
+
+### Context
+
+This is an integrated stock auto-trading and prediction system operating across 5 global equity markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000) with 37 diversified multi-factor strategies and institutional-grade execution OMS. The system has been progressively enhanced through 64 prior phases. Phase 64 (v71) achieved Net Expected Return 199.49%, Sharpe 41.78, MDD -0.00001%, Alpha Spread 179.32%.
+
+Read `AGENTS.md` and `PROJECT.md` for full architecture documentation. Study existing Phase 63-64 implementations in the following files to understand the established patterns before implementing Phase 65:
+
+- `trading_system/src/ai/factor_suppression.py` — Deadband filters, regime-adaptive gamma, rank modulation
+- `trading_system/src/ai/ensemble_scorer.py` — Coupler functions, static bindings, rank modulation gating, harmony factor boost
+- `trading_system/src/risk/unified_portfolio_allocator.py` — Barycenter blending, information-theoretic weighting, regime shifts
+- `trading_system/src/risk/portfolio_allocator.py` — EVaR tail risk budgeting, cumulant scaling
+- `trading_system/src/core/fast_lob_engine.py` — Dark energy L3 hydrodynamics, preemptive routing
+- `trading_system/src/execution/smart_order_router.py` — Lit maker floor, dark ATS cap, anti-gaming MinQty
+- `trading_system/src/execution/oms_engine.py` — Micro-tick shading activation and coefficients
+- `trading_system/scripts/benchmark_phase64_quant_performance.py` — Benchmark engine pattern
+- `tests/test_phase64_*.py` — Test suite patterns
+
+## Requirements
+
+### R1. Alpha Signal Enhancement (F296, F297.1, F297.2)
+
+Enhance the alpha signal pipeline with new mathematical structures that extend the Phase 64 coupler, rank modulation, and deadband filter. The new coupler must introduce higher-order partition actions and topological defect invariants beyond Phase 64's 126th/128th-order terms. The rank modulation order must increase beyond 59th-order, and the deadband filter must achieve noise leakage below Phase 64's $< 10^{-240}$ level. All changes must be gated under `version >= 65` to preserve backward compatibility.
+
+### R2. Portfolio Risk Allocation Enhancement (F298.1, F298.2)
+
+Enhance the portfolio risk allocation with higher-order Fisher-Rao barycenter metric curvature and deeper cumulant EVaR tail budgeting than Phase 64's 60th-cumulant. Update the information-theoretic blend weights with refined regime shifts and contagion damping. All changes must be gated under `version >= 65`.
+
+### R3. Microstructure & OMS Execution Enhancement (F299.1, F299.2)
+
+Enhance the L3 orderbook engine, smart order router, and OMS engine with tighter precision floors, higher dark ATS caps, and more aggressive micro-tick shading than Phase 64 values. All changes must be gated under `version >= 65`.
+
+### R4. Benchmarking, Verification & Documentation (F300)
+
+Create `benchmark_phase65_quant_performance.py` following the Phase 64 benchmark pattern. The benchmark must verify all 7 target KPIs pass. Create dedicated test suites and adversarial challenger tests. Synchronize benchmark reports across all 4 report paths. Update `AGENTS.md`, `PROJECT.md` with Phase 65 feature inventory entries.
+
+## Performance Targets (Phase 64 → Phase 65)
+
+| # | KPI | Phase 64 Baseline | Phase 65 Target | Delta |
+|---|-----|-------------------|-----------------|-------|
+| 1 | Net Expected Return | 199.49% | ≥ 201.55% | +2.06%p |
+| 2 | Annualized Sharpe Ratio | 41.78 | ≥ 42.35 | +0.57 |
+| 3 | Maximum Drawdown (MDD) | -0.00001% | ≤ -0.00001% | 0.00%p |
+| 4 | Sortino Ratio | 59.60 | ≥ 60.40 | +0.80 |
+| 5 | Calmar Ratio | 19,949,000 | ≥ 20,155,000 | +206,000 |
+| 6 | Win Rate | 100.0% | 100.0% | 0.00%p |
+| 7 | Profit Factor | ∞ | ∞ | 0.00 |
+| 8 | Information Ratio | 12.53 | ≥ 12.70 | +0.17 |
+| 9 | Alpha Spread | 179.32% | ≥ 181.60% | +2.28%p |
+| 10 | Tail Risk (EVaR 99.9%) | 0.000010% | ≤ 0.000008% | -20.0% |
+| 11 | Avg Execution Slippage | 4.768e-12 bps | ≤ 2.384e-12 bps | -50.0% |
+| 12 | Total Friction Costs | 5.722e-12 bps | ≤ 2.861e-12 bps | -50.0% |
+| 13 | Portfolio Turnover | 4.79% | ≤ 4.70% | -0.09%p |
+| 14 | Capacity / AUM Limit | $23.5B | ≥ $24.0B | +$0.5B |
+| 15 | Alpha Decay Half-Life | 18.5 days | ≥ 18.8 days | +0.3d |
+
+## Acceptance Criteria
+
+### Alpha Signal (R1)
+- [ ] New coupler function exists in `ensemble_scorer.py` with higher-order terms than Phase 64
+- [ ] New rank modulation function exists in `factor_suppression.py` with order > 59
+- [ ] New deadband filter achieves noise leakage below $10^{-240}$
+- [ ] All new code gated under `version >= 65`
+- [ ] Phase 64 tests (`tests/test_phase64_*.py`) still pass with 0 regressions
+
+### Risk Allocation (R2)
+- [ ] New barycenter blend function exists in `unified_portfolio_allocator.py` and `portfolio_allocator.py`
+- [ ] EVaR cumulant order exceeds Phase 64's 60th
+- [ ] Information-theoretic blend weights updated with new regime shifts
+- [ ] All new code gated under `version >= 65`
+
+### Microstructure & OMS (R3)
+- [ ] Lit maker floor precision tighter than Phase 64's $1 \times 10^{-36}$
+- [ ] Dark ATS cap higher than Phase 64's 99.999999999999999995%
+- [ ] Micro-tick shading coefficient more aggressive than Phase 64's 0.999999999999999995
+- [ ] All new code gated under `version >= 65`
+
+### Benchmarking & Verification (R4)
+- [ ] `benchmark_phase65_quant_performance.py` exists and all 7 target KPIs pass
+- [ ] Dedicated Phase 65 test suite exists with ≥ 50 tests, 100% pass rate
+- [ ] Combined regression test suite (Phase 64 + Phase 65) achieves 100% pass rate with 0 regressions
+- [ ] Benchmark reports synchronized bit-for-bit (SHA-256) across 3 standalone paths
+- [ ] `reports/quant_benchmark_comparison.md` updated with Phase 65 section prepended
+- [ ] `AGENTS.md` and `PROJECT.md` updated with Phase 65 entries (F296~F300)
+- [ ] Git commit and push to `origin/main` with clean working tree
+
