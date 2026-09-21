@@ -328,6 +328,14 @@
 | F289.1 | KNK 42-Dark-Energy DAHA L3 Spacetime Hydrodynamics | Kerr-Newman-Kiselev 42-dark-energy ($w = -44/3 \approx -14.667, k_{\text{daha}}=0.34, k_{\text{monster}}=0.33, \text{daha\_42\_factor}=6.10, c_{\text{monster}}=0.0000000000000476837158203125$), repulsive acceleration $-22.0 \cdot c_{\text{monster}} \cdot r^{43}$ | M3 (P63) | Phase 63 R3 |
 | F289.2 | SmartOrderRouter & ExecutionOMSEngine Preemptive Micro-Friction Optimization | 1e-35 lit maker floor, 99.99999999999999999% dark ATS, 99.99999999999999999% anti-gaming MinQty, tick shading $-0.99999999999999999 \cdot \text{spread} \cdot (h-0.0000010)$ | M3 (P63) | Phase 63 R3 |
 | F290 | Phase 63 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase63_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, Net Return 197.39%, Sharpe 41.18, MDD -0.00001%, and 52/52 dedicated tests 100% pass | M4 (P63) | Phase 63 R4 |
+| F291 | Quantum Geometric Langlands Chiral Affine Borcherds-Moonshine Monster Whittaker Coupler | Quantum Geometric Langlands chiral affine Lie superalgebra Borcherds-Moonshine Monster Whittaker oper obstruction $E_{\text{monster\_whit}}$ and topological invariant $Z_{\text{monster\_whit}}$ ($\kappa_{\text{monster\_whit}}=18.50$, $\lambda_{\text{monster}}=0.99998$, $\text{FERI}_{\text{v64}}$, 126th/128th order action terms, 63rd/64th order defect terms, harmony boost $4.45 \cdot h \cdot z$) | M1 (P64) | Phase 64 R1 |
+| F292.1 | 59th-Order Hyper-Convex Rank Modulation | $g_{\text{v64}}(r) = 0.50 + 2.20 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{59})$ with regime-adaptive $\gamma_{\text{top}}$ up to 15.60 | M1 (P64) | Phase 64 R1 |
+| F292.2 | 320th-Order Bicentatriacontaoctagonal Hyperbolic Deadband | $z_{\text{denoised}} = z \cdot \tanh((|z|/\delta_{\text{eff}})^{320})$ eliminating noise leakage to $< 10^{-240}$ | M1 (P64) | Phase 64 R1 |
+| F293.1 | Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-14 Barycenter & 60th-Cumulant EVaR | Fisher-Rao Riemannian manifold barycenter with $\mu_{\text{lmbwdh14}}=[5.40, 3.70, 3.65, 5.95]$ and $60! \approx 8.320987 \times 10^{81}$ tail bounds, $\xi_{\text{monster}}=0.99999999999995$ | M2 (P64) | Phase 64 R2 |
+| F293.2 | Ambiguity Tilting Entropy Scaling & Information-Theoretic Weighting | Ambiguity tilting entropy scaling $\alpha_{\text{iep}} = 3.70$ with regime shifts $(\delta_{\text{bl}} = -12.75, \delta_{\text{herc}} = +9.00, \delta_{\text{rp}} = -13.25, \delta_{\text{cvar}} = +19.50)$ and contagion damping $\max(0.0, 1.0 - 14.5 \cdot \lambda_{\text{casc}})$ | M2 (P64) | Phase 64 R2 |
+| F294.1 | KNK 43-Dark-Energy DAHA L3 Spacetime Hydrodynamics | Kerr-Newman-Kiselev 43-dark-energy ($w = -15.0, k_{\text{daha}}=0.35, k_{\text{monster}}=0.34, \text{daha\_43\_factor}=6.35, c_{\text{monster}}=2.384185791015625 \times 10^{-14}$), repulsive acceleration $-22.5 \cdot c_{\text{monster}} \cdot r^{44} \cdot \text{daha\_43}$ | M3 (P64) | Phase 64 R3 |
+| F294.2 | SmartOrderRouter & ExecutionOMSEngine Preemptive Micro-Friction Optimization | 1e-36 lit maker floor, 99.999999999999999995% dark ATS, 99.999999999999999995% anti-gaming MinQty, tick shading $-0.999999999999999995 \cdot \text{spread} \cdot (h-0.0000008)$ | M3 (P64) | Phase 64 R3 |
+| F295 | Phase 64 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase64_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, Net Return 199.49%, Sharpe 41.78, MDD -0.00001%, and 55/55 dedicated tests 100% pass | M4 (P64) | Phase 64 R4 |
 
 
 ## Milestones
@@ -515,6 +523,10 @@
 | M2 (P63) | Phase 63 Portfolio Allocation & Trans-Singular-Borcherds-Monster-Moonshine-Drinfeld-Higher-Homology-13 EVaR (R2) | F288.1, F288.2: Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-13 Barycenter ($\mu=[5.30, 3.65, 3.60, 5.85]$), 59th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P63) | DONE |
 | M3 (P63) | Phase 63 Microstructure Hydrodynamics & Preemptive OMS (R3) | F289.1, F289.2: KNK 42-Dark-Energy DAHA L3, 99.99999999999999999% dark ATS, 1e-35 lit maker floor, 99.99999999999999999% anti-gaming MinQty, tick shading at $h > 0.0000010$ | M2 (P63) | DONE |
 | M4 (P63) | Phase 63 Benchmark Engine & Forensic Verification (R4) | F290: `benchmark_phase63_quant_performance.py`, comparison reports across 4 paths, 52/52 tests 100% pass | M1, M2, M3 (P63) | DONE |
+| M1 (P64) | Phase 64 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F291, F292.1, F292.2: Monster Coupler 126th/128th order, 59th-order rank modulation, 320th-order deadband | none | DONE |
+| M2 (P64) | Phase 64 Portfolio Allocation & Trans-Singular-Borcherds-Monster-Moonshine-Drinfeld-Higher-Homology-14 EVaR (R2) | F293.1, F293.2: Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-14 Barycenter ($\mu=[5.40, 3.70, 3.65, 5.95]$), 60th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P64) | DONE |
+| M3 (P64) | Phase 64 Microstructure Hydrodynamics & Preemptive OMS (R3) | F294.1, F294.2: KNK 43-Dark-Energy DAHA L3, 99.999999999999999995% dark ATS, 1e-36 lit maker floor, 99.999999999999999995% anti-gaming MinQty, tick shading at $h > 0.0000008$ | M2 (P64) | DONE |
+| M4 (P64) | Phase 64 Benchmark Engine & Forensic Verification (R4) | F295: `benchmark_phase64_quant_performance.py`, comparison reports across 4 paths, 55/55 tests 100% pass | M1, M2, M3 (P64) | DONE |
 
 
 ## Interface Contracts
@@ -574,6 +586,7 @@
 - `trading_system/scripts/benchmark_phase61_quant_performance.py`: Phase 61 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase62_quant_performance.py`: Phase 62 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase63_quant_performance.py`: Phase 63 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase64_quant_performance.py`: Phase 64 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine

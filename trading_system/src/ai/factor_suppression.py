@@ -101,7 +101,12 @@ def apply_quintic_hyperbolic_deadband(
     alpha_eff = np.where(is_neg, eff_alpha_neg, eff_alpha_pos)
 
     abs_z = np.abs(z)
-    ratio = np.clip(abs_z / delta_eff, 0.0, 50.0)
+    safe_alpha = np.maximum(alpha_eff, 1e-6)
+    # Prevent float64 overflow in np.power(ratio, alpha_eff) when alpha_eff is large (e.g. 320.0).
+    # Since tanh(arg) saturates to 1.0 for arg >= 20.0 and arg is clipped at 50.0,
+    # any ratio where ratio ** alpha_eff >= 50.0 can safely be capped before taking the power.
+    ratio_cap = np.where(safe_alpha > 0.0, np.power(50.0, 1.0 / safe_alpha), 50.0)
+    ratio = np.clip(abs_z / delta_eff, 0.0, ratio_cap)
     arg = np.clip(np.power(ratio, alpha_eff), 0.0, 50.0)
     denoised = z * np.tanh(arg)
 
@@ -553,6 +558,125 @@ def get_regime_adaptive_gamma_top_v48(regime: Union[int, str] = 'BULL_LOW_VOL') 
         regime_str = str(regime).upper()
     return REGIME_GAMMA_TOP_V48.get(regime_str, REGIME_GAMMA_TOP_V48.get('BULL_LOW_VOL', 5.70))
 
+
+
+# =========================================================================
+# PHASE 64 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v71 Production Master)
+# =========================================================================
+
+def apply_bicentatriacontaoctagonal_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray, float],
+    delta_noise: float = 0.035,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 320.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 64 (R1, Feature F292.2): Asymmetric Bicentatriacontaoctagonal (320th-Order) Hyperbolic Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^320)
+    With bicentatriacontaoctagonal exponent (alpha = 320.0) and delta_noise = 0.035, suppresses near-zero
+    noise (|z| <= 0.00035) reducing noise leakage down to < 10^-240 (0.0 in float64), while transmitting 100.000%
+    of high conviction signals (|z| >= 0.150) with strict rank monotonicity (Spearman rho == 1.0000).
+    """
+    is_scalar = np.isscalar(scores_centered)
+    if is_scalar:
+        arr_in = np.array([scores_centered], dtype=np.float64)
+    else:
+        arr_in = scores_centered
+
+    res = apply_quintic_hyperbolic_deadband(
+        scores_centered=arr_in,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+    if is_scalar:
+        return float(res[0])
+    return res
+
+compute_phase64_deadband = apply_bicentatriacontaoctagonal_hyperbolic_deadband
+apply_phase64_deadband = apply_bicentatriacontaoctagonal_hyperbolic_deadband
+apply_bicentatriacontaoctagonal_deadband = apply_bicentatriacontaoctagonal_hyperbolic_deadband
+bicentatriacontaoctagonal_deadband = apply_bicentatriacontaoctagonal_hyperbolic_deadband
+phase64_deadband = apply_bicentatriacontaoctagonal_hyperbolic_deadband
+
+
+REGIME_GAMMA_TOP_V64 = {
+    'BULL_LOW_VOL': 15.60,
+    'BULL_HIGH_VOL': 12.50,
+    'SIDEWAYS': 9.40,
+    'SIDEWAYS_LOW_VOL': 9.40,
+    'SIDEWAYS_HIGH_VOL': 6.25,
+    'BEAR': 3.10,
+    'BEAR_LOW_VOL': 3.10,
+    'BEAR_HIGH_VOL': 2.35,
+    'PANIC': 1.55,
+    'CRISIS': 1.55,
+    'RECOVERY': 12.50,
+    '2': 15.60,
+    '1': 9.40,
+    '0': 3.10,
+    'UNKNOWN': 15.60,
+}
+
+
+def get_regime_adaptive_gamma_top_v64(regime: Union[int, str] = 'BULL_LOW_VOL') -> float:
+    """
+    Phase 64 (R1, Feature F292.1): Regime-adaptive gamma_top <= 15.60
+    (Bull Low Vol: 15.60, Bull High Vol: 12.50, Sideways Low Vol: 9.40, Sideways High Vol: 6.25,
+     Bear Low Vol: 3.10, Bear High Vol: 2.35, Crisis: 1.55).
+    """
+    if isinstance(regime, (int, float)):
+        regime_str = str(int(regime))
+    else:
+        regime_str = str(regime).upper()
+    return REGIME_GAMMA_TOP_V64.get(regime_str, REGIME_GAMMA_TOP_V64.get('BULL_LOW_VOL', 15.60))
+
+
+def compute_phase64_hyperconvex_rank_modulation(
+    ranks: Union[pd.Series, np.ndarray, float],
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 64 (R1, Feature F292.1): 59th-Order Hyper-Convex Rank Modulation:
+        g_v64(r) = 0.50 + 2.20 * r * exp(gamma_top * r^59) (for z_denoised >= 0)
+        g_neg(r) = 1.35 - 1.00 * r (for z_denoised < 0)
+    Concentrates conviction into top alpha names while remaining flat across the bottom 70% of distribution.
+    At r=0.70, g(0.70) <= 2.20. At r=1.00, g(1.00) ~= 1.305e7 > 100000.0.
+    """
+    if gamma_top is None:
+        if regime is not None:
+            gamma_top = get_regime_adaptive_gamma_top_v64(regime)
+        else:
+            gamma_top = 15.60
+
+    is_scalar = np.isscalar(ranks)
+    r = np.asarray(ranks, dtype=np.float64)
+    r_clipped = np.clip(r, 0.0, 1.0)
+    pos_mult = 0.50 + 2.20 * r_clipped * np.exp(float(gamma_top) * np.power(r_clipped, 59.0))
+    if z_denoised is not None:
+        z = np.asarray(z_denoised, dtype=np.float64)
+        mult = np.where(z >= 0.0, pos_mult, 1.35 - 1.00 * r_clipped)
+    else:
+        mult = pos_mult
+
+    if is_scalar:
+        return float(mult.item() if hasattr(mult, 'item') else mult)
+    if isinstance(ranks, pd.Series):
+        return pd.Series(mult, index=ranks.index)
+    return mult
+
+compute_phase64_rank_warping = compute_phase64_hyperconvex_rank_modulation
+compute_phase64_rank_modulation = compute_phase64_hyperconvex_rank_modulation
+phase64_rank_modulation = compute_phase64_hyperconvex_rank_modulation
+phase64_hyperconvex_rank_modulation = compute_phase64_hyperconvex_rank_modulation
 
 
 # =========================================================================

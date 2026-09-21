@@ -1501,3 +1501,61 @@ Integrity mode: development
 - [ ] Bit-for-bit SHA-256 hash synchronization across all 3 standalone reports.
 - [ ] 100% pass rate across all dedicated Phase 63 tests and historical regression suites.
 
+## 2026-09-20T17:29:09Z
+
+This is a single self-contained fix; keep it small and focused. Enhance institutional portfolio net return and risk-adjusted alpha across 5 global equity markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000) through Phase 64 Quantitative Alpha Enhancement (v71 Production Master, Features F291~F295), elevating Net Expected Return from 197.39% to >= 199.45% (Target: 199.49%, +2.10%p), Sharpe Ratio to >= 41.75 (Target: 41.78, +0.60), maintaining Maximum Drawdown (MDD) strictly <= -0.00001%, and reducing execution friction costs and slippage by 50% via pure non-linear mathematical modeling without synthetic shortcuts.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. Alpha Signal Disentanglement & Hyper-Convex Rank Modulation (Features F291, F292.1, F292.2)
+- Extend Quantum Geometric Langlands Chiral Affine Lie Superalgebra Borcherds-Moonshine Monster Whittaker Coupler with Monster module V^natural partition polynomial deformation up to 126th/128th order (P_126 = (\sum \hat{\alpha}_i^2)^63, P_128 = (\sum \hat{\alpha}_i^2)^64) and topological invariant defect to 63rd/64th order (D_63, D_64) (kappa_monster_whit=18.50, lambda_monster=0.99998, FERI_v64), exporting 30+ backward-compatible aliases on ensemble_scorer.py and gating harmony factor boost (4.45 * h_monster_whit * z_monster_whit) for version >= 64.
+- Implement 59th-order hyper-convex rank modulation g_v64(r) = 0.50 + 2.20 * r * exp(gamma_top * r^59) with regime-adaptive gamma_top up to 15.60 (BULL_LOW_VOL) in factor_suppression.py, expanding top 1% conviction convexity while preserving lower-tail decay.
+- Implement 320th-order bicentatriacontaoctagonal hyperbolic noise deadband z_denoised = z * tanh((|z|/delta_eff)^320) eliminating boundary noise leakage to < 10^-240 (alpha=320.0, delta=0.035) while preserving 100% of high-conviction alpha signals (|z| >= 0.15).
+
+### R2. Portfolio Risk Allocation & 60th-Cumulant EVaR Tail Budgeting (Features F293.1, F293.2)
+- Implement Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-14 Fisher-Rao Barycenter Blending on the Riemannian probability simplex with metric curvature mu_lmbwdh14 = [5.40, 3.70, 3.65, 5.95] across Black-Litterman, HERC, Risk Parity, and EVT-CVaR in unified_portfolio_allocator.py, maintaining simplex conservation (\sum q_i = 1.0) and exporting 36+ method aliases delegated in portfolio_allocator.py.
+- Implement 60th-cumulant expansion Trans-Singular-Eternal-Omni-Cosmic-Infinite-Supreme-Transcendent EVaR Tail Risk Measure (60! ~= 8.32099 x 10^81, xi_monster = 0.99999999999995) bounding catastrophic downside risk under Student-t and heavy-tailed shocks.
+- Integrate ambiguity tilting in calculate_weights under version >= 64 with information-theoretic entropy scaling epsilon_w = 0.640, alpha_iep = 3.70 and regime shifts (delta_bl = -12.75*epsilon_w, delta_herc = +9.00*epsilon_w, delta_rp = -13.25*epsilon_w, delta_cvar = +19.50*epsilon_w + 8.50*c_crisis), and contagion damping max(0.0, 1.0 - 14.5 * lambda_casc).
+
+### R3. Microstructure L3 Spacetime Hydrodynamics & Preemptive OMS (Features F294.1, F294.2)
+- Implement Kerr-Newman-Kiselev 43-Dark-Energy DAHA L3 Spacetime Hydrodynamics with 43rd dark energy component (w = -45/3 = -15.0, k_daha = 0.35, k_monster = 0.34, daha_43_factor = 6.35, c_monster = 2.384185791015625e-14, repulsive acceleration -22.5 * c_monster * r^44 * daha_43) in fast_lob_engine.py, with 28 method aliases and stack frame inspection for "phase64".
+- Contract primary exchange lit maker ratio floor down to 1e-36 with 36-decimal precision in smart_order_router.py.
+- Scale preemptive dark ATS routing allocation cap up to 99.999999999999999995% (21 digits) and anti-gaming MinQty up to 99.999999999999999995% under severe toxic queue imbalance.
+- Implement preemptive micro-tick shading in oms_engine.py (both ExecutionOMSEngine and AlmgrenChrissScheduler) activating at h > 0.0000008:
+  hawkes_shift = -direction * 0.999999999999999995 * spread * (h - 0.0000008)
+
+### R4. Verification Benchmarking & Complete Backward Compatibility (Feature F295)
+- Build trading_system/scripts/benchmark_phase64_quant_performance.py evaluating 15 institutional metrics across all 5 markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000) comparing Phase 63 baseline with Phase 64 achievements.
+- Synchronize formatted markdown reports across all 4 canonical paths:
+  1. reports/quant_benchmark_comparison_phase64.md
+  2. trading_system/result/quant_benchmark_comparison_phase64.md
+  3. trading_system/reports/quant_benchmark_comparison_phase64.md
+  4. reports/quant_benchmark_comparison.md (prepended with Phase 64 section)
+- Maintain 100% backward compatibility for all Phase 1~63 modules gated by version >= 64.
+- Update AGENTS.md and PROJECT.md with Feature Inventory (F291~F295) and Phase 64 Milestones.
+
+## Verification Resources
+- Existing benchmark scripts: trading_system/scripts/benchmark_phase63_quant_performance.py
+- Test suites: tests/test_phase63_alpha.py, tests/test_phase63_risk.py, tests/test_phase63_oms.py, tests/test_phase63_adversarial_challenger1.py, tests/test_phase63_adversarial_oms_benchmark.py
+- Python runtime: python (Python 3.11 with pytest)
+
+## Acceptance Criteria
+
+### 1. 5-Market Quantitative Benchmark Targets
+- [ ] Net Expected Return: >= 199.45% (Target: 199.49%, +2.10%p over Phase 63 baseline 197.39%).
+- [ ] Sharpe Ratio: >= 41.75 (Target: 41.78, +0.60 over Phase 63 baseline 41.18).
+- [ ] Maximum Drawdown (MDD): Strictly <= -0.00001% maintained across all 5 markets.
+- [ ] Trading & Friction Costs: <= 0.0000000000057220458984375 bps (-50.0% reduction from 0.000000000011444091796875 bps).
+- [ ] Execution Slippage: <= 0.00000000000476837158203125 bps (-50.0% reduction from 0.0000000000095367431640625 bps).
+- [ ] Top-Decile Alpha Spread: >= 179.30% (Target: 179.32%, +2.30%p over Phase 63 baseline 177.02%).
+- [ ] Win Rate: 100.0% (leakage < 10^-240).
+
+### 2. Implementation Integrity & Modeling Rigor
+- [ ] Zero mock data, zero synthetic return values, and zero artificial sleep/shortcuts.
+- [ ] 100% genuine mathematical modeling across Lie superalgebras, Riemannian barycenters, cumulant expansions, and general relativistic black hole hydrodynamics.
+- [ ] Complete set of method aliases (30 for Coupler, 36 for Barycenter, 28 for L3 queue acceleration).
+- [ ] Bit-for-bit SHA-256 hash synchronization across all 3 standalone reports.
+- [ ] 100% pass rate across all dedicated Phase 64 tests and historical regression suites.
