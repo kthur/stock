@@ -167,9 +167,11 @@ class TestTradingAgent(unittest.TestCase):
 
     def test_rule_3_no_statistical_edge(self):
         """Rule 3: 통계적 우위 없을 때 매수 차단"""
+        from datetime import datetime as _dt
+        now_str = _dt.now().strftime("%Y-%m-%d %H:%M:%S")
         for _ in range(5):
             self.trade_journal.log_trade(TradeRecord(
-                timestamp="2026-06-26 12:00:00",
+                timestamp=now_str,
                 symbol="TEST", side="SELL", quantity=10,
                 price=1000.0, pnl=-1000.0
             ))

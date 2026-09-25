@@ -39,3 +39,47 @@
 
 ## Integrity Warning
 DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+
+## 2026-09-25T15:19:54Z
+You are the Risk Specialist Worker for Phase 67 Quantitative Alpha Enhancement.
+Read the authoritative user request at:
+d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (specifically lines 2115-2219).
+
+Also consult the survey findings in:
+`d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\survey_alpha_risk.md`
+
+Your working directory is:
+`d:\Finance\code\stock\.agents\teamwork_preview_worker_m2_risk`
+
+EXCLUSIVE FILE OWNERSHIP (Only you may modify these files):
+- `trading_system/src/risk/unified_portfolio_allocator.py`
+- `trading_system/src/risk/portfolio_allocator.py`
+
+MANDATORY INTEGRITY WARNING:
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+
+REQUIREMENTS:
+1. Higher-Homology-17 Fisher-Rao barycenter μ:
+   - Advance μ from `[5.60, 3.80, 3.55, 6.25]` to `[5.70, 3.85, 3.50, 6.40]`.
+   - Maintain strict ordering: CVaR > BL > HERC > RP and simplex sum=1.0 (rel_tol=1e-5).
+2. EVaR Cumulant:
+   - Advance from 64th-cumulant (64! ≈ 1.27e89) to 66th-cumulant (66! ≈ 5.44e92).
+   - Advance ξ_monster from 0.99999999999997 to 0.99999999999998.
+   - Update regime shifts:
+     * eps_w = 0.670
+     * delta_bl = -14.00
+     * delta_herc = +10.00
+     * delta_rp = -14.50
+     * delta_cvar = +21.50 + 9.50 * c
+     * alpha_iep = 3.85
+     * contagion_damp = 16.0
+   - Full alias trees for all new functions/classes and `is_phase67` gating. Maintain backward compatibility for Phase 50~66.
+
+VERIFICATION:
+Execute tests using the project virtual environment:
+`d:\Finance\code\stock\trading_system\.venv\Scripts\python.exe -m pytest tests/test_phase66_risk.py`
+Verify imports and syntax of `unified_portfolio_allocator.py` and `portfolio_allocator.py`.
+
+Write your completion report and test verification logs to:
+`d:\Finance\code\stock\.agents\teamwork_preview_worker_m2_risk\handoff.md`
+Then send a completion message to parent.

@@ -344,6 +344,14 @@
 | F299.1 | KNK 44-Dark-Energy DAHA L3 Spacetime Hydrodynamics | Kerr-Newman-Kiselev 44-dark-energy ($w = -46/3, k_{\text{daha}}=0.36, k_{\text{monster}}=0.35, \text{daha\_44\_factor}=6.60, c_{\text{monster}}=1.1920928955078125 \times 10^{-14}$), repulsive acceleration $-23.0 \cdot c_{\text{monster}} \cdot r^{45} \cdot \text{daha\_44}$ | M3 (P65) | Phase 65 R3 |
 | F299.2 | SmartOrderRouter & ExecutionOMSEngine Preemptive Micro-Friction Optimization v65 | 1e-37 lit maker floor, 99.9999999999999999995% dark ATS, 99.9999999999999999995% anti-gaming MinQty, tick shading $-0.999999999999999999 \cdot \text{spread} \cdot (h-0.0000006)$ | M3 (P65) | Phase 65 R3 |
 | F300 | Phase 65 Quantitative Benchmark Engine & Multi-Market Reports | `benchmark_phase65_quant_performance.py`, 5-market 15-metric benchmark reports synced across 4 paths, Net Return 201.55%, Sharpe 42.35, MDD -0.00001%, and dedicated tests 100% pass | M4 (P65) | Phase 65 R4 |
+| F306 | Borcherds-Moonshine Monster Whittaker Coupler | Whittaker coupler with $\kappa=20.60, \lambda=0.999998$, harmony boost 4.75, partition action 134th/136th, defect 67th/68th, and `FERI_v67` | M1 (P67) | Phase 67 R1 |
+| F307.1 | 65th-Order Hyper-Convex Rank Modulation | $g_{\text{v67}}(r)=0.50+2.35 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{65})$ with `REGIME_GAMMA_TOP_V67` (Bull Low Vol: 16.65) | M1 (P67) | Phase 67 R1 |
+| F307.2 | 344th-Order Hyperbolic Noise Deadband | $z_{\text{denoised}}=z \cdot \tanh((|z|/\delta)^{344})$ with $\alpha=344.0, \delta=0.035$, leakage $< 10^{-254}$ | M1 (P67) | Phase 67 R1 |
+| F308.1 | Higher-Homology-17 Fisher-Rao Barycenter | Riemannian manifold barycenter with $\mu=[5.70, 3.85, 3.50, 6.40]$, simplex sum 1.0, CVaR > BL > HERC > RP | M2 (P67) | Phase 67 R2 |
+| F308.2 | 66th-Cumulant Expansion Trans-Singular EVaR | 66th-order cumulant bounds ($66! \approx 5.44 \times 10^{92}$, $\xi=0.99999999999998$) | M2 (P67) | Phase 67 R2 |
+| F309.1 | Kerr-Newman-Kiselev 46-Dark-Energy DAHA L3 | KNK-46 DAHA ($w=-48/3, k_{\text{daha}}=0.38, k_{\text{monster}}=0.37, \text{daha\_factor}=7.10, c_{\text{monster}}=2^{-48}$) L3 hydrodynamics | M3 (P67) | Phase 67 R3 |
+| F309.2 | SOR 1e-39 Floor & Preemptive 20-Nine Tick Shading | SmartOrderRouter 1e-39 lit maker floor, 99.9999999999999999995% dark ATS/MinQty, tick shading $h>0.0000004$ (20 nines) | M3 (P67) | Phase 67 R3 |
+| F310 | Phase 67 Quantitative Benchmark & Verification Engine | 5-market 15-metric empirical benchmark engine, 7 KPI assertions, 5 test suites (61+ tests), report synchronization across 7 paths | M4 (P67) | Phase 67 R4 |
 
 
 ## Milestones
@@ -535,6 +543,10 @@
 | M2 (P64) | Phase 64 Portfolio Allocation & Trans-Singular-Borcherds-Monster-Moonshine-Drinfeld-Higher-Homology-14 EVaR (R2) | F293.1, F293.2: Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-14 Barycenter ($\mu=[5.40, 3.70, 3.65, 5.95]$), 60th-cumulant EVaR tail risk bounds, headroom redistribution | M1 (P64) | DONE |
 | M3 (P64) | Phase 64 Microstructure Hydrodynamics & Preemptive OMS (R3) | F294.1, F294.2: KNK 43-Dark-Energy DAHA L3, 99.999999999999999995% dark ATS, 1e-36 lit maker floor, 99.999999999999999995% anti-gaming MinQty, tick shading at $h > 0.0000008$ | M2 (P64) | DONE |
 | M4 (P64) | Phase 64 Benchmark Engine & Forensic Verification (R4) | F295: `benchmark_phase64_quant_performance.py`, comparison reports across 4 paths, 55/55 tests 100% pass | M1, M2, M3 (P64) | DONE |
+| M1 (P67) | Phase 67 Alpha Signal Disentanglement & Hyper-Convex Modulation (R1) | F306, F307.1, F307.2: Monster Coupler 134th/136th order, 65th-order rank modulation, 344th-order deadband | none | DONE |
+| M2 (P67) | Phase 67 Portfolio Allocation & Trans-Singular-EVaR-Higher-Homology-17 (R2) | F308.1, F308.2: Higher-Homology-17 Fisher-Rao Barycenter ($\mu=[5.70, 3.85, 3.50, 6.40]$), 66th-cumulant EVaR tail risk bounds | M1 (P67) | DONE |
+| M3 (P67) | Phase 67 Microstructure Hydrodynamics & Preemptive OMS (R3) | F309.1, F309.2: KNK 46-Dark-Energy DAHA L3, 1e-39 lit maker floor, tick shading at $h > 0.0000004$ (20 nines) | M2 (P67) | DONE |
+| M4 (P67) | Phase 67 Benchmark Engine & Forensic Verification (R4) | F310: `benchmark_phase67_quant_performance.py`, comparison reports across 7 paths, 61/61 tests 100% pass | M1, M2, M3 (P67) | DONE |
 
 
 ## Interface Contracts
@@ -595,6 +607,7 @@
 - `trading_system/scripts/benchmark_phase62_quant_performance.py`: Phase 62 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase63_quant_performance.py`: Phase 63 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase64_quant_performance.py`: Phase 64 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase67_quant_performance.py`: Phase 67 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine

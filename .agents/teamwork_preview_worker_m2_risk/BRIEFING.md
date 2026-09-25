@@ -1,63 +1,65 @@
-# BRIEFING — 2026-09-16T07:06:00Z
+# BRIEFING — 2026-09-26T00:26:45Z
 
 ## Mission
-Implement Phase 45 Feature F201.1 (Lurie-Kac-Moody-Whittaker Fisher-Rao barycenter & 41st-cumulant EVaR risk measure) and verify zero regressions with 100% test pass rate.
+Implement Phase 67 Quantitative Alpha Enhancement for Risk Allocation:
+1. Higher-Homology-17 Fisher-Rao barycenter μ: Advance μ from [5.60, 3.80, 3.55, 6.25] to [5.70, 3.85, 3.50, 6.40] with strict ordering CVaR > BL > HERC > RP and simplex sum=1.0.
+2. EVaR Cumulant: Advance from 64th-cumulant to 66th-cumulant (66! ≈ 5.44e92), ξ_monster from 0.99999999999997 to 0.99999999999998.
+3. Update regime shifts: eps_w = 0.670, delta_bl = -14.00, delta_herc = +10.00, delta_rp = -14.50, delta_cvar = +21.50 + 9.50 * c, alpha_iep = 3.85, contagion_damp = 16.0.
+4. Full alias trees for all new functions/classes and `is_phase67` gating. Maintain backward compatibility for Phase 50~66.
 
 ## 🔒 My Identity
 - Archetype: teamwork_worker
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2_risk
-- Original parent: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
-- Milestone: Milestone 2 — Risk Allocation Specialist (Phase 45: F201.1)
+- Original parent: 997895c9-981f-437b-997e-a3ed353a71e8
+- Milestone: Milestone 2 — Risk Allocation Specialist (Phase 67)
 
 ## 🔒 Key Constraints
 - Exclusively owned files:
   - `trading_system/src/risk/unified_portfolio_allocator.py`
   - `trading_system/src/risk/portfolio_allocator.py`
-  - `tests/test_phase45_risk.py`
 - DO NOT CHEAT: Genuine implementation, no hardcoded values or facade mocks.
-- 100% test pass on `tests/test_phase45_risk.py` and backward compatibility on `tests/test_phase44_risk.py`.
-- Windows environment: Run tests with `BYPASS_TORCH='1'`.
+- Test verification using project venv: `d:\Finance\code\stock\trading_system\.venv\Scripts\python.exe -m pytest tests/test_phase66_risk.py`
+- Maintain backward compatibility for Phase 50~66.
 
 ## Current Parent
-- Conversation ID: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
-- Updated: 2026-09-16T07:06:00Z
+- Conversation ID: 997895c9-981f-437b-997e-a3ed353a71e8
+- Updated: 2026-09-26T00:26:45Z
 
 ## Task Summary
 - **What to build**:
-  - `compute_lurie_kac_moody_whittaker_fisher_rao_barycenter_blend` and 15 aliases in `UnifiedPortfolioAllocator` and `PortfolioAllocator`.
-  - `compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_evar_risk_measure` (41st-order cumulant expansion, $41! \approx 3.34525 \times 10^{49}$, $\xi_{\text{km}}=0.9999998$, monotonic lower bound) and 22+ aliases.
-  - In `compute_information_theoretic_blend_weights`: `is_phase45 = int(version) >= 45`, ambiguity tilting ($\epsilon_w = 0.475$, $\delta_{\text{kac\_moody\_whittaker}}$), hyper-information entropy parity ($\alpha_{\text{iep}}=2.60$), R-vine cascade tilting, and exit barycenter refinement.
-  - Comprehensive unit test suite `tests/test_phase45_risk.py` with 7 tests matching `tests/test_phase44_risk.py`.
+  - Phase 67 Higher-Homology-17 Fisher-Rao barycenter with target metric weights μ = [5.70, 3.85, 3.50, 6.40].
+  - 66th-order cumulant EVaR expansion with 66! ≈ 5.4409e92, ξ_monster = 0.99999999999998.
+  - Information-theoretic blend weight regime shift parameters for Phase 67:
+    eps_w = 0.670, delta_bl = -14.00, delta_herc = +10.00, delta_rp = -14.50, delta_cvar = +21.50 + 9.50 * c, alpha_iep = 3.85, contagion_damp = 16.0.
+  - Full alias trees for all new functions/classes, `is_phase67` gating, and staticmethod delegations in `portfolio_allocator.py`.
 - **Success criteria**:
-  - `python -m pytest tests/test_phase45_risk.py -v` passes 100% (7/7 passed).
-  - `python -m pytest tests/test_phase44_risk.py -v` passes 100% (7/7 passed).
-  - Pure genuine mathematical logic.
+  - Strict ordering: CVaR > BL > HERC > RP and simplex sum=1.0 (rel_tol=1e-5).
+  - All tests passing, syntax verified, no regressions on Phase 66 / previous phases.
 
 ## Key Decisions Made
 - Strictly adhered to Riemannian Fisher-Rao manifold exponential map iteration with projection onto 3-simplex $\Delta^3$.
-- Cumulant generating function expanded to 41st order with overflow guard $t \le 500$ and underflow guard $|m_{41}| < 10^{-25}$.
-- Enforced strict lower bound inheritance via $\max(\text{best\_ts}, \text{trans\_vir\_val})$ to maintain $EVaR_{41} \ge EVaR_{40}$.
-- Added comprehensive aliases on both `UnifiedPortfolioAllocator` and `PortfolioAllocator` for seamless consumer integration.
+- Cumulant generating function expanded to 66th order with $66! \approx 5.44345 \times 10^{92}$ and $\xi_{\text{monster}} = 0.99999999999998$.
+- Built complete alias trees on both `UnifiedPortfolioAllocator` and `PortfolioAllocator` for seamless consumer integration.
+- Supported both object and static method signatures in `PortfolioAllocator` for all input combinations.
 
 ## Artifact Index
 - `trading_system/src/risk/unified_portfolio_allocator.py` — Core unified portfolio allocator implementation
 - `trading_system/src/risk/portfolio_allocator.py` — Portfolio allocator static methods and aliases
-- `tests/test_phase45_risk.py` — Phase 45 risk unit test suite
 - `.agents/teamwork_preview_worker_m2_risk/handoff.md` — Final completion report
+- `.agents/teamwork_preview_worker_m2_risk/progress.md` — Progress log
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/risk/unified_portfolio_allocator.py`: Added Phase 45 Lurie-Kac-Moody-Whittaker barycenter, 41st-cumulant EVaR, ambiguity tilting, and barycenter post-refinement.
-  - `trading_system/src/risk/portfolio_allocator.py`: Added staticmethod delegations and aliases for Phase 45 barycenter and 41st-cumulant EVaR.
-  - `tests/test_phase45_risk.py`: Created 7-test suite for Phase 45 risk features.
-- **Build status**: PASS (14/14 tests passed in dual suite)
+  - `trading_system/src/risk/unified_portfolio_allocator.py`: Implemented Higher-Homology-17 barycenter, 66th-cumulant EVaR, ambiguity tilting, and post-refinement.
+  - `trading_system/src/risk/portfolio_allocator.py`: Added staticmethod delegations and aliases for Higher-Homology-17 barycenter and 66th-cumulant EVaR.
+- **Build status**: PASS (Syntax compiled & verified, 9/9 tests passed in Phase 66 suite, Phase 67 verification script passed)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: 100% pass (7/7 in `test_phase45_risk.py`, 7/7 in `test_phase44_risk.py`)
+- **Build/test result**: 100% pass (9/9 in `test_phase66_risk.py`, 100% inline Phase 67 verification)
 - **Lint status**: Clean, PEP-8 compliant
-- **Tests added/modified**: 7 new comprehensive unit tests in `tests/test_phase45_risk.py`
+- **Tests added/modified**: Verified against baseline and Phase 67 feature tests
 
 ## Loaded Skills
 - None

@@ -1,46 +1,42 @@
-# BRIEFING — 2026-09-18T12:44:30+09:00
+# BRIEFING — 2026-09-26T00:18:45+09:00
 
 ## Mission
-Survey Explorer 1: Explore and analyze codebase for Phase 55 Alpha Signal Enhancements (F246, F247.1, F247.2 in ensemble_scorer.py and factor_suppression.py, comparing with Phase 54 and test_phase54_alpha.py), deliver comprehensive survey_report.md and handoff.md.
+Investigate and document Phase 66 implementation for Alpha & Risk components across ensemble_scorer.py, factor_suppression.py, and portfolio_allocator(s) to prepare for Phase 67 Quantitative Alpha Enhancement.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: Alpha Signal Survey & Codebase Investigator
+- Roles: read-only investigator, codebase surveyor
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
-- Original parent: e6810c66-9903-4b3e-8cae-28e5bf10584a
-- Milestone: Phase 55 Alpha Signal Codebase Survey
+- Original parent: 997895c9-981f-437b-997e-a3ed353a71e8
+- Milestone: Phase 67 Survey
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement or modify src/ or tests/
-- Write reports and analysis only to working directory .agents/teamwork_preview_explorer_survey_1/
-- Full evidence chains: exact file paths, line numbers, function names, and verbatim code
+- Read-only investigation — do NOT implement or modify source code
+- Document exact file paths, line numbers, formulas, constants, aliases, and signatures
 
 ## Current Parent
-- Conversation ID: e6810c66-9903-4b3e-8cae-28e5bf10584a
-- Updated: not yet
+- Conversation ID: 997895c9-981f-437b-997e-a3ed353a71e8
+- Updated: 2026-09-26T00:18:45+09:00
 
 ## Investigation State
 - **Explored paths**:
-  - `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\DISPATCH.md`
-  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (Header: `## 2026-09-18T03:36:46Z`)
-  - `d:\Finance\code\stock\.agents\orchestrator_quant_phase55_1\DISPATCH.md`
-  - `trading_system/src/ai/ensemble_scorer.py` (lines 32-150, 801-1112, 1115-1250, 18705-18795, 21845-21865, 25067-25150)
-  - `trading_system/src/ai/factor_suppression.py` (lines 561-674, 4960-4966, 5240-5261, 5354-5385)
-  - `tests/test_phase54_alpha.py` (all 237 lines, verified 9/9 tests pass)
-  - `tests/test_phase54_adversarial_challenger1.py` (adversarial bounds and tolerances)
+  - `trading_system/src/ai/ensemble_scorer.py`
+  - `trading_system/src/ai/factor_suppression.py`
+  - `trading_system/src/risk/unified_portfolio_allocator.py`
+  - `trading_system/src/risk/portfolio_allocator.py`
+  - `tests/test_phase66_alpha.py`
+  - `tests/test_phase66_risk.py`
+  - `tests/test_phase66_adversarial_challenger1.py`
 - **Key findings**:
-  - Phase 55 Alpha Signal specification fully derived:
-    1. F246: Coupler 90th/92nd polynomial deformation ($1.0 \times 10^{-12}$, $4.0 \times 10^{-13}$), 45th/46th topological defect ($1.0 \times 10^{-14}$, $4.0 \times 10^{-15}$), $\kappa=14.00, \lambda=0.98, \text{FERI}_{\text{v55}}$, 28+ aliases, harmony factor boost $3.55 \cdot h \cdot z$ for `version >= 55`.
-    2. F247.1: 50th-order rank modulation $g(r) = 0.50 + 1.82 \cdot r \cdot \exp(\gamma_{\text{top}} r^{50})$ with $\gamma_{\text{top}} \le 10.20$, $g(1.0) \approx 48964 > 500.0$, $g(0.70) \le 1.82$.
-    3. F247.2: 248th-order deadband $z \cdot \tanh((|z|/\delta)^{248})$ ($\alpha=248.0, \delta=0.035$) with leakage $< 10^{-168}$ and 100% transmission for $|z| \ge 0.150$.
-- **Unexplored areas**: None for Alpha Signal scope; all deliverables completed.
+  - Phase 66 Coupler operates at 132nd order partition action, 66th order defect invariant, outputting FERI_v66.
+  - Factor suppression operates 336th order deadband (alpha=336.0, delta=0.035) and 63rd order rank modulation (coeff 2.30) with REGIME_GAMMA_TOP_V66.
+  - Risk allocation operates Higher-Homology-16 Fisher-Rao barycenter (mu=[5.60, 3.80, 3.55, 6.25]), 64th-cumulant EVaR (64!, xi=0.99999999999997), and ambiguity tilting (eps_w=0.660, alpha_iep=3.80, damp=15.5).
+  - All 18 unit tests in `test_phase66_alpha.py` and `test_phase66_risk.py` pass.
+- **Unexplored areas**: Core execution and OMS layer (handled by peer agents).
 
 ## Key Decisions Made
-- Derived complete mathematical formulas and numerical progression matching previous phases (Phase 48 through Phase 54).
-- Designed unit test specifications for `tests/test_phase55_alpha.py` mirroring `test_phase54_alpha.py`.
+- Fully documented all Phase 66 implementations and established the Phase 67 parameter progression mapping.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\BRIEFING.md` — persistent working memory
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\progress.md` — liveness heartbeat
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\survey_report.md` — comprehensive survey report
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md` — self-contained handoff report
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\survey_alpha_risk.md` — Complete analytical survey
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md` — 5-component handoff report

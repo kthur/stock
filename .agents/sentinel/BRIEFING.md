@@ -1,13 +1,15 @@
-# BRIEFING — 2026-09-20T12:54:46Z
+# BRIEFING — 2026-09-23T13:10:00Z
 
 ## Mission
-Orchestrate and verify Phase 63 Quant Alpha Enhancement (v70 Production Master, Features F286~F290) across 5 global equity markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000), elevating Net Expected Return from 195.29% to >= 197.35% (Target: 197.39%, +2.10%p), Sharpe Ratio to >= 41.15 (Target: 41.18, +0.60), maintaining Maximum Drawdown (MDD) strictly <= -0.00001%, and reducing execution friction costs and slippage by 50% via pure non-linear mathematical modeling without synthetic shortcuts.
+Remediate approximately 116 failing test cases and runtime numerical discrepancies across the core trading and prediction system (signal generation, ensemble scoring, OMS execution, and benchmark verification), achieving full system integrity with zero regressions among 5,624+ passing tests.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: d:/Finance/code/stock/.agents/sentinel
-- Orchestrator: ef249880-b64f-4dee-8f1b-98d4750afcab (Phase 16)
-- Victory Auditor: e1b584ff-69c6-4cfd-b001-7dc4d55acaca (Phase 16)
+- Orchestrator: 3606f345-653a-4859-ac81-88b476c85cde (System Integrity Remediation)
+- Victory Auditor: [to be spawned on victory claim]
+- Orchestrator (Phase 16): ef249880-b64f-4dee-8f1b-98d4750afcab
+- Victory Auditor (Phase 16): e1b584ff-69c6-4cfd-b001-7dc4d55acaca
 - Orchestrator (Phase 25): 4656c6d3-176e-4014-b2fa-9dacf816b371
 - Victory Auditor (Phase 25): 3956a25a-b772-457f-9952-beb2c29be5af
 - Orchestrator (Phase 41): 80b34aac-bf36-4be7-a8fd-768f1a2f096b
@@ -31,19 +33,20 @@ Orchestrate and verify Phase 63 Quant Alpha Enhancement (v70 Production Master, 
 - Run progress and liveness crons for orchestrator monitoring
 
 ## User Context
-- **Last user request**: Phase 63 Quantitative Alpha Enhancement (v70 Production Master, Features F286~F290) across 5 global markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000). Target Net Expected Return >= 197.35% (Target: 197.39%), Sharpe >= 41.15 (Target: 41.18), MDD strictly <= -0.00001%, friction <= 0.000000000011444091796875 bps, slippage <= 0.0000000000095367431640625 bps, top-decile alpha spread >= 177.00%, win rate 100.0%.
+- **Last user request**: Remediate ~116 failing test cases and runtime numerical discrepancies across signal generation, ensemble scoring, OMS execution, and benchmark verification, achieving full system integrity with zero regressions among 5624+ passing tests.
 - **Pending clarifications**: none
 - **Delivered results**:
-  - Recorded user request to ORIGINAL_REQUEST.md (## 2026-09-20T12:54:46Z) in workspace root and .agents/
+  - Recorded user request to ORIGINAL_REQUEST.md (## 2026-09-23T09:29:23Z) in workspace root and .agents/
   - Route evaluated: General path -> teamwork_preview_orchestrator
-  - Dispatched Phase 63 Project Orchestrator (54cb38ed-b592-4bb7-85e9-3ed4698d888f) with workspace d:/Finance/code/stock/.agents/orchestrator_quant_phase63_1
-  - Scheduled Progress Reporting cron (task-48, */8 * * * *) and Liveness Check cron (task-50, */10 * * * *)
+  - Dispatched Project Orchestrator (3606f345-653a-4859-ac81-88b476c85cde) with workspace d:/Finance/code/stock/.agents/orchestrator_system_integrity_1
+  - Scheduled Progress Reporting cron (task-36, */8 * * * *) and Liveness Check cron (task-38, */10 * * * *)
+  - Completed Milestones 1, 2, 3: Core ML (197/197 passing) and Benchmark sync (56/56 passing)
 
 ## Project Status
-- **Phase**: in progress
-- **Active Orchestrator**: 54cb38ed-b592-4bb7-85e9-3ed4698d888f
-- **Working Directory**: d:/Finance/code/stock/.agents/orchestrator_quant_phase63_1
-- **Crons**: task-48 (progress */8), task-50 (liveness */10)
+- **Phase**: Milestone 4 Verification & Full Regression Sweep
+- **Active Orchestrator**: 3606f345-653a-4859-ac81-88b476c85cde
+- **Working Directory**: d:/Finance/code/stock/.agents/orchestrator_system_integrity_1
+- **Crons**: task-36 (progress */8), task-38 (liveness */10)
 
 ## Victory Audit Status
 - **Triggered**: no
@@ -52,6 +55,8 @@ Orchestrate and verify Phase 63 Quant Alpha Enhancement (v70 Production Master, 
 
 ## Artifact Index
 - d:/Finance/code/stock/.agents/ORIGINAL_REQUEST.md — Authoritative record of user request
-- d:/Finance/code/stock/.agents/orchestrator_quant_phase63_1/DISPATCH.md — Orchestrator dispatch instructions
-- d:/Finance/code/stock/.agents/orchestrator_quant_phase63_1/plan.md — Orchestrator milestone plan
-- d:/Finance/code/stock/.agents/orchestrator_quant_phase63_1/progress.md — Orchestrator live progress
+- d:/Finance/code/stock/.agents/orchestrator_system_integrity_1/DISPATCH.md — Orchestrator dispatch instructions
+- d:/Finance/code/stock/.agents/orchestrator_system_integrity_1/plan.md — Orchestrator milestone plan
+- d:/Finance/code/stock/.agents/orchestrator_system_integrity_1/progress.md — Orchestrator live progress
+- d:/Finance/code/stock/.agents/teamwork_preview_worker_m1_m2_core/handoff.md — Worker 1 handoff (197/197 passing)
+- d:/Finance/code/stock/.agents/teamwork_preview_worker_m3_reports/handoff.md — Worker 2 handoff (56/56 passing)

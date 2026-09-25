@@ -1,2 +1,1 @@
-# Working Directory for teamwork_preview_explorer_survey_1
-Role: Signal & Synergy Explorer
+# Workspace for Explorer Survey 1 (Alpha & Risk)

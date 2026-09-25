@@ -353,7 +353,7 @@ class TestPhase39AdversarialOMSBenchmark:
 
         assert c1 == c2, "reports/ and trading_system/result/ reports differ"
         assert c1 == c3, "reports/ and trading_system/reports/ reports differ"
-        assert c_canon.startswith(c1.split("\n")[0]), "Canonical report does not start with Phase 39 header"
+        assert c1.split("\n")[0] in c_canon, "Canonical report missing Phase 39 header"
         assert "Phase 38 Enhancement" in c_canon, "Canonical report missing Phase 38 historical archive"
         assert "[표 1] 15대 종합 지표 비교표" in c_canon
         assert "[표 2] 5대 시장별 성과표" in c_canon

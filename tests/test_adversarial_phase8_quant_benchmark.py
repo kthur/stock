@@ -186,7 +186,7 @@ class TestMultiPathFileSynchronization:
     CANONICAL_PATHS = [
         REPO_ROOT / "reports" / "quant_benchmark_comparison_phase8.md",
         REPO_ROOT / "trading_system" / "result" / "quant_benchmark_comparison_phase8.md",
-        REPO_ROOT / "reports" / "quant_benchmark_comparison.md",
+        REPO_ROOT / "trading_system" / "reports" / "quant_benchmark_comparison_phase8.md",
     ]
 
     def test_cli_execution_and_file_synchronization_sha256(self):

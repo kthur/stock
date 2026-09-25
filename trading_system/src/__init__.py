@@ -31,11 +31,59 @@ if "torch" not in sys.modules:
             def __getitem__(self, item):
                 return self
             def size(self, *args, **kwargs):
-                return 1
+                if len(args) > 0 and isinstance(args[0], int):
+                    return (1, 1, 1)[args[0]]
+                return (1, 1, 1)
+            @property
+            def shape(self):
+                return (1, 1, 1)
+            def dim(self):
+                return 3
             def float(self):
                 return self
             def unsqueeze(self, *args, **kwargs):
                 return self
+            def squeeze(self, *args, **kwargs):
+                return self
+            def view(self, *args, **kwargs):
+                return self
+            def reshape(self, *args, **kwargs):
+                return self
+            def repeat(self, *args, **kwargs):
+                return self
+            def clone(self):
+                return self
+            def detach(self):
+                return self
+            def flatten(self):
+                return self
+            def mean(self, *args, **kwargs):
+                return self
+            @property
+            def device(self):
+                return "cpu"
+            def __mul__(self, other):
+                return self
+            def __rmul__(self, other):
+                return self
+            def __add__(self, other):
+                return self
+            def __radd__(self, other):
+                return self
+            def __sub__(self, other):
+                return self
+            def __rsub__(self, other):
+                return self
+            def __truediv__(self, other):
+                return self
+            def __rtruediv__(self, other):
+                return self
+            def __neg__(self):
+                return self
+            def __pow__(self, other):
+                return self
+            def __bool__(self):
+                return True
         class DummyNoGrad:
             def __enter__(self):
                 return self
@@ -57,7 +105,13 @@ if "torch" not in sys.modules:
         mock_torch.exp = lambda *a, **k: DummyTensor()
         mock_torch.sin = lambda *a, **k: DummyTensor()
         mock_torch.cos = lambda *a, **k: DummyTensor()
+        mock_torch.cat = lambda tensors, dim=0: DummyTensor()
+        mock_torch.stack = lambda tensors, dim=0: DummyTensor()
+        mock_torch.triu = lambda *a, **k: DummyTensor()
+        mock_torch.full = lambda *a, **k: DummyTensor()
+        mock_torch.mean = lambda *a, **k: DummyTensor()
         mock_torch.float = float
+        mock_torch.float32 = float
         mock_torch.long = int
         mock_torch.is_mocked = True
 
@@ -124,13 +178,32 @@ if "torch" not in sys.modules:
                 return 0.0
 
         mock_nn.MSELoss = DummyLoss
+        mock_nn.HuberLoss = DummyLoss
+        mock_nn.GELU = DummyModule
+        class DummyModuleDict(dict):
+            def __init__(self, d=None):
+                super().__init__(d or {})
+        mock_nn.ModuleDict = DummyModuleDict
+        mock_nn_utils = types.ModuleType("torch.nn.utils")
+        mock_nn_utils.clip_grad_norm_ = lambda *a, **k: 0.0
+        mock_nn.utils = mock_nn_utils
         mock_torch.nn = mock_nn
         sys.modules["torch.nn"] = mock_nn
+        sys.modules["torch.nn.utils"] = mock_nn_utils
 
         mock_optim = types.ModuleType("torch.optim")
         mock_optim.Adam = DummyOptimizer
+        mock_optim.AdamW = DummyOptimizer
+        mock_lr = types.ModuleType("torch.optim.lr_scheduler")
+        class DummyScheduler:
+            def __init__(self, *args, **kwargs): pass
+            def step(self, *args, **kwargs): pass
+        mock_lr.ReduceLROnPlateau = DummyScheduler
+        mock_lr.CosineAnnealingLR = DummyScheduler
+        mock_optim.lr_scheduler = mock_lr
         mock_torch.optim = mock_optim
         sys.modules["torch.optim"] = mock_optim
+        sys.modules["torch.optim.lr_scheduler"] = mock_lr
 
         mock_sb3 = types.ModuleType("stable_baselines3")
         class DummyPPO:

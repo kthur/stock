@@ -177,38 +177,39 @@ for row in [
 ]:
     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
 
-content = "\n".join(lines)
-for path in ["reports/quant_benchmark_comparison_phase56.md",
-             "trading_system/result/quant_benchmark_comparison_phase56.md",
-             "trading_system/reports/quant_benchmark_comparison_phase56.md"]:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 55 and prior benchmark archive
-canon_path = "reports/quant_benchmark_comparison.md"
-prior_content = ""
-p55_path = "reports/quant_benchmark_comparison_phase55.md"
-
-if os.path.exists(canon_path):
-    with open(canon_path, "r", encoding="utf-8") as f_canon_in:
-        prior_content = f_canon_in.read().strip()
-
-# If canonical file already has Phase 56, extract only prior phases to ensure idempotency
-if "Phase 56 Quantitative Alpha Enhancement" in prior_content:
-    if "# Global Multi-Market Quantitative Benchmark Report (Phase 55 Quantitative Alpha Enhancement)" in prior_content:
-        idx = prior_content.find("# Global Multi-Market Quantitative Benchmark Report (Phase 55 Quantitative Alpha Enhancement)")
-        prior_content = prior_content[idx:].strip()
-    elif os.path.exists(p55_path):
+if __name__ == "__main__":
+    content = "\n".join(lines)
+    for path in ["reports/quant_benchmark_comparison_phase56.md",
+                 "trading_system/result/quant_benchmark_comparison_phase56.md",
+                 "trading_system/reports/quant_benchmark_comparison_phase56.md"]:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+    
+    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 55 and prior benchmark archive
+    canon_path = "reports/quant_benchmark_comparison.md"
+    prior_content = ""
+    p55_path = "reports/quant_benchmark_comparison_phase55.md"
+    
+    if os.path.exists(canon_path):
+        with open(canon_path, "r", encoding="utf-8") as f_canon_in:
+            prior_content = f_canon_in.read().strip()
+    
+    # If canonical file already has Phase 56, extract only prior phases to ensure idempotency
+    if "Phase 56 Quantitative Alpha Enhancement" in prior_content:
+        if "# Global Multi-Market Quantitative Benchmark Report (Phase 55 Quantitative Alpha Enhancement)" in prior_content:
+            idx = prior_content.find("# Global Multi-Market Quantitative Benchmark Report (Phase 55 Quantitative Alpha Enhancement)")
+            prior_content = prior_content[idx:].strip()
+        elif os.path.exists(p55_path):
+            with open(p55_path, "r", encoding="utf-8") as f_p55:
+                prior_content = f_p55.read().strip()
+    elif not prior_content and os.path.exists(p55_path):
         with open(p55_path, "r", encoding="utf-8") as f_p55:
             prior_content = f_p55.read().strip()
-elif not prior_content and os.path.exists(p55_path):
-    with open(p55_path, "r", encoding="utf-8") as f_p55:
-        prior_content = f_p55.read().strip()
-
-combined_canonical = content + ("\n\n---\n\n" + prior_content if prior_content else "")
-os.makedirs("reports", exist_ok=True)
-with open(canon_path, "w", encoding="utf-8") as f_canon:
-    f_canon.write(combined_canonical)
-
-print(f"Done. Lines: {len(lines)}")
+    
+    combined_canonical = content + ("\n\n---\n\n" + prior_content if prior_content else "")
+    os.makedirs("reports", exist_ok=True)
+    with open(canon_path, "w", encoding="utf-8") as f_canon:
+        f_canon.write(combined_canonical)
+    
+    print(f"Done. Lines: {len(lines)}")

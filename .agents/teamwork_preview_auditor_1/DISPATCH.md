@@ -1,53 +1,86 @@
-# DISPATCH: Forensic Auditor (Integrity Forensics & Code Rigor Audit)
+# Dispatch: Forensic Auditor (Integrity Forensics & Non-Circumvention Audit)
 
 ## Working Directory
 d:\Finance\code\stock\.agents\teamwork_preview_auditor_1
 
-## Objective
-Perform independent forensic integrity verification of all Phase 63 implementation work (Features F286~F290) across all modified files:
-- `src/ai/ensemble_scorer.py`
-- `src/ai/factor_suppression.py`
-- `src/risk/unified_portfolio_allocator.py`
-- `src/risk/portfolio_allocator.py`
-- `src/core/fast_lob_engine.py`
-- `src/execution/smart_order_router.py`
-- `src/execution/oms_engine.py`
-- `src/execution/almgren_chriss.py`
-- `trading_system/scripts/benchmark_phase63_quant_performance.py`
-- `tests/test_phase63_*.py`
-- `reports/quant_benchmark_comparison_phase63.md`
+## Original Request
+d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+d:\Finance\code\stock\ORIGINAL_REQUEST.md
 
-## Forensic Verification Checks
-1. **Zero Mock / Hardcoding Audit**:
-   - Verify that NO test results, expected outputs, or benchmark metrics are hardcoded inside algorithmic computation paths.
-   - Verify that NO dummy or facade functions exist that bypass mathematical calculations.
-   - Verify that NO sleep calls, artificial delays, or synthetic mock shortcuts exist.
-2. **Authentic Mathematical Modeling Audit**:
-   - Verify 122nd/124th order polynomial deformations ($P_{122}, P_{124}$) and 61st/62nd order defects ($D_{61}, D_{62}$) in Monster Whittaker Coupler.
-   - Verify 58th-order hyper-convex rank modulation and 312th-order hyperbolic noise deadband.
-   - Verify Riemannian Fisher-Rao barycenter gradient descent on simplex with $\mu = [5.30, 3.65, 3.60, 5.85]$.
-   - Verify 59th-cumulant EVaR tail risk calculation with $59! \approx 1.38683 \times 10^{80}$.
-   - Verify Kerr-Newman-Kiselev 42-dark-energy DAHA L3 spacetime hydrodynamics ($w = -44/3, c_{\text{monster}} = 4.76837158203125 \times 10^{-14}$, repulsive acceleration $-22.0 \cdot c_{\text{monster}} \cdot r^{43} \cdot \text{daha\_42}$).
-   - Verify lit maker floor $10^{-35}$ precision and 20 nines dark ATS / anti-gaming caps.
-   - Verify micro-tick shading activation threshold strictly at $h > 0.0000010$.
-3. **Execution & Regression Verification**:
-   - Run benchmark script: `.venv\Scripts\python.exe trading_system/scripts/benchmark_phase63_quant_performance.py`
-   - Run complete Phase 63 test suite: `.venv\Scripts\pytest.exe tests/test_phase63_alpha.py tests/test_phase63_risk.py tests/test_phase63_oms.py tests/test_phase63_adversarial_challenger1.py tests/test_phase63_adversarial_oms_benchmark.py -v`
-   - Run complete Phase 62 historical regression suite: `.venv\Scripts\pytest.exe tests/test_phase62_alpha.py tests/test_phase62_risk.py tests/test_phase62_oms.py tests/test_phase62_adversarial_challenger1.py tests/test_phase62_adversarial_oms_benchmark.py -v`
-4. **Report Hash Synchronization Audit**:
-   - Verify SHA-256 bit-for-bit match among all 3 standalone reports and verify canonical report.
+## Worker Handoffs to Audit
+- Worker 1: `d:\Finance\code\stock\.agents\teamwork_preview_worker_m1_m2_core\handoff.md`
+- Worker 2: `d:\Finance\code\stock\.agents\teamwork_preview_worker_m3_reports\handoff.md`
 
-Write `handoff.md` with your explicit verdict: `CLEAN` or `INTEGRITY VIOLATION`.
-When done, send a message back to parent.
+## Mission
+Perform comprehensive forensic integrity verification across all git changes:
+1. Examine `git diff` for all modified source files:
+   - `trading_system/src/ai/ensemble_scorer.py`
+   - `trading_system/src/__init__.py`
+   - `trading_system/src/ai/transformer_predictor.py`
+   - `trading_system/src/ai/lstm_predictor.py`
+   - `trading_system/scripts/benchmark_phase*.py`
+   - `reports/quant_benchmark_comparison.md` (and mirrored paths)
+2. Verify strict non-circumvention rules:
+   - NO hardcoded test results or expected values matching specific test case inputs.
+   - NO dummy facade implementations producing fake outputs.
+   - NO test code suppression (e.g. `@pytest.mark.skip`, `assert True`, commented out assertions).
+   - Real, authentic algorithmic and mathematical logic implemented.
+3. Formulate binary verdict: **CLEAN** or **INTEGRITY VIOLATION**.
+4. Write your full forensic report to `d:\Finance\code\stock\.agents\teamwork_preview_auditor_1\handoff.md`.
 
-## 2026-09-20T13:21:28Z
-Perform comprehensive forensic integrity audits:
-1. Static code analysis: verify NO mock data, NO hardcoded test results, NO dummy/facade implementations, NO artificial delays.
-2. Genuine mathematical modeling: verify 122nd/124th order coupler polynomials, 61st/62nd defect orders, 58th-order rank modulation, 312th-order deadband, Higher-Homology-13 Fisher-Rao barycenter, 59th-cumulant EVaR, KNK 42-dark-energy DAHA L3 hydrodynamics, 1e-35 maker floor, 20 nines dark caps, and micro-tick shading at h > 0.0000010.
-3. Test & benchmark execution:
-   - `.venv\Scripts\python.exe trading_system/scripts/benchmark_phase63_quant_performance.py`
-   - `.venv\Scripts\pytest.exe tests/test_phase63_alpha.py tests/test_phase63_risk.py tests/test_phase63_oms.py tests/test_phase63_adversarial_challenger1.py tests/test_phase63_adversarial_oms_benchmark.py -v`
-   - `.venv\Scripts\pytest.exe tests/test_phase62_alpha.py tests/test_phase62_risk.py tests/test_phase62_oms.py tests/test_phase62_adversarial_challenger1.py tests/test_phase62_adversarial_oms_benchmark.py -v`
-4. Bit-for-bit SHA-256 hash verification across all 3 standalone reports.
+## 2026-09-23T10:11:37Z
+You are Forensic Auditor 1 (Integrity Forensics & Non-Circumvention Audit).
+Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_auditor_1
+Read your dispatch instructions in: d:\Finance\code\stock\.agents\teamwork_preview_auditor_1\DISPATCH.md
+Read the authoritative user request in:
+- d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+- d:\Finance\code\stock\ORIGINAL_REQUEST.md
+Read the worker handoffs:
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m1_m2_core\handoff.md
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m3_reports\handoff.md
 
-Deliver your handoff report with explicit binary verdict: `CLEAN` or `INTEGRITY VIOLATION`. Message parent when done.
+Tasks:
+1. Examine git diff across all modified source and report files.
+2. Verify strict non-circumvention rules:
+   - NO hardcoded test results or expected values matching specific test case inputs.
+   - NO dummy facade implementations producing fake outputs.
+   - NO test code suppression (e.g. @pytest.mark.skip, assert True, commented out assertions).
+   - Real, authentic algorithmic and mathematical logic implemented.
+3. Formulate binary verdict: CLEAN or INTEGRITY VIOLATION.
+4. Write your full forensic report to `d:\Finance\code\stock\.agents\teamwork_preview_auditor_1\handoff.md`.
+5. Send a message to orchestrator parent when complete.
+
+## 2026-09-25T15:45:28Z
+You are the Forensic Integrity Auditor for Phase 67 Quantitative Alpha Enhancement.
+Read the authoritative user request at:
+d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (specifically lines 2115-2219).
+
+Your working directory is:
+`d:\Finance\code\stock\.agents\teamwork_preview_auditor_1`
+
+SCOPE:
+Perform an exhaustive, independent forensic integrity audit of the entire Phase 67 implementation across all touched files:
+- `trading_system/src/ai/ensemble_scorer.py`
+- `trading_system/src/ai/factor_suppression.py`
+- `trading_system/src/risk/unified_portfolio_allocator.py`
+- `trading_system/src/risk/portfolio_allocator.py`
+- `trading_system/src/core/fast_lob_engine.py`
+- `trading_system/src/execution/smart_order_router.py`
+- `trading_system/src/execution/oms_engine.py`
+- `trading_system/scripts/benchmark_phase67_quant_performance.py`
+- All 5 test files in `tests/test_phase67_*.py`
+- Reports in `reports/` and `trading_system/reports/`
+
+CHECKS REQUIRED:
+1. Static analysis & AST inspection: Check for hardcoded test results, expected return values, or pre-canned metrics bypassing actual math.
+2. Runtime tracing & genuine logic validation: Verify that Borcherds-Moonshine Monster Whittaker coupling, hyperbolic deadband, hyper-convex rank modulation, Higher-Homology-17 Fisher-Rao barycenter, 66th-cumulant EVaR, KNK-46 DAHA, lit maker floor, and tick shading all perform genuine computations.
+3. Check for dummy or facade implementations that return static constants.
+4. Check that benchmark simulation runs actual 5-market multi-strategy loops rather than fabricated printouts.
+5. Verify SHA-256 hashes across Category A report files.
+
+VERDICT:
+Write your comprehensive audit report and explicitly state your verdict (`CLEAN` or `INTEGRITY VIOLATION`) in:
+`d:\Finance\code\stock\.agents\teamwork_preview_auditor_1\handoff.md`
+Then send a completion message to parent.
+
+

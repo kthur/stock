@@ -113,31 +113,28 @@ if __name__ == "__main__":
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 42 and prior benchmark archive
+    # Update canonical reports/quant_benchmark_comparison.md with idempotency guard
+    import os
     canon_path = "reports/quant_benchmark_comparison.md"
     prior_content = ""
-    p42_path = "reports/quant_benchmark_comparison_phase42.md"
-
     if os.path.exists(canon_path):
         with open(canon_path, "r", encoding="utf-8") as f_canon_in:
             prior_content = f_canon_in.read().strip()
 
-    # If canonical file already has Phase 43, extract only prior phases to ensure idempotency
-    if "Phase 43 Quantitative Enhancement" in prior_content:
-        if "# Global Multi-Market Quantitative Benchmark Report (Phase 42 Quantitative Enhancement)" in prior_content:
-            idx = prior_content.find("# Global Multi-Market Quantitative Benchmark Report (Phase 42 Quantitative Enhancement)")
-            prior_content = prior_content[idx:].strip()
-        elif os.path.exists(p42_path):
-            with open(p42_path, "r", encoding="utf-8") as f_p42:
-                prior_content = f_p42.read().strip()
-    elif not prior_content and os.path.exists(p42_path):
-        with open(p42_path, "r", encoding="utf-8") as f_p42:
-            prior_content = f_p42.read().strip()
-
-    combined_canonical = content + ("\n\n---\n\n" + prior_content if prior_content else "")
-    os.makedirs("reports", exist_ok=True)
-    with open(canon_path, "w", encoding="utf-8") as f_canon:
-        f_canon.write(combined_canonical)
+    if "Phase 43 Quantitative Enhancement" not in prior_content:
+        pPREV_path = "reports/quant_benchmark_comparison_phase42.md"
+        pPREV_content = ""
+        if os.path.exists(pPREV_path):
+            with open(pPREV_path, "r", encoding="utf-8") as f_pPREV:
+                pPREV_content = f_pPREV.read()
+        combined_canonical = content + ("\n\n---\n\n" + prior_content if prior_content else ("\n\n---\n\n" + pPREV_content if pPREV_content else ""))
+        os.makedirs("reports", exist_ok=True)
+        with open(canon_path, "w", encoding="utf-8") as f_canon:
+            f_canon.write(combined_canonical)
+        for sync_path in ["trading_system/reports/quant_benchmark_comparison.md", "trading_system/result/quant_benchmark_comparison.md"]:
+            os.makedirs(os.path.dirname(sync_path), exist_ok=True)
+            with open(sync_path, "w", encoding="utf-8") as f_sync:
+                f_sync.write(combined_canonical)
 
     print(f"Done. Lines: {len(lines)}")
 

@@ -1,27 +1,26 @@
-# DISPATCH: Survey Explorer 1 — Alpha Signal Disentanglement & Ultra-Convex Rank Modulation
+## 2026-09-25T15:13:00Z
+<USER_REQUEST>
+You are an Explorer agent investigating the codebase for Phase 67 Quantitative Alpha Enhancement.
+Read the authoritative user request at:
+d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (specifically lines 2115-2219).
 
-## Working Directory
+Your working directory is:
 d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1
 
-## Role & Mission
-You are Survey Explorer 1. Your mission is to explore and analyze the authoritative codebase for Phase 55 Alpha Signal Enhancements (F246, F247.1, F247.2).
+Your task is to investigate and document the current Phase 66 implementation for Alpha & Risk components:
+1. `trading_system/src/ai/ensemble_scorer.py`:
+   - Inspect the Borcherds-Moonshine Monster Whittaker coupler parameters, partition actions, defect invariants, harmony boost coefficient, `FERI_v66`, `f_out_66`, and version gating (`version >= 66`).
+   - Identify line numbers, class/function names, return signatures, and how FERI is plugged into the scoring pipeline.
+2. `trading_system/src/ai/factor_suppression.py`:
+   - Inspect hyperbolic deadband (alpha=336.0, delta=0.035), rank modulation order (63rd), coefficient (2.30), `REGIME_GAMMA_TOP_V66`, `get_regime_adaptive_gamma_top_v66`, and full alias trees.
+   - Document table structure, function names, and all existing aliases.
+3. `trading_system/src/risk/unified_portfolio_allocator.py` & `trading_system/src/risk/portfolio_allocator.py`:
+   - Inspect Higher-Homology-17 Fisher-Rao barycenter mu `[5.60, 3.80, 3.55, 6.25]`.
+   - Inspect EVaR 64th-cumulant, xi_monster, regime shifts (`eps_w=0.660`, `delta_bl=-14.00`, `delta_herc=+10.00`, `delta_rp=-14.50`, `delta_cvar=+21.50+9.50*c`, `alpha_iep=3.80`, `contagion_damp=15.5`), alias trees, and `is_phase66` gating.
 
-## Authoritative Files to Read
-1. `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (Header: `## 2026-09-18T03:36:46Z`)
-2. `d:\Finance\code\stock\.agents\orchestrator_quant_phase55_1\DISPATCH.md`
-3. `src/ai/ensemble_scorer.py`: Inspect Phase 54 implementation of the Monster Whittaker Coupler, polynomial deformation (86th/88th), topological defect (43rd/44th), $\kappa=13.50, \lambda=0.96, \text{FERI}_{\text{v54}}$, 28 aliases, harmony factor boost ($3.45 \cdot h \cdot z$) under `version >= 54`.
-4. `src/ai/factor_suppression.py`: Inspect Phase 54 implementation of 49th-order modulation $g_{\text{v54}}(r)$, $\gamma_{\text{top}}$ up to 9.60, and 240th-order deadband $z \cdot \tanh((|z|/\delta)^{240})$ ($\alpha=240, \delta=0.035$).
-5. `tests/test_phase54_alpha.py`: Inspect test coverage, assertions, tolerances, and design patterns.
-
-## Deliverables
-Write a comprehensive report to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\survey_report.md` detailing:
-1. Exact locations, line numbers, function names, class definitions, and existing aliases in `ensemble_scorer.py` and `factor_suppression.py`.
-2. Exact mathematical formulas and parameters required for Phase 55:
-   - 90th/92nd order partition polynomial deformation and 45th/46th order topological defect.
-   - $\kappa_{\text{monster\_whit}}=14.00, \lambda_{\text{monster}}=0.98, \text{FERI}_{\text{v55}}$.
-   - List of all 28+ aliases to export and maintain.
-   - Harmony factor boost: $3.55 \cdot h_{\text{monster\_whit}} \cdot z_{\text{monster\_whit}}$ gated by `version >= 55`.
-   - 50th-order hyper-convex rank modulation $g_{\text{v55}}(r) = 0.50 + 1.82 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{50})$, $\gamma_{\text{top}}$ up to $10.20$ (`BULL_LOW_VOL`), $g(1.0) \approx 49000$.
-   - 248th-order deadband $z \cdot \tanh((|z|/\delta_{\text{eff}})^{248})$, leakage $< 10^{-168}$.
-3. Required unit test specifications for `tests/test_phase55_alpha.py`.
-4. Write `handoff.md` and send completion message back to orchestrator.
+DO NOT modify source files. You are read-only.
+Write your detailed findings to:
+`d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\survey_alpha_risk.md`
+and write `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md`.
+Then send a completion message to parent.
+</USER_REQUEST>

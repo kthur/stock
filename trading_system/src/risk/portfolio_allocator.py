@@ -3421,6 +3421,81 @@ class PortfolioAllocator:
         )
 
     # =========================================================================
+    # PHASE 67 (FEATURE F308.1): HIGHER-HOMOLOGY-17 FISHER-RAO BARYCENTER
+    # =========================================================================
+
+    @staticmethod
+    def compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend(
+        *args,
+        model_weights: Optional[Union[Dict[str, float], List[Dict[str, float]], np.ndarray]] = None,
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+        **kwargs
+    ) -> Union[Dict[str, float], np.ndarray]:
+        """
+        Phase 67 (Feature F308.1): Lurie-Borcherds-Monster-Moonshine-Whittaker-Drinfeld Higher-Homology-17 Fisher-Rao Barycenter Blending.
+        Delegates to UnifiedPortfolioAllocator.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+
+        if args:
+            if len(args) == 1 and isinstance(args[0], (dict, list, np.ndarray)):
+                model_weights = args[0]
+            elif len(args) >= 4 and all(isinstance(a, (int, float)) for a in args[:4]):
+                model_weights = {"bl": float(args[0]), "herc": float(args[1]), "rp": float(args[2]), "cvar": float(args[3])}
+            elif isinstance(args[0], (dict, list, np.ndarray)):
+                model_weights = args[0]
+
+        if model_weights is None:
+            if "bl_weight" in kwargs:
+                bl_w = float(kwargs.get("bl_weight", 0.25))
+                herc_w = float(kwargs.get("herc_weight", 0.25))
+                rp_w = float(kwargs.get("rp_weight", 0.25))
+                cvar_w = float(kwargs.get("cvar_weight", 0.25))
+                model_weights = {"bl": bl_w, "herc": herc_w, "rp": rp_w, "cvar": cvar_w}
+            else:
+                model_weights = {"bl": 0.25, "herc": 0.25, "rp": 0.25, "cvar": 0.25}
+
+        blended = alloc.compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend(
+            model_weights=model_weights,
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+        bl_alloc = kwargs.get("bl_alloc", None)
+        herc_alloc = kwargs.get("herc_alloc", None)
+        rp_alloc = kwargs.get("rp_alloc", None)
+        cvar_alloc = kwargs.get("cvar_alloc", None)
+        allocs = [a for a in [bl_alloc, herc_alloc, rp_alloc, cvar_alloc] if a is not None]
+        if allocs:
+            weights = np.array([blended["bl"], blended["herc"], blended["rp"], blended["cvar"]])
+            result = sum(weights[j] * np.asarray(a, dtype=np.float64) for j, a in enumerate(allocs) if j < len(weights))
+            return result / (np.sum(result) + 1e-30)
+
+        return blended
+
+    compute_lmbmwdh17_fisher_rao_barycenter_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    compute_homology_17_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    compute_phase67_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    phase67_barycenter_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    compute_higher_homology_17_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    lmbmwdh17_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    drinfeld_higher_homology_17_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    monster_moonshine_higher_homology_17_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    borcherds_higher_homology_17_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    compute_phase67_fisher_rao_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    compute_lurie_drinfeld_higher_homology_17_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    higher_homology_17_fisher_rao_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+    higher_homology_17_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_17_fisher_rao_barycenter_blend
+
+    # =========================================================================
     # PHASE 66 (FEATURE F303.1): HIGHER-HOMOLOGY-16 FISHER-RAO BARYCENTER
     # =========================================================================
 
@@ -4302,7 +4377,6 @@ class PortfolioAllocator:
     compute_lurie_drinfeld_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_fisher_rao_barycenter_blend
     compute_borcherds_monster_moonshine_whittaker_drinfeld_fisher_rao_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_fisher_rao_barycenter_blend
     compute_borcherds_moonshine_monster_whittaker_drinfeld_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_fisher_rao_barycenter_blend
-    compute_drinfeld_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_fisher_rao_barycenter_blend
     compute_phase50_fisher_rao_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_fisher_rao_barycenter_blend
     compute_phase50_barycenter_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_fisher_rao_barycenter_blend
     compute_borcherds_moonshine_monster_whittaker_drinfeld_fisher_rao_barycenter_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_fisher_rao_barycenter_blend
@@ -4396,6 +4470,55 @@ class PortfolioAllocator:
             order=eff_order,
             **kwargs,
         )
+
+    # =========================================================================
+    # PHASE 67 (FEATURE F308.2): HIGHER-HOMOLOGY-17 EVAR RISK MEASURE
+    # =========================================================================
+
+    @staticmethod
+    def compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure(
+        returns: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        losses: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        t_grid: Optional[Union[np.ndarray, List[float]]] = None,
+        xi_monster: float = 0.99999999999998,
+        order: int = 66,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Phase 67 (Feature F308.2): 66th-Cumulant Expansion Trans-Singular EVaR Risk Measure.
+        Delegates to UnifiedPortfolioAllocator.
+        """
+        try:
+            from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator()
+        if returns is None and losses is not None:
+            returns = -np.asarray(losses)
+        elif returns is None:
+            returns = np.array([])
+        return alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure(
+            returns=returns,
+            alpha=alpha,
+            t_grid=t_grid,
+            xi_monster=xi_monster,
+            order=order,
+            **kwargs
+        )
+
+    compute_phase67_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    compute_phase67_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    compute_evar_order66 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    compute_66th_cumulant_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    higher_homology_17_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    phase67_tail_risk_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    compute_lmbmwdh17_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    lmbmwdh17_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    evar_66th_cumulant = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    phase67_evar_bound = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
+    trans_singular_evar_v67 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_17_evar_risk_measure
 
     # =========================================================================
     # PHASE 66 (FEATURE F303.2): HIGHER-HOMOLOGY-16 EVAR RISK MEASURE

@@ -102,24 +102,32 @@ for row in [
 ]:
     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
 
-content = "\n".join(lines)
-for path in ["reports/quant_benchmark_comparison_phase38.md",
-             "trading_system/result/quant_benchmark_comparison_phase38.md",
-             "trading_system/reports/quant_benchmark_comparison_phase38.md"]:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 37 benchmark archive
-p37_path = "reports/quant_benchmark_comparison_phase37.md"
-p37_content = ""
-if os.path.exists(p37_path):
-    with open(p37_path, "r", encoding="utf-8") as f_p37:
-        p37_content = f_p37.read()
-
-combined_canonical = content + ("\n\n---\n\n" + p37_content if p37_content else "")
-os.makedirs("reports", exist_ok=True)
-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
-    f_canon.write(combined_canonical)
-
-print(f"Done. Lines: {len(lines)}")
+if __name__ == "__main__":
+    content = "\n".join(lines)
+    for path in ["reports/quant_benchmark_comparison_phase38.md",
+                 "trading_system/result/quant_benchmark_comparison_phase38.md",
+                 "trading_system/reports/quant_benchmark_comparison_phase38.md"]:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+    
+    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 37 benchmark archive
+    canon_path = "reports/quant_benchmark_comparison.md"
+    prior_content = ""
+    if os.path.exists(canon_path):
+        with open(canon_path, "r", encoding="utf-8") as f_canon_in:
+            prior_content = f_canon_in.read().strip()
+    
+    if "Phase 38 Quantitative Enhancement" not in prior_content:
+        p37_path = "reports/quant_benchmark_comparison_phase37.md"
+        p37_content = ""
+        if os.path.exists(p37_path):
+            with open(p37_path, "r", encoding="utf-8") as f_p37:
+                p37_content = f_p37.read()
+        
+        combined_canonical = content + ("\n\n---\n\n" + prior_content if prior_content else ("\n\n---\n\n" + p37_content if p37_content else ""))
+        os.makedirs("reports", exist_ok=True)
+        with open(canon_path, "w", encoding="utf-8") as f_canon:
+            f_canon.write(combined_canonical)
+    
+    print(f"Done. Lines: {len(lines)}")

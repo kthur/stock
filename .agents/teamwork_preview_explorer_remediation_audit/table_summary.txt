@@ -1,0 +1,17 @@
+Phase  | Script                                                       | HEAD Unwrapped Lines | Wrapped Lines       
+-------------------------------------------------------------------------------------------------------------------
+25     | trading_system/scripts/benchmark_phase25_quant_performance.py | L99-L118             | L99-L119            
+26     | trading_system/scripts/benchmark_phase26_quant_performance.py | L99-L118             | L99-L119            
+27     | trading_system/scripts/benchmark_phase27_quant_performance.py | L99-L118             | L99-L119            
+28     | trading_system/scripts/benchmark_phase28_quant_performance.py | L99-L118             | L99-L119            
+29     | trading_system/scripts/benchmark_phase29_quant_performance.py | L99-L118             | L99-L119            
+30     | trading_system/scripts/benchmark_phase30_quant_performance.py | L105-L124            | L105-L125           
+31     | trading_system/scripts/benchmark_phase31_quant_performance.py | L105-L124            | L105-L125           
+32     | trading_system/scripts/benchmark_phase32_quant_performance.py | L105-L124            | L105-L125           
+33     | trading_system/scripts/benchmark_phase33_quant_performance.py | L105-L124            | L105-L125           
+34     | trading_system/scripts/benchmark_phase34_quant_performance.py | L105-L124            | L105-L125           
+35     | trading_system/scripts/benchmark_phase35_quant_performance.py | L105-L124            | L105-L125           
+36     | trading_system/scripts/benchmark_phase36_quant_performance.py | L105-L124            | L105-L125           
+37     | trading_system/scripts/benchmark_phase37_quant_performance.py | L105-L125            | L105-L126           
+38     | trading_system/scripts/benchmark_phase38_quant_performance.py | L105-L125            | L105-L126           
+39     | trading_system/scripts/benchmark_phase39_quant_performance.py | L107-L127            | L107-L128           

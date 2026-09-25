@@ -61,8 +61,29 @@ report_content = f"""# Global Multi-Market Quantitative Benchmark Report (Phase 
 | **Total Phase 2 Net Improvement** | **Full Architecture (R1 + R2)** | **Combined Phase 2 Deep Quantitative Optimization** | **+5.25%** | **+0.57** | **-2.60%** | **-30.3%** |
 """
 
-for p in ["reports/quant_benchmark_comparison_phase2.md", "trading_system/result/quant_benchmark_comparison_phase2.md", "reports/quant_benchmark_comparison.md"]:
-    path = Path(p)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(report_content, encoding="utf-8")
-    print(f"Generated: {path.resolve()}")
+if __name__ == "__main__":
+    for p in ["reports/quant_benchmark_comparison_phase2.md", "trading_system/result/quant_benchmark_comparison_phase2.md"]:
+        path = Path(p)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(report_content, encoding="utf-8")
+        print(f"Generated: {path.resolve()}")
+
+    # Update canonical reports/quant_benchmark_comparison.md with idempotency guard
+    import os
+    canon_path = "reports/quant_benchmark_comparison.md"
+    prior_content = ""
+    if os.path.exists(canon_path):
+        with open(canon_path, "r", encoding="utf-8") as f_canon_in:
+            prior_content = f_canon_in.read().strip()
+    
+    if "Phase 2 Quantitative Enhancement" not in prior_content:
+        pPREV_path = "reports/quant_benchmark_comparison_phase1.md"
+        pPREV_content = ""
+        if os.path.exists(pPREV_path):
+            with open(pPREV_path, "r", encoding="utf-8") as f_pPREV:
+                pPREV_content = f_pPREV.read()
+        
+        combined_canonical = report_content + ("\n\n---\n\n" + prior_content if prior_content else ("\n\n---\n\n" + pPREV_content if pPREV_content else ""))
+        os.makedirs("reports", exist_ok=True)
+        with open(canon_path, "w", encoding="utf-8") as f_canon:
+            f_canon.write(combined_canonical)

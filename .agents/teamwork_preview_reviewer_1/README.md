@@ -1,2 +1,1 @@
-# Reviewer 1 Working Directory
-Target: Domain 1, 2, 3A verification
+# Workspace for Reviewer 1

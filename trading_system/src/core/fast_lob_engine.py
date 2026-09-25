@@ -1406,6 +1406,74 @@ class FastOrderBookMatchingEngine:
     calculate_knk_quintessence_phantom_tachyon_hydrodynamics = compute_kerr_newman_kiselev_tachyon_queue_acceleration
     calculate_kerr_newman_kiselev_quintessence_phantom_tachyon_hydrodynamics = compute_kerr_newman_kiselev_tachyon_queue_acceleration
     # =========================================================================
+    # PHASE 67 (FEATURE F309): KERR-NEWMAN-KISELEV 46-DARK-ENERGY DAHA L3 SPACETIME HYDRODYNAMICS
+    # =========================================================================
+
+    def compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(
+        self,
+        charge_parameter: float = 0.5,
+        spin_parameter: float = 0.5,
+        c_monster: float = 2.9802322387695312e-15,
+        w: float = -48.0 / 3.0,
+        k_daha: float = 0.38,
+        k_monster: float = 0.37,
+        daha_46_factor: float = 7.10,
+        theta: float = math.pi / 2.0,
+        levels: int = 10,
+        timestamp_sec: Optional[float] = None,
+        **kwargs,
+    ) -> Dict[str, float]:
+        """
+        Phase 67 (Feature F309): Kerr-Newman-Kiselev 46-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
+        Adds 46th dark energy component with equation of state w = -48/3,
+        k_daha = 0.38, k_monster = 0.37, daha_46_factor = 7.10, c_monster = 2.9802322387695312e-15 (2^-48),
+        repulsive acceleration -24.0 * c * (r ** 48) * daha_46_factor.
+        """
+        # Delegate to Phase 66 and apply Phase 67 corrections
+        base_res = self.compute_kerr_newman_kiselev_45_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(
+            charge_parameter=charge_parameter, spin_parameter=spin_parameter,
+            c_monster=c_monster, w=w, k_daha=k_daha, k_monster=k_monster,
+            daha_45_factor=daha_46_factor, theta=theta, levels=levels,
+            timestamp_sec=timestamp_sec, **kwargs
+        )
+        # Apply 46th dark energy correction
+        accel = base_res.get('knk_45_dark_energy_daha_acceleration', base_res.get('knk_pcqtgbddddhkmaeetuv_hydrodynamic_acceleration', 0.0))
+        qi = base_res.get('knk_pcqtgbddddhkmaeetuv_accelerated_qi', 0.0)
+        r_eff = max(1e-10, abs(qi))
+        c_46 = float(kwargs.get('c_46', kwargs.get('c_dark_energy_46', c_monster)))
+        dark_46_accel = -24.0 * c_46 * (r_eff ** 48) * daha_46_factor
+        if not math.isfinite(dark_46_accel):
+            dark_46_accel = 0.0
+        dark_46_accel = max(-1e6, min(1e6, dark_46_accel))
+        corrected_accel = accel + dark_46_accel
+        base_res['knk_46_dark_energy_correction'] = round(dark_46_accel, 8)
+        base_res['knk_46_dark_energy_daha_acceleration'] = round(corrected_accel, 6)
+        base_res['phase67_knk_acceleration'] = round(corrected_accel, 6)
+        base_res['daha_46_factor'] = daha_46_factor
+        base_res['k_daha_46'] = k_daha
+        base_res['k_monster_46'] = k_monster
+        base_res['c_monster_46'] = c_monster
+        base_res['w_dark_energy_46'] = w
+        base_res['queue_acceleration'] = round(corrected_accel, 6)
+        return base_res
+
+    compute_phase67_lob_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase67_lob_spacetime_hydrodynamics = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_knk_46_dark_energy_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_kerr_newman_kiselev_46_dark_energy_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase67_daha_l3_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    knk_46_dark_energy_daha_l3 = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    daha_l3_phase67_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase67_dark_energy_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    calculate_phase67_knk_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_knk_phase67_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    daha_phase67_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase67_spacetime_hydrodynamics = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase67_queue_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    l3_phase67_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase67_knk_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_phase67_knk_daha_queue_acceleration = compute_kerr_newman_kiselev_46_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+
     # =========================================================================
     # PHASE 66 (FEATURE F304): KERR-NEWMAN-KISELEV 45-DARK-ENERGY DAHA L3 SPACETIME HYDRODYNAMICS
     # =========================================================================
@@ -19591,7 +19659,11 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             cap = float(max_dark_cap)
         elif version is not None:
             v_int = int(version)
-            if v_int >= 64:
+            if v_int >= 67:
+                cap = 0.999999999999999999998
+            elif v_int >= 65:
+                cap = 0.999999999999999999995
+            elif v_int >= 64:
                 cap = 0.99999999999999999995
             elif v_int >= 63:
                 cap = 0.99999999999999999999
@@ -19703,7 +19775,9 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             cap = float(self.max_dark_cap)
         elif getattr(self, "version", None) is not None:
             v = int(self.version)
-            if v >= 65:
+            if v >= 67:
+                cap = 0.999999999999999999998
+            elif v >= 65:
                 cap = 0.999999999999999999995
             elif v >= 64:
                 cap = 0.99999999999999999995

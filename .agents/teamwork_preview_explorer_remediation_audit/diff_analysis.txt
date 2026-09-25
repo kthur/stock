@@ -1,0 +1,831 @@
+Script: trading_system/scripts/benchmark_phase25_quant_performance.py
+Chunk Header: @@ -96,23 +96,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase25_quant_performance.py b/trading_system/scripts/benchmark_phase25_quant_performance.py
+index d8172e07..7c971bb5 100644
+--- a/trading_system/scripts/benchmark_phase25_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase25_quant_performance.py
+@@ -96,23 +96,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase25.md",
+-             "trading_system/result/quant_benchmark_comparison_phase25.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 24 benchmark archive
+-p24_path = "reports/quant_benchmark_comparison_phase24.md"
+-p24_content = ""
+-if os.path.exists(p24_path):
+-    with open(p24_path, "r", encoding="utf-8") as f_p24:
+-        p24_content = f_p24.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p24_content if p24_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase25.md",
++                 "trading_system/result/quant_benchmark_comparison_phase25.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 24 benchmark archive
++    p24_path = "reports/quant_benchmark_comparison_phase24.md"
++    p24_content = ""
++    if os.path.exists(p24_path):
++        with open(p24_path, "r", encoding="utf-8") as f_p24:
++            p24_content = f_p24.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p24_content if p24_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase26_quant_performance.py
+Chunk Header: @@ -96,23 +96,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase26_quant_performance.py b/trading_system/scripts/benchmark_phase26_quant_performance.py
+index 4a227bab..5790620c 100644
+--- a/trading_system/scripts/benchmark_phase26_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase26_quant_performance.py
+@@ -96,23 +96,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase26.md",
+-             "trading_system/result/quant_benchmark_comparison_phase26.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 25 benchmark archive
+-p25_path = "reports/quant_benchmark_comparison_phase25.md"
+-p25_content = ""
+-if os.path.exists(p25_path):
+-    with open(p25_path, "r", encoding="utf-8") as f_p25:
+-        p25_content = f_p25.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p25_content if p25_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase26.md",
++                 "trading_system/result/quant_benchmark_comparison_phase26.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 25 benchmark archive
++    p25_path = "reports/quant_benchmark_comparison_phase25.md"
++    p25_content = ""
++    if os.path.exists(p25_path):
++        with open(p25_path, "r", encoding="utf-8") as f_p25:
++            p25_content = f_p25.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p25_content if p25_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase27_quant_performance.py
+Chunk Header: @@ -96,23 +96,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase27_quant_performance.py b/trading_system/scripts/benchmark_phase27_quant_performance.py
+index 96b249d3..d701d09e 100644
+--- a/trading_system/scripts/benchmark_phase27_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase27_quant_performance.py
+@@ -96,23 +96,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase27.md",
+-             "trading_system/result/quant_benchmark_comparison_phase27.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 26 benchmark archive
+-p26_path = "reports/quant_benchmark_comparison_phase26.md"
+-p26_content = ""
+-if os.path.exists(p26_path):
+-    with open(p26_path, "r", encoding="utf-8") as f_p26:
+-        p26_content = f_p26.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p26_content if p26_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase27.md",
++                 "trading_system/result/quant_benchmark_comparison_phase27.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 26 benchmark archive
++    p26_path = "reports/quant_benchmark_comparison_phase26.md"
++    p26_content = ""
++    if os.path.exists(p26_path):
++        with open(p26_path, "r", encoding="utf-8") as f_p26:
++            p26_content = f_p26.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p26_content if p26_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase28_quant_performance.py
+Chunk Header: @@ -96,23 +96,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase28_quant_performance.py b/trading_system/scripts/benchmark_phase28_quant_performance.py
+index 422a133e..460827ff 100644
+--- a/trading_system/scripts/benchmark_phase28_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase28_quant_performance.py
+@@ -96,23 +96,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase28.md",
+-             "trading_system/result/quant_benchmark_comparison_phase28.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 27 benchmark archive
+-p27_path = "reports/quant_benchmark_comparison_phase27.md"
+-p27_content = ""
+-if os.path.exists(p27_path):
+-    with open(p27_path, "r", encoding="utf-8") as f_p27:
+-        p27_content = f_p27.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p27_content if p27_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase28.md",
++                 "trading_system/result/quant_benchmark_comparison_phase28.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 27 benchmark archive
++    p27_path = "reports/quant_benchmark_comparison_phase27.md"
++    p27_content = ""
++    if os.path.exists(p27_path):
++        with open(p27_path, "r", encoding="utf-8") as f_p27:
++            p27_content = f_p27.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p27_content if p27_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase29_quant_performance.py
+Chunk Header: @@ -96,23 +96,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase29_quant_performance.py b/trading_system/scripts/benchmark_phase29_quant_performance.py
+index 8d502fda..e31e3a69 100644
+--- a/trading_system/scripts/benchmark_phase29_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase29_quant_performance.py
+@@ -96,23 +96,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase29.md",
+-             "trading_system/result/quant_benchmark_comparison_phase29.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 28 benchmark archive
+-p28_path = "reports/quant_benchmark_comparison_phase28.md"
+-p28_content = ""
+-if os.path.exists(p28_path):
+-    with open(p28_path, "r", encoding="utf-8") as f_p28:
+-        p28_content = f_p28.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p28_content if p28_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase29.md",
++                 "trading_system/result/quant_benchmark_comparison_phase29.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 28 benchmark archive
++    p28_path = "reports/quant_benchmark_comparison_phase28.md"
++    p28_content = ""
++    if os.path.exists(p28_path):
++        with open(p28_path, "r", encoding="utf-8") as f_p28:
++            p28_content = f_p28.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p28_content if p28_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase30_quant_performance.py
+Chunk Header: @@ -102,23 +102,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase30_quant_performance.py b/trading_system/scripts/benchmark_phase30_quant_performance.py
+index 11d7bc1e..2357ee8b 100644
+--- a/trading_system/scripts/benchmark_phase30_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase30_quant_performance.py
+@@ -102,23 +102,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase30.md",
+-             "trading_system/result/quant_benchmark_comparison_phase30.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 29 benchmark archive
+-p29_path = "reports/quant_benchmark_comparison_phase29.md"
+-p29_content = ""
+-if os.path.exists(p29_path):
+-    with open(p29_path, "r", encoding="utf-8") as f_p29:
+-        p29_content = f_p29.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p29_content if p29_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase30.md",
++                 "trading_system/result/quant_benchmark_comparison_phase30.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 29 benchmark archive
++    p29_path = "reports/quant_benchmark_comparison_phase29.md"
++    p29_content = ""
++    if os.path.exists(p29_path):
++        with open(p29_path, "r", encoding="utf-8") as f_p29:
++            p29_content = f_p29.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p29_content if p29_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase31_quant_performance.py
+Chunk Header: @@ -102,23 +102,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase31_quant_performance.py b/trading_system/scripts/benchmark_phase31_quant_performance.py
+index 6e161fee..d483f4ec 100644
+--- a/trading_system/scripts/benchmark_phase31_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase31_quant_performance.py
+@@ -102,23 +102,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase31.md",
+-             "trading_system/result/quant_benchmark_comparison_phase31.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 30 benchmark archive
+-p30_path = "reports/quant_benchmark_comparison_phase30.md"
+-p30_content = ""
+-if os.path.exists(p30_path):
+-    with open(p30_path, "r", encoding="utf-8") as f_p30:
+-        p30_content = f_p30.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p30_content if p30_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase31.md",
++                 "trading_system/result/quant_benchmark_comparison_phase31.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 30 benchmark archive
++    p30_path = "reports/quant_benchmark_comparison_phase30.md"
++    p30_content = ""
++    if os.path.exists(p30_path):
++        with open(p30_path, "r", encoding="utf-8") as f_p30:
++            p30_content = f_p30.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p30_content if p30_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase32_quant_performance.py
+Chunk Header: @@ -102,23 +102,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase32_quant_performance.py b/trading_system/scripts/benchmark_phase32_quant_performance.py
+index be1fd9b4..67778042 100644
+--- a/trading_system/scripts/benchmark_phase32_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase32_quant_performance.py
+@@ -102,23 +102,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase32.md",
+-             "trading_system/result/quant_benchmark_comparison_phase32.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 31 benchmark archive
+-p31_path = "reports/quant_benchmark_comparison_phase31.md"
+-p31_content = ""
+-if os.path.exists(p31_path):
+-    with open(p31_path, "r", encoding="utf-8") as f_p31:
+-        p31_content = f_p31.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p31_content if p31_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase32.md",
++                 "trading_system/result/quant_benchmark_comparison_phase32.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 31 benchmark archive
++    p31_path = "reports/quant_benchmark_comparison_phase31.md"
++    p31_content = ""
++    if os.path.exists(p31_path):
++        with open(p31_path, "r", encoding="utf-8") as f_p31:
++            p31_content = f_p31.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p31_content if p31_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase33_quant_performance.py
+Chunk Header: @@ -102,23 +102,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase33_quant_performance.py b/trading_system/scripts/benchmark_phase33_quant_performance.py
+index bca614d4..9a6b40b6 100644
+--- a/trading_system/scripts/benchmark_phase33_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase33_quant_performance.py
+@@ -102,23 +102,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase33.md",
+-             "trading_system/result/quant_benchmark_comparison_phase33.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 32 benchmark archive
+-p32_path = "reports/quant_benchmark_comparison_phase32.md"
+-p32_content = ""
+-if os.path.exists(p32_path):
+-    with open(p32_path, "r", encoding="utf-8") as f_p32:
+-        p32_content = f_p32.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p32_content if p32_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase33.md",
++                 "trading_system/result/quant_benchmark_comparison_phase33.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 32 benchmark archive
++    p32_path = "reports/quant_benchmark_comparison_phase32.md"
++    p32_content = ""
++    if os.path.exists(p32_path):
++        with open(p32_path, "r", encoding="utf-8") as f_p32:
++            p32_content = f_p32.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p32_content if p32_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase34_quant_performance.py
+Chunk Header: @@ -102,23 +102,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase34_quant_performance.py b/trading_system/scripts/benchmark_phase34_quant_performance.py
+index 4a8bffd2..0f9841ff 100644
+--- a/trading_system/scripts/benchmark_phase34_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase34_quant_performance.py
+@@ -102,23 +102,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase34.md",
+-             "trading_system/result/quant_benchmark_comparison_phase34.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 33 benchmark archive
+-p33_path = "reports/quant_benchmark_comparison_phase33.md"
+-p33_content = ""
+-if os.path.exists(p33_path):
+-    with open(p33_path, "r", encoding="utf-8") as f_p33:
+-        p33_content = f_p33.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p33_content if p33_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase34.md",
++                 "trading_system/result/quant_benchmark_comparison_phase34.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 33 benchmark archive
++    p33_path = "reports/quant_benchmark_comparison_phase33.md"
++    p33_content = ""
++    if os.path.exists(p33_path):
++        with open(p33_path, "r", encoding="utf-8") as f_p33:
++            p33_content = f_p33.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p33_content if p33_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase35_quant_performance.py
+Chunk Header: @@ -102,23 +102,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase35_quant_performance.py b/trading_system/scripts/benchmark_phase35_quant_performance.py
+index b835d70b..87b7ecef 100644
+--- a/trading_system/scripts/benchmark_phase35_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase35_quant_performance.py
+@@ -102,23 +102,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase35.md",
+-             "trading_system/result/quant_benchmark_comparison_phase35.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 34 benchmark archive
+-p34_path = "reports/quant_benchmark_comparison_phase34.md"
+-p34_content = ""
+-if os.path.exists(p34_path):
+-    with open(p34_path, "r", encoding="utf-8") as f_p34:
+-        p34_content = f_p34.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p34_content if p34_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase35.md",
++                 "trading_system/result/quant_benchmark_comparison_phase35.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 34 benchmark archive
++    p34_path = "reports/quant_benchmark_comparison_phase34.md"
++    p34_content = ""
++    if os.path.exists(p34_path):
++        with open(p34_path, "r", encoding="utf-8") as f_p34:
++            p34_content = f_p34.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p34_content if p34_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase36_quant_performance.py
+Chunk Header: @@ -102,23 +102,24 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase36_quant_performance.py b/trading_system/scripts/benchmark_phase36_quant_performance.py
+index ede96311..6eeda363 100644
+--- a/trading_system/scripts/benchmark_phase36_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase36_quant_performance.py
+@@ -102,23 +102,24 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase36.md",
+-             "trading_system/result/quant_benchmark_comparison_phase36.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 35 benchmark archive
+-p35_path = "reports/quant_benchmark_comparison_phase35.md"
+-p35_content = ""
+-if os.path.exists(p35_path):
+-    with open(p35_path, "r", encoding="utf-8") as f_p35:
+-        p35_content = f_p35.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p35_content if p35_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase36.md",
++                 "trading_system/result/quant_benchmark_comparison_phase36.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 35 benchmark archive
++    p35_path = "reports/quant_benchmark_comparison_phase35.md"
++    p35_content = ""
++    if os.path.exists(p35_path):
++        with open(p35_path, "r", encoding="utf-8") as f_p35:
++            p35_content = f_p35.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p35_content if p35_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase37_quant_performance.py
+Chunk Header: @@ -102,24 +102,25 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase37_quant_performance.py b/trading_system/scripts/benchmark_phase37_quant_performance.py
+index b7fe0217..ad87ca7b 100644
+--- a/trading_system/scripts/benchmark_phase37_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase37_quant_performance.py
+@@ -102,24 +102,25 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase37.md",
+-             "trading_system/result/quant_benchmark_comparison_phase37.md",
+-             "trading_system/reports/quant_benchmark_comparison_phase37.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 36 benchmark archive
+-p36_path = "reports/quant_benchmark_comparison_phase36.md"
+-p36_content = ""
+-if os.path.exists(p36_path):
+-    with open(p36_path, "r", encoding="utf-8") as f_p36:
+-        p36_content = f_p36.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p36_content if p36_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase37.md",
++                 "trading_system/result/quant_benchmark_comparison_phase37.md",
++                 "trading_system/reports/quant_benchmark_comparison_phase37.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 36 benchmark archive
++    p36_path = "reports/quant_benchmark_comparison_phase36.md"
++    p36_content = ""
++    if os.path.exists(p36_path):
++        with open(p36_path, "r", encoding="utf-8") as f_p36:
++            p36_content = f_p36.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p36_content if p36_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase38_quant_performance.py
+Chunk Header: @@ -102,24 +102,25 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase38_quant_performance.py b/trading_system/scripts/benchmark_phase38_quant_performance.py
+index 2be69d7d..0cdc5025 100644
+--- a/trading_system/scripts/benchmark_phase38_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase38_quant_performance.py
+@@ -102,24 +102,25 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase38.md",
+-             "trading_system/result/quant_benchmark_comparison_phase38.md",
+-             "trading_system/reports/quant_benchmark_comparison_phase38.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 37 benchmark archive
+-p37_path = "reports/quant_benchmark_comparison_phase37.md"
+-p37_content = ""
+-if os.path.exists(p37_path):
+-    with open(p37_path, "r", encoding="utf-8") as f_p37:
+-        p37_content = f_p37.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p37_content if p37_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase38.md",
++                 "trading_system/result/quant_benchmark_comparison_phase38.md",
++                 "trading_system/reports/quant_benchmark_comparison_phase38.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 37 benchmark archive
++    p37_path = "reports/quant_benchmark_comparison_phase37.md"
++    p37_content = ""
++    if os.path.exists(p37_path):
++        with open(p37_path, "r", encoding="utf-8") as f_p37:
++            p37_content = f_p37.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p37_content if p37_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+
+Script: trading_system/scripts/benchmark_phase39_quant_performance.py
+Chunk Header: @@ -104,24 +104,25 @@ for row in [
+Diff:
+diff --git a/trading_system/scripts/benchmark_phase39_quant_performance.py b/trading_system/scripts/benchmark_phase39_quant_performance.py
+index 2227fde7..9421902a 100644
+--- a/trading_system/scripts/benchmark_phase39_quant_performance.py
++++ b/trading_system/scripts/benchmark_phase39_quant_performance.py
+@@ -104,24 +104,25 @@ for row in [
+ ]:
+     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
+ 
+-content = "\n".join(lines)
+-for path in ["reports/quant_benchmark_comparison_phase39.md",
+-             "trading_system/result/quant_benchmark_comparison_phase39.md",
+-             "trading_system/reports/quant_benchmark_comparison_phase39.md"]:
+-    os.makedirs(os.path.dirname(path), exist_ok=True)
+-    with open(path, "w", encoding="utf-8") as f:
+-        f.write(content)
+-
+-# Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 38 benchmark archive
+-p38_path = "reports/quant_benchmark_comparison_phase38.md"
+-p38_content = ""
+-if os.path.exists(p38_path):
+-    with open(p38_path, "r", encoding="utf-8") as f_p38:
+-        p38_content = f_p38.read()
+-
+-combined_canonical = content + ("\n\n---\n\n" + p38_content if p38_content else "")
+-os.makedirs("reports", exist_ok=True)
+-with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
+-    f_canon.write(combined_canonical)
+-
+-print(f"Done. Lines: {len(lines)}")
++if __name__ == "__main__":
++    content = "\n".join(lines)
++    for path in ["reports/quant_benchmark_comparison_phase39.md",
++                 "trading_system/result/quant_benchmark_comparison_phase39.md",
++                 "trading_system/reports/quant_benchmark_comparison_phase39.md"]:
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, "w", encoding="utf-8") as f:
++            f.write(content)
++    
++    # Update canonical reports/quant_benchmark_comparison.md preserving historical Phase 38 benchmark archive
++    p38_path = "reports/quant_benchmark_comparison_phase38.md"
++    p38_content = ""
++    if os.path.exists(p38_path):
++        with open(p38_path, "r", encoding="utf-8") as f_p38:
++            p38_content = f_p38.read()
++    
++    combined_canonical = content + ("\n\n---\n\n" + p38_content if p38_content else "")
++    os.makedirs("reports", exist_ok=True)
++    with open("reports/quant_benchmark_comparison.md", "w", encoding="utf-8") as f_canon:
++        f_canon.write(combined_canonical)
++    
++    print(f"Done. Lines: {len(lines)}")
+
+================================================================================
+

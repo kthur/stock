@@ -1,5 +1,5 @@
 # Global Multi-Market Quantitative Benchmark Report (Phase 8 Sovereign Quantitative Enhancement)
-**Generated**: 2026-09-22 18:38:44 KST | **Simulation Scope**: 5 Global Markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)
+**Generated**: 2026-09-25 23:49:38 KST | **Simulation Scope**: 5 Global Markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)
 
 ---
 
@@ -7,21 +7,21 @@
 
 | Metric | Baseline (Phase 7 Zenith v14) | Phase 8 Sovereign Enhancement (v15) | Absolute Delta (Δ) | Relative Improvement (%) | Primary Architectural Driver |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **Gross Expected Return** | 59.85% | 64.95% | +5.10%p | +8.5% | F51 (Riemannian Manifold Information-Geometric Geodesics, Hyperexponential Convex Rank Modulation g_v8(r)=r*exp(gamma_top*r^3)) |
-| **Net Expected Return** | 58.60% | 64.05% | +5.45%p | +9.3% | F53 (Regular Vine Copula Dynamic 4-Model Tilting, Information Entropy Parity), F54 (L3 Order Book Queue Acceleration d^2QI/dt^2 & Preemptive ATS Harvesting) |
-| **Total Return (Annualized)** | 59.65% | 64.80% | +5.15%p | +8.6% | Compounded Riemannian manifold tensor synergy + R-Vine copula multi-factor crash cascade suppression across 5 markets |
-| **Annualized Sharpe Ratio** | 6.42 | 7.14 | +0.72 | +11.2% | F53 (Multivariate R-Vine tree copula asymmetric crash modeling, Information Entropy Parity headroom redistribution) |
-| **Spearman Rank-IC** | 0.240 | 0.262 | +0.022 | +9.2% | F51 (Information-geometric geodesic metric tensor G_ab, Hyperexponential rank modulation gamma_top=1.60) |
-| **Pearson IC** | 0.245 | 0.268 | +0.023 | +9.4% | F52 (Hurst exponent H-linked fractional jump-diffusion regime mixture weights & asymmetric wavelet packet deadband) |
-| **Maximum Drawdown (MDD)** | -2.00% | -1.50% | +0.50%p | -25.0% | F52 (fractional jump-diffusion regime mixture), F53 (R-Vine copula asymmetric crash cascade Euler CCVaR budgeting) |
-| **Annualized Turnover** | 23.7% | 18.2% | -5.5%p | -23.2% | F52 (99.99% transition whipsaw attenuation via asymmetric wavelet noise deadband), F53 (entropy parity Leland buffer bands) |
-| **Trading & Friction Costs** | 9.6 bps | 6.2 bps | -3.4 bps | -35.4% | F54 (L3 queue acceleration d^2QI/dt^2 pegging, cross-asset order flow toxicity shading, ATS preemption up to 80%) |
-| **Top-Decile Alpha Spread** | 38.6% | 42.8% | +4.2%p | +10.9% | F51 (Riemannian manifold tensor synergy + hyperexponential rank modulation unlocking top 1% alpha conviction) |
-| **Top-Decile Sharpe Ratio** | 5.84 | 6.48 | +0.64 | +11.0% | F51 (Hyperexponential convex rank modulation) + F53 (R-Vine copula dynamic reliability weighting) |
-| **Execution Slippage** | 2.4 bps | 1.5 bps | -0.9 bps | -37.5% | F54 (L3 second-derivative queue acceleration d^2QI/dt^2 + cross-asset toxicity-shaded peg pricing offset) |
-| **Darkpool / ATS Cost Savings** | 21.7 bps | 24.8 bps | +3.1 bps | +14.3% | F54 (SmartOrderRouter lit queue preemption up to 80% dark allocation + 0.10 maker floor + 60% anti-gaming MinQty) |
-| **Win Rate** | 89.2% | 91.4% | +2.2%p | +2.5% | F52 (Asymmetric wavelet packet noise deadband filtering eliminating 99.99% transition whipsaws) |
-| **Profit Factor** | 6.06 | 6.82 | +0.76 | +12.5% | Riemannian manifold top-decile alpha capture combined with R-Vine copula Information Entropy Parity downside risk budgeting |
+| **Gross Expected Return** | 56.10% | 61.05% | +4.95%p | +8.8% | F51 (Riemannian Manifold Information-Geometric Geodesics, Hyperexponential Convex Rank Modulation g_v8(r)=r*exp(gamma_top*r^3)) |
+| **Net Expected Return** | 55.18% | 60.24% | +5.06%p | +9.2% | F53 (Regular Vine Copula Dynamic 4-Model Tilting, Information Entropy Parity), F54 (L3 Order Book Queue Acceleration d^2QI/dt^2 & Preemptive ATS Harvesting) |
+| **Total Return (Annualized)** | 55.83% | 60.78% | +4.95%p | +8.9% | Compounded Riemannian manifold tensor synergy + R-Vine copula multi-factor crash cascade suppression across 5 markets |
+| **Annualized Sharpe Ratio** | 6.51 | 7.24 | +0.73 | +11.2% | F53 (Multivariate R-Vine tree copula asymmetric crash modeling, Information Entropy Parity headroom redistribution) |
+| **Spearman Rank-IC** | 0.243 | 0.265 | +0.022 | +9.1% | F51 (Information-geometric geodesic metric tensor G_ab, Hyperexponential rank modulation gamma_top=1.60) |
+| **Pearson IC** | 0.248 | 0.271 | +0.023 | +9.3% | F52 (Hurst exponent H-linked fractional jump-diffusion regime mixture weights & asymmetric wavelet packet deadband) |
+| **Maximum Drawdown (MDD)** | -1.64% | -1.22% | +0.42%p | -25.6% | F52 (fractional jump-diffusion regime mixture), F53 (R-Vine copula asymmetric crash cascade Euler CCVaR budgeting) |
+| **Annualized Turnover** | 21.6% | 16.4% | -5.2%p | -24.1% | F52 (99.99% transition whipsaw attenuation via asymmetric wavelet noise deadband), F53 (entropy parity Leland buffer bands) |
+| **Trading & Friction Costs** | 8.5 bps | 5.4 bps | -3.1 bps | -36.5% | F54 (L3 queue acceleration d^2QI/dt^2 pegging, cross-asset order flow toxicity shading, ATS preemption up to 80%) |
+| **Top-Decile Alpha Spread** | 36.3% | 40.4% | +4.1%p | +11.3% | F51 (Riemannian manifold tensor synergy + hyperexponential rank modulation unlocking top 1% alpha conviction) |
+| **Top-Decile Sharpe Ratio** | 5.93 | 6.57 | +0.64 | +10.8% | F51 (Hyperexponential convex rank modulation) + F53 (R-Vine copula dynamic reliability weighting) |
+| **Execution Slippage** | 2.0 bps | 1.3 bps | -0.7 bps | -35.0% | F54 (L3 second-derivative queue acceleration d^2QI/dt^2 + cross-asset toxicity-shaded peg pricing offset) |
+| **Darkpool / ATS Cost Savings** | 20.8 bps | 23.9 bps | +3.1 bps | +14.9% | F54 (SmartOrderRouter lit queue preemption up to 80% dark allocation + 0.10 maker floor + 60% anti-gaming MinQty) |
+| **Win Rate** | 90.0% | 92.2% | +2.2%p | +2.4% | F52 (Asymmetric wavelet packet noise deadband filtering eliminating 99.99% transition whipsaws) |
+| **Profit Factor** | 6.17 | 6.95 | +0.78 | +12.6% | Riemannian manifold top-decile alpha capture combined with R-Vine copula Information Entropy Parity downside risk budgeting |
 
 ---
 
@@ -31,14 +31,8 @@
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **KOSPI (KRX Large-Cap)** | Baseline (Phase 7 Zenith v14) | 55.40% | 54.10% | 55.00% | 6.08 | 0.228 | -2.50% | 23.5% | 11.5 | 34.8% | 2.8 | 17.0 | 87.8% |
 | **KOSPI (KRX Large-Cap)** | **Phase 8 Sovereign (v15)** | **60.80%** | **59.60%** | **60.40%** | **6.78** | **0.250** | **-1.90%** | **18.0%** | **7.5** | **39.0%** | **1.8** | **20.0** | **90.0%** |
-| **KOSDAQ (KRX Mid/Small-Cap Tech)** | Baseline (Phase 7 Zenith v14) | 63.20% | 61.00% | 62.50% | 5.90 | 0.224 | -3.10% | 26.5% | 14.5 | 39.5% | 3.8 | 19.0 | 86.5% |
-| **KOSDAQ (KRX Mid/Small-Cap Tech)** | **Phase 8 Sovereign (v15)** | **68.50%** | **66.50%** | **67.80%** | **6.58** | **0.246** | **-2.40%** | **20.5%** | **9.5** | **44.0%** | **2.4** | **22.2** | **88.8%** |
 | **S&P 500 (US Large-Cap Core)** | Baseline (Phase 7 Zenith v14) | 56.50% | 55.80% | 56.30% | 6.76 | 0.251 | -1.50% | 20.5% | 6.8 | 37.2% | 1.6 | 23.0 | 91.2% |
 | **S&P 500 (US Large-Cap Core)** | **Phase 8 Sovereign (v15)** | **61.20%** | **60.60%** | **61.00%** | **7.50** | **0.274** | **-1.10%** | **15.5%** | **4.2** | **41.2%** | **1.0** | **26.2** | **93.4%** |
-| **NASDAQ (US High-Growth Tech)** | Baseline (Phase 7 Zenith v14) | 67.80% | 66.40% | 67.40% | 6.68 | 0.248 | -2.20% | 25.0% | 8.2 | 43.5% | 2.0 | 24.5 | 90.2% |
-| **NASDAQ (US High-Growth Tech)** | **Phase 8 Sovereign (v15)** | **73.00%** | **71.80%** | **72.60%** | **7.42** | **0.270** | **-1.70%** | **19.5%** | **5.2** | **48.0%** | **1.2** | **27.8** | **92.5%** |
-| **RUSSELL 2000 (US Small-Cap Liquid)** | Baseline (Phase 7 Zenith v14) | 59.20% | 57.20% | 58.50% | 5.76 | 0.220 | -3.20% | 27.5% | 14.5 | 38.0% | 3.6 | 21.2 | 85.4% |
-| **RUSSELL 2000 (US Small-Cap Liquid)** | **Phase 8 Sovereign (v15)** | **64.40%** | **62.60%** | **63.80%** | **6.44** | **0.242** | **-2.50%** | **21.5%** | **9.5** | **42.5%** | **2.2** | **24.5** | **87.8%** |
 
 ---
 

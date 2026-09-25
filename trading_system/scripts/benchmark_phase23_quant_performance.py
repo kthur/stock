@@ -96,11 +96,12 @@ for row in [
 ]:
     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
 
-content = "\n".join(lines)
-for path in ["reports/quant_benchmark_comparison_phase23.md",
-             "trading_system/result/quant_benchmark_comparison_phase23.md",
-             "reports/quant_benchmark_comparison.md"]:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
-print(f"Done. Lines: {len(lines)}")
+if __name__ == "__main__":
+    content = "\n".join(lines)
+    for path in ["reports/quant_benchmark_comparison_phase23.md",
+                 "trading_system/result/quant_benchmark_comparison_phase23.md",
+                 "trading_system/reports/quant_benchmark_comparison_phase23.md"]:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+    print(f"Done. Lines: {len(lines)}")

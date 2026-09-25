@@ -1,4 +1,4 @@
-﻿import os, datetime
+import os, datetime
 
 MARKET_DATA = {
     "KOSPI":       {"bl":  {"gross_ret":101.70,"net_ret":101.60,"total_ret":101.65,"sharpe":15.10,"rank_ic":0.495,"mdd":-0.020,"turnover":1.4,"friction":0.080,"top_decile":75.1,"slippage":0.005,"dark_savings":55.2,"win_rate":100.0},
@@ -95,9 +95,10 @@ for row in [
 ]:
     lines.append(f"| {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]} | {row[6]} | {row[7]} | {row[8]} |")
 
-content = "\n".join(lines)
-for path in ["reports/quant_benchmark_comparison_phase21.md","trading_system/result/quant_benchmark_comparison_phase21.md","reports/quant_benchmark_comparison.md"]:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
-print(f"Done. Lines: {len(lines)}")
+if __name__ == "__main__":
+    content = "\n".join(lines)
+    for path in ["reports/quant_benchmark_comparison_phase21.md","trading_system/result/quant_benchmark_comparison_phase21.md","trading_system/reports/quant_benchmark_comparison_phase21.md"]:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+    print(f"Done. Lines: {len(lines)}")

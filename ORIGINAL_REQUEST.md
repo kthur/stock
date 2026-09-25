@@ -1653,3 +1653,156 @@ Create `benchmark_phase65_quant_performance.py` following the Phase 64 benchmark
 - [ ] `AGENTS.md` and `PROJECT.md` updated with Phase 65 entries (F296~F300)
 - [ ] Git commit and push to `origin/main` with clean working tree
 
+
+
+## 2026-09-23T09:29:23Z
+
+주식 자동매매 및 예측 시스템의 핵심 하위 시스템(시그널 생성, 앙상블 스코어링, OMS 실행 및 벤치마크 검증)에 걸친 약 116건의 실패 테스트와 런타임 수치 불일치 문제를 해결하여 전체 시스템 무결성을 달성합니다.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. 앙상블 및 수치 안정성 결함 해결 (Phase 5, 6, 7 적대적 엣지 케이스)
+- All zeros, All ones, High NaN proportion (90~100%), 극단적 이상치, 소규모 유니버스(5~8 종목) 입력 조건에서도 수치 폭주(ZeroDivision, NaN 전파, 차원 불일치) 없이 견고하게 정규화 및 가중치 합산이 수행되도록 안정화합니다.
+- 상위 10% 분위(Top-decile) 스프레드 확장 및 단조성(monotonicity) 조건 수식을 만족하도록 정합성을 보정합니다.
+
+### R2. 시그널 인핸스먼트 및 감마/레짐 적응형 파라미터 보정 (Phase 8, 9)
+- 하이퍼 익스포넨셜 랭크 변조 및 레짐 적응형 캡(`gamma_top`) 도달 가능성 테스트 실패를 해결합니다.
+- 멀티 마켓 무작위 스트레스 환경에서 레짐 분기 순서 및 이전 버전 호환성 제약 조건을 온전히 충족하도록 수정합니다.
+
+### R3. 벤치마크 리포트 및 SHA256 해시 동기화 복구 (Phase 60 ~ 65)
+- Phase 60부터 Phase 65까지의 OMS 벤치마크 리포트 동기화(`test_benchmark_report_synchronization_vXX`) 및 SHA256 해시 검증 불일치(`test_report_sha256_hash_synchronization_vXX`)를 최신 산출물 상태와 정확히 일치하도록 동기화합니다.
+
+### R4. 머신러닝 예측기 및 수익률 최적화 로직 복구 (Transformer, LSTM, Alpha Boosters)
+- `TransformerPredictor`의 순전파 텐서 형태(forward shape), 학습-추론 파이프라인, 모델 저장 및 로드 실패 원인을 해결합니다.
+- `Sprint3` Multivariate LSTM 시계열 추론 및 `v7` 알파 허들 레이트(P90 hurdle rate), 거래 비용 언스케일드 관련 수치 오차를 해소합니다.
+
+### R5. 회귀 방지 및 전체 통합 파이프라인 무결성 보장
+- 기존에 이미 정상 통과하고 있는 5624개 이상의 테스트가 깨지지 않도록(회귀 방지) 보장합니다.
+- `trading_system/run_pipeline.py`가 정상 구동 가능한 상태를 유지해야 합니다.
+
+## Verification Resources
+
+- 프로젝트 내 기존 테스트 스위트:
+  - `trading_system\.venv\Scripts\python.exe -m pytest tests -k "test_phase5_m1_challenger2_adversarial or test_phase5_signal_enhancement"`
+  - `trading_system\.venv\Scripts\python.exe -m pytest tests -k "test_phase60_adversarial_oms_benchmark or test_phase61_adversarial_oms_benchmark or test_phase62_adversarial_oms_benchmark or test_phase63_adversarial_oms_benchmark or test_phase64_adversarial_oms_benchmark or test_phase65_adversarial_oms_benchmark"`
+  - `trading_system\.venv\Scripts\python.exe -m pytest tests -k "test_transformer_predictor or test_sprint3_alpha_refactor or test_v7_returns_maximization"`
+  - 전체 단위 검증: `trading_system\.venv\Scripts\python.exe -m pytest tests -k "not benchmark_phase" --tb=short`
+
+## Acceptance Criteria
+
+### Test Pass Verification
+- [ ] 기존 실패했던 116개 테스트 케이스가 모두 재실행 시 성공(0 failed)할 것
+- [ ] 기존 정상 통과하던 5624개 이상의 테스트 중 신규 실패(regression)가 발생하지 않을 것
+- [ ] `trading_system\.venv\Scripts\python.exe -m pytest tests -k "not benchmark_phase"` 실행 결과가 최종 Exit Code 0으로 통과할 것
+
+### Pipeline Integrity
+- [ ] `trading_system/run_pipeline.py` 모듈 구동 시 문법 오류 및 누락된 의존성 없이 정상 로딩될 것
+- [ ] Git 변경 사항이 불필요한 테스트 코드 억제(skip 처리 등)가 아닌, 실제 코드 결함 및 정합성 보정을 통해 해결되었을 것
+
+## 2026-09-25T15:10:01Z
+
+Use a full team of agents. Phase 67 Quantitative Alpha Enhancement (v74 Production Master, Features F306~F310) for an integrated stock trading prediction and execution system spanning 5 markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) with 37 multi-factor strategies.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. Alpha Signal Enhancement (F306, F307.1, F307.2)
+
+Enhance the alpha signal generation pipeline with the next-order quantitative improvements, continuing the established phase-over-phase progression pattern from Phase 66:
+
+- **Ensemble Coupler** (`trading_system/src/ai/ensemble_scorer.py`): Advance the Borcherds-Moonshine Monster Whittaker coupler parameters (κ_monster_whit from 19.90 to 20.60, λ_monster from 0.999995 to 0.999998), extend partition actions from 132nd/134th to 134th/136th, defect invariants from 66th/67th to 67th/68th, harmony boost coefficient from 4.65 to 4.75, and add `FERI_v67` / `f_out_67` output with `version >= 67` gating.
+- **Noise Deadband** (`trading_system/src/ai/factor_suppression.py`): Advance the hyperbolic deadband (α from 336.0 to 344.0, δ=0.035) and the hyper-convex rank modulation order from 63rd to 65th, coefficient from 2.30 to 2.35, with updated `REGIME_GAMMA_TOP_V67` table (`BULL_LOW_VOL`: 16.65, `BULL_HIGH_VOL`: 13.40, `SIDEWAYS`: 10.10, `SIDEWAYS_HIGH_VOL`: 6.70, `BEAR`: 3.40, `BEAR_HIGH_VOL`: 2.60, `CRISIS`: 1.70) and `get_regime_adaptive_gamma_top_v67`. Full alias trees for all new functions.
+
+### R2. Portfolio Risk Allocation Enhancement (F308.1, F308.2)
+
+Advance the risk allocation and tail risk measurement:
+
+- **Barycenter Blending** (`trading_system/src/risk/unified_portfolio_allocator.py`, `trading_system/src/risk/portfolio_allocator.py`): Advance Higher-Homology-17 Fisher-Rao barycenter μ from `[5.60, 3.80, 3.55, 6.25]` to `[5.70, 3.85, 3.50, 6.40]`, maintaining CVaR > BL > HERC > RP ordering and simplex sum=1.0.
+- **EVaR Cumulant** (same files): Advance from 64th-cumulant (64! ≈ 1.27×10⁸⁹) to 66th-cumulant (66! ≈ 5.44×10⁹²), ξ_monster from 0.99999999999997 to 0.99999999999998. Update regime shifts (`eps_w=0.670`, `delta_bl=-14.00`, `delta_herc=+10.00`, `delta_rp=-14.50`, `delta_cvar=+21.50+9.50*c`, `alpha_iep=3.85`, `contagion_damp=16.0`). Full alias trees and `is_phase67` gating.
+
+### R3. Microstructure & OMS Execution Enhancement (F309.1, F309.2)
+
+Advance the execution layer:
+
+- **Fast LOB Engine** (`trading_system/src/core/fast_lob_engine.py`): Advance KNK dark-energy DAHA from 45th order to 46th order (KNK-46: `w = -48/3`, `k_daha = 0.38`, `k_monster = 0.37`, `daha_46_factor = 7.10`, `c_monster = 2.9802322387695312e-15` [2^-48]). Full alias trees.
+- **Smart Order Router** (`trading_system/src/execution/smart_order_router.py`): Advance lit maker floor from `1e-38` to `1e-39`, dark ATS cap, anti-gaming MinQty, 39-decimal rounding precision. Add `is_phase67` flag.
+- **OMS Engine** (`trading_system/src/execution/oms_engine.py`): Advance tick shading threshold from `h > 0.0000005` to `h > 0.0000004` and shading coefficient from 19 nines to 20 nines (`0.99999999999999999999`). `version >= 67` gating.
+
+### R4. Benchmarking, Testing & Documentation (F310)
+
+- **Benchmark Script**: Create `trading_system/scripts/benchmark_phase67_quant_performance.py` with 7 KPI assertions (Net Return ≥ 206.85%, Sharpe ≥ 43.85, MDD ≤ -0.000008%, Slippage ≤ 2.310e-12 bps, Friction ≤ 2.800e-12 bps, Alpha Spread ≥ 186.40%, Win Rate = 100.0%) — each strictly exceeding Phase 66 targets.
+- **Benchmark Reports**: Generate and SHA-256 synchronize across 3 paths (`reports/quant_benchmark_comparison_phase67.md`, `trading_system/reports/quant_benchmark_comparison_phase67.md`, `trading_system/result/quant_benchmark_comparison_phase67.md`) plus `reports/benchmark_phase67_report.md`, `trading_system/reports/benchmark_phase67_report.md`, `docs/benchmark_phase67_report.md`. Update `reports/quant_benchmark_comparison.md` with Phase 67 section.
+- **Tests**: Create 5 test files following established patterns:
+  - `tests/test_phase67_alpha.py` (alpha signal tests)
+  - `tests/test_phase67_risk.py` (risk allocation tests)
+  - `tests/test_phase67_oms.py` (OMS/microstructure tests)
+  - `tests/test_phase67_adversarial_challenger1.py` (adversarial alpha/risk stress)
+  - `tests/test_phase67_adversarial_oms_benchmark.py` (adversarial OMS/benchmark)
+- **Documentation**: Add Phase 67 benchmark entry to `AGENTS.md` and F306~F310 entries to `PROJECT.md` (if present).
+- **Git**: Stage all, commit with message `'feat: Phase 67 Quantitative Alpha Enhancement (v74 Production Master, Features F306~F310)'`, push to `origin main`.
+
+## Reference: Phase 66 → Phase 67 Parameter Progression
+
+| Parameter | Phase 66 Value | Phase 67 Value |
+|-----------|---------------|---------------|
+| Deadband alpha | 336.0 | 344.0 |
+| Rank modulation order | 63rd | 65th |
+| Rank coefficient | 2.30 | 2.35 |
+| gamma_top BULL_LOW_VOL | 16.30 | 16.65 |
+| gamma_top BULL_HIGH_VOL | 13.10 | 13.40 |
+| gamma_top SIDEWAYS | 9.85 | 10.10 |
+| gamma_top SIDEWAYS_HIGH_VOL | 6.55 | 6.70 |
+| gamma_top BEAR | 3.30 | 3.40 |
+| gamma_top BEAR_HIGH_VOL | 2.50 | 2.60 |
+| gamma_top CRISIS | 1.65 | 1.70 |
+| Coupler kappa | 19.90 | 20.60 |
+| Coupler lambda | 0.999995 | 0.999998 |
+| Harmony boost coeff | 4.65 | 4.75 |
+| Barycenter mu | [5.60, 3.80, 3.55, 6.25] | [5.70, 3.85, 3.50, 6.40] |
+| EVaR cumulant order | 64th (64! ≈ 1.27e89) | 66th (66! ≈ 5.44e92) |
+| xi_monster | 0.99999999999997 | 0.99999999999998 |
+| epsilon_w | 0.660 | 0.670 |
+| alpha_iep | 3.80 | 3.85 |
+| Contagion damping | 15.5 | 16.0 |
+| KNK dark energy order | 45th (w = -47/3) | 46th (w = -48/3) |
+| k_daha / k_monster | 0.37 / 0.36 | 0.38 / 0.37 |
+| daha factor | 6.85 | 7.10 |
+| c_monster | 5.9604644775390625e-15 (2^-47) | 2.9802322387695312e-15 (2^-48) |
+| Lit maker floor | 1e-38 | 1e-39 |
+| Tick shading threshold | h > 0.0000005 | h > 0.0000004 |
+| Tick shading coeff (nines) | 19 nines | 20 nines |
+
+## Acceptance Criteria
+
+### Alpha Signal (R1)
+- [ ] All new functions have complete alias trees
+- [ ] `FERI_v67` output column is generated with `version >= 67` gating
+- [ ] Deadband noise leakage < 10⁻²⁵⁴ for |z| ≤ δ
+- [ ] Rank modulation monotonically non-decreasing, g(1.0) > 10⁷ at BULL_LOW_VOL gamma
+- [ ] Regime gamma hierarchy: BULL_LOW > BULL_HIGH > SIDEWAYS_LOW > SIDEWAYS_HIGH > BEAR_LOW > BEAR_HIGH > CRISIS
+
+### Risk Allocation (R2)
+- [ ] Barycenter simplex sum = 1.0 (rel_tol=1e-5), CVaR > BL > HERC > RP ordering
+- [ ] EVaR is finite, positive, and fat-tailed Student-t EVaR > Gaussian EVaR
+- [ ] EVaR monotonically increases with volatility
+- [ ] Backward compatibility: versions 50~66 produce valid simplex weights
+
+### Microstructure & OMS (R3)
+- [ ] KNK-46 DAHA returns finite queue acceleration, correct density/factor/equation-of-state values
+- [ ] SOR maker floor holds above `1e-39` under gamma_toxic = 1.0
+- [ ] Tick shading activates strictly above `h > 0.0000004`, deadband below
+- [ ] `is_phase67` flag correctly set; backward compatibility with Phase 66 and earlier
+
+### Benchmarking & Testing (R4)
+- [ ] `benchmark_phase67_quant_performance.py` passes all 7 KPIs exceeding Phase 66
+- [ ] All 5 test files pass (61+ tests total)
+- [ ] Combined Phase 66 + Phase 67 regression: 0 regressions (122+ tests pass)
+- [ ] SHA-256 hashes match across all 3 report paths
+- [ ] `AGENTS.md` updated with Phase 67 entry
+- [ ] Git commit and push to `origin main` successful
+

@@ -68,6 +68,8 @@ class TestAdversarialCanonicalSequence:
 
     def test_run_pipeline_registry_and_verification_files(self):
         pipeline_path = Path("trading_system/run_pipeline.py")
+        if not pipeline_path.exists():
+            pipeline_path = Path(__file__).resolve().parent.parent / "trading_system" / "run_pipeline.py"
         content = pipeline_path.read_text(encoding="utf-8")
 
         # Verify STRATEGY_REGISTRY contains all expected strategy files

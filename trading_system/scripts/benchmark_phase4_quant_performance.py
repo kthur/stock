@@ -616,17 +616,39 @@ def main():
     # Target destinations specified in task ownership:
     # 1. reports/quant_benchmark_comparison_phase4.md
     # 2. trading_system/result/quant_benchmark_comparison_phase4.md
-    # 3. reports/quant_benchmark_comparison.md
     output_targets = [
         Path(args.output),
         Path("trading_system/result/quant_benchmark_comparison_phase4.md"),
-        Path("reports/quant_benchmark_comparison.md"),
     ]
 
     for out_path in output_targets:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(report_content, encoding="utf-8")
         logger.info(f"Saved quantitative benchmark report to {out_path.resolve()}")
+
+    # Update canonical reports/quant_benchmark_comparison.md with idempotency guard
+    import os
+    canon_path = "reports/quant_benchmark_comparison.md"
+    prior_content = ""
+    if os.path.exists(canon_path):
+        with open(canon_path, "r", encoding="utf-8") as f_canon_in:
+            prior_content = f_canon_in.read().strip()
+
+    if "Phase 4 Quantitative Enhancement" not in prior_content:
+        pPREV_path = "reports/quant_benchmark_comparison_phase3.md"
+        pPREV_content = ""
+        if os.path.exists(pPREV_path):
+            with open(pPREV_path, "r", encoding="utf-8") as f_pPREV:
+                pPREV_content = f_pPREV.read()
+        
+        combined_canonical = report_content + ("\n\n---\n\n" + prior_content if prior_content else ("\n\n---\n\n" + pPREV_content if pPREV_content else ""))
+        os.makedirs("reports", exist_ok=True)
+        with open(canon_path, "w", encoding="utf-8") as f_canon:
+            f_canon.write(combined_canonical)
+        try:
+            logger.info(f"Saved canonical quantitative benchmark report to {canon_path}")
+        except NameError:
+            print(f"Saved canonical quantitative benchmark report to {canon_path}")
 
 
 if __name__ == "__main__":

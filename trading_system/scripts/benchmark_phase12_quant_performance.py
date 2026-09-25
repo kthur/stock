@@ -726,7 +726,6 @@ def main():
     report_paths = [
         Path("reports/quant_benchmark_comparison_phase12.md"),
         Path("trading_system/result/quant_benchmark_comparison_phase12.md"),
-        Path("reports/quant_benchmark_comparison.md"),
     ]
 
     if args.output:
@@ -760,6 +759,31 @@ def main():
     print(f"Sortino Ratio:          {b_agg.sortino_ratio:.2f} -> {e_agg.sortino_ratio:.2f} (+{e_agg.sortino_ratio - b_agg.sortino_ratio:.2f})")
     print(f"Deflated Sharpe (DSR):  {b_agg.deflated_sharpe_ratio:.3f} -> {e_agg.deflated_sharpe_ratio:.3f} (+{e_agg.deflated_sharpe_ratio - b_agg.deflated_sharpe_ratio:.3f})")
     print("=" * 80 + "\n")
+
+    # Update canonical reports/quant_benchmark_comparison.md with idempotency guard
+    import os
+    canon_path = "reports/quant_benchmark_comparison.md"
+    prior_content = ""
+    if os.path.exists(canon_path):
+        with open(canon_path, "r", encoding="utf-8") as f_canon_in:
+            prior_content = f_canon_in.read().strip()
+
+    if "Phase 12 Quantitative Enhancement" not in prior_content:
+        pPREV_path = "reports/quant_benchmark_comparison_phase11.md"
+        pPREV_content = ""
+        if os.path.exists(pPREV_path):
+            with open(pPREV_path, "r", encoding="utf-8") as f_pPREV:
+                pPREV_content = f_pPREV.read()
+        
+        combined_canonical = report_md + ("\n\n---\n\n" + prior_content if prior_content else ("\n\n---\n\n" + pPREV_content if pPREV_content else ""))
+        os.makedirs("reports", exist_ok=True)
+        with open(canon_path, "w", encoding="utf-8") as f_canon:
+            f_canon.write(combined_canonical)
+        try:
+            logger.info(f"Saved canonical quantitative benchmark report to {canon_path}")
+        except NameError:
+            print(f"Saved canonical quantitative benchmark report to {canon_path}")
+
 
 
 if __name__ == "__main__":

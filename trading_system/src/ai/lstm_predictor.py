@@ -273,7 +273,7 @@ class LSTMPredictor:
         """
         Predicts expected returns.
         Args:
-            X: numpy array of shape (n_samples, sequence_length) or (n_samples, sequence_length, 1)
+            X: numpy array of shape (n_samples, sequence_length) or (n_samples, sequence_length, input_size)
         """
         if not self.is_trained:
             logger.warning("LSTM Model is not trained. Returning zeros.")
@@ -282,6 +282,16 @@ class LSTMPredictor:
         try:
             if X.ndim == 2:
                 X = np.expand_dims(X, axis=-1)
+
+            if X.shape[2] != self.input_size:
+                logger.warning(
+                    f"LSTM feature dimension mismatch: expected {self.input_size}, got {X.shape[2]}."
+                )
+                if X.shape[2] < self.input_size:
+                    pad = np.zeros((X.shape[0], X.shape[1], self.input_size - X.shape[2]), dtype=X.dtype)
+                    X = np.concatenate([X, pad], axis=2)
+                else:
+                    X = X[:, :, :self.input_size]
 
             self.model.eval()
             with torch.no_grad():
@@ -299,6 +309,9 @@ class LSTMPredictor:
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
             torch.save({
                 'model_state_dict': self.model.state_dict(),
+                'input_size': self.input_size,
+                'sequence_length': self.sequence_length,
+                'hidden_size': self.hidden_size,
                 'is_trained': self.is_trained
             }, filepath)
             logger.info(f"LSTM model saved to {filepath}")
@@ -310,18 +323,50 @@ class LSTMPredictor:
             if os.path.exists(filepath):
                 checkpoint = torch.load(filepath, map_location=self.device, weights_only=False)  # nosec B614
                 if isinstance(checkpoint, dict):
-                    if 'model_state_dict' in checkpoint:
-                        self.model.load_state_dict(checkpoint['model_state_dict'])
-                    elif 'state_dict' in checkpoint:
-                        self.model.load_state_dict(checkpoint['state_dict'])
-                    else:
+                    state_dict = checkpoint.get('model_state_dict', checkpoint.get('state_dict'))
+                    if state_dict is None:
                         logger.warning(f"LSTM checkpoint {filepath} has no state dict key (keys: {list(checkpoint.keys())[:6]}). Treating as untrained.")
                         self.is_trained = False
                         return
+
+                    saved_input_size = checkpoint.get('input_size')
+                    if saved_input_size is None and 'lstm.weight_ih_l0' in state_dict:
+                        saved_input_size = state_dict['lstm.weight_ih_l0'].shape[1]
+
+                    saved_hidden_size = checkpoint.get('hidden_size')
+                    if saved_hidden_size is None and 'lstm.weight_ih_l0' in state_dict:
+                        saved_hidden_size = state_dict['lstm.weight_ih_l0'].shape[0] // 4
+
+                    if saved_input_size is not None and (saved_input_size != self.input_size or (saved_hidden_size and saved_hidden_size != self.hidden_size)):
+                        self.input_size = saved_input_size
+                        self.hidden_size = saved_hidden_size if saved_hidden_size else self.hidden_size
+                        self.model = LSTMNetwork(
+                            input_size=self.input_size,
+                            hidden_size=self.hidden_size,
+                            num_layers=2,
+                            dropout=0.2,
+                            output_size=1
+                        ).to(self.device)
+
+                    self.model.load_state_dict(state_dict)
                     self.is_trained = bool(checkpoint.get('is_trained', True))
                 else:
                     # Legacy format: bare state dict
-                    self.model.load_state_dict(checkpoint)
+                    state_dict = checkpoint
+                    if 'lstm.weight_ih_l0' in state_dict:
+                        saved_input_size = state_dict['lstm.weight_ih_l0'].shape[1]
+                        saved_hidden_size = state_dict['lstm.weight_ih_l0'].shape[0] // 4
+                        if saved_input_size != self.input_size or saved_hidden_size != self.hidden_size:
+                            self.input_size = saved_input_size
+                            self.hidden_size = saved_hidden_size
+                            self.model = LSTMNetwork(
+                                input_size=self.input_size,
+                                hidden_size=self.hidden_size,
+                                num_layers=2,
+                                dropout=0.2,
+                                output_size=1
+                            ).to(self.device)
+                    self.model.load_state_dict(state_dict)
                     self.is_trained = True
                 logger.info(f"LSTM model loaded from {filepath}")
             else:

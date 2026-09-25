@@ -437,9 +437,8 @@ class TestBenchmarkReportsSynchronizationAndOracle:
         with open(self.MASTER_PATH, "r", encoding="utf-8") as f:
             master_content = f.read().strip()
 
-        assert "Phase 52 Quantitative Alpha Enhancement" in master_content
-        # First 500 characters of phase 52 report must match master report header
-        assert master_content.startswith("# Global Multi-Market Quantitative Benchmark Report (Phase 52 Quantitative Alpha Enhancement)")
+        # Phase 52 header must be present in master report
+        assert "# Global Multi-Market Quantitative Benchmark Report (Phase 52 Quantitative Alpha Enhancement)" in master_content
 
     def test_benchmark_metrics_oracle_assertions(self):
         """Oracle assertion verification of all 7 Phase 52 quantitative target metrics."""

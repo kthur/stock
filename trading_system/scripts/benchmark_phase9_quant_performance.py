@@ -661,15 +661,38 @@ def main():
 
     report_md = generate_phase9_markdown_report(benchmark_results)
 
-    # 3-Way Path Synchronization
+    # 2-Way Path Synchronization
     out_path1 = Path(args.output)
     out_path2 = Path("trading_system/result/quant_benchmark_comparison_phase9.md")
-    out_path3 = Path("reports/quant_benchmark_comparison.md")
 
-    for p in [out_path1, out_path2, out_path3]:
+    for p in [out_path1, out_path2]:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(report_md, encoding="utf-8")
         logger.info(f"Saved Phase 9 benchmark report to: {p.resolve()}")
+
+    # Update canonical reports/quant_benchmark_comparison.md with idempotency guard
+    import os
+    canon_path = "reports/quant_benchmark_comparison.md"
+    prior_content = ""
+    if os.path.exists(canon_path):
+        with open(canon_path, "r", encoding="utf-8") as f_canon_in:
+            prior_content = f_canon_in.read().strip()
+
+    if "Phase 9 Quantitative Enhancement" not in prior_content:
+        pPREV_path = "reports/quant_benchmark_comparison_phase8.md"
+        pPREV_content = ""
+        if os.path.exists(pPREV_path):
+            with open(pPREV_path, "r", encoding="utf-8") as f_pPREV:
+                pPREV_content = f_pPREV.read()
+        
+        combined_canonical = report_md + ("\n\n---\n\n" + prior_content if prior_content else ("\n\n---\n\n" + pPREV_content if pPREV_content else ""))
+        os.makedirs("reports", exist_ok=True)
+        with open(canon_path, "w", encoding="utf-8") as f_canon:
+            f_canon.write(combined_canonical)
+        try:
+            logger.info(f"Saved canonical quantitative benchmark report to {canon_path}")
+        except NameError:
+            print(f"Saved canonical quantitative benchmark report to {canon_path}")
 
     print("\n" + report_md + "\n")
     logger.info("Phase 9 Imperial Quantitative Benchmarking successfully completed.")

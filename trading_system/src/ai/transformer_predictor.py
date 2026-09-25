@@ -96,9 +96,11 @@ class TimeSeriesPatchTransformer(nn.Module):
 
     def _generate_patches(self, x: torch.Tensor) -> torch.Tensor:
         """
-        x: (batch, seq_len, in_features)
+        x: (batch, seq_len, in_features) or (batch, seq_len)
         Returns: (batch, num_patches, in_features * patch_size)
         """
+        if x.dim() == 2:
+            x = x.unsqueeze(-1)
         batch_size, seq_len, in_dim = x.shape
         if seq_len < self.patch_size:
             # Pad sequence if shorter than patch_size
@@ -120,9 +122,11 @@ class TimeSeriesPatchTransformer(nn.Module):
 
     def forward(self, x: torch.Tensor, macro_x: Optional[torch.Tensor] = None) -> Dict[int, torch.Tensor]:
         """
-        x: (batch, seq_len, in_features)
+        x: (batch, seq_len, in_features) or (batch, seq_len)
         macro_x: Optional (batch, macro_seq_len, macro_features) or (batch, macro_features)
         """
+        if x.dim() == 2:
+            x = x.unsqueeze(-1)
         patches = self._generate_patches(x)  # (batch, num_patches, patch_dim)
         h = self.patch_embed(patches)        # (batch, num_patches, d_model)
         h = self.pos_encoder(h)
@@ -135,7 +139,9 @@ class TimeSeriesPatchTransformer(nn.Module):
 
         # Optional Cross-Attention with Macro indicators
         if self.has_macro and macro_x is not None:
-            if macro_x.dim() == 2:
+            if macro_x.dim() == 1:
+                macro_x = macro_x.unsqueeze(0).unsqueeze(1)
+            elif macro_x.dim() == 2:
                 macro_x = macro_x.unsqueeze(1)  # (batch, 1, macro_dim)
             macro_emb = self.macro_embed(macro_x)  # (batch, macro_seq, d_model)
             cross_out, _ = self.cross_attn(query=encoded, key=macro_emb, value=macro_emb)
@@ -151,7 +157,7 @@ class TimeSeriesPatchTransformer(nn.Module):
         outputs = {}
         for h_val, head in self.heads.items():
             horizon_int = int(h_val.replace("h_", ""))
-            outputs[horizon_int] = head(pooled).squeeze(-1)  # (batch,)
+            outputs[horizon_int] = head(pooled).view(-1)  # strictly (batch,)
 
         return outputs
 
@@ -189,14 +195,16 @@ class PatchTransformerPredictor:
         self.model: Optional[TimeSeriesPatchTransformer] = None
         self.is_fitted = False
 
-    def _init_model(self, in_features: int, macro_features: int):
+    def _init_model(self, in_features: int, macro_features: int, patch_size: int = 5, stride: int = 2):
         self.model = TimeSeriesPatchTransformer(
             in_features=in_features,
             macro_features=macro_features,
             d_model=self.d_model,
             nhead=self.nhead,
             num_layers=self.num_layers,
-            horizons=self.horizons
+            horizons=self.horizons,
+            patch_size=patch_size,
+            stride=stride
         ).to(self.device)
 
     def train(self,
@@ -205,11 +213,15 @@ class PatchTransformerPredictor:
               macro_X: Optional[np.ndarray] = None,
               val_split: float = 0.15) -> Dict[str, List[float]]:
         """
-        X: (N, seq_len, in_features)
+        X: (N, seq_len, in_features) or (N, seq_len)
         y_dict: {horizon: (N,)} expected returns
         macro_X: Optional (N, macro_features)
         """
+        if X.ndim == 2:
+            X = np.expand_dims(X, axis=-1)
         N, seq_len, in_features = X.shape
+        if macro_X is not None and macro_X.ndim == 1:
+            macro_X = np.expand_dims(macro_X, axis=-1)
         macro_dim = macro_X.shape[1] if macro_X is not None else 0
 
         self._init_model(in_features, macro_dim)
@@ -310,13 +322,18 @@ class PatchTransformerPredictor:
                 X: np.ndarray,
                 macro_X: Optional[np.ndarray] = None) -> Dict[int, np.ndarray]:
         """
-        X: (N, seq_len, in_features)
+        X: (N, seq_len, in_features) or (N, seq_len)
         Returns {horizon: (N,) predictions in % or decimal}
         """
         if not self.is_fitted or self.model is None:
             logger.warning("[PatchTransformer] Model is not fitted. Returning zeros.")
             N = X.shape[0]
             return {h: np.zeros(N, dtype=np.float32) for h in self.horizons}
+
+        if X.ndim == 2:
+            X = np.expand_dims(X, axis=-1)
+        if macro_X is not None and macro_X.ndim == 1 and len(macro_X) == len(X):
+            macro_X = np.expand_dims(macro_X, axis=-1)
 
         self.model.eval()
         with torch.no_grad():
@@ -326,7 +343,7 @@ class PatchTransformerPredictor:
 
             res = {}
             for h, pred_tensor in outputs.items():
-                res[h] = pred_tensor.cpu().numpy()
+                res[h] = pred_tensor.cpu().numpy().reshape(-1)
             return res
 
     def save(self, filepath: str):
@@ -339,6 +356,8 @@ class PatchTransformerPredictor:
             'd_model': self.d_model,
             'nhead': self.nhead,
             'num_layers': self.num_layers,
+            'patch_size': getattr(self.model, 'patch_size', 5),
+            'stride': getattr(self.model, 'stride', 2),
             'in_features': self.model.in_features,
             'macro_features': self.model.macro_features,
             'is_fitted': self.is_fitted
@@ -352,14 +371,17 @@ class PatchTransformerPredictor:
             logger.warning(f"[PatchTransformer] Model file not found: {filepath}")
             return False
         state = torch.load(filepath, map_location=self.device, weights_only=False)  # nosec B614
-        self.horizons = state['horizons']
+        self.horizons = tuple(state['horizons'])
         self.seq_len = state['seq_len']
         self.d_model = state['d_model']
         self.nhead = state['nhead']
         self.num_layers = state['num_layers']
         self.is_fitted = state.get('is_fitted', True)
 
-        self._init_model(state['in_features'], state['macro_features'])
+        patch_size = state.get('patch_size', 5)
+        stride = state.get('stride', 2)
+
+        self._init_model(state['in_features'], state['macro_features'], patch_size=patch_size, stride=stride)
         assert self.model is not None
         self.model.load_state_dict(state['model_state'])
         self.model.eval()

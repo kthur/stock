@@ -1,127 +1,178 @@
-# Handoff Report: Phase 55 Alpha Signal Enhancements (F246, F247.1, F247.2)
+# Handoff Report — Phase 66 Alpha & Risk Survey
 
-**Sender**: Survey Explorer 1  
-**Recipient**: Project Orchestrator (`orchestrator_quant_phase55_1`, ID: `e6810c66-9903-4b3e-8cae-28e5bf10584a`)  
-**Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1`  
-**Date**: 2026-09-18  
+**Sender**: `teamwork_preview_explorer_survey_1` (Explorer)  
+**Recipient**: `parent` (`997895c9-981f-437b-997e-a3ed353a71e8`)  
+**Type**: Hard Handoff  
+**Reference Document**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\survey_alpha_risk.md`  
 
 ---
 
 ## 1. Observation
 
-1. **`trading_system/src/ai/ensemble_scorer.py`**:
-   - Lines 801–1112: `QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler` currently implements partition polynomial deformation up to 86th/88th order:
-     ```python
-     1006: + (1.0 / 86.0) * (self.lambda_conformal * 0.00000000001) * (diff ** 86)
-     1007: + (1.0 / 88.0) * (self.lambda_conformal * 0.000000000004) * (diff ** 88))
-     ```
-     and topological defect terms up to 43rd/44th order:
-     ```python
-     1048: + (self.lambda_vertex * 0.0000000000001) * (pn[j]**43 - pn[k]**43)
-     1049: + (self.lambda_vertex * 0.00000000000004) * (pn[j]**44 - pn[k]**44))
-     ```
-   - Lines 1056–1090: Computes `feri_v54` and exports `"FERI_v54"`, `"feri_v54"` along with legacy `FERI_v53` down to `FERI_v48`.
-   - Lines 1115–1250: Defines Phase 54 Coupler aliases (`Phase54Coupler`, `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology4Coupler`, etc.) and injects them into `_fs_module`.
-   - Line 18791: Harmony factor boost in `combine_predictions`:
-     ```python
-     18791: + ((3.45 if version >= 54 else (3.35 if version >= 53 else (3.25 if version >= 52 else (3.15 if version >= 51 else (3.05 if version >= 50 else 2.95 if version >= 49 else 2.85))))) * h_monster_whit * z_monster_whit if version >= 48 else 0.0)) * (p_mean > 0.35).astype(float),
-     ```
-   - Lines 21848–21865: `EnsembleScoringEngine` static bindings for Phase 54 deadband, rank modulation, and Coupler aliases.
-   - Lines 25090–25099: `apply_smooth_noise_deadband` version gating:
-     ```python
-     25090: if int(version) >= 54:
-     25091:     eff_alpha = 240.0 if alpha_pos in (3.0, 5.0, ..., 232.0) else alpha_pos
-     25092:     return apply_bicentatetracontagonal_hyperbolic_deadband(...)
-     ```
+Direct observations from inspecting the codebase:
 
-2. **`trading_system/src/ai/factor_suppression.py`**:
-   - Lines 561–600: `apply_bicentatetracontagonal_hyperbolic_deadband` with $\alpha=240.0$, $\delta=0.035$, and aliases `compute_phase54_deadband`, etc.
-   - Lines 602–632: `REGIME_GAMMA_TOP_V54` with `BULL_LOW_VOL: 9.60` down to `CRISIS: 0.96`, and `get_regime_adaptive_gamma_top_v54`.
-   - Lines 634–673: `compute_phase54_hyperconvex_rank_modulation`: $g_{\text{v54}}(r) = 0.50 + 1.78 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{49})$.
-   - Lines 4960–4966: `RegimeFactorSuppressionEngine` static bindings for Phase 54 deadband and modulation.
-   - Lines 5242–5261 & 5354–5385: `__all__` and `__getattr__` dynamic export of Phase 54 symbols.
+### 1.1 `trading_system/src/ai/ensemble_scorer.py`
+- Line 2299: `class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler:`
+- Lines 2311–2328 (`__init__` signature):
+  ```python
+  def __init__(
+      self,
+      theta_0: float = 0.50,
+      kappa_monster_whit: float = 18.50,
+      lambda_monster: float = 0.99998,
+      lambda_moonshine: float = 0.72,
+      lambda_borcherds: float = 0.48,
+      lambda_whittaker: float = 0.32,
+      lambda_geometric_langlands: float = 0.22,
+      lambda_superalgebra: float = 0.160,
+      lambda_chiral_affine: float = 0.120,
+      lambda_categorical: float = 0.080,
+      lambda_chiral: float = 0.050,
+      lambda_vertex: float = 0.030,
+      lambda_conformal: float = 0.020,
+      epsilon_reg: float = 1e-6,
+      **kwargs
+  ):
+  ```
+- Lines 2526–2527: Partition action terminates at 132nd order:
+  ```python
+  + (1.0 / 130.0) * (self.lambda_conformal * 1e-21) * (diff ** 130)
+  + (1.0 / 132.0) * (self.lambda_conformal * 4e-22) * (diff ** 132))
+  ```
+- Lines 2590–2591: Defect invariant terminates at 66th order:
+  ```python
+  + (self.lambda_vertex * 1e-23) * (pn[j]**65 - pn[k]**65)
+  + (self.lambda_vertex * 4e-24) * (pn[j]**66 - pn[k]**66))
+  ```
+- Line 2598: `feri_v66 = 1.0 / (1.0 + e_monster_whit + (1.0 - z_monster_whit))`
+- Line 2622: `f_out_66 = float(feri_v66[0]) if is_single_1d else (pd.Series(feri_v66, index=index) if index is not None else feri_v66)`
+- Lines 2642–2643: Dictionary outputs include:
+  ```python
+  "FERI_v66": f_out_66,
+  "feri_v66": f_out_66,
+  ```
+- Lines 2704–2708 (Aliases):
+  ```python
+  Phase66Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+  Phase66WhittakerDrinfeldCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+  Phase66BorcherdsMoonshineCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+  Phase66MonsterWhittakerCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+  ```
+- Line 21142 (Harmony Boost in `EnsembleScoringEngine`):
+  ```python
+  + ((4.55 if version >= 65 else (4.45 if version >= 64 ...)) * h_monster_whit * z_monster_whit if version >= 48 else 0.0)) * (p_mean > 0.35).astype(float)
+  ```
+- Lines 19207–19208:
+  ```python
+  if int(version) >= 66:
+      mult = compute_phase66_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+  ```
+- Lines 27219–27220:
+  ```python
+  if int(version) >= 66:
+      return get_regime_adaptive_gamma_top_v66(regime)
+  ```
 
-3. **`tests/test_phase54_alpha.py` & Test Execution**:
-   - Test suite contains 9 unit tests covering Coupler invariants, rank modulation convexity, regime hierarchy, deadband leakage, Series/scalar delegation, `EnsembleScoringEngine.apply_smooth_noise_deadband`, `combine_predictions`, and backward compatibility.
-   - Verified verbatim test output: `pytest tests/test_phase54_alpha.py -v` passed 100% (9 passed, 2 warnings in 10.05s).
+### 1.2 `trading_system/src/ai/factor_suppression.py`
+- Lines 567–575:
+  ```python
+  def apply_bihexacontatetraoctagonal_hyperbolic_deadband(
+      scores_centered: Union[pd.Series, np.ndarray, float],
+      delta_noise: float = 0.035,
+      delta_neg: Optional[float] = None,
+      alpha_pos: float = 336.0,
+      alpha_neg: Optional[float] = None,
+      regime: Optional[Union[str, int]] = None,
+      **kwargs
+  ) -> Union[pd.Series, np.ndarray, float]:
+  ```
+- Lines 601–608: Deadband aliases (`compute_phase66_deadband`, `apply_phase66_deadband`, `apply_bihexacontatetraoctagonal_deadband`, `bihexacontatetraoctagonal_deadband`, `phase66_deadband`, `apply_bihexacontatetra_hyperbolic_deadband`, `apply_bihexacontadecaoctagonal_hyperbolic_deadband`, `apply_bihexacontatetraicosaoctagonal_hyperbolic_deadband`).
+- Lines 611–627: Table `REGIME_GAMMA_TOP_V66` (`BULL_LOW_VOL`: 16.30, `BULL_HIGH_VOL`: 13.10, `SIDEWAYS`: 9.85, `SIDEWAYS_HIGH_VOL`: 6.55, `BEAR`: 3.30, `BEAR_HIGH_VOL`: 2.50, `CRISIS`: 1.65).
+- Lines 630–640: `def get_regime_adaptive_gamma_top_v66(regime: Union[int, str] = 'BULL_LOW_VOL') -> float:`.
+- Lines 643–678:
+  ```python
+  def compute_phase66_hyperconvex_rank_modulation(
+      ranks: Union[pd.Series, np.ndarray, float],
+      gamma_top: Optional[float] = None,
+      z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+      regime: Optional[Union[str, int]] = None,
+      **kwargs
+  ) -> Union[pd.Series, np.ndarray, float]:
+  ```
+  Formula: `pos_mult = 0.50 + 2.30 * r_clipped * np.exp(float(gamma_top) * np.power(r_clipped, 63.0))` (lines 666).
+  Formula for $z < 0$: `1.35 - 1.00 * r_clipped` (line 669).
+- Lines 679–682: Aliases (`compute_phase66_rank_warping`, `compute_phase66_rank_modulation`, `phase66_rank_modulation`, `phase66_hyperconvex_rank_modulation`).
+
+### 1.3 `trading_system/src/risk/unified_portfolio_allocator.py` & `trading_system/src/risk/portfolio_allocator.py`
+- Lines 1014–1034 in `unified_portfolio_allocator.py`:
+  `compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_16_fisher_rao_barycenter_blend`
+  Vector: `mu_lmbwdh16 = np.array([5.60, 3.80, 3.55, 6.25], dtype=float)`.
+- Lines 1089–1098 in `unified_portfolio_allocator.py`: 10 barycenter aliases including `compute_phase66_fisher_rao_barycenter`, `compute_phase66_barycenter_blend`, `compute_phase66_barycenter`.
+- Lines 3448–3457 in `portfolio_allocator.py`: 10 barycenter aliases delegating to the barycenter implementation.
+- Lines 6504–6512 in `unified_portfolio_allocator.py`:
+  `compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_16_evar_risk_measure`
+  Order: `order=64`, `xi_monster=0.99999999999997`.
+- Lines 6582–6593 in `unified_portfolio_allocator.py`: 12 EVaR aliases including `compute_phase66_evar`, `phase66_tail_risk_evar`, `evar_64th_cumulant`.
+- Lines 4419–4427 in `portfolio_allocator.py`: 9 EVaR aliases including `compute_phase66_evar`, `phase66_tail_risk_evar`.
+- Lines 15351, 15413–15430 in `unified_portfolio_allocator.py`:
+  `is_phase66 = int(version) >= 66`
+  `eps_w = 0.660` default
+  `delta_monster_whittaker = {"bl": -13.50 * eps_w - 6.90 * (u_entropy ** 2), "herc": +9.50 * eps_w + 5.80 * u_entropy, "rp": -14.00 * eps_w, "cvar": +20.50 * eps_w + 9.00 * c_crisis}`
+  `alpha_iep = 3.80`, `contagion_damp = max(0.0, 1.0 - 15.5 * lam_casc)`
+  Multiplier: `delta_ell[k] *= (1.0 + 0.33 * alpha_iep)`.
+- Lines 16852–16854:
+  ```python
+  if is_phase66:
+      res_weights = self.compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_16_fisher_rao_barycenter_blend(res_weights)
+  ```
+- Command Execution Observation:
+  Running `python -m pytest tests/test_phase66_alpha.py tests/test_phase66_risk.py -v` exited code 0 with `18 passed in 26.54s`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Step 1 (F246 Coupler Extension)**:
-   - Observing lines 1006–1007 and 1048–1049 in `ensemble_scorer.py`, the geometric progression of coefficients follows $1.0 \times 10^{-(k)}$ and $4.0 \times 10^{-(k+1)}$.
-   - Extending to 90th/92nd order partition polynomial yields terms:
-     - 90th order: $(1/90) \cdot (\lambda_{\text{conformal}} \times 1.0 \times 10^{-12}) \cdot \Delta^{90}$
-     - 92nd order: $(1/92) \cdot (\lambda_{\text{conformal}} \times 4.0 \times 10^{-13}) \cdot \Delta^{92}$
-   - Extending to 45th/46th order topological defect yields terms:
-     - 45th order: $(\lambda_{\text{vertex}} \times 1.0 \times 10^{-14}) \cdot (p_j^{45} - p_k^{45})$
-     - 46th order: $(\lambda_{\text{vertex}} \times 4.0 \times 10^{-15}) \cdot (p_j^{46} - p_k^{46})$
-   - Adding `feri_v55 = 1.0 / (1.0 + e_monster_whit + (1.0 - z_monster_whit))` and exporting `"FERI_v55"`, `"feri_v55"` ensures compliance with requirements.
-   - Updating line 18791 to include `3.55 if version >= 55 else ...` raises the harmony factor boost from 3.45 to 3.55.
-   - Exporting Phase 55 aliases (`Phase55Coupler`, `QuantumGeometricLanglandsBorcherdsMoonshineMonsterWhittakerDrinfeldHigherHomology5Coupler`, etc.) maintains the 28+ alias contract.
+1. **Alpha Signal Coupler Parameter Advancement**:
+   From Observation 1.1, the coupler currently expands partition actions to 132nd order and defect invariants to 66th order.
+   In Phase 67, R1 requires advancing partition actions from 132nd/134th to 134th/136th order and defect invariants from 66th/67th to 67th/68th order, updating $\kappa_{\text{monster\_whit}} = 20.60$, $\lambda_{\text{monster}} = 0.999998$, harmony boost from 4.65 to 4.75, and adding `FERI_v67` / `f_out_67` with `version >= 67` gating.
 
-2. **Step 2 (F247.1 50th-Order Rank Modulation)**:
-   - Observing lines 634–673 in `factor_suppression.py`, the formula structure is $g(r) = 0.50 + c \cdot r \cdot \exp(\gamma_{\text{top}} r^N)$.
-   - For Phase 55, $c = 1.82$, $N = 50$, and $\gamma_{\text{top}} \le 10.20$.
-   - Analytical calculation shows $g_{\text{v55}}(1.0) = 0.50 + 1.82 \cdot \exp(10.20) \approx 48964.28 > 500.0$.
-   - At $r = 0.70$, $g_{\text{v55}}(0.70) \approx 1.7740 \le 1.82$, damping the lower 70%.
-   - Regime adaptation scales proportionally from `BULL_LOW_VOL` (10.20) down to `CRISIS` (1.02).
+2. **Noise Deadband & Rank Modulation Parameter Advancement**:
+   From Observation 1.2, Phase 66 implements 336th-order deadband ($\alpha = 336.0, \delta = 0.035$) and 63rd-order rank modulation with coefficient $2.30$ and `REGIME_GAMMA_TOP_V66` (`BULL_LOW_VOL`: 16.30).
+   In Phase 67, R1 requires advancing deadband exponent to $\alpha = 344.0$, rank modulation to 65th-order with coefficient $2.35$, and `REGIME_GAMMA_TOP_V67` (`BULL_LOW_VOL`: 16.65, ..., `CRISIS`: 1.70). Complete alias trees must mirror the existing Phase 66 trees.
 
-3. **Step 3 (F247.2 248th-Order Deadband)**:
-   - Observing lines 561–600 in `factor_suppression.py`, the function delegates to `apply_quintic_hyperbolic_deadband` with exponent $\alpha$.
-   - Setting $\alpha = 248.0$ with $\delta = 0.035$ means at $|z| \le 0.00035$, $(|z|/\delta)^{248} \le (0.01)^{248} = 10^{-496}$.
-   - This suppresses boundary leakage to strictly $0.0$ in float64 ($< 10^{-168}$).
-   - High conviction $|z| \ge 0.150$ yields $(0.15/0.035)^{248} \approx 10^{156}$, for which $\tanh(10^{156}) = 1.0$, giving 100.000% signal transmission.
+3. **Risk Allocation & Tail Measurement Advancement**:
+   From Observation 1.3, Phase 66 uses Higher-Homology-16 barycenter with $\mu = [5.60, 3.80, 3.55, 6.25]$, 64th-cumulant EVaR ($64! \approx 1.27 \times 10^{89}, \xi = 0.99999999999997$), and ambiguity tilting ($\epsilon_w = 0.660, \alpha_{\text{iep}} = 3.80, \text{contagion\_damp} = 15.5$).
+   In Phase 67, R2 requires Higher-Homology-17 barycenter with $\mu = [5.70, 3.85, 3.50, 6.40]$, 66th-cumulant EVaR ($66! \approx 5.44 \times 10^{92}, \xi = 0.99999999999998$), $\epsilon_w = 0.670, \alpha_{\text{iep}} = 3.85, \text{contagion\_damp} = 16.0$, with complete alias trees and `is_phase67` gating across both `unified_portfolio_allocator.py` and `portfolio_allocator.py`.
 
-4. **Step 4 (Backward Compatibility)**:
-   - Preserving existing Phase 1~54 logic behind `version >= 55` gating guarantees all existing test suites will continue passing without regression.
+4. **Backward Compatibility Preservation**:
+   All 18 tests in `test_phase66_alpha.py` and `test_phase66_risk.py` verify that versions $50 \le v \le 66$ preserve simplex sum = 1.0, strict parameter ordering, and noise suppression. The Phase 67 implementation must maintain these invariants without mutating legacy branches.
 
 ---
 
 ## 3. Caveats
 
-- **Scope Boundary**: This investigation examined only the Alpha Signal enhancement files (`ensemble_scorer.py`, `factor_suppression.py`, `test_phase54_alpha.py`, and related test files). Risk allocation (`unified_portfolio_allocator.py`), microstructure OMS (`fast_lob_engine.py`, `smart_order_router.py`, `oms_engine.py`), and the benchmark script (`benchmark_phase55_quant_performance.py`) were not investigated in detail, as they belong to peer specialists.
-- **Assumptions**: We assume IEEE 754 float64 is used throughout the evaluation, where values smaller than $\approx 10^{-324}$ underflow to 0.0.
-- **Alternative Interpretations Considered**: We verified whether `kappa_monster_whit` default should be changed from 12.50 to 14.00. Following Phase 54 conventions, keeping `__init__` default at 12.50 while testing explicit instantiation with `kappa_monster_whit=14.00, lambda_monster=0.98` provides maximum backward compatibility.
+- **Execution & Microstructure Components**: This investigation was explicitly scoped to Alpha and Risk allocation components (R1 & R2). Core execution files (`fast_lob_engine.py`, `smart_order_router.py`, `oms_engine.py`) were not inspected in this survey turn as they are assigned to other specialists.
+- **Naming Conventions for Order 344 Deadband**: The Greek polygon naming convention for order 344 can vary (e.g. `apply_bicentatetratetracontaoctagonal_hyperbolic_deadband` vs `apply_bitetracontatetraoctagonal_hyperbolic_deadband`). Standardized aliases (`apply_phase67_deadband`, `compute_phase67_deadband`, `phase67_deadband`) must be populated.
+- **Harmony Boost at Line 21142**: In `ensemble_scorer.py`, the harmony boost coefficient chain stopped at `4.55 if version >= 65`. When adding Phase 67 ($4.75$), it must cleanly include both Phase 67 ($4.75$) and Phase 66 ($4.65$) to ensure version 66 behaves properly.
 
 ---
 
 ## 4. Conclusion
 
-1. Phase 55 Alpha Signal Enhancements (F246, F247.1, F247.2) have clean, well-isolated integration points in `ensemble_scorer.py` and `factor_suppression.py`.
-2. Exact mathematical formulas and parameters have been fully derived and verified:
-   - 90th/92nd partition deformation ($1.0 \times 10^{-12}$ and $4.0 \times 10^{-13}$) and 45th/46th defect ($1.0 \times 10^{-14}$ and $4.0 \times 10^{-15}$).
-   - $\kappa_{\text{monster\_whit}}=14.00, \lambda_{\text{monster}}=0.98, \text{FERI}_{\text{v55}}$.
-   - Harmony factor boost $3.55 \cdot h \cdot z$ for `version >= 55`.
-   - 50th-order rank modulation $g(r) = 0.50 + 1.82 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{50})$, $\gamma_{\text{top}} \le 10.20$, $g(1.0) \approx 48964$.
-   - 248th-order deadband with leakage $< 10^{-168}$ and 100% transmission for $|z| \ge 0.150$.
-3. The comprehensive blueprint is ready for implementation by the Alpha Signal Specialist, with full specification for `tests/test_phase55_alpha.py`.
+The Phase 66 Alpha and Risk architectures have been fully cataloged with verified line numbers, mathematical formulas, and complete alias mappings. All existing Phase 66 alpha and risk tests pass with zero errors. The implementation blueprint for Phase 67 is clear, scoped, and directly ready for execution by the planner and developer agents.
 
 ---
 
 ## 5. Verification Method
 
-1. **Test Execution**:
-   Run the following command using the project virtual environment:
+To independently verify all findings:
+1. **Run Phase 66 Regression Tests**:
    ```powershell
-   .venv\Scripts\pytest.exe tests/test_phase54_alpha.py -v
+   python -m pytest tests/test_phase66_alpha.py tests/test_phase66_risk.py -v
    ```
-   Must pass 100% (9/9 passed).
-2. **Phase 55 Alpha Test Suite**:
-   Once implemented, execute:
-   ```powershell
-   .venv\Scripts\pytest.exe tests/test_phase55_alpha.py -v
-   ```
-   All tests must pass with 0 warnings or failures.
-3. **Regression Verification**:
-   Execute:
-   ```powershell
-   .venv\Scripts\pytest.exe tests/test_phase54_alpha.py tests/test_phase53_alpha.py tests/test_phase52_alpha.py -v
-   ```
-   Confirm zero regression on prior phases.
-4. **Invalidation Conditions**:
-   - Boundary noise leakage at $|z| = 0.00035$ exceeds $10^{-168}$.
-   - Rank modulation at $r=1.0$ is $\le 500.0$ or at $r=0.70$ exceeds $1.82$.
-   - Harmony boost under `version=55` does not equal $3.55$.
-   - `FERI_v55` is absent from Coupler output dictionary.
+   *Expected Result*: 18 passed tests in ~25–30s.
+2. **Inspect Survey Report**:
+   Read `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\survey_alpha_risk.md`.
+3. **Invalidation Conditions**:
+   - If `test_phase66_alpha.py` or `test_phase66_risk.py` fails on master, findings must be re-checked.
+   - If line numbers in `ensemble_scorer.py` shift by >50 lines due to external concurrent edits.

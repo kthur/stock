@@ -1,58 +1,58 @@
-# BRIEFING — 2026-09-15T22:09:45Z
+# BRIEFING — 2026-09-26T00:20:00+09:00
 
 ## Mission
-Implement Phase 45 Microstructure OMS Enhancement (F201.2): KNK 24-Dark-Energy DAHA L3 hydrodynamics, 99.9999999998% ATS dark cap, 1e-17 maker floor contraction, 99.99999999995% anti-gaming MinQty, preemptive tick shading -0.99999999998 * spr * (h - 0.0002), and write tests/test_phase45_oms.py with 100% pass rate.
+Implement Phase 67 Quantitative Alpha Enhancement for Microstructure & OMS Execution (Features F309.1, F309.2) across fast_lob_engine.py, smart_order_router.py, and oms_engine.py.
 
 ## 🔒 My Identity
-- Archetype: Microstructure OMS Specialist
+- Archetype: Specialist / Implementer / QA
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m3_oms
-- Original parent: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
-- Milestone: Milestone 3 — Microstructure OMS Specialist (Phase 45 F201.2)
+- Original parent: 997895c9-981f-437b-997e-a3ed353a71e8
+- Milestone: Phase 67 Microstructure & OMS Execution Enhancement
 
 ## 🔒 Key Constraints
-- Exclusively owned files:
-  - `trading_system/src/core/fast_lob_engine.py`
-  - `trading_system/src/execution/smart_order_router.py`
-  - `trading_system/src/execution/oms_engine.py`
-  - `tests/test_phase45_oms.py`
-- Integrity mandate: No hardcoding test results, no dummy implementations. Real physics & queue dynamics logic.
-- 100% test pass rate for `tests/test_phase45_oms.py` and backward compatibility with `tests/test_phase44_oms.py`.
-- Communication via send_message to parent upon completion.
+- Exclusive file ownership:
+  * trading_system/src/core/fast_lob_engine.py
+  * trading_system/src/execution/smart_order_router.py
+  * trading_system/src/execution/oms_engine.py
+- Minimal changes, preserve backward compatibility for earlier phases.
+- Real genuine implementation, no cheating, no hardcoded test stubs.
+- Verify with tests in trading_system/.venv/Scripts/python.exe.
 
 ## Current Parent
-- Conversation ID: 561ed892-ad75-45fb-9c2b-374c7aa7ce78
-- Updated: 2026-09-15T22:05:00Z
+- Conversation ID: 997895c9-981f-437b-997e-a3ed353a71e8
+- Updated: 2026-09-26T00:20:00+09:00
 
 ## Task Summary
-- **What to build**:
-  1. `fast_lob_engine.py`: Kerr-Newman-Kiselev 24-Dark-Energy PCQTGBDDDDHKMAEETUVW Whittaker DAHA L3 queue acceleration method, aliases, and DeepHawkes arrival dark routing cap expansion to 0.999999999998.
-  2. `smart_order_router.py`: Resolve max dark cap 0.999999999998, lit maker floor contraction to 1e-17, dynamic anti-gaming MinQty 0.9999999999995, and precision formatting.
-  3. `oms_engine.py`: Version 45 preemptive tick shading with threshold h > 0.0002 and shift factor -0.99999999998 in ExecutionOMSEngine and AlmgrenChrissScheduler.
-  4. `tests/test_phase45_oms.py`: Comprehensive 8-test unit test suite.
-- **Success criteria**: All 8 Phase 45 OMS tests pass + all Phase 44 OMS tests pass.
+- **What to build**: KNK-46 Dark Energy DAHA acceleration in Fast LOB Engine, Lit Maker Floor 1e-39 and 39-decimal rounding in Smart Order Router, Tick Shading h > 0.0000004 with 20 nines in Execution OMS Engine.
+- **Success criteria**:
+  - fast_lob_engine.py implements KNK-46 with full alias tree, delegation to KNK-45, matching formula.
+  - smart_order_router.py implements 1e-39 floor, 39-decimal rounding, is_phase67 flag, backward compatibility.
+  - oms_engine.py implements h > 0.0000004 threshold with 20 nines under version >= 67 in both ExecutionOMSEngine and AlmgrenChrissScheduler.
+  - Passes test_phase66_oms.py and test_phase66_adversarial_oms_benchmark.py with zero regressions.
+- **Interface contracts**: ORIGINAL_REQUEST.md lines 2115-2219, survey_microstructure_oms.md
+- **Code layout**: trading_system/src/{core,execution}
 
 ## Key Decisions Made
-- Implemented KNK 24-Dark-Energy PCQTGBDDDDHKMAEETUVW Whittaker DAHA L3 hydrodynamics with parameters $w = -26/3$, $k_{\text{daha}} = 0.16$, `daha_24_factor = 2.21`, radial metric discriminant exponent 27, repulsive tidal acceleration term $-13.0 \cdot c \cdot r^{25} \cdot \text{daha\_24\_factor}$, and complete alias set.
-- Expanded `DeepHawkesArrivalProcess` dark routing cap to `0.999999999998` for `v >= 45` and `"phase45"` caller frames.
-- Implemented SOR dark cap `0.999999999998`, maker floor contraction to `1e-17` (`0.00000000000000001`), dynamic anti-gaming MinQty `0.9999999999995`, and precision rounding (19 decimals for maker_ratio, 18 for min_ratio).
-- Implemented preemptive micro-tick shading in `ExecutionOMSEngine` and `AlmgrenChrissScheduler` with threshold `h > 0.0002` and factor `-0.99999999998 * spr * (h - 0.0002)`.
+- Advanced KNK dark-energy DAHA to 46th order (KNK-46) in `fast_lob_engine.py` delegating to KNK-45 with w = -48/3, k_daha = 0.38, k_monster = 0.37, daha_46_factor = 7.10, c_monster = 2.9802322387695312e-15, and repulsive acceleration formula `-24.0 * c_monster * (r ** 48) * daha_46_factor`. Added all 16 method aliases matching established pattern.
+- Advanced lit maker floor from 1e-38 to 1e-39 in `smart_order_router.py` under gamma_toxic > 0.80, added `is_phase67` flag with chaining, updated 39-decimal precision rounding for maker_ratio and min_ratio, and implemented Phase 67 / Phase 66 queue imbalance and anti-gaming minQty branches.
+- Advanced tick shading in `oms_engine.py` to threshold h > 0.0000004 with 20 nines (`0.99999999999999999999`) under version >= 67 in both ExecutionOMSEngine and AlmgrenChrissScheduler with full backward compatibility.
+
+## Artifact Index
+- DISPATCH.md - assignment from parent
+- BRIEFING.md - working memory
+- progress.md - heartbeat and state tracker
+- handoff.md - completion report
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/core/fast_lob_engine.py`: Added 24-Dark-Energy Whittaker DAHA L3 method, 21 aliases, and updated DeepHawkesArrivalProcess dark routing cap to 0.999999999998.
-  - `trading_system/src/execution/smart_order_router.py`: Added Phase 45 flags, max dark cap 0.999999999998, lit maker floor 1e-17, anti-gaming MinQty 0.9999999999995, and precision formatting.
-  - `trading_system/src/execution/oms_engine.py`: Added version >= 45 preemptive tick shading in ExecutionOMSEngine and AlmgrenChrissScheduler.
-  - `tests/test_phase45_oms.py`: Created 8 comprehensive unit tests covering all Phase 45 OMS features and backward compatibility.
-- **Build status**: 8/8 tests in `test_phase45_oms.py` PASS, 8/8 tests in `test_phase44_oms.py` PASS (16/16 total PASS). Whole-system Phase 45 test suite 24/24 PASS (Alpha + Risk + OMS).
-- **Pending issues**: None. 100% complete and verified.
+  * `trading_system/src/core/fast_lob_engine.py`: KNK-46 dark-energy DAHA and 16 aliases, DeepHawkes version >= 67 cap.
+  * `trading_system/src/execution/smart_order_router.py`: Lit maker floor 1e-39, is_phase67 flag, 39-decimal precision.
+  * `trading_system/src/execution/oms_engine.py`: Tick shading h > 0.0000004 with 20 nines in ExecutionOMSEngine and AlmgrenChrissScheduler.
+- **Build status**: PASS (all files compiled, 16/16 Phase 66 regression tests pass, all Phase 67 assertions pass)
+- **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: All 8 Phase 45 OMS tests pass in 12.37s. All 8 Phase 44 OMS tests pass in 10.69s.
-- **Lint status**: 0 violations. Code adheres strictly to formatting, typing, and naming conventions.
-- **Tests added/modified**: `tests/test_phase45_oms.py` with 8 comprehensive unit tests.
-
-## Artifact Index
-- `BRIEFING.md` — Working memory and status tracker
-- `progress.md` — Liveness heartbeat and step tracking
-- `handoff.md` — Final 5-component handoff report
+- **Build/test result**: 16 passed in 11.64s, zero regressions
+- **Lint status**: Clean
+- **Tests added/modified**: Verified against test_phase66_oms.py, test_phase66_adversarial_oms_benchmark.py, and standalone Phase 67 verification suite.
