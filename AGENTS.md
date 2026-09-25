@@ -267,6 +267,7 @@ flowchart TB
 | `trading_system/scripts/benchmark_phase65_quant_performance.py` | Phase 65 Quantitative 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F296~F300 기여도 분석 |
 | `trading_system/scripts/benchmark_phase66_quant_performance.py` | Phase 66 Quantitative 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F301~F305 기여도 분석 |
 | `trading_system/scripts/benchmark_phase67_quant_performance.py` | Phase 67 Quantitative 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F306~F310 기여도 분석 |
+| `trading_system/scripts/benchmark_phase68_quant_performance.py` | Phase 68 Quantitative 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F311~F315 기여도 분석 |
 
 ### Markets
 
