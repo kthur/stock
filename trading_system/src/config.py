@@ -105,7 +105,7 @@ class TradingConfig:
     train_sample_krx: Union[int, str] = "all"
     train_start_date: str = "2018-01-01"
     train_seed: int = 42
-    stock_price_freshness_days: int = 1
+    stock_price_freshness_days: Union[int, str] = 1
     update_interval: int = 0
     skip_training: bool = False
     skip_inference: bool = False
@@ -268,7 +268,14 @@ class TradingConfig:
                     self.train_sample_krx = val
         self.train_start_date = _get_env_str("TRAIN_START_DATE", self.train_start_date)
         self.train_seed = _get_env_int("TRAIN_SEED", self.train_seed)
-        self.stock_price_freshness_days = _get_env_int("STOCK_PRICE_FRESHNESS_DAYS", self.stock_price_freshness_days)
+        _freshness_raw = os.environ.get("STOCK_PRICE_FRESHNESS_DAYS", "").strip().lower()
+        if _freshness_raw in ("-1", "never", "all", "none"):
+            self.stock_price_freshness_days = -1
+        elif _freshness_raw:
+            try:
+                self.stock_price_freshness_days = int(_freshness_raw)
+            except ValueError:
+                logger.warning(f"Invalid STOCK_PRICE_FRESHNESS_DAYS in env, keeping default {self.stock_price_freshness_days}")
         self.update_interval = _get_env_int("UPDATE_INTERVAL", self.update_interval)
         self.skip_training = _get_env_bool("SKIP_TRAINING", self.skip_training)
         self.skip_inference = _get_env_bool("SKIP_INFERENCE", self.skip_inference)
@@ -420,7 +427,10 @@ class TradingConfig:
         val = str(self.stock_price_freshness_days).strip().lower()
         if val in ("-1", "never", "all", "none"):
             return -1
-        return int(val)
+        try:
+            return int(val)
+        except ValueError:
+            return 1
 
     def get_train_seed(self) -> Optional[int]:
         val = str(self.train_seed).strip().lower()

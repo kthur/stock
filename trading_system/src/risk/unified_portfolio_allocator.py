@@ -19634,8 +19634,54 @@ class UnifiedPortfolioAllocator:
         if len(valid_symbols) < 2 or returns_df.empty:
             logger.warning("[UnifiedPortfolioAllocator] Insufficient historical data for covariance. Falling back to heuristic allocation.")
             df_candidates = df_candidates.head(min(len(df_candidates), 10)).copy()
-            df_candidates["weight"] = self.default_max_total_allocation / len(df_candidates)
-            df_candidates["allocation_amount"] = df_candidates["weight"] * total_portfolio_value
+            n_c = max(1, len(df_candidates))
+            w_h = self.default_max_total_allocation / n_c
+            df_candidates["weight"] = w_h
+            df_candidates["target_weight"] = w_h
+            df_candidates["current_weight"] = 0.0
+            df_candidates["delta_weight"] = w_h
+            df_candidates["allocation_amount"] = w_h * total_portfolio_value
+
+            if "volatility_20d" in df_candidates.columns:
+                df_candidates["volatility"] = df_candidates["volatility_20d"].fillna(0.02).values.astype(float)
+            elif "volatility" in df_candidates.columns:
+                df_candidates["volatility"] = df_candidates["volatility"].fillna(0.02).values.astype(float)
+            else:
+                df_candidates["volatility"] = np.full(n_c, 0.02)
+
+            if score_col and score_col in df_candidates.columns:
+                pr_raw = df_candidates[score_col].fillna(0.0).values.astype(float)
+                df_candidates["predicted_return"] = np.where(np.abs(pr_raw) <= 1.0, pr_raw * 100.0, pr_raw)
+            else:
+                df_candidates["predicted_return"] = np.zeros(n_c)
+
+            rate_val = float(usd_krw) if usd_krw and usd_krw > 0 else 1350.0
+            base_curr_norm = str(base_currency).upper().strip()
+            shares_list = []
+            lot_list = []
+            for row in df_candidates.itertuples():
+                sym = str(row.symbol)
+                mkt = str(getattr(row, "market", "KOSPI")).upper()
+                is_krx = sym.isdigit() or mkt in ["KOSPI", "KOSDAQ", "KRX"]
+                is_us = mkt in ["SP500", "NASDAQ", "RUSSELL2000", "US"] or not is_krx
+                lot = 1 if is_krx else (100 if mkt in ["JAPAN_TSE", "HKEX", "VIETNAM_HOSE"] else 1)
+                px = float(getattr(row, "close", getattr(row, "close_price", 0.0)) or 0.0)
+                if px <= 0:
+                    px = 50000.0 if is_krx else 100.0
+                alloc_amt = float(row.allocation_amount)
+                if is_us and base_curr_norm == "KRW":
+                    eff_price = px * rate_val
+                elif is_krx and base_curr_norm == "USD":
+                    eff_price = px / rate_val
+                else:
+                    eff_price = px
+                raw_shares = int(alloc_amt // eff_price) if eff_price > 0 else 0
+                adj_shares = (raw_shares // lot) * lot
+                shares_list.append(adj_shares)
+                lot_list.append(lot)
+            df_candidates["shares"] = shares_list
+            df_candidates["target_shares"] = shares_list
+            df_candidates["lot_size"] = lot_list
             return df_candidates
 
         # Filter candidate dataframe to valid symbols
@@ -19822,7 +19868,7 @@ class UnifiedPortfolioAllocator:
         df_candidates["current_weight"] = current_weights
         df_candidates["delta_weight"] = w_final - current_weights
         df_candidates["volatility"] = vols
-        df_candidates["predicted_return"] = pred_rets
+        df_candidates["predicted_return"] = np.where(np.abs(pred_rets) <= 1.0, pred_rets * 100.0, pred_rets)
         df_candidates["allocation_amount"] = w_final * total_portfolio_value
 
         # Lot size resolution (KRX: 1 share since 2014, TSE/HKEX/HOSE: 100 shares, US: 1 share)

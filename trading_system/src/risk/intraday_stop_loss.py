@@ -165,15 +165,29 @@ class IntradayStopLossEngine:
                         volume = 0.0
                         volume_ma_20 = 0.0
 
+                is_multi_day = False
+                if len(data) > 1:
+                    date_col = next((c for c in ['date', 'datetime', 'time', 'timestamp'] if c in col_map), None)
+                    if date_col:
+                        try:
+                            s_dates = pd.to_datetime(data[col_map[date_col]]).dt.date
+                            if s_dates.nunique() > 1:
+                                is_multi_day = True
+                        except Exception:
+                            pass
+                    elif isinstance(data.index, pd.DatetimeIndex):
+                        if data.index.normalize().nunique() > 1:
+                            is_multi_day = True
+
                 high_col = col_map.get("high")
                 if high_col:
                     highs = data[high_col].replace([np.inf, -np.inf], np.nan).dropna().values
                     if len(highs) > 0:
-                        peak_price = float(np.max(highs))
+                        peak_price = float(highs[-1]) if is_multi_day else float(np.max(highs))
                     else:
                         peak_price = current_price
                 else:
-                    peak_price = float(np.max(closes))
+                    peak_price = float(closes[-1]) if is_multi_day else float(np.max(closes))
 
                 atr_col = col_map.get("atr")
                 if atr_col:

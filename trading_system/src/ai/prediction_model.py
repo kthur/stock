@@ -2886,8 +2886,39 @@ class OnDevicePredictionModel:
             vol_20 = float(np.std(daily_rets) + 1e-6)
             sharpe_like = ew_ret / vol_20
 
+            # Construct 7 multivariate causal features matching LSTM input_size=7
+            v_col = next((c for c in ['Volume', 'volume'] if c in df_p.columns), None)
+            h_col = next((c for c in ['High', 'high'] if c in df_p.columns), None)
+            l_col = next((c for c in ['Low', 'low'] if c in df_p.columns), None)
+            o_col = next((c for c in ['Open', 'open'] if c in df_p.columns), None)
+
+            if v_col and h_col and l_col and o_col and len(df_p) >= 20:
+                v_s = df_p[v_col].iloc[:, 0] if isinstance(df_p[v_col], pd.DataFrame) else df_p[v_col]
+                h_s = df_p[h_col].iloc[:, 0] if isinstance(df_p[h_col], pd.DataFrame) else df_p[h_col]
+                l_s = df_p[l_col].iloc[:, 0] if isinstance(df_p[l_col], pd.DataFrame) else df_p[l_col]
+                o_s = df_p[o_col].iloc[:, 0] if isinstance(df_p[o_col], pd.DataFrame) else df_p[o_col]
+
+                f_ret = daily_rets
+                v_tail = v_s.tail(20).fillna(0.0).values
+                v_ma = float(np.mean(v_tail) + 1e-6)
+                f_vol = np.clip(v_tail / v_ma, 0.1, 10.0)
+                c_tail = c_series.tail(20).values
+                h_tail = h_s.tail(20).values
+                l_tail = l_s.tail(20).values
+                denom = np.maximum(h_tail - l_tail, 1e-4)
+                f_pos = np.clip((c_tail - l_tail) / denom, 0.0, 1.0)
+                f_hl = np.clip((h_tail - l_tail) / np.maximum(c_tail, 1e-4), 0.0, 0.5)
+                o_tail = o_s.tail(20).values
+                f_co = np.clip((c_tail - o_tail) / np.maximum(o_tail, 1e-4), -0.3, 0.3)
+                f_v20 = np.full(20, vol_20)
+                f_mom = np.clip(f_ret * weights * 20.0, -1.0, 1.0)
+
+                seq_7d = np.column_stack([f_ret, f_vol, f_pos, f_hl, f_co, f_v20, f_mom])
+            else:
+                seq_7d = np.repeat(daily_rets.reshape(20, 1), 7, axis=1)
+
             valid_symbols.append(sym)
-            sequences.append(daily_rets.reshape(20, 1))
+            sequences.append(seq_7d)
             momentum_fallbacks.append(sharpe_like)
 
         if not valid_symbols:

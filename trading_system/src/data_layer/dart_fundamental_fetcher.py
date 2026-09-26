@@ -61,7 +61,8 @@ class DARTFundamentalFetcher:
             return None
         try:
             import OpenDartReader
-            self._dart_reader = OpenDartReader(self.api_key)
+            reader_cls = getattr(OpenDartReader, 'OpenDartReader', OpenDartReader)
+            self._dart_reader = reader_cls(self.api_key)
             return self._dart_reader
         except ImportError:
             logger.warning("opendartreader package is not installed.")

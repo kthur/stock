@@ -4,7 +4,7 @@ Decomposes the monolithic pipeline into cleanly separated execution stages.
 Supports both stage-based orchestrators and component fetchers/trainers/predictors/reporters.
 """
 
-from src.pipeline.stages import PipelineContext, BaseStage, DataStage, TrainingStage, InferenceStage, EnsembleStage
+from src.pipeline.stages import PipelineContext, BaseStage, DataStage, TrainingStage, InferenceStage, EnsembleStage, ReportingStage
 from src.pipeline.data_fetcher import PipelineDataFetcher
 from src.pipeline.trainer import PipelineTrainer
 from src.pipeline.predictor import PipelinePredictor
@@ -16,6 +16,17 @@ from src.pipeline.strategy_scoring import StrategyScoringStage
 from src.pipeline.ensemble_allocation import EnsembleAllocationStage
 from src.pipeline.report_generation import ReportGenerationStage
 from src.pipeline.orchestrator import ModularPipelineOrchestrator
+from src.pipeline.strategy_executor import (
+    AlphaStrategyExecutor,
+    PipelineStrategyContext,
+    StrategySpec,
+    StrategyExecutionResult,
+)
+from src.pipeline.prediction_reporter import (
+    save_strategy_predictions_report,
+    slice_top_dataframe,
+    get_target_markets_to_save,
+)
 
 
 __all__ = [
@@ -36,4 +47,11 @@ __all__ = [
     "EnsembleAllocationStage",
     "ReportGenerationStage",
     "ModularPipelineOrchestrator",
+    "AlphaStrategyExecutor",
+    "PipelineStrategyContext",
+    "StrategySpec",
+    "StrategyExecutionResult",
+    "save_strategy_predictions_report",
+    "slice_top_dataframe",
+    "get_target_markets_to_save",
 ]
