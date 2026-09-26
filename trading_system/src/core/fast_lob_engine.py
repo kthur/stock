@@ -1407,6 +1407,75 @@ class FastOrderBookMatchingEngine:
     calculate_kerr_newman_kiselev_quintessence_phantom_tachyon_hydrodynamics = compute_kerr_newman_kiselev_tachyon_queue_acceleration
 
     # =========================================================================
+    # PHASE 71 (FEATURE F329.1): KERR-NEWMAN-KISELEV 50-DARK-ENERGY DAHA L3 SPACETIME HYDRODYNAMICS
+    # =========================================================================
+
+    def compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(
+        self,
+        charge_parameter: float = 0.5,
+        spin_parameter: float = 0.5,
+        c_monster: float = 2.220446049250313e-16,
+        w: float = -52.0 / 3.0,
+        k_daha: float = 0.42,
+        k_monster: float = 0.41,
+        daha_50_factor: float = 8.10,
+        theta: float = math.pi / 2.0,
+        levels: int = 10,
+        timestamp_sec: Optional[float] = None,
+        **kwargs,
+    ) -> Dict[str, float]:
+        """
+        Phase 71 (Feature F329.1): Kerr-Newman-Kiselev 50-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
+        Adds 50th dark energy component with equation of state w = -52/3 (-17.333333),
+        k_daha = 0.42, k_monster = 0.41, daha_50_factor = 8.10, c_monster = 2.220446049250313e-16 (2^-52),
+        repulsive acceleration -26.5 * c * (r ** 52) * daha_50_factor.
+        """
+        # Delegate to Phase 70 and apply Phase 71 corrections
+        base_res = self.compute_kerr_newman_kiselev_49_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(
+            charge_parameter=charge_parameter, spin_parameter=spin_parameter,
+            c_monster=c_monster, w=w, k_daha=k_daha, k_monster=k_monster,
+            daha_49_factor=daha_50_factor, theta=theta, levels=levels,
+            timestamp_sec=timestamp_sec, **kwargs
+        )
+        # Apply 50th dark energy correction
+        accel = base_res.get('knk_49_dark_energy_daha_acceleration', base_res.get('queue_acceleration', 0.0))
+        qi = base_res.get('knk_pcqtgbddddhkmaeetuv_accelerated_qi', 0.0)
+        r_eff = max(1e-10, abs(qi))
+        c_50 = float(kwargs.get('c_50', kwargs.get('c_dark_energy_50', c_monster)))
+        dark_50_accel = -26.5 * c_50 * (r_eff ** 52) * daha_50_factor
+        if not math.isfinite(dark_50_accel):
+            dark_50_accel = 0.0
+        dark_50_accel = max(-1e6, min(1e6, dark_50_accel))
+        corrected_accel = accel + dark_50_accel
+        base_res['knk_50_dark_energy_correction'] = round(dark_50_accel, 8)
+        base_res['knk_50_dark_energy_daha_acceleration'] = round(corrected_accel, 6)
+        base_res['phase71_knk_acceleration'] = round(corrected_accel, 6)
+        base_res['daha_50_factor'] = daha_50_factor
+        base_res['k_daha_50'] = k_daha
+        base_res['k_monster_50'] = k_monster
+        base_res['c_monster_50'] = c_monster
+        base_res['w_dark_energy_50'] = w
+        base_res['queue_acceleration'] = round(corrected_accel, 6)
+        return base_res
+
+    compute_phase71_lob_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase71_lob_spacetime_hydrodynamics = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_knk_50_dark_energy_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_kerr_newman_kiselev_50_dark_energy_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase71_daha_l3_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    knk_50_dark_energy_daha_l3 = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    daha_l3_phase71_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase71_dark_energy_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    calculate_phase71_knk_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_knk_phase71_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    daha_phase71_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase71_spacetime_hydrodynamics = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase71_queue_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    l3_phase71_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase71_knk_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_phase71_knk_daha_queue_acceleration = compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+
+    # =========================================================================
     # PHASE 70 (FEATURE F324.1): KERR-NEWMAN-KISELEV 49-DARK-ENERGY DAHA L3 SPACETIME HYDRODYNAMICS
     # =========================================================================
 
@@ -19867,7 +19936,9 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             cap = float(max_dark_cap)
         elif version is not None:
             v_int = int(version)
-            if v_int >= 70:
+            if v_int >= 71:
+                cap = 0.999999999999999999999995
+            elif v_int >= 70:
                 cap = 0.99999999999999999999995
             elif v_int >= 69:
                 cap = 0.9999999999999999999995
@@ -19987,7 +20058,9 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
             cap = float(self.max_dark_cap)
         elif getattr(self, "version", None) is not None:
             v = int(self.version)
-            if v >= 70:
+            if v >= 71:
+                cap = 0.999999999999999999999995
+            elif v >= 70:
                 cap = 0.99999999999999999999995
             elif v >= 69:
                 cap = 0.9999999999999999999995
@@ -20448,7 +20521,7 @@ class DeepHawkesArrivalProcess(MultivariateHawkesIntensity):
         dark_ratio = float(np.clip(0.65 + 0.35 * (lit_toxicity / 0.60), 0.65, cap))
         return {
             "lit_toxicity_ratio": round(lit_toxicity, 4),
-            "preemptive_dark_routing_ratio": round(dark_ratio, 23 if cap >= 0.99999999999999999999995 else (22 if cap >= 0.9999999999999999999995 else (21 if cap >= 0.999999999999999999995 else (20 if cap >= 0.99999999999999999999 else (18 if cap >= 0.999999999999999999 else (17 if cap >= 0.9999999999999999 else (16 if cap >= 0.9999999999999998 else (16 if cap >= 0.9999999999999995 else (16 if cap >= 0.999999999999999 else (15 if cap >= 0.999999999999998 else (15 if cap >= 0.999999999999995 else (14 if cap >= 0.99999999999995 else (13 if cap >= 0.9999999999995 else (12 if cap >= 0.999999999995 else (11 if cap >= 0.99999999995 else (10 if cap > 0.999999999 else (9 if cap > 0.99999999 else (8 if cap > 0.9999999 else (7 if cap > 0.999999 else (6 if cap > 0.99999 else (5 if cap > 0.9999 else 4))))))))))))))))))))),
+            "preemptive_dark_routing_ratio": round(dark_ratio, 24 if cap >= 0.999999999999999999999995 else (23 if cap >= 0.99999999999999999999995 else (22 if cap >= 0.9999999999999999999995 else (21 if cap >= 0.999999999999999999995 else (20 if cap >= 0.99999999999999999999 else (18 if cap >= 0.999999999999999999 else (17 if cap >= 0.9999999999999999 else (16 if cap >= 0.9999999999999998 else (16 if cap >= 0.9999999999999995 else (16 if cap >= 0.999999999999999 else (15 if cap >= 0.999999999999998 else (15 if cap >= 0.999999999999995 else (14 if cap >= 0.99999999999995 else (13 if cap >= 0.9999999999995 else (12 if cap >= 0.999999999995 else (11 if cap >= 0.99999999995 else (10 if cap > 0.999999999 else (9 if cap > 0.99999999 else (8 if cap > 0.9999999 else (7 if cap > 0.999999 else (6 if cap > 0.99999 else (5 if cap > 0.9999 else 4)))))))))))))))))))))),
             "total_deep_intensity": round(tot, 4),
         }
 
