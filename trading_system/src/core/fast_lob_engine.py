@@ -1407,6 +1407,75 @@ class FastOrderBookMatchingEngine:
     calculate_kerr_newman_kiselev_quintessence_phantom_tachyon_hydrodynamics = compute_kerr_newman_kiselev_tachyon_queue_acceleration
 
     # =========================================================================
+    # PHASE 72 (FEATURE F334.1): KERR-NEWMAN-KISELEV 51-DARK-ENERGY DAHA L3 SPACETIME HYDRODYNAMICS
+    # =========================================================================
+
+    def compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(
+        self,
+        charge_parameter: float = 0.5,
+        spin_parameter: float = 0.5,
+        c_monster: float = 1.1102230246251565e-16,
+        w: float = -53.0 / 3.0,
+        k_daha: float = 0.43,
+        k_monster: float = 0.42,
+        daha_51_factor: float = 8.35,
+        theta: float = math.pi / 2.0,
+        levels: int = 10,
+        timestamp_sec: Optional[float] = None,
+        **kwargs,
+    ) -> Dict[str, float]:
+        """
+        Phase 72 (Feature F334.1): Kerr-Newman-Kiselev 51-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
+        Adds 51st dark energy component with equation of state w = -53/3 (-17.666667),
+        k_daha = 0.43, k_monster = 0.42, daha_51_factor = 8.35, c_monster = 1.1102230246251565e-16 (2^-53),
+        repulsive acceleration -27.0 * c * (r ** 53) * daha_51_factor.
+        """
+        # Delegate to Phase 71 and apply Phase 72 corrections
+        base_res = self.compute_kerr_newman_kiselev_50_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(
+            charge_parameter=charge_parameter, spin_parameter=spin_parameter,
+            c_monster=c_monster, w=w, k_daha=k_daha, k_monster=k_monster,
+            daha_50_factor=daha_51_factor, theta=theta, levels=levels,
+            timestamp_sec=timestamp_sec, **kwargs
+        )
+        # Apply 51st dark energy correction
+        accel = base_res.get('knk_50_dark_energy_daha_acceleration', base_res.get('queue_acceleration', 0.0))
+        qi = base_res.get('knk_pcqtgbddddhkmaeetuv_accelerated_qi', 0.0)
+        r_eff = max(1e-10, abs(qi))
+        c_51 = float(kwargs.get('c_51', kwargs.get('c_dark_energy_51', c_monster)))
+        dark_51_accel = -27.0 * c_51 * (r_eff ** 53) * daha_51_factor
+        if not math.isfinite(dark_51_accel):
+            dark_51_accel = 0.0
+        dark_51_accel = max(-1e6, min(1e6, dark_51_accel))
+        corrected_accel = accel + dark_51_accel
+        base_res['knk_51_dark_energy_correction'] = round(dark_51_accel, 8)
+        base_res['knk_51_dark_energy_daha_acceleration'] = round(corrected_accel, 6)
+        base_res['phase72_knk_acceleration'] = round(corrected_accel, 6)
+        base_res['daha_51_factor'] = daha_51_factor
+        base_res['k_daha_51'] = k_daha
+        base_res['k_monster_51'] = k_monster
+        base_res['c_monster_51'] = c_monster
+        base_res['w_dark_energy_51'] = w
+        base_res['queue_acceleration'] = round(corrected_accel, 6)
+        return base_res
+
+    compute_phase72_lob_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase72_lob_spacetime_hydrodynamics = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_knk_51_dark_energy_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_kerr_newman_kiselev_51_dark_energy_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase72_daha_l3_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    knk_51_dark_energy_daha_l3 = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    daha_l3_phase72_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase72_dark_energy_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    calculate_phase72_knk_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_knk_phase72_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    daha_phase72_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase72_spacetime_hydrodynamics = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase72_queue_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    l3_phase72_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase72_knk_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_phase72_knk_daha_queue_acceleration = compute_kerr_newman_kiselev_51_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+
+    # =========================================================================
     # PHASE 71 (FEATURE F329.1): KERR-NEWMAN-KISELEV 50-DARK-ENERGY DAHA L3 SPACETIME HYDRODYNAMICS
     # =========================================================================
 
