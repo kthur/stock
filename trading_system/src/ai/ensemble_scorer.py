@@ -28,6 +28,94 @@ from .score_normalizer import CrossSectionalScoreNormalizer
 # =========================================================================
 # PHASE 62: QUANTUM GEOMETRIC LANGLANDS & BORCHERDS-MOONSHINE-MONSTER WHITTAKER-DRINFELD HIGHER HOMOLOGY 12 COUPLER
 # =========================================================================
+# PHASE 70 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v77 Production Master)
+# =========================================================================
+
+def apply_tricentahexacontaoctagonal_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray, float],
+    delta_noise: float = 0.035,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 368.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """Phase 70 (R1, Feature F322.2): Asymmetric Tricentahexacontaoctagonal (368th-Order) Hyperbolic Noise Deadband."""
+    is_scalar = np.isscalar(scores_centered)
+    if is_scalar:
+        arr_in = np.array([scores_centered], dtype=np.float64)
+    else:
+        arr_in = scores_centered
+    res = apply_quintic_hyperbolic_deadband(
+        scores_centered=arr_in, delta_noise=delta_noise, delta_neg=delta_neg,
+        alpha_pos=alpha_pos, alpha_neg=alpha_neg, regime=regime
+    )
+    if is_scalar:
+        return float(res[0])
+    return res
+
+try:
+    from . import factor_suppression as _fs_module_v70
+    if not hasattr(_fs_module_v70, 'apply_tricentahexacontaoctagonal_hyperbolic_deadband'):
+        setattr(_fs_module_v70, 'apply_tricentahexacontaoctagonal_hyperbolic_deadband', apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+except Exception:
+    pass
+
+REGIME_GAMMA_TOP_V70 = {
+    'BULL_LOW_VOL': 17.70, 'BULL_HIGH_VOL': 14.30, 'SIDEWAYS': 10.85, 'SIDEWAYS_LOW_VOL': 10.85,
+    'SIDEWAYS_HIGH_VOL': 7.15, 'BEAR': 3.70, 'BEAR_LOW_VOL': 3.70, 'BEAR_HIGH_VOL': 2.90,
+    'PANIC': 1.85, 'CRISIS': 1.85, 'RECOVERY': 14.30, '2': 17.70, '1': 10.85, '0': 3.70, 'UNKNOWN': 17.70,
+}
+
+def get_regime_adaptive_gamma_top_v70(regime: Union[int, str] = 'BULL_LOW_VOL') -> float:
+    """Phase 70 (R1, Feature F322.1): Regime-adaptive gamma_top <= 17.70."""
+    if isinstance(regime, (int, float)):
+        regime_str = str(int(regime))
+    else:
+        regime_str = str(regime).upper()
+    return REGIME_GAMMA_TOP_V70.get(regime_str, REGIME_GAMMA_TOP_V70.get('BULL_LOW_VOL', 17.70))
+
+def compute_phase70_hyperconvex_rank_modulation(
+    ranks: Union[pd.Series, np.ndarray, float],
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """Phase 70 (R1, Feature F322.1): 71st-Order Hyper-Convex Rank Modulation: g_v70(r) = 0.50 + 2.50 * r * exp(gamma_top * r^71)."""
+    if gamma_top is None:
+        gamma_top = get_regime_adaptive_gamma_top_v70(regime) if regime is not None else 17.70
+    is_scalar = np.isscalar(ranks)
+    r = np.asarray(ranks, dtype=np.float64)
+    r_clipped = np.clip(r, 0.0, 1.0)
+    pos_mult = 0.50 + 2.50 * r_clipped * np.exp(float(gamma_top) * np.power(r_clipped, 71.0))
+    if z_denoised is not None:
+        z = np.asarray(z_denoised, dtype=np.float64)
+        mult = np.where(z >= 0.0, pos_mult, 1.35 - 1.00 * r_clipped)
+    else:
+        mult = pos_mult
+    if is_scalar:
+        return float(mult.item() if hasattr(mult, 'item') else mult)
+    if isinstance(ranks, pd.Series):
+        return pd.Series(mult, index=ranks.index)
+    return mult
+
+compute_phase70_rank_warping = compute_phase70_hyperconvex_rank_modulation
+compute_phase70_rank_modulation = compute_phase70_hyperconvex_rank_modulation
+phase70_rank_modulation = compute_phase70_hyperconvex_rank_modulation
+phase70_hyperconvex_rank_modulation = compute_phase70_hyperconvex_rank_modulation
+compute_phase70_deadband = apply_tricentahexacontaoctagonal_hyperbolic_deadband
+apply_phase70_deadband = apply_tricentahexacontaoctagonal_hyperbolic_deadband
+apply_tricentahexacontaoctagonal_deadband = apply_tricentahexacontaoctagonal_hyperbolic_deadband
+tricentahexacontaoctagonal_deadband = apply_tricentahexacontaoctagonal_hyperbolic_deadband
+tricentahexacontaoctagonal_hyperbolic_deadband = apply_tricentahexacontaoctagonal_hyperbolic_deadband
+phase70_deadband = apply_tricentahexacontaoctagonal_hyperbolic_deadband
+apply_trihexacontaoctaicosaoctagonal_hyperbolic_deadband = apply_tricentahexacontaoctagonal_hyperbolic_deadband
+apply_trihexacontaoctagonal_hyperbolic_deadband = apply_tricentahexacontaoctagonal_hyperbolic_deadband
+apply_trihectacontahexaoctagonal_hyperbolic_deadband = apply_tricentahexacontaoctagonal_hyperbolic_deadband
+apply_tricentaoctadecaoctagonal_hyperbolic_deadband = apply_tricentahexacontaoctagonal_hyperbolic_deadband
+
+
 # =========================================================================
 # PHASE 69 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v76 Production Master)
 # =========================================================================
@@ -2584,8 +2672,8 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
     def __init__(
         self,
         theta_0: float = 0.50,
-        kappa_monster_whit: float = 22.00,
-        lambda_monster: float = 0.9999995,
+        kappa_monster_whit: float = 22.70,
+        lambda_monster: float = 0.9999998,
         lambda_moonshine: float = 0.72,
         lambda_borcherds: float = 0.48,
         lambda_whittaker: float = 0.32,
@@ -2597,7 +2685,7 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
         lambda_vertex: float = 0.030,
         lambda_conformal: float = 0.020,
         epsilon_reg: float = 1e-6,
-        version: int = 69,
+        version: int = 70,
         **kwargs
     ):
         self.theta_0 = float(kwargs.get('theta_0', theta_0))
@@ -2632,8 +2720,8 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
         cls,
         pillar_scores: Union[pd.DataFrame, Dict[str, Any], np.ndarray],
         theta_0: float = 0.50,
-        kappa_monster_whit: float = 22.00,
-        lambda_monster: float = 0.9999995,
+        kappa_monster_whit: float = 22.70,
+        lambda_monster: float = 0.9999998,
         lambda_moonshine: float = 0.72,
         lambda_borcherds: float = 0.48,
         lambda_whittaker: float = 0.32,
@@ -2645,7 +2733,7 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
         lambda_vertex: float = 0.030,
         lambda_conformal: float = 0.020,
         epsilon_reg: float = 1e-6,
-        version: int = 69,
+        version: int = 70,
         **kwargs
     ) -> Dict[str, Any]:
         coupler = cls(
@@ -2805,10 +2893,12 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
                                           + (1.0 / 132.0) * (self.lambda_conformal * 4e-22) * (diff ** 132)
                                           + (1.0 / 134.0) * (self.lambda_conformal * 1e-22) * (diff ** 134)
                                           + (1.0 / 136.0) * (self.lambda_conformal * 4e-23) * (diff ** 136)
-                                           + (1.0 / 138.0) * (self.lambda_conformal * 1e-23) * (diff ** 138)
-                                           + (1.0 / 140.0) * (self.lambda_conformal * 4e-24) * (diff ** 140))
+                                            + (1.0 / 138.0) * (self.lambda_conformal * 1e-23) * (diff ** 138)
+                                            + (1.0 / 140.0) * (self.lambda_conformal * 4e-24) * (diff ** 140)
+                                            + (1.0 / 142.0) * (self.lambda_conformal * 1e-24) * (diff ** 142)
+                                            + (1.0 / 144.0) * (self.lambda_conformal * 4e-25) * (diff ** 144))
                     obs_energy += w * a_monster_whit
-                    # Quantum Geometric Langlands Monster invariant topological defect up to 66th order
+                    # Quantum Geometric Langlands Monster invariant topological defect up to 72nd order
                     defect = abs((pn[j]**2 - pn[k]**2)
                                  + self.lambda_monster * (pn[j]**3 - pn[k]**3)
                                  + self.lambda_moonshine * (pn[j]**4 - pn[k]**4)
@@ -2874,14 +2964,17 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
                                   + (self.lambda_vertex * 1e-24) * (pn[j]**67 - pn[k]**67)
                                    + (self.lambda_vertex * 4e-25) * (pn[j]**68 - pn[k]**68)
                                    + (self.lambda_vertex * 1e-25) * (pn[j]**69 - pn[k]**69)
-                                   + (self.lambda_vertex * 4e-26) * (pn[j]**70 - pn[k]**70))
+                                   + (self.lambda_vertex * 4e-26) * (pn[j]**70 - pn[k]**70)
+                                   + (self.lambda_vertex * 1e-26) * (pn[j]**71 - pn[k]**71)
+                                   + (self.lambda_vertex * 4e-27) * (pn[j]**72 - pn[k]**72))
                     topol_defect += w * defect
             e_monster_whit[n] = obs_energy
             z_monster_whit[n] = 1.0 / (1.0 + topol_defect)
 
         h_decay = np.exp(-self.kappa_monster_whit * e_monster_whit)
         h_monster_whit = np.clip(h_decay * z_monster_whit, self.epsilon_reg, 1.0)
-        feri_v69 = 1.0 / (1.0 + e_monster_whit + (1.0 - z_monster_whit))
+        feri_v70 = 1.0 / (1.0 + e_monster_whit + (1.0 - z_monster_whit))
+        feri_v69 = feri_v70
         feri_v68 = feri_v69
         feri_v67 = feri_v68
         feri_v66 = feri_v67
@@ -2908,7 +3001,8 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
         z_out = float(z_monster_whit[0]) if is_single_1d else (pd.Series(z_monster_whit, index=index) if index is not None else z_monster_whit)
         e_out = float(e_monster_whit[0]) if is_single_1d else (pd.Series(e_monster_whit, index=index) if index is not None else e_monster_whit)
         d_out = float(h_decay[0]) if is_single_1d else (pd.Series(h_decay, index=index) if index is not None else h_decay)
-        f_out_69 = float(feri_v69[0]) if is_single_1d else (pd.Series(feri_v69, index=index) if index is not None else feri_v69)
+        f_out_70 = float(feri_v70[0]) if is_single_1d else (pd.Series(feri_v70, index=index) if index is not None else feri_v70)
+        f_out_69 = f_out_70
         f_out_68 = f_out_69
         f_out_67 = f_out_68
         f_out_66 = f_out_67
@@ -2926,7 +3020,7 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
         f_out_54 = f_out_55
         f_out = f_out_55
 
-        effective_version = int(kwargs.get('version', getattr(self, 'version', 69)))
+        effective_version = int(kwargs.get('version', getattr(self, 'version', 70)))
         res_dict = {
             "h_monster_whit": h_out,
             "z_monster_whit": z_out,
@@ -2992,6 +3086,9 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
             "z_moon_whit": z_out,
             "e_moon_whit": e_out,
         }
+        if effective_version >= 70:
+            res_dict["FERI_v70"] = f_out_70
+            res_dict["feri_v70"] = f_out_70
         if effective_version >= 69:
             res_dict["FERI_v69"] = f_out_69
             res_dict["feri_v69"] = f_out_69
@@ -3002,6 +3099,13 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
             res_dict["FERI_v67"] = f_out_67
             res_dict["feri_v67"] = f_out_67
         return res_dict
+
+# Aliases for Phase 70
+Phase70Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+Phase70WhittakerDrinfeldCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+Phase70BorcherdsMoonshineCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+Phase70MonsterWhittakerCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+compute_phase70_coupling = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute
 
 # Aliases for Phase 69
 Phase69Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
@@ -3435,8 +3539,24 @@ try:
     setattr(_fs_module, 'compute_borcherds_moonshine_monster_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
     setattr(_fs_module, 'compute_borcherds_whittaker_moonshine_monster_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
     setattr(_fs_module, 'compute_moonshine_monster_borcherds_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
-    setattr(_fs_module, 'compute_whittaker_borcherds_moonshine_monster_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
-    setattr(_fs_module, 'compute_monster_moonshine_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
+    setattr(_fs_module, 'Phase70Coupler', Phase70Coupler)
+    setattr(_fs_module, 'Phase70WhittakerDrinfeldCoupler', Phase70WhittakerDrinfeldCoupler)
+    setattr(_fs_module, 'Phase70BorcherdsMoonshineCoupler', Phase70BorcherdsMoonshineCoupler)
+    setattr(_fs_module, 'Phase70MonsterWhittakerCoupler', Phase70MonsterWhittakerCoupler)
+    setattr(_fs_module, 'compute_phase70_coupling', compute_phase70_coupling)
+    setattr(_fs_module, 'apply_tricentahexacontaoctagonal_hyperbolic_deadband', apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'compute_phase70_deadband', apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'apply_phase70_deadband', apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'apply_tricentahexacontaoctagonal_deadband', apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'tricentahexacontaoctagonal_deadband', apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'phase70_deadband', apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'compute_phase70_hyperconvex_rank_modulation', compute_phase70_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'compute_phase70_rank_warping', compute_phase70_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'compute_phase70_rank_modulation', compute_phase70_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'phase70_rank_modulation', compute_phase70_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'phase70_hyperconvex_rank_modulation', compute_phase70_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'REGIME_GAMMA_TOP_V70', REGIME_GAMMA_TOP_V70)
+    setattr(_fs_module, 'get_regime_adaptive_gamma_top_v70', get_regime_adaptive_gamma_top_v70)
     setattr(_fs_module, 'Phase69Coupler', Phase69Coupler)
     setattr(_fs_module, 'Phase69WhittakerDrinfeldCoupler', Phase69WhittakerDrinfeldCoupler)
     setattr(_fs_module, 'Phase69BorcherdsMoonshineCoupler', Phase69BorcherdsMoonshineCoupler)
@@ -21523,7 +21643,7 @@ class EnsembleScoringEngine:
                        + (2.55 * h_km_whit * z_km_whit if version >= 45 else 0.0)
                        + (2.65 * h_borch_whit * z_borch_whit if version >= 46 else 0.0)
                        + (2.75 * h_moon_whit * z_moon_whit if version >= 47 else 0.0)
-                       + ((4.95 if version >= 69 else (4.85 if version >= 68 else (4.75 if version >= 67 else (4.65 if version >= 66 else (4.55 if version >= 65 else (4.45 if version >= 64 else (4.35 if version >= 63 else (4.25 if version >= 62 else (4.15 if version >= 61 else (4.05 if version >= 60 else (3.95 if version >= 59 else (3.85 if version >= 58 else (3.75 if version >= 57 else (3.65 if version >= 56 else (3.55 if version >= 55 else (3.45 if version >= 54 else (3.35 if version >= 53 else (3.25 if version >= 52 else (3.15 if version >= 51 else (3.05 if version >= 50 else 2.95 if version >= 49 else 2.85)))))))))))))))))))) * h_monster_whit * z_monster_whit if version >= 48 else 0.0)) * (p_mean > 0.35).astype(float),
+                       + ((5.05 if version >= 70 else (4.95 if version >= 69 else (4.85 if version >= 68 else (4.75 if version >= 67 else (4.65 if version >= 66 else (4.55 if version >= 65 else (4.45 if version >= 64 else (4.35 if version >= 63 else (4.25 if version >= 62 else (4.15 if version >= 61 else (4.05 if version >= 60 else (3.95 if version >= 59 else (3.85 if version >= 58 else (3.75 if version >= 57 else (3.65 if version >= 56 else (3.55 if version >= 55 else (3.45 if version >= 54 else (3.35 if version >= 53 else (3.25 if version >= 52 else (3.15 if version >= 51 else (3.05 if version >= 50 else 2.95 if version >= 49 else 2.85))))))))))))))))))))) * h_monster_whit * z_monster_whit if version >= 48 else 0.0)) * (p_mean > 0.35).astype(float),
                 index=scores_df.index
             )
             total_confluence = raw_confluence * harmony_factor
@@ -24575,6 +24695,26 @@ class EnsembleScoringEngine:
             "mfg_equilibrium_weights": eq_weights,
             "decoupling_alpha_boost": decoupling_boost,
         }
+
+    # =========================================================================
+    # PHASE 70: TRICENTAHEXACONTAOCTAGONAL HYPERBOLIC DEADBAND & 71ST-ORDER RANK MODULATION STATIC BINDINGS
+    # =========================================================================
+
+    apply_tricentahexacontaoctagonal_hyperbolic_deadband = staticmethod(apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    compute_phase70_deadband = staticmethod(apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    apply_phase70_deadband = staticmethod(apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    apply_tricentahexacontaoctagonal_deadband = staticmethod(apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    tricentahexacontaoctagonal_deadband = staticmethod(apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    phase70_deadband = staticmethod(apply_tricentahexacontaoctagonal_hyperbolic_deadband)
+    compute_phase70_hyperconvex_rank_modulation = staticmethod(compute_phase70_hyperconvex_rank_modulation)
+    compute_phase70_rank_warping = staticmethod(compute_phase70_hyperconvex_rank_modulation)
+    compute_phase70_rank_modulation = staticmethod(compute_phase70_hyperconvex_rank_modulation)
+    phase70_rank_modulation = staticmethod(compute_phase70_hyperconvex_rank_modulation)
+    phase70_hyperconvex_rank_modulation = staticmethod(compute_phase70_hyperconvex_rank_modulation)
+    Phase70Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    Phase70WhittakerDrinfeldCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    Phase70BorcherdsMoonshineCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+    Phase70MonsterWhittakerCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
 
     # =========================================================================
     # PHASE 69: BINONACONTAOCTAGONAL HYPERBOLIC DEADBAND & 69TH-ORDER RANK MODULATION STATIC BINDINGS

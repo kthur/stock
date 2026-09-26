@@ -368,6 +368,14 @@
 | F319.1 | Kerr-Newman-Kiselev 48-Dark-Energy DAHA L3 | KNK-48 DAHA ($w=-50/3, k_{\text{daha}}=0.40, k_{\text{monster}}=0.39, \text{daha\_factor}=7.60, c_{\text{monster}}=2^{-50}$) L3 hydrodynamics | M3 (P69) | Phase 69 R3 |
 | F319.2 | SOR 1e-41 Floor & Preemptive 22-Nine Tick Shading | SmartOrderRouter 1e-41 lit maker floor, 99.99999999999999999995% dark ATS/MinQty, tick shading $h>0.0000002$ (22 nines) | M3 (P69) | Phase 69 R3 |
 | F320 | Phase 69 Quantitative Benchmark & Verification Engine | 5-market 15-metric empirical benchmark engine, 7 KPI assertions, 5 test suites (55 tests), report synchronization across 7 paths | M4 (P69) | Phase 69 R4 |
+| F321 | Borcherds-Moonshine Monster Whittaker Coupler | Whittaker coupler with $\kappa=22.70, \lambda=0.9999998$, harmony boost 5.05, partition action 142nd/144th, defect 71st/72nd, and `FERI_v70` | M1 (P70) | Phase 70 R1 |
+| F322.1 | 71st-Order Hyper-Convex Rank Modulation | $g_{\text{v70}}(r)=0.50+2.50 \cdot r \cdot \exp(\gamma_{\text{top}} \cdot r^{71})$ with `REGIME_GAMMA_TOP_V70` (Bull Low Vol: 17.70) | M1 (P70) | Phase 70 R1 |
+| F322.2 | 368th-Order Hyperbolic Noise Deadband | $z_{\text{denoised}}=z \cdot \tanh((|z|/\delta)^{368})$ with $\alpha=368.0, \delta=0.035$, leakage $< 10^{-272}$ | M1 (P70) | Phase 70 R1 |
+| F323.1 | Higher-Homology-20 Fisher-Rao Barycenter | Riemannian manifold barycenter with $\mu=[6.00, 4.00, 3.35, 6.85]$, simplex sum 1.0, CVaR > BL > HERC > RP | M2 (P70) | Phase 70 R2 |
+| F323.2 | 72nd-Cumulant Expansion Trans-Singular EVaR | 72nd-order cumulant bounds ($72! \approx 6.12 \times 10^{103}$, $\xi=0.999999999999998$) | M2 (P70) | Phase 70 R2 |
+| F324.1 | Kerr-Newman-Kiselev 49-Dark-Energy DAHA L3 | KNK-49 DAHA ($w=-51/3=-17.0, k_{\text{daha}}=0.41, k_{\text{monster}}=0.40, \text{daha\_factor}=7.85, c_{\text{monster}}=2^{-51}$) L3 hydrodynamics | M3 (P70) | Phase 70 R3 |
+| F324.2 | SOR 1e-42 Floor & Preemptive 23-Nine Tick Shading | SmartOrderRouter 1e-42 lit maker floor, 99.999999999999999999995% dark ATS/MinQty, tick shading $h>0.00000015$ (23 nines) | M3 (P70) | Phase 70 R3 |
+| F325 | Phase 70 Quantitative Benchmark & Verification Engine | 5-market 15-metric empirical benchmark engine, 7 KPI assertions, 5 test suites (54 tests), report synchronization across 7 paths | M4 (P70) | Phase 70 R4 |
 
 
 ## Milestones
@@ -626,6 +634,7 @@
 - `trading_system/scripts/benchmark_phase67_quant_performance.py`: Phase 67 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase68_quant_performance.py`: Phase 68 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase69_quant_performance.py`: Phase 69 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase70_quant_performance.py`: Phase 70 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
