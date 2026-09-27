@@ -34,7 +34,7 @@ class TradeExecutor:
         oms=None,
         dry_run: bool = True,
         max_order_value_krw: float = 50_000_000.0,  # 5천만 원 상한
-        lot_size_krx: int = 10,                     # KRX 호가 단위 수량 (10주)
+        lot_size_krx: int = 1,                      # KRX 정규장 매매수량단위 (1주)
         lot_size_us: int = 1,                       # US 호가 단위 수량 (1주)
     ):
         import math
@@ -46,7 +46,7 @@ class TradeExecutor:
         except (ValueError, TypeError):
             safe_max_val = 50_000_000.0
         self.max_order_value_krw = max(1000.0, safe_max_val)
-        self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 10
+        self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 1
         self.lot_size_us = max(1, int(lot_size_us)) if lot_size_us is not None else 1
         self._executed_today: Dict[str, str] = {}   # symbol -> action (중복 실행 방지)
         self._last_execution_date: str = datetime.now().strftime('%Y-%m-%d')
@@ -61,7 +61,9 @@ class TradeExecutor:
     def _round_lot(self, qty: int, market: str = "KOSPI") -> int:
         if qty <= 0:
             return 0
-        lot = self.lot_size_krx if market in ("KOSPI", "KOSDAQ") else self.lot_size_us
+        mkt_upper = str(market).upper().strip() if market else "KOSPI"
+        is_kr = mkt_upper in ("KOSPI", "KOSDAQ", "KRX", "KS", "KQ")
+        lot = self.lot_size_krx if is_kr else self.lot_size_us
         if lot <= 1:
             return qty
         remainder = qty % lot
@@ -95,7 +97,10 @@ class TradeExecutor:
         # Kill switch gate (highest priority): blocks ALL new order executions.
         # Emergency liquidation can still be forced with force_liquidate=True.
         if not force_liquidate:
-            from src.execution.kill_switch import is_kill_switch_active
+            try:
+                from src.execution.kill_switch import is_kill_switch_active
+            except ImportError:
+                from trading_system.src.execution.kill_switch import is_kill_switch_active
             if is_kill_switch_active():
                 return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
                                   executed=False, mode="dry_run" if self.dry_run else "live",
@@ -109,8 +114,25 @@ class TradeExecutor:
 
         if p_val <= 0 or q_val <= 0:
             return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
-                              executed=False, mode="dry_run" if self.dry_run else "live",
-                              message="invalid qty/price")
+                               executed=False, mode="dry_run" if self.dry_run else "live",
+                               message="invalid qty/price")
+
+        # Market normalization & KRX detection
+        mkt_upper = str(market).upper().strip() if market else ""
+        sym_str = str(symbol).strip()
+        is_krx = (mkt_upper in ("KOSPI", "KOSDAQ", "KRX", "KS", "KQ") or
+                  sym_str.endswith((".KS", ".KQ")) or
+                  (sym_str.isdigit() and len(sym_str) == 6))
+
+        # Precision Tick Size Rounding (KRX statutory tick size table or US penny)
+        try:
+            try:
+                from src.execution.oms_engine import ExecutionOMSEngine
+            except ImportError:
+                from trading_system.src.execution.oms_engine import ExecutionOMSEngine
+            p_val = ExecutionOMSEngine.round_to_tick_size(p_val, market=mkt_upper if mkt_upper else ("KOSPI" if is_krx else "US"))
+        except Exception:
+            pass
 
         # RiskManager Pre-Trade Gate check
         if risk_manager is not None:
@@ -123,16 +145,15 @@ class TradeExecutor:
                                   executed=False, mode="dry_run" if self.dry_run else "live",
                                   message="new buys blocked by crisis detector")
 
-        is_krx = market in ("KOSPI", "KOSDAQ")
         if is_krx:
-            q_val = self._round_lot(q_val, market=market)
+            q_val = self._round_lot(q_val, market=mkt_upper or "KOSPI")
             if q_val <= 0:
                 return ExecResult(symbol=symbol, action="NONE", quantity=0, price=p_val,
                                   executed=False, mode="dry_run" if self.dry_run else "live",
                                   message="below lot size")
             fx_rate = 1.0
         else:
-            q_val = self._round_lot(q_val, market=market)
+            q_val = self._round_lot(q_val, market=mkt_upper or "US")
             try:
                 fx = float(usdkrw_rate) if (usdkrw_rate is not None and math.isfinite(float(usdkrw_rate))) else 1380.0
             except (ValueError, TypeError):
@@ -181,7 +202,10 @@ class TradeExecutor:
         # OMS 기록 (항상)
         if self.oms is not None:
             try:
-                from src.core.order_management import Order, OrderStatus, OrderType
+                try:
+                    from src.core.order_management import Order, OrderStatus, OrderType
+                except ImportError:
+                    from trading_system.src.core.order_management import Order, OrderStatus, OrderType
                 order = Order(
                     symbol=symbol,
                     order_type=OrderType.BUY if action == "BUY" else OrderType.SELL,

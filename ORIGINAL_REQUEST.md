@@ -1806,3 +1806,99 @@ Advance the execution layer:
 - [ ] `AGENTS.md` updated with Phase 67 entry
 - [ ] Git commit and push to `origin main` successful
 
+# Original User Request
+
+## 2026-09-27T02:20:12Z
+
+Use a full team of agents. Phase 73 Quantitative Alpha Enhancement (v79 -> v80 Production Master, Features F336~F340) for an integrated stock trading prediction and execution system spanning 5 markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) with 37 multi-factor strategies.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. Alpha Signal Enhancement (F336, F337.1, F337.2)
+
+- **Noise Deadband** (`trading_system/src/ai/factor_suppression.py`):
+  - Advance hyperbolic deadband exponent α from 384.0 to 392.0 (δ=0.035, noise leakage < 10?�²⁹??.
+  - Advance hyper-convex rank modulation from 75th to 77th order, coefficient from 2.60 to 2.65 ($g_{v73}(r) = 0.50 + 2.65 \cdot r \cdot \exp(\gamma_{\text{top}} r^{77})$).
+  - Update `REGIME_GAMMA_TOP_V73` and `get_regime_adaptive_gamma_top_v73`:
+    - BULL_LOW_VOL: 18.75, BULL_HIGH_VOL: 15.20, SIDEWAYS: 11.60, SIDEWAYS_HIGH_VOL: 7.60, BEAR: 4.00, BEAR_HIGH_VOL: 3.20, CRISIS: 2.00.
+  - Complete alias trees for all new functions.
+
+- **Ensemble Coupler** (`trading_system/src/ai/ensemble_scorer.py`):
+  - Advance Borcherds-Moonshine Monster Whittaker coupler: κ from 24.10 to 24.80, λ from 0.99999995 to 0.99999998.
+  - Advance partition actions from 146th/148th to 148th/150th, defect invariants from 75th/76th to 76th/77th, harmony boost from 5.25 to 5.35.
+  - Output column `FERI_v73` and `f_out_73` with `version >= 73` gating.
+  - Complete alias trees.
+
+### R2. Portfolio Risk Allocation Enhancement (F338.1, F338.2)
+
+- **Barycenter Blending** (`trading_system/src/risk/unified_portfolio_allocator.py`, `trading_system/src/risk/portfolio_allocator.py`):
+  - Higher-Homology-23 Motivic Fisher-Rao Barycenter with metric curvature μ = [6.30, 4.15, 3.20, 7.30].
+  - Maintain CVaR > BL > HERC > RP hierarchy, simplex sum = 1.000000. Complete alias trees.
+
+- **EVaR Cumulant** (same files):
+  - 78th-cumulant expansion (78! ??1.132 × 10¹¹??, ξ_monster from 0.9999999999999995 to 0.9999999999999998.
+  - Update Phase 73 regime shifts: `eps_w=0.730`, `delta_bl=-17.00`, `delta_herc=+13.00`, `delta_rp=-17.50`, `delta_cvar=+27.50+12.50*c`, `alpha_iep=4.30`, `contagion_damp=20.0`.
+  - `is_phase73 = int(version) >= 73` gate. Complete alias trees.
+
+### R3. Microstructure & OMS Execution Enhancement (F339.1, F339.2)
+
+- **Fast LOB Engine** (`trading_system/src/core/fast_lob_engine.py`):
+  - KNK-52 Dark Energy DAHA L3 hydrodynamics: `w = -54/3 = -18.0`, `k_daha = 0.44`, `k_monster = 0.43`, `daha_52_factor = 8.60`, `c_monster = 5.551115123125783e-17` (2?�⁵??.
+  - Complete alias trees.
+
+- **Smart Order Router** (`trading_system/src/execution/smart_order_router.py`):
+  - `self.is_phase73 = (self.version >= 73)`.
+  - Lit maker floor contraction from 1e-44 to 1e-45.
+  - Rounding precision to 45 decimals.
+
+- **OMS Engine** (`trading_system/src/execution/oms_engine.py`):
+  - Tick shading activation threshold from `h > 0.00000008` to `h > 0.00000006`.
+  - Hawkes shift shading coefficient with 26 nines (`0.99999999999999999999999999`).
+  - `version >= 73` gating.
+
+### R4. Benchmarking, Testing & Documentation (F340)
+
+- **Benchmark Script**: `trading_system/scripts/benchmark_phase73_quant_performance.py` with 7 strict KPI assertions:
+  - Net Return ??227.00%
+  - Sharpe ??51.50
+  - MDD ??-0.0000030%
+  - Friction ??1.200e-12 bps
+  - Slippage ??1.500e-12 bps
+  - Alpha Spread ??205.00%
+  - Win Rate = 100.0%
+- **Benchmark Reports**: SHA-256 bit-for-bit synchronized across 3 canonical paths (`reports/quant_benchmark_comparison_phase73.md`, `trading_system/reports/quant_benchmark_comparison_phase73.md`, `trading_system/result/quant_benchmark_comparison_phase73.md`) plus `reports/benchmark_phase73_report.md`, `trading_system/reports/benchmark_phase73_report.md`, `docs/benchmark_phase73_report.md`. Cumulative comparison report updated.
+- **Tests**: 5 test suites (`test_phase73_alpha.py`, `test_phase73_risk.py`, `test_phase73_oms.py`, `test_phase73_adversarial_challenger1.py`, `test_phase73_adversarial_oms_benchmark.py`).
+- **Regression**: Combined Phase 72 + Phase 73 regression suite passes with 0 failures.
+- **Docs**: `AGENTS.md` (Release R89) updated.
+- **Git**: Commit with `'feat: Phase 73 Quantitative Alpha Enhancement (v80 Production Master, Features F336~F340)'` and push to `origin main`.
+
+## Acceptance Criteria
+
+### Alpha Signal (R1)
+- [ ] All new functions have complete alias trees and backward compatibility.
+- [ ] `FERI_v73` and `f_out_73` output generated with `version >= 73` gating.
+- [ ] Deadband noise leakage < 10?�²⁹??for |z| ??δ.
+- [ ] 77th-order rank modulation strictly monotonic non-decreasing, g(1.0) > 10??at BULL_LOW_VOL gamma.
+
+### Risk Allocation (R2)
+- [ ] Higher-Homology-23 Fisher-Rao barycenter simplex sum = 1.000000 (rel_tol=1e-5), CVaR > BL > HERC > RP hierarchy preserved.
+- [ ] 78th-cumulant expansion EVaR finite, positive, fat-tailed EVaR > Gaussian EVaR.
+- [ ] EVaR monotonically increases with volatility; Phase 50~72 backward compatibility preserved.
+
+### Microstructure & OMS (R3)
+- [ ] KNK-52 Dark Energy DAHA returns finite queue acceleration with w = -18.0 and c_monster = 2?�⁵??
+- [ ] SOR maker floor holds above 1e-45 under toxic queue conditions.
+- [ ] Preemptive tick shading triggers strictly at h > 0.00000006 with 26 nines shading factor.
+- [ ] `is_phase73` flag set and verified.
+
+### Benchmarking & Testing (R4)
+- [ ] `benchmark_phase73_quant_performance.py` passes all 7 KPIs strictly exceeding Phase 72.
+- [ ] All 5 test files pass (54+ tests).
+- [ ] Combined Phase 72 + Phase 73 regression suite passes with 0 failures.
+- [ ] SHA-256 hash bit-for-bit identical across all 3 comparison report paths.
+- [ ] `AGENTS.md` updated with Key Files and Release R89 entry.
+- [ ] Clean git working tree, committed, and pushed to `origin main`.
+

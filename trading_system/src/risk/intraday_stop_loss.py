@@ -181,13 +181,48 @@ class IntradayStopLossEngine:
 
                 high_col = col_map.get("high")
                 if high_col:
-                    highs = data[high_col].replace([np.inf, -np.inf], np.nan).dropna().values
-                    if len(highs) > 0:
-                        peak_price = float(highs[-1]) if is_multi_day else float(np.max(highs))
+                    if is_multi_day:
+                        try:
+                            if date_col:
+                                s_dates = pd.to_datetime(data[col_map[date_col]]).dt.date
+                                latest_date = s_dates.iloc[-1]
+                                today_mask = (s_dates == latest_date)
+                                today_highs = data.loc[today_mask, high_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                                peak_price = float(np.max(today_highs)) if len(today_highs) > 0 else current_price
+                            elif isinstance(data.index, pd.DatetimeIndex):
+                                latest_date = data.index.normalize()[-1]
+                                today_mask = (data.index.normalize() == latest_date)
+                                today_highs = data.loc[today_mask, high_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                                peak_price = float(np.max(today_highs)) if len(today_highs) > 0 else current_price
+                            else:
+                                highs = data[high_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                                peak_price = float(highs[-1]) if len(highs) > 0 else current_price
+                        except Exception:
+                            highs = data[high_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                            peak_price = float(highs[-1]) if len(highs) > 0 else current_price
                     else:
-                        peak_price = current_price
+                        highs = data[high_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                        peak_price = float(np.max(highs)) if len(highs) > 0 else current_price
                 else:
-                    peak_price = float(closes[-1]) if is_multi_day else float(np.max(closes))
+                    if is_multi_day:
+                        try:
+                            if date_col:
+                                s_dates = pd.to_datetime(data[col_map[date_col]]).dt.date
+                                latest_date = s_dates.iloc[-1]
+                                today_mask = (s_dates == latest_date)
+                                today_closes = data.loc[today_mask, close_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                                peak_price = float(np.max(today_closes)) if len(today_closes) > 0 else current_price
+                            elif isinstance(data.index, pd.DatetimeIndex):
+                                latest_date = data.index.normalize()[-1]
+                                today_mask = (data.index.normalize() == latest_date)
+                                today_closes = data.loc[today_mask, close_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                                peak_price = float(np.max(today_closes)) if len(today_closes) > 0 else current_price
+                            else:
+                                peak_price = float(closes[-1])
+                        except Exception:
+                            peak_price = float(closes[-1])
+                    else:
+                        peak_price = float(np.max(closes)) if len(closes) > 0 else current_price
 
                 atr_col = col_map.get("atr")
                 if atr_col:

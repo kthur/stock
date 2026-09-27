@@ -113,7 +113,7 @@ def save_strategy_predictions_report(
             name_str = str(row.get('name', 'Unknown'))[:16] if pd.notna(row.get('name')) else "Unknown"
             mkt_str = str(row.get('market', 'KRX'))
             sc_raw = float(row[score_col])
-            sc_val = sc_raw * 100.0 if sc_raw <= 1.0 else sc_raw
+            sc_val = sc_raw * 100.0 if abs(sc_raw) <= 1.0 else sc_raw
             f_out.write(f"{rank:<5}{str(row['symbol']):<10}{name_str:<18}{mkt_str:<10}{sc_val:>{header_width-2}.1f}%\n")
 
     effective_dir = result_dir if result_dir else "."

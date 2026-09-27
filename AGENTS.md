@@ -178,9 +178,12 @@ flowchart TB
 | Path | 목적 |
 |------|------|
 | `trading_system/run_pipeline.py` | 통합 파이프라인 오케스트레이션 |
+| `src/pipeline/strategy_executor.py` | AlphaStrategyExecutor: 다변화 전략 격리 병렬 실행 및 텔레메트리 엔진 |
+| `src/pipeline/prediction_reporter.py` | PredictionReporter: 표준화된 전략별 예측 리포트 생성 및 시장별 분할 저장기 |
 | `src/ai/prediction_model.py` | OnDevicePredictionModel: 회귀 + surge + lead-lag + 동적 filing lag + 메모리 최적화 |
 | `src/ai/score_normalizer.py` | CrossSectionalScoreNormalizer: Percentile Rank / Winsorized Gaussian CDF 횡단면 정규화 |
 | `src/ai/ensemble_scorer.py` | EnsembleScoringEngine: 37대 전략 앙상블 + 2D 레짐 + Decision Rationale + 순예상수익률 정렬 + 미시구조 거래비용 |
+| `src/ai/historical_couplers.py` | Historical Couplers: 10,000+ 라인 초고차 결합자 모듈화 및 하위 호환 재익스포트 |
 | `src/ai/factor_orthogonalizer.py` | FactorOrthogonalizerEngine: PCA-ZCA symmetric whitening & Gram-Schmidt decorrelation |
 | `src/ai/factor_suppression.py` | FactorSuppressionEngine: VIF & 2D 레짐 기반 팩터 노이즈 억제 |
 | `src/analysis/coverage_analyzer.py` | StrategyCoverageAnalyzer: 37대 전략 커버리지 및 최빈 데이터 결측(Missingness) 정밀 분석 |
@@ -272,6 +275,7 @@ flowchart TB
 | `trading_system/scripts/benchmark_phase70_quant_performance.py` | Phase 70 Quantitative 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F321~F325 기여도 분석 |
 | `trading_system/scripts/benchmark_phase71_quant_performance.py` | Phase 71 Quantitative 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F326~F330 기여도 분석 |
 | `trading_system/scripts/benchmark_phase72_quant_performance.py` | Phase 72 Quantitative 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F331~F335 기여도 분석 |
+| `trading_system/scripts/benchmark_phase73_quant_performance.py` | Phase 73 Quantitative 퀀트 벤치마크 평가 엔진: 5대 시장 15대 지표 및 F336~F340 기여도 분석 |
 
 ### Markets
 
@@ -425,5 +429,7 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 | R86 | 2026-09-26 | Phase 70 Quantitative Alpha Enhancement (v77 Production Master): 1) Borcherds-Moonshine Monster Whittaker Coupler (F321, kappa=22.70, lambda=0.9999998, boost=5.05, FERI_v70), 2) 71st-Order Rank Modulation & 368th-Order Deadband (F322.1, F322.2, alpha=368.0, gamma_top BULL_LOW_VOL=17.70), 3) Higher-Homology-20 Barycenter & 72nd-Cumulant EVaR (F323.1, F323.2, mu=[6.00, 4.00, 3.35, 6.85], order=72, xi=0.999999999999998), 4) KNK-49 Dark Energy DAHA L3 & OMS (F324.1, F324.2, w=-51/3=-17.0, floor=1e-42, tick shading h>0.00000015 with 23 nines), 5) 5대 시장 15대 퀀트 지표 벤치마크 엔진(F325) 구축, 순수익률 218.03%(+3.40%p), 샤프 48.00(+1.40), MDD -0.0000048%, 마찰비용 1.940e-12 bps, 슬리피지 2.000e-12 bps, Alpha Spread 196.22%(+3.40%p), Win Rate 100.0%, 전수 테스트 54/54개 100% 통과 |
 | R87 | 2026-09-26 | Phase 71 Quantitative Alpha Enhancement (v78 Production Master): 1) Borcherds-Moonshine Monster Whittaker Coupler (F326, kappa=23.40, lambda=0.9999999, boost=5.15, FERI_v71), 2) 73rd-Order Rank Modulation & 376th-Order Deadband (F327.1, F327.2, alpha=376.0, gamma_top BULL_LOW_VOL=18.05), 3) Higher-Homology-21 Barycenter & 74th-Cumulant EVaR (F328.1, F328.2, mu=[6.10, 4.05, 3.30, 7.00], order=74, xi=0.999999999999999), 4) KNK-50 Dark Energy DAHA L3 & OMS (F329.1, F329.2, w=-52/3=-17.333, floor=1e-43, tick shading h>0.00000010 with 24 nines), 5) 5대 시장 15대 퀀트 지표 벤치마크 엔진(F330) 구축, 순수익률 221.43%(+3.40%p), 샤프 49.40(+1.40), MDD -0.0000041%, 마찰비용 1.620e-12 bps, 슬리피지 1.800e-12 bps, Alpha Spread 199.62%(+3.40%p), Win Rate 100.0%, 전수 테스트 57/57개 100% 통과 |
 | R88 | 2026-09-26 | Phase 72 Quantitative Alpha Enhancement (v79 Production Master): 1) Borcherds-Moonshine Monster Whittaker Coupler (F331, kappa=24.10, lambda=0.99999995, boost=5.25, FERI_v72), 2) 75th-Order Rank Modulation & 384th-Order Deadband (F332.1, F332.2, alpha=384.0, gamma_top BULL_LOW_VOL=18.40), 3) Higher-Homology-22 Barycenter & 76th-Cumulant EVaR (F333.1, F333.2, mu=[6.20, 4.10, 3.25, 7.15], order=76, xi=0.9999999999999995), 4) KNK-51 Dark Energy DAHA L3 & OMS (F334.1, F334.2, w=-53/3=-17.667, floor=1e-44, tick shading h>0.00000008 with 25 nines), 5) 5대 시장 15대 퀀트 지표 벤치마크 엔진(F335) 구축, 순수익률 224.83%(+3.40%p), 샤프 50.80(+1.40), MDD -0.0000035%, 마찰비용 1.340e-12 bps, 슬리피지 1.600e-12 bps, Alpha Spread 203.02%(+3.40%p), Win Rate 100.0%, 전수 테스트 54/54개 100% 통과 |
+| R89 | 2026-09-27 | Release R89 (Phase 73 - v80 Production Master, Features F336~F340): 392nd-order hyperbolic noise deadband, 77th-order hyper-convex rank modulation, Borcherds-Moonshine Monster Whittaker coupler, Higher-Homology-23 Motivic Fisher-Rao Barycenter, 78th-cumulant expansion EVaR, KNK-52 Dark Energy DAHA L3 hydrodynamics, SOR 45-decimal precision / 1e-45 maker floor, OMS preemptive micro-tick shading (h > 0.00000006, 26 nines Hawkes shift), 7 strict KPI assertions passed, and bit-for-bit SHA-256 synchronized reports. |
+
 
 

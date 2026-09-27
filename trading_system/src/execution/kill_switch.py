@@ -26,13 +26,21 @@ logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]  # trading_system/
 KILL_SWITCH_FILE = _PROJECT_ROOT / "KILL_SWITCH"
+WORKSPACE_KILL_SWITCH_FILE = _PROJECT_ROOT.parent / "KILL_SWITCH"
 STATE_FILE = _PROJECT_ROOT / "kill_switch_state.json"
 
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
 def _file_engaged() -> bool:
-    return KILL_SWITCH_FILE.exists()
+    if KILL_SWITCH_FILE.exists():
+        return True
+    try:
+        if WORKSPACE_KILL_SWITCH_FILE.exists():
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _env_engaged() -> bool:
@@ -54,10 +62,11 @@ def engage(reason: str = "") -> None:
 
 def disengage() -> None:
     """킬 스위치를 해제한다 (KILL_SWITCH 파일 삭제)."""
-    try:
-        KILL_SWITCH_FILE.unlink(missing_ok=True)
-    except OSError as e:
-        logger.warning(f"KILL_SWITCH file removal failed: {e}")
+    for kf in (KILL_SWITCH_FILE, WORKSPACE_KILL_SWITCH_FILE):
+        try:
+            kf.unlink(missing_ok=True)
+        except OSError as e:
+            logger.warning(f"KILL_SWITCH file removal failed for {kf}: {e}")
     _write_state("disengaged", "")
     logger.warning("KILL SWITCH DISENGAGED: order generation/execution re-enabled.")
 
