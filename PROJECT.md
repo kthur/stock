@@ -644,6 +644,9 @@
 - `trading_system/scripts/benchmark_phase69_quant_performance.py`: Phase 69 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase70_quant_performance.py`: Phase 70 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase71_quant_performance.py`: Phase 71 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase72_quant_performance.py`: Phase 72 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase73_quant_performance.py`: Phase 73 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase74_quant_performance.py`: Phase 74 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
