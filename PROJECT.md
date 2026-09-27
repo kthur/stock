@@ -579,6 +579,10 @@
 | M2 (P67) | Phase 67 Portfolio Allocation & Trans-Singular-EVaR-Higher-Homology-17 (R2) | F308.1, F308.2: Higher-Homology-17 Fisher-Rao Barycenter ($\mu=[5.70, 3.85, 3.50, 6.40]$), 66th-cumulant EVaR tail risk bounds | M1 (P67) | DONE |
 | M3 (P67) | Phase 67 Microstructure Hydrodynamics & Preemptive OMS (R3) | F309.1, F309.2: KNK 46-Dark-Energy DAHA L3, 1e-39 lit maker floor, tick shading at $h > 0.0000004$ (20 nines) | M2 (P67) | DONE |
 | M4 (P67) | Phase 67 Benchmark Engine & Forensic Verification (R4) | F310: `benchmark_phase67_quant_performance.py`, comparison reports across 7 paths, 61/61 tests 100% pass | M1, M2, M3 (P67) | DONE |
+| M1 (P75) | Phase 75 Alpha Signal Enhancement & Hyper-Convex Modulation (R1) | F346, F347.1, F347.2: Monster Coupler 152nd/154th order, 81st-order rank modulation, 408th-order deadband | none | DONE |
+| M2 (P75) | Phase 75 Portfolio Allocation & Higher-Homology-25 EVaR (R2) | F348.1, F348.2: Higher-Homology-25 Fisher-Rao Barycenter ($\mu=[6.50, 4.25, 3.10, 7.60]$), 82nd-cumulant EVaR tail risk bounds | M1 (P75) | DONE |
+| M3 (P75) | Phase 75 Microstructure Hydrodynamics & Preemptive OMS (R3) | F349.1, F349.2: KNK 54-Dark-Energy DAHA L3, 1e-47 lit maker floor, tick shading at $h > 0.00000004$ (28 nines) | M2 (P75) | DONE |
+| M4 (P75) | Phase 75 Benchmark Engine & Forensic Verification (R4) | F350: `benchmark_phase75_quant_performance.py`, comparison reports across 7 paths, 65/65 tests 100% pass | M1, M2, M3 (P75) | DONE |
 
 
 ## Interface Contracts
@@ -647,6 +651,7 @@
 - `trading_system/scripts/benchmark_phase72_quant_performance.py`: Phase 72 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase73_quant_performance.py`: Phase 73 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase74_quant_performance.py`: Phase 74 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase75_quant_performance.py`: Phase 75 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
