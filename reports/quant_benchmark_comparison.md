@@ -1,5 +1,5 @@
 # Global Multi-Market Quantitative Benchmark Report (Phase 76 Quantitative Alpha Enhancement)
-**Generated**: 2026-09-28 06:29:14 KST | **Simulation Scope**: 5 Global Markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)
+**Generated**: 2026-09-28 07:38:42 KST | **Simulation Scope**: 5 Global Markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)
 
 ---
 
@@ -65,7 +65,7 @@
 ---
 
 # Global Multi-Market Quantitative Benchmark Report (Phase 75 Quantitative Alpha Enhancement)
-**Generated**: 2026-09-28 06:29:12 KST | **Simulation Scope**: 5 Global Markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)
+**Generated**: 2026-09-28 07:38:40 KST | **Simulation Scope**: 5 Global Markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)
 
 ---
 

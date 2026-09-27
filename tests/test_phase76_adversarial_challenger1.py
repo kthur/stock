@@ -123,6 +123,33 @@ class TestPhase76DeadbandAdversarial:
         for d in denoised:
             assert abs(d) < 1e-250 or d == 0.0
 
+    def test_deadband_exact_boundary_0035(self):
+        """Verify smooth C^inf transition at exact boundary |z| = 0.035."""
+        z_bound = 0.035
+        f_pos = apply_tetracosihexadecagonal_hyperbolic_deadband(z_bound)
+        f_neg = apply_tetracosihexadecagonal_hyperbolic_deadband(-z_bound)
+        expected_val = 0.035 * math.tanh(1.0)
+        assert math.isclose(f_pos, expected_val, rel_tol=1e-7)
+        assert math.isclose(f_neg, -expected_val, rel_tol=1e-7)
+        assert 0.0 < f_pos < z_bound
+
+    def test_deadband_nan_inf_handling(self):
+        """Verify clean handling of NaN and Inf without crashing."""
+        arr = np.array([np.nan, np.inf, -np.inf, 0.035, 0.0])
+        res = apply_tetracosihexadecagonal_hyperbolic_deadband(arr)
+        assert np.isnan(res[0])
+        assert np.isposinf(res[1])
+        assert np.isneginf(res[2])
+        assert math.isclose(res[3], 0.035 * math.tanh(1.0), rel_tol=1e-7)
+        assert res[4] == 0.0
+
+    def test_deadband_extreme_noise_stress(self):
+        """Verify 100,000 extreme noise samples in [-0.00035, 0.00035] annihilated to 0.0."""
+        np.random.seed(42)
+        noise = np.random.uniform(-0.00035, 0.00035, size=100000)
+        res = apply_tetracosihexadecagonal_hyperbolic_deadband(noise)
+        assert np.all(res == 0.0)
+
 
 # =========================================================================
 # 2. ADVERSARIAL RANK MODULATION STRESS TESTS (F351)
@@ -181,6 +208,31 @@ class TestPhase76RankModulationAdversarial:
         assert g_bear_high == 3.50
         assert g_crisis == 2.30
         assert g_bull_low > g_bull_high > g_side > g_side_high > g_bear > g_bear_high > g_crisis
+
+    def test_rank_modulation_negative_ranks(self):
+        """Verify negative ranks (< 0) are safely clipped to boundary conviction."""
+        neg_ranks = np.array([-10.0, -2.5, -1.0, -0.5, -1e-6])
+        res_neg_pos_z = compute_phase76_hyperconvex_rank_modulation(neg_ranks, gamma_top=19.80, z_denoised=0.1)
+        res_neg_neg_z = compute_phase76_hyperconvex_rank_modulation(neg_ranks, gamma_top=19.80, z_denoised=-0.1)
+        assert np.all(res_neg_pos_z == 0.50)
+        assert np.all(res_neg_neg_z == 1.35)
+
+    def test_rank_modulation_ranks_greater_than_one(self):
+        """Verify ranks > 1.0 are safely clipped to peak conviction g(1.0)."""
+        large_ranks = np.array([1.00001, 1.05, 1.5, 2.0, 10.0, 100.0])
+        res = compute_phase76_hyperconvex_rank_modulation(large_ranks, gamma_top=19.80, z_denoised=0.1)
+        val_1 = compute_phase76_hyperconvex_rank_modulation(1.0, gamma_top=19.80, z_denoised=0.1)
+        assert np.all(res == val_1)
+        assert val_1 > 1e7
+
+    def test_rank_modulation_10000_point_monotonicity(self):
+        """Verify monotonicity across 10,000 sorted random points."""
+        np.random.seed(42)
+        r = np.sort(np.random.uniform(-0.5, 1.5, size=10000))
+        g = compute_phase76_hyperconvex_rank_modulation(r, gamma_top=19.80, z_denoised=0.1)
+        diffs = np.diff(g)
+        assert np.all(diffs >= -1e-12)
+
 
 
 # =========================================================================
@@ -297,3 +349,52 @@ class TestPhase76RiskAdversarial:
 
         empty_res = alloc.compute_phase76_evar([])
         assert _extract_evar_val(empty_res) == 0.0
+
+    def test_barycenter_degenerate_dirichlet_weights(self):
+        """Verify Higher-Homology-26 Barycenter with 50 degenerate Dirichlet distributions."""
+        alloc = UnifiedPortfolioAllocator(version=76)
+        np.random.seed(42)
+        for _ in range(50):
+            d = np.random.dirichlet([0.005, 0.005, 0.005, 0.005])
+            w = {"bl": d[0], "herc": d[1], "rp": d[2], "cvar": d[3]}
+            b = alloc.compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_26_fisher_rao_barycenter_blend(w)
+            assert math.isclose(sum(b.values()), 1.0, rel_tol=1e-5)
+            for v in b.values():
+                assert v > 0.0 and math.isfinite(v)
+
+    def test_barycenter_near_zero_initial_weights(self):
+        """Verify Higher-Homology-26 Barycenter with near-zero (1e-25) initial weights."""
+        alloc = UnifiedPortfolioAllocator(version=76)
+        near_zero = {"bl": 1e-25, "herc": 1e-25, "rp": 1e-25, "cvar": 1e-25}
+        b = alloc.compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_26_fisher_rao_barycenter_blend(near_zero)
+        assert math.isclose(sum(b.values()), 1.0, rel_tol=1e-5)
+        assert b["cvar"] > b["bl"] > b["herc"] > b["rp"]
+
+    def test_evar_heavy_tailed_pareto(self):
+        """Verify 84th-cumulant EVaR with heavy-tailed Pareto distributions."""
+        alloc = UnifiedPortfolioAllocator(version=76)
+        np.random.seed(42)
+        pareto_heavy = -np.random.pareto(a=1.5, size=50000) * 0.01
+        pareto_light = -np.random.pareto(a=3.0, size=50000) * 0.01
+        e_heavy = _extract_evar_val(alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_26_evar_risk_measure(pareto_heavy))
+        e_light = _extract_evar_val(alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_26_evar_risk_measure(pareto_light))
+        assert math.isfinite(e_heavy) and e_heavy > 0.0
+        assert math.isfinite(e_light) and e_light > 0.0
+        assert e_heavy > e_light
+
+    def test_evar_zero_variance_returns(self):
+        """Verify 84th-cumulant EVaR with zero variance returns."""
+        alloc = UnifiedPortfolioAllocator(version=76)
+        zero_rets = np.zeros(1000)
+        e_zero = _extract_evar_val(alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_26_evar_risk_measure(zero_rets))
+        assert math.isfinite(e_zero) and e_zero >= 0.0
+
+    def test_evar_large_n_stability(self):
+        """Verify 84th-cumulant EVaR on large N=100,000."""
+        alloc = UnifiedPortfolioAllocator(version=76)
+        rets_large = np.random.normal(-0.001, 0.02, size=100000)
+        res = alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_26_evar_risk_measure(rets_large)
+        e_val = _extract_evar_val(res)
+        assert math.isfinite(e_val) and e_val > 0.0
+        assert res["order"] == 84
+
