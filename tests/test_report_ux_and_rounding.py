@@ -422,6 +422,51 @@ def test_javascript_syntax_validity():
                     os.remove(tf_path)
 
 
+def test_mobile_ux_enhancements_presence():
+    from trading_system.generate_report import _generate_catalyst_chips, EnsembleRow, EnsembleMarket, EnsembleData
+
+    sample_erow = EnsembleRow(
+        rank=1,
+        symbol="005930",
+        name="삼성전자",
+        score="88.5%",
+        expected_return="+4.2%",
+        surge="78.0%",
+        vcp_ml="82.0%",
+        order_flow="75.0%",
+    )
+    sample_ens = EnsembleData(markets=[EnsembleMarket(market="KOSPI", rows=[sample_erow])])
+    html_out = _call_build_html(ensemble=sample_ens)
+
+    # 1. Mobile bottom navigation bar
+    assert 'id="mobile-bottom-nav"' in html_out
+    assert 'switchMobileNav' in html_out
+    assert 'mob-nav-ensemble' in html_out
+    assert 'mob-nav-strategies' in html_out
+
+    # 2. Mobile Strategy Hub bottom sheet
+    assert 'id="strategy-hub-sheet"' in html_out
+    assert 'id="strategy-hub-overlay"' in html_out
+    assert 'openStrategyHub' in html_out
+    assert 'selectStrategyFromHub' in html_out
+
+    # 3. Stock detail drawer mobile drag handle & swipe gesture
+    assert 'class="drawer-drag-handle"' in html_out
+    assert 'drawer-open-mobile' in html_out
+
+    # 4. Enhanced stock card elements
+    assert 'class="stock-card-score-box"' in html_out
+    assert 'class="score-bar-fill"' in html_out
+    assert 'stock-card-chips' in html_out
+
+    # 5. Catalyst chips generator logic
+    chips = _generate_catalyst_chips(sample_erow)
+    assert len(chips) > 0
+    labels = [c[0] for c in chips]
+    assert any("급등" in lbl for lbl in labels)
+
+
+
 
 
 

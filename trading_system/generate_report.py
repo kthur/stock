@@ -1451,6 +1451,164 @@ def build_tab_status_banner(
     return ""
 
 
+def _parse_score_num(v: Any) -> float:
+    if not v:
+        return 0.0
+    try:
+        clean = str(v).replace("%", "").replace("+", "").strip()
+        if clean.lower() in ("nan", "none", "-", "n/a", "null", "undefined"):
+            return 0.0
+        return float(clean)
+    except Exception:
+        return 0.0
+
+
+def _generate_catalyst_chips(erow: EnsembleRow) -> list[tuple[str, str, str]]:
+    """Returns list of (label, css_class, title) for top catalyst signals."""
+    chips = []
+    # 1. Surge classifier or Gamma Squeeze
+    s_surge = _parse_score_num(erow.surge)
+    s_gamma = _parse_score_num(erow.gamma_squeeze)
+    if s_surge >= 55.0 or s_gamma >= 60.0:
+        chips.append(("⚡ 급등 서지", "chip-surge", f"Surge: {erow.surge}, Gamma: {erow.gamma_squeeze}"))
+
+    # 2. VCP pattern or Range Expansion
+    s_vcp = max(_parse_score_num(erow.vcp_rule), _parse_score_num(erow.vcp_ml))
+    s_reb = _parse_score_num(erow.range_expansion)
+    if s_vcp >= 55.0 or s_reb >= 60.0:
+        chips.append(("🎯 VCP 돌파", "chip-vcp", f"VCP: {s_vcp:.1f}, REB: {erow.range_expansion}"))
+
+    # 3. Order Flow / Foreign & Inst Flow / Darkpool
+    s_flow = max(_parse_score_num(erow.order_flow), _parse_score_num(erow.inst_foreign_sector), _parse_score_num(erow.darkpool))
+    if s_flow >= 55.0:
+        chips.append(("🌊 메이저 수급", "chip-flow", f"수급 강도: {s_flow:.1f}"))
+
+    # 4. Valuation / Value-Up / RIM
+    s_val = max(_parse_score_num(erow.rim_valuation), _parse_score_num(erow.valueup_catalyst))
+    if s_val >= 55.0:
+        chips.append(("💎 저평가 밸류", "chip-val", f"밸류: {s_val:.1f}"))
+
+    # 5. Trend / Momentum Quality
+    s_mom = max(_parse_score_num(erow.trend_efficiency), _parse_score_num(erow.mq_factor))
+    if s_mom >= 55.0:
+        chips.append(("🚀 고순도 추세", "chip-trend", f"추세 효율성: {s_mom:.1f}"))
+
+    # 6. Reversal / Dual Correction
+    s_rev = max(_parse_score_num(erow.short_term_reversal), _parse_score_num(erow.dual_correction))
+    if s_rev >= 55.0:
+        chips.append(("🔄 눌림목 반등", "chip-rev", f"반전 스코어: {s_rev:.1f}"))
+
+    return chips[:3]
+
+
+def _build_strategy_hub_html() -> str:
+    """Builds the mobile bottom sheet modal for jumping to any of the 37 strategies."""
+    categories = [
+        ("🤖 AI & 시계열 머신러닝", [
+            ("1. Regression", "regression", "1. XGBoost 다중 기간 회귀"),
+            ("2. Surge", "surge", "2. Surge 급등 분류"),
+            ("5. VCP ML", "vcpml", "5. VCP 머신러닝"),
+            ("6. Strict LSTM", "lstm", "6. Strict LSTM 딥러닝"),
+        ]),
+        ("📈 모멘텀 & 가격 액션", [
+            ("3. Lead-Lag", "leadlag", "3. Lead-Lag 시차 상관"),
+            ("4. VCP Rule", "vcp", "4. VCP 패턴 규칙"),
+            ("8. Sector Rotation", "sector", "8. 섹터 모멘텀 & 순환매"),
+            ("11. MQ Factor", "mq", "11. 퀄리티 모멘텀"),
+            ("14. ST Reversal", "reversal", "14. 과매도 단기 반등"),
+            ("27. Trend Efficiency", "trendeff", "27. 트렌드 효율성"),
+            ("34. Range Expansion", "rangeexpansion", "34. 변동성 압축 돌파"),
+            ("35. Dual Correction", "dualcorrection", "35. 피보나치/AVWAP 눌림"),
+            ("37. Overnight Gap", "overnightgap", "37. 갭 페이드 반전"),
+        ]),
+        ("💎 가치 & 펀더멘탈 어닝", [
+            ("9. RIM Valuation", "rim", "9. 잔여이익 가치평가"),
+            ("10. Event-Driven", "event", "10. 공시/촉매 서프라이즈"),
+            ("15. ARM Factor", "arm", "15. 컨센서스 상향"),
+            ("24. Accruals Quality", "accruals", "24. 회계적 품질 점수"),
+            ("26. Value-Up Yield", "valueup", "26. 총주주환원 저PBR"),
+            ("31. Tone Drift", "tonedrift", "31. 어닝스 콜 어조 변화"),
+        ]),
+        ("🌊 수급 & 미시구조", [
+            ("13. Order Flow", "flow", "13. 외인/기관 수급 가속도"),
+            ("18. I&F Sector", "ifs", "18. 외인/투신 누적 수급"),
+            ("23. Microstructure", "microstructure", "23. 호가/동시호가 갭"),
+            ("25. Short Squeeze", "shortsqueeze", "25. 공매도 잔고 스퀴즈"),
+            ("28. Gamma Squeeze", "gammasqueeze", "28. 옵션 감마 스퀴즈"),
+            ("29. Insider Buying", "insider", "29. 내부자 매수 신호"),
+            ("30. Darkpool & HFT", "darkpool", "30. 장외 블록딜 은닉 수급"),
+            ("36. Index Rebalance", "indexrebalance", "36. 패시브 수급 선반영"),
+        ]),
+        ("🌐 거시 매크로 & 밸류체인", [
+            ("7. Stat-Arb", "stat-arb", "7. 공적분 차익거래"),
+            ("12. Options IV Skew", "iv", "12. 풋/콜 IV 스큐 역발상"),
+            ("16. CARD Factor", "card", "16. 자산간 괴리율"),
+            ("17. LATR Factor", "latr", "17. 꼬리위험 낙폭 반등"),
+            ("19. Supply Chain", "supplychain", "19. 공급망 시차 전이"),
+            ("20. NLP Sentiment", "sentiment", "20. 뉴스 FinBERT 감성"),
+            ("21. Factor Neutralized", "neutralized", "21. Fama-French 순수 알파"),
+            ("22. Vol Targeting", "voltarget", "22. 리스크 파리티 비중"),
+            ("32. Cross-Asset", "crossasset", "32. 매크로 임펄스 파급"),
+            ("33. Supply Chain GNN", "gnn", "33. 공급망 2-hop GNN"),
+        ]),
+    ]
+    
+    sections_html = []
+    for cat_title, strats in categories:
+        items = []
+        for name, sid, tip in strats:
+            items.append(f'<button class="hub-item-btn" onclick="selectStrategyFromHub(\'{sid}\')" title="{tip}"><span class="hub-item-dot">●</span><span class="hub-item-name">{name}</span></button>')
+        sections_html.append(f'''
+        <div class="hub-category-block">
+          <div class="hub-category-title">{cat_title} ({len(strats)})</div>
+          <div class="hub-grid">
+            {"".join(items)}
+          </div>
+        </div>''')
+
+    return f'''
+<!-- Strategy Quick Hub Bottom Sheet Modal (Mobile) -->
+<div id="strategy-hub-overlay" onclick="closeStrategyHub()"></div>
+<div id="strategy-hub-sheet">
+  <div class="hub-drag-handle" onclick="closeStrategyHub()"></div>
+  <div class="hub-header">
+    <div class="hub-title">⚡ 37대 다변화 전략 허브 (Strategy Hub)</div>
+    <button class="hub-close-btn" onclick="closeStrategyHub()" aria-label="닫기">&times;</button>
+  </div>
+  <div class="hub-body">
+    {"".join(sections_html)}
+  </div>
+</div>'''
+
+
+def _build_mobile_bottom_nav_html() -> str:
+    """Builds the mobile fixed bottom navigation bar."""
+    return '''
+<!-- Mobile Ergonomic Bottom Navigation Bar -->
+<nav id="mobile-bottom-nav" class="mobile-bottom-nav">
+  <button class="mobile-nav-item active" id="mob-nav-ensemble" onclick="switchMobileNav('ensemble')" aria-label="앙상블 대시보드">
+    <span class="mob-nav-icon">🏆</span>
+    <span class="mob-nav-label">앙상블</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-portfolio" onclick="switchMobileNav('portfolio')" aria-label="포트폴리오 배분">
+    <span class="mob-nav-icon">💼</span>
+    <span class="mob-nav-label">포트폴리오</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-backtest" onclick="switchMobileNav('backtest')" aria-label="전략 백테스트">
+    <span class="mob-nav-icon">📊</span>
+    <span class="mob-nav-label">백테스트</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-regime" onclick="switchMobileNav('regime')" aria-label="시장 레짐 정보">
+    <span class="mob-nav-icon">🎯</span>
+    <span class="mob-nav-label">레짐/매크로</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-strategies" onclick="openStrategyHub()" aria-label="37대 전략 허브">
+    <span class="mob-nav-icon">⚡</span>
+    <span class="mob-nav-label">37전략</span>
+  </button>
+</nav>'''
+
+
 def parse_strategy_coverage_report(
     cov_text: str,
     parsed_strategies_map: Optional[dict[str, Any]] = None,
@@ -2197,27 +2355,46 @@ def build_html(
               <td class="col-strat col-cat-mom">{format_metric_cell(erow.overnight_gap, kind="score")}</td>
             </tr>"""
 
+                card_rank_badge_html = f'<span class="rank-badge rank-1">🥇 1</span>' if erow.rank == 1 else (f'<span class="rank-badge rank-2">🥈 2</span>' if erow.rank == 2 else (f'<span class="rank-badge rank-3">🥉 3</span>' if erow.rank == 3 else f'<span class="rank-badge rank-other">#{erow.rank}</span>'))
+                score_num = _parse_score_num(erow.score)
+                score_bar_pct = min(100.0, max(0.0, score_num))
+                score_color = "#10b981" if score_num >= 70 else ("#38bdf8" if score_num >= 50 else "#94a3b8")
+                chips = _generate_catalyst_chips(erow)
+                chips_html = "".join([f'<span class="stock-card-chip {c[1]}" title="{c[2]}">{c[0]}</span>' for c in chips])
+                if not chips_html:
+                    chips_html = '<span class="stock-card-chip chip-neutral" title="다변화 균형 포트폴리오">⚖️ 균형 알파</span>'
+                ret_pill_class = "pill-pos" if "pos" in rc else ("pill-neg" if "neg" in rc else "pill-neutral")
+
                 cards_html += f"""
         <div class="stock-card" data-symbol="{erow.symbol}" data-initial-rank="{erow.rank}" data-initial-order="{row_idx}" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 37대 전략 상세 보기">
           <div class="stock-card-header">
-            <span class="stock-card-rank"><button class="btn-watchlist" data-sym="{erow.symbol}" onclick="toggleWatchlist('{erow.symbol}', event)" title="관심종목 등록/해제">⭐</button>{rank_badge_html}</span>
-            <span class="badge" style="font-size:11px;">{flag} {mkt}</span>
-          </div>
-          <div class="stock-card-title">{html.escape(erow.name)}</div>
-          <div class="stock-card-code">{symbol_link}</div>
-          <div class="stock-card-metrics">
-            <div>
-              <div class="stock-card-metric-lbl">37대 앙상블</div>
-              <div class="stock-card-metric-val" style="color:var(--blue);">{erow.score}</div>
+            <div class="card-header-left">
+              <span class="stock-card-rank"><button class="btn-watchlist" data-sym="{erow.symbol}" onclick="toggleWatchlist('{erow.symbol}', event)" title="관심종목 등록/해제">⭐</button>{card_rank_badge_html}</span>
+              <span class="badge card-market-badge">{flag} {mkt}</span>
             </div>
-            <div>
-              <div class="stock-card-metric-lbl">20D 순예상수익률</div>
-              <div class="stock-card-metric-val {rc}">{ret_disp}</div>
+            <div class="card-header-right">
+              <span class="card-ret-pill {ret_pill_class}">{ret_disp}</span>
             </div>
           </div>
-          <div style="font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:6px; margin-top:6px;">
-            <span>회귀: {erow.reg} | Surge: {erow.surge}</span>
-            <span style="color:var(--accent); font-weight:600;">37대 팩터 분석 ›</span>
+          <div class="stock-card-body">
+            <div class="stock-card-title">{html.escape(erow.name)}</div>
+            <div class="stock-card-code">{symbol_link}</div>
+          </div>
+          <div class="stock-card-score-box">
+            <div class="score-box-labels">
+              <span class="score-title">37대 앙상블 종합 스코어</span>
+              <span class="score-num" style="color:{score_color};">{erow.score}점</span>
+            </div>
+            <div class="score-bar-track">
+              <div class="score-bar-fill" style="width:{score_bar_pct:.1f}%; background:{score_color};"></div>
+            </div>
+          </div>
+          <div class="stock-card-chips">
+            {chips_html}
+          </div>
+          <div class="stock-card-footer">
+            <span class="footer-stats">회귀: {erow.reg} | Surge: {erow.surge}</span>
+            <span class="footer-action">37대 팩터 분석 ›</span>
           </div>
         </div>"""
         else:
@@ -2979,6 +3156,9 @@ def build_html(
     mkt_labels_json = _safe_json(list(market_weights.keys()))
     mkt_weights_json = _safe_json([round(v, 2) for v in market_weights.values()])
 
+    strategy_hub_html = _build_strategy_hub_html()
+    mobile_bottom_nav_html = _build_mobile_bottom_nav_html()
+
     # ── Full HTML ──
     return f"""<!DOCTYPE html>
 <html lang="ko">
@@ -3477,62 +3657,415 @@ def build_html(
   .stock-card {{
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px;
+    border-radius: 12px;
+    padding: 14px 16px;
     cursor: pointer;
-    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }}
   .stock-card:hover {{
     transform: translateY(-2px);
     border-color: var(--accent);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  }}
+  .stock-card:active {{
+    transform: scale(0.985);
   }}
   .stock-card-header {{
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
+    gap: 8px;
   }}
-  .stock-card-rank {{
-    font-size: 12px;
-    font-weight: 700;
+  .card-header-left {{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }}
+  .card-header-right {{
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }}
+  .card-market-badge {{
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--surface2);
     color: var(--muted);
+    border: 1px solid var(--border);
+  }}
+  .card-ret-pill {{
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-family: var(--font-mono);
+  }}
+  .pill-pos {{
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+  }}
+  .pill-neg {{
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+  }}
+  .pill-neutral {{
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }}
+  .rank-badge.rank-other {{
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+  }}
+  .stock-card-body {{
+    margin-bottom: 8px;
   }}
   .stock-card-title {{
-    font-size: 15px;
+    font-size: 15.5px;
     font-weight: 700;
     color: var(--text);
     margin-bottom: 2px;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }}
   .stock-card-code {{
     font-size: 12px;
     color: var(--accent);
     font-family: var(--font-mono);
   }}
-  .stock-card-metrics {{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin: 10px 0;
-    padding: 8px;
+  .stock-card-score-box {{
     background: var(--surface2);
-    border-radius: 6px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
   }}
-  .stock-card-metric-val {{
-    font-size: 14px;
+  .score-box-labels {{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    margin-bottom: 6px;
+  }}
+  .score-title {{
+    color: var(--muted);
+    font-weight: 600;
+  }}
+  .score-num {{
+    font-weight: 800;
+    font-size: 13px;
+    font-family: var(--font-mono);
+  }}
+  .score-bar-track {{
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+  }}
+  .score-bar-fill {{
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }}
+  .stock-card-chips {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 10px;
+  }}
+  .stock-card-chip {{
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    letter-spacing: -0.2px;
+  }}
+  .chip-surge {{
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }}
+  .chip-vcp {{
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+  }}
+  .chip-flow {{
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+  }}
+  .chip-val {{
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+  }}
+  .chip-trend {{
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.35);
+  }}
+  .chip-rev {{
+    background: rgba(20, 184, 166, 0.15);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.35);
+  }}
+  .chip-neutral {{
+    background: var(--surface2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }}
+  .stock-card-footer {{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    font-size: 11px;
+  }}
+  .footer-stats {{
+    color: var(--muted);
+    font-size: 10.5px;
+    font-family: var(--font-mono);
+  }}
+  .footer-action {{
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }}
+
+  /* Mobile Ergonomic Bottom Navigation Bar */
+  .mobile-bottom-nav {{
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    z-index: 999;
+    box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.4);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    justify-content: space-around;
+    align-items: center;
+  }}
+  .mobile-nav-item {{
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s ease, transform 0.12s ease;
+    padding: 4px 0;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }}
+  .mobile-nav-item:active {{
+    transform: scale(0.92);
+  }}
+  .mobile-nav-item.active {{
+    color: var(--accent);
     font-weight: 700;
   }}
-  .stock-card-metric-lbl {{
-    font-size: 10.5px;
+  .mob-nav-icon {{
+    font-size: 19px;
+    line-height: 1;
+  }}
+  .mob-nav-label {{
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: -0.2px;
+  }}
+
+  /* Mobile Strategy Hub Bottom Sheet Modal */
+  #strategy-hub-overlay {{
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    z-index: 1002;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }}
+  #strategy-hub-sheet {{
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: -100%;
+    max-height: 84vh;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    z-index: 1003;
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    transition: bottom 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+    padding-bottom: env(safe-area-inset-bottom, 14px);
+  }}
+  .hub-drag-handle {{
+    width: 44px;
+    height: 5px;
+    background: var(--muted);
+    border-radius: 3px;
+    margin: 10px auto 4px auto;
+    opacity: 0.6;
+    cursor: pointer;
+  }}
+  .hub-header {{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 18px 12px 18px;
+    border-bottom: 1px solid var(--border);
+  }}
+  .hub-title {{
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }}
+  .hub-close-btn {{
+    background: none;
+    border: none;
     color: var(--muted);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 2px 8px;
+    line-height: 1;
+  }}
+  .hub-body {{
+    padding: 14px 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }}
+  .hub-category-block {{
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }}
+  .hub-category-title {{
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }}
+  .hub-grid {{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 7px;
+  }}
+  .hub-item-btn {{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: var(--text);
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 38px;
+  }}
+  .hub-item-btn:active {{
+    background: var(--surface3);
+    border-color: var(--accent);
+    transform: scale(0.97);
+  }}
+  .hub-item-dot {{
+    font-size: 7px;
+    color: var(--accent);
+  }}
+  .hub-item-name {{
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }}
+  .drawer-drag-handle {{
+    display: none;
   }}
 
   /* Responsive & Mobile Enhancements */
   @media (max-width: 768px) {{
+    body {{
+      padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    }}
+    .mobile-bottom-nav {{
+      display: flex !important;
+    }}
+    #btn-back-to-top {{
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+      right: 16px !important;
+    }}
+
     .header, .macro-strip, .tabs, .content, .row1-wrapper, .search-bar-wrap {{ padding-left: 12px; padding-right: 12px; }}
     .header h1 {{ font-size: 18px; }}
+    .header-top-row {{ flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }}
+    .header-subtitle {{ display: none !important; }}
+    .header-actions {{ width: 100% !important; justify-content: space-between !important; }}
+    .header-meta {{ gap: 6px !important; margin-top: 8px !important; }}
+    .header-meta .badge {{ font-size: 10px !important; padding: 2px 6px !important; }}
+
     .row1-wrapper {{ grid-template-columns: 1fr; gap: 12px; padding: 12px; }}
-    .macro-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }}
+
+    /* Mobile Macro Horizontal Swipe Carousel (Saves ~250px vertical screen space) */
+    .macro-grid {{
+      display: flex !important;
+      overflow-x: auto !important;
+      scroll-snap-type: x mandatory !important;
+      gap: 10px !important;
+      padding: 4px 2px 10px 2px !important;
+      -webkit-overflow-scrolling: touch !important;
+    }}
+    .macro-item {{
+      flex: 0 0 145px !important;
+      scroll-snap-align: start !important;
+      min-width: 145px !important;
+    }}
+
     .tabs {{ padding: 0 8px; height: 44px; }}
     .tab {{ padding: 11px 12px; font-size: 13px; }}
     thead th {{ top: 0; padding: 8px 6px; font-size: 12px; }}
@@ -3540,7 +4073,79 @@ def build_html(
     tbody td {{ padding: 8px 6px; font-size: 12px; }}
     .table-wrap {{ -webkit-overflow-scrolling: touch; }}
     .filter-bar {{ overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }}
-    .filter-btn {{ flex-shrink: 0; font-size: 11px; padding: 4px 10px; }}
+    .filter-btn {{ flex-shrink: 0; font-size: 11px; padding: 6px 12px; min-height: 36px; }}
+
+    /* Quick Filter Chips Mobile Scroll */
+    .quick-filter-chips {{
+      display: flex !important;
+      overflow-x: auto !important;
+      scroll-snap-type: x proximity !important;
+      white-space: nowrap !important;
+      gap: 6px !important;
+      padding-bottom: 6px !important;
+      -webkit-overflow-scrolling: touch !important;
+    }}
+    .quick-filter-label {{ display: none !important; }}
+    .chip-btn {{
+      flex-shrink: 0 !important;
+      scroll-snap-align: start !important;
+      padding: 6px 12px !important;
+      font-size: 12px !important;
+      min-height: 34px !important;
+    }}
+
+    /* Card View Grid on Mobile */
+    .stock-cards-wrap {{
+      grid-template-columns: 1fr !important;
+      gap: 12px !important;
+      padding: 6px 0 !important;
+    }}
+
+    /* Stock Detail Drawer: Native Bottom Sheet on Mobile */
+    #stock-drawer {{
+      top: auto !important;
+      bottom: -100% !important;
+      left: 0 !important;
+      right: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      height: 86vh !important;
+      max-height: 86vh !important;
+      border-radius: 20px 20px 0 0 !important;
+      border-left: none !important;
+      border-top: 1px solid var(--border) !important;
+      box-shadow: 0 -10px 32px rgba(0,0,0,0.6) !important;
+      transition: bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      padding: 0 16px 24px 16px !important;
+    }}
+    #stock-drawer.drawer-open-mobile {{
+      bottom: 0 !important;
+    }}
+    .drawer-drag-handle {{
+      display: block !important;
+      width: 44px;
+      height: 5px;
+      background: var(--muted);
+      border-radius: 3px;
+      margin: 10px auto 4px auto;
+      opacity: 0.7;
+      cursor: pointer;
+    }}
+    .drawer-external-links {{
+      position: sticky !important;
+      bottom: 0 !important;
+      background: var(--surface) !important;
+      padding: 10px 0 4px 0 !important;
+      border-top: 1px solid var(--border) !important;
+      margin-top: 16px !important;
+    }}
+    .ext-portal-btn {{
+      flex: 1 !important;
+      text-align: center !important;
+      padding: 10px 8px !important;
+      font-size: 12px !important;
+      min-height: 42px !important;
+    }}
 
     /* Mobile Table Optimization: Hide non-essential strategy columns */
     .col-strat {{ display: none !important; }}
@@ -4764,6 +5369,9 @@ function switchTab(btn, id) {{
     panel.classList.add('active');
     window.dispatchEvent(new Event('resize'));
   }}
+  if (typeof updateMobileNavState === 'function') {{
+    updateMobileNavState(id);
+  }}
 }}
 
 function switchTabById(tabId) {{
@@ -4823,6 +5431,7 @@ function filterMarket(btn, group) {{
 function setViewMode(mode) {{
   const btnTable = document.getElementById('btn-view-table');
   const btnCard = document.getElementById('btn-view-card');
+  try {{ localStorage.setItem('stock_view_mode', mode); }} catch(e) {{}}
   if (mode === 'card') {{
     document.body.classList.add('view-card-active');
     if (btnTable) btnTable.classList.remove('active');
@@ -5153,6 +5762,13 @@ document.addEventListener('DOMContentLoaded', function() {{
   switchTheme(savedTheme);
   const savedDensity = localStorage.getItem('table_density') || 'comfortable';
   if (savedDensity === 'compact') setTableDensity('compact');
+
+  const savedViewMode = localStorage.getItem('stock_view_mode');
+  if (savedViewMode) {{
+    setViewMode(savedViewMode);
+  }} else if (window.innerWidth <= 768) {{
+    setViewMode('card');
+  }}
   
   updateLiveMarketStatus();
   setInterval(updateLiveMarketStatus, 30000);
@@ -5173,7 +5789,8 @@ document.addEventListener('DOMContentLoaded', function() {{
       if (input) {{ input.focus(); input.select(); }}
     }} else if (e.key === 'Escape') {{
       const drawer = document.getElementById('stock-drawer');
-      if (drawer && drawer.style.right === '0px') {{
+      const isDrawerOpen = drawer && (drawer.style.right === '0px' || drawer.classList.contains('drawer-open-mobile') || drawer.style.bottom === '0px');
+      if (isDrawerOpen) {{
         closeStockDrawer();
       }} else {{
         const dropdown = document.getElementById('search-autocomplete-dropdown');
@@ -5183,12 +5800,14 @@ document.addEventListener('DOMContentLoaded', function() {{
       }}
     }} else if (e.key === 'ArrowLeft') {{
       const drawer = document.getElementById('stock-drawer');
-      if (drawer && drawer.style.right === '0px') {{
+      const isDrawerOpen = drawer && (drawer.style.right === '0px' || drawer.classList.contains('drawer-open-mobile') || drawer.style.bottom === '0px');
+      if (isDrawerOpen) {{
         navigateDrawerStock(-1);
       }}
     }} else if (e.key === 'ArrowRight') {{
       const drawer = document.getElementById('stock-drawer');
-      if (drawer && drawer.style.right === '0px') {{
+      const isDrawerOpen = drawer && (drawer.style.right === '0px' || drawer.classList.contains('drawer-open-mobile') || drawer.style.bottom === '0px');
+      if (isDrawerOpen) {{
         navigateDrawerStock(1);
       }}
     }}
@@ -5908,10 +6527,16 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   
   renderDrawerRadarChart(parsedFactors);
 
+  const isMobile = window.innerWidth <= 768;
   document.body.style.overflow = 'hidden';
   overlay.style.display = 'block';
   setTimeout(() => {{
-    drawer.style.right = '0px';
+    if (isMobile) {{
+      drawer.classList.add('drawer-open-mobile');
+      drawer.style.bottom = '0px';
+    }} else {{
+      drawer.style.right = '0px';
+    }}
     overlay.style.opacity = '1';
   }}, 10);
 }}
@@ -5936,7 +6561,11 @@ function filterDrawerFactors(cat, btn) {{
 function closeStockDrawer() {{
   const drawer = document.getElementById('stock-drawer');
   const overlay = document.getElementById('stock-drawer-overlay');
-  if (drawer) drawer.style.right = '-500px';
+  if (drawer) {{
+    drawer.style.right = '-500px';
+    drawer.style.bottom = '-100%';
+    drawer.classList.remove('drawer-open-mobile');
+  }}
   if (overlay) {{
     overlay.style.opacity = '0';
     setTimeout(() => {{ overlay.style.display = 'none'; }}, 300);
@@ -5948,29 +6577,101 @@ function initDrawerTouchSwipe() {{
   const drawer = document.getElementById('stock-drawer');
   if (!drawer) return;
   let startX = 0;
+  let startY = 0;
   let currentX = 0;
+  let currentY = 0;
   
   drawer.addEventListener('touchstart', function(e) {{
     startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
     currentX = startX;
+    currentY = startY;
   }}, {{ passive: true }});
   
   drawer.addEventListener('touchmove', function(e) {{
     currentX = e.touches[0].clientX;
+    currentY = e.touches[0].clientY;
   }}, {{ passive: true }});
   
   drawer.addEventListener('touchend', function() {{
-    const diffX = currentX - startX;
-    if (diffX > 75) {{
-      closeStockDrawer();
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {{
+      const diffY = currentY - startY;
+      if (diffY > 70 && drawer.scrollTop <= 10) {{
+        closeStockDrawer();
+      }}
+    }} else {{
+      const diffX = currentX - startX;
+      if (diffX > 75) {{
+        closeStockDrawer();
+      }}
     }}
   }});
+}}
+
+function switchMobileNav(tabId) {{
+  document.querySelectorAll('.mobile-bottom-nav .mobile-nav-item').forEach(item => {{
+    item.classList.toggle('active', item.id === `mob-nav-${{tabId}}`);
+  }});
+
+  if (tabId === 'ensemble' || tabId === 'portfolio' || tabId === 'backtest' || tabId === 'regime') {{
+    switchTabById(tabId);
+    const target = document.querySelector('.main-system-tabs') || document.querySelector('.search-bar-wrap');
+    if (target) {{
+      target.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+    }}
+  }}
+}}
+
+function updateMobileNavState(tabId) {{
+  const mobItem = document.getElementById(`mob-nav-${{tabId}}`);
+  if (mobItem) {{
+    document.querySelectorAll('.mobile-bottom-nav .mobile-nav-item').forEach(item => {{
+      item.classList.remove('active');
+    }});
+    mobItem.classList.add('active');
+  }}
+}}
+
+function openStrategyHub() {{
+  const overlay = document.getElementById('strategy-hub-overlay');
+  const sheet = document.getElementById('strategy-hub-sheet');
+  if (!overlay || !sheet) return;
+  overlay.style.display = 'block';
+  setTimeout(() => {{
+    overlay.style.opacity = '1';
+    sheet.style.bottom = '0px';
+  }}, 10);
+  document.body.style.overflow = 'hidden';
+}}
+
+function closeStrategyHub() {{
+  const overlay = document.getElementById('strategy-hub-overlay');
+  const sheet = document.getElementById('strategy-hub-sheet');
+  if (sheet) sheet.style.bottom = '-100%';
+  if (overlay) {{
+    overlay.style.opacity = '0';
+    setTimeout(() => {{ overlay.style.display = 'none'; }}, 300);
+  }}
+  document.body.style.overflow = '';
+}}
+
+function selectStrategyFromHub(stratId) {{
+  closeStrategyHub();
+  switchTabById(stratId);
+  const row2 = document.querySelector('.row2-wrapper');
+  if (row2) {{
+    setTimeout(() => {{
+      row2.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+    }}, 150);
+  }}
 }}
 </script>
 
 <!-- Stock Detail Drawer -->
 <div id="stock-drawer-overlay" onclick="closeStockDrawer()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(6px); z-index:1000; transition:opacity .3s;"></div>
 <div id="stock-drawer" style="position:fixed; top:0; right:-500px; width:480px; max-width:95vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:1001; padding:0 24px 24px 24px; overflow-y:auto; overscroll-behavior:contain; transition:right .3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow:var(--shadow-lg);">
+  <div class="drawer-drag-handle" onclick="closeStockDrawer()"></div>
   <div style="position:sticky; top:0; background:var(--surface); z-index:10; display:flex; justify-content:space-between; align-items:center; padding:18px 0 12px; margin-bottom:16px; border-bottom:1px solid var(--border);">
     <div>
       <div style="display:flex; align-items:center;">
@@ -6032,6 +6733,10 @@ function initDrawerTouchSwipe() {{
     <a id="drawer-tv-link" href="#" target="_blank" class="ext-portal-btn" style="color:#2962ff; border-color:rgba(41,98,255,0.4);">📈 TradingView</a>
   </div>
 </div>
+
+<!-- Strategy Hub & Mobile Bottom Nav Component Insertion -->
+{strategy_hub_html}
+{mobile_bottom_nav_html}
 
 <!-- Global Toast Container -->
 <div id="toast-container"></div>
