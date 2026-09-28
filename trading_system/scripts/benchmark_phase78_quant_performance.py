@@ -280,6 +280,11 @@ Checksum: {cat_a_sha256}
     marker_p78 = "# Global Multi-Market Quantitative Benchmark Report (Phase 78 Quantitative Alpha Enhancement)"
     marker_p77 = "# Global Multi-Market Quantitative Benchmark Report (Phase 77 Quantitative Alpha Enhancement)"
     if marker_p78 in prior_content:
+        if not prior_content.startswith(marker_p78):
+            print("Category C cumulative report already contains Phase 78 and has newer phase at top. Skipping rewrite.")
+            print("Benchmark execution & synchronization complete.")
+            import sys
+            sys.exit(0)
         if marker_p77 in prior_content:
             idx = prior_content.find(marker_p77)
             prior_content = prior_content[idx:].strip()
