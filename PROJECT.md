@@ -392,6 +392,14 @@
 | F359.1 | KNK-56 Dark Energy DAHA L3 Spacetime Hydrodynamics | $w=-58/3, k_{\text{daha}}=0.48, k_{\text{monster}}=0.47, \text{factor}=9.60, c=2^{-58} \approx 3.469 \times 10^{-18}$ | M3 (P77) | Phase 77 R3 |
 | F359.2 | SOR 1e-49 Floor & Preemptive 30-Nine Tick Shading | Lit maker floor 1e-49 (49 decimals rounding) & OMS tick shading $h > 0.00000002$ with 30 Nines (`0.999999999999999999999999999999`) | M3 (P77) | Phase 77 R3 |
 | F360 | Phase 77 Quantitative Benchmark & Verification Engine | 5-market 15-metric empirical benchmark engine, 7 KPI assertions, 5 test suites (80 tests), report synchronization across 7 paths | M4 (P77) | Phase 77 R4 |
+| F361 | 432nd-Order Hyperbolic Noise Deadband | $\alpha=432.0, \delta=0.035$, noise leakage $< 10^{-308}$, `apply_tetracosiatriacontadigonal_hyperbolic_deadband` | M1 (P78) | Phase 78 R1 |
+| F362.1 | 87th-Order Hyper-Convex Rank Modulation | $g_{v78}(r) = 0.50 + 2.90 \cdot r \cdot \exp(\gamma_{\text{top}} r^{87})$, `REGIME_GAMMA_TOP_V78` (Bull Low Vol: 20.50) | M1 (P78) | Phase 78 R1 |
+| F362.2 | Borcherds-Moonshine Monster Whittaker Coupler | $\kappa=28.30, \lambda=0.9999999995$, 158th/160th order, 81st/82nd defect, boost 5.85, `FERI_v78`, `f_out_78`, version >= 78 | M1 (P78) | Phase 78 R1 |
+| F363.1 | Higher-Homology-28 Motivic Fisher-Rao Barycenter | $\mu=[6.80, 4.40, 2.95, 8.05]$, simplex sum 1.0, CVaR > BL > HERC > RP | M2 (P78) | Phase 78 R2 |
+| F363.2 | 88th-Cumulant Expansion EVaR | $88! \approx 1.855 \times 10^{134}, \xi_{\text{monster}}=0.999999999999999995$, Phase 78 regime shifts `eps_w=0.780`, `alpha_iep=4.55`, `contagion_damp=22.5` | M2 (P78) | Phase 78 R2 |
+| F364.1 | KNK-57 Dark Energy DAHA L3 Spacetime Hydrodynamics | $w=-59/3, k_{\text{daha}}=0.49, k_{\text{monster}}=0.48, \text{factor}=9.85, c=2^{-59} \approx 1.735 \times 10^{-18}$ | M3 (P78) | Phase 78 R3 |
+| F364.2 | SOR 1e-50 Floor & Preemptive 31-Nine Tick Shading | Lit maker floor 1e-50 (50 decimals rounding) & OMS tick shading $h > 0.00000001$ with 31 Nines (`0.9999999999999999999999999999999`) | M3 (P78) | Phase 78 R3 |
+| F365 | Phase 78 Quantitative Benchmark & Verification Engine | 5-market 15-metric empirical benchmark engine, 7 KPI assertions, 5 test suites (82 tests), report synchronization across 7 paths | M4 (P78) | Phase 78 R4 |
 
 
 ## Milestones
@@ -599,6 +607,10 @@
 | M2 (P77) | Phase 77 Portfolio Allocation & Higher-Homology-27 EVaR (R2) | F358.1, F358.2: Higher-Homology-27 Fisher-Rao Barycenter ($\mu=[6.70, 4.35, 3.00, 7.90]$), 86th-cumulant EVaR tail risk bounds | M1 (P77) | DONE |
 | M3 (P77) | Phase 77 Microstructure Hydrodynamics & Preemptive OMS (R3) | F359.1, F359.2: KNK 56-Dark-Energy DAHA L3, 1e-49 lit maker floor, tick shading at $h > 0.00000002$ (30 nines) | M2 (P77) | DONE |
 | M4 (P77) | Phase 77 Benchmark Engine & Forensic Verification (R4) | F360: `benchmark_phase77_quant_performance.py`, comparison reports across 7 paths, 80/80 tests 100% pass | M1, M2, M3 (P77) | DONE |
+| M1 (P78) | Phase 78 Alpha Signal Enhancement & Hyper-Convex Modulation (R1) | F361, F362.1, F362.2: Monster Coupler 158th/160th order, 87th-order rank modulation, 432nd-order deadband | none | DONE |
+| M2 (P78) | Phase 78 Portfolio Allocation & Higher-Homology-28 EVaR (R2) | F363.1, F363.2: Higher-Homology-28 Fisher-Rao Barycenter ($\mu=[6.80, 4.40, 2.95, 8.05]$), 88th-cumulant EVaR tail risk bounds | M1 (P78) | DONE |
+| M3 (P78) | Phase 78 Microstructure Hydrodynamics & Preemptive OMS (R3) | F364.1, F364.2: KNK 57-Dark-Energy DAHA L3, 1e-50 lit maker floor, tick shading at $h > 0.00000001$ (31 nines) | M2 (P78) | DONE |
+| M4 (P78) | Phase 78 Benchmark Engine & Forensic Verification (R4) | F365: `benchmark_phase78_quant_performance.py`, comparison reports across 7 paths, 82/82 tests 100% pass | M1, M2, M3 (P78) | DONE |
 
 
 ## Interface Contracts
@@ -670,6 +682,7 @@
 - `trading_system/scripts/benchmark_phase75_quant_performance.py`: Phase 75 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase76_quant_performance.py`: Phase 76 quantitative benchmarking and multi-market comparison engine
 - `trading_system/scripts/benchmark_phase77_quant_performance.py`: Phase 77 quantitative benchmarking and multi-market comparison engine
+- `trading_system/scripts/benchmark_phase78_quant_performance.py`: Phase 78 quantitative benchmarking and multi-market comparison engine
 - `src/risk/unified_portfolio_allocator.py`: Institutional multi-model portfolio allocator
 - `src/execution/oms_engine.py`: 8-Safety Gate execution engine
 - `src/core/fast_lob_engine.py`: Fast LOB Level 3 matching engine
