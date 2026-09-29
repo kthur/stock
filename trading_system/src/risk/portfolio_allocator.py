@@ -3431,6 +3431,39 @@ class PortfolioAllocator:
         )
 
     # =========================================================================
+    # PHASE 83 (FEATURE F388.1): HIGHER-HOMOLOGY-33 FISHER-RAO BARYCENTER
+    # =========================================================================
+
+    def compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_33_fisher_rao_barycenter_blend(
+        self,
+        model_weights: Optional[Union[Dict[str, float], List[Dict[str, float]], np.ndarray]] = None,
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+        **kwargs,
+    ) -> Dict[str, float]:
+        """
+        Phase 83 (Feature F388.1): Higher-Homology-33 Fisher-Rao Barycenter Blend.
+        """
+        try:
+            from .unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator(version=83)
+        return alloc.compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_33_fisher_rao_barycenter_blend(
+            model_weights=model_weights if model_weights is not None else kwargs.get("weights", {}),
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_phase83_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_33_fisher_rao_barycenter_blend
+    compute_phase83_fisher_rao_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_33_fisher_rao_barycenter_blend
+    compute_phase83_barycenter_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_33_fisher_rao_barycenter_blend
+    higher_homology_33_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_33_fisher_rao_barycenter_blend
+    lmbmwdh33_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_33_fisher_rao_barycenter_blend
+
+    # =========================================================================
     # PHASE 82 (FEATURE F383.1): HIGHER-HOMOLOGY-32 FISHER-RAO BARYCENTER
     # =========================================================================
 
@@ -5300,6 +5333,50 @@ class PortfolioAllocator:
             order=eff_order,
             **kwargs,
         )
+
+    # =========================================================================
+    # PHASE 83 (FEATURE F388.2): 98TH-CUMULANT EXPANSION TRANS-SINGULAR EVAR
+    # =========================================================================
+
+    def compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure(
+        self,
+        returns: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        t_grid: Optional[Union[np.ndarray, List[float]]] = None,
+        xi_monster: float = 0.999999999999999999999,
+        order: int = 98,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 83 (Feature F388.2): 98th-Cumulant Expansion Trans-Singular EVaR Risk Measure.
+        """
+        try:
+            from .unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator(version=83)
+        eff_order = int(kwargs.get("order", order))
+        return alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure(
+            returns=returns,
+            alpha=alpha,
+            t_grid=t_grid,
+            xi_monster=xi_monster,
+            order=eff_order,
+            **kwargs,
+        )
+
+    compute_phase83_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    compute_phase83_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    compute_evar_order98 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    compute_98th_cumulant_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    higher_homology_33_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    phase83_tail_risk_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    compute_lmbmwdh33_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    lmbmwdh33_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    evar_98th_cumulant = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    phase83_evar_bound = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
+    trans_singular_evar_v83 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_33_evar_risk_measure
 
     # =========================================================================
     # PHASE 82 (FEATURE F383.2): 96TH-CUMULANT EXPANSION TRANS-SINGULAR EVAR
@@ -8715,6 +8792,14 @@ class PortfolioAllocator:
     compute_trans_singular_evar_phase27 = compute_trans_singular_ultra_evar_risk_measure
     compute_23rd_cumulant_evar = compute_trans_singular_ultra_evar_risk_measure
     compute_phase27_evar = compute_trans_singular_ultra_evar_risk_measure
+
+# Phase 83 Module-Level Exports
+compute_phase83_barycenter = PortfolioAllocator.compute_phase83_barycenter
+compute_phase83_fisher_rao_barycenter = PortfolioAllocator.compute_phase83_fisher_rao_barycenter
+compute_phase83_barycenter_blend = PortfolioAllocator.compute_phase83_barycenter_blend
+phase83_tail_risk_evar = PortfolioAllocator.phase83_tail_risk_evar
+compute_phase83_evar = PortfolioAllocator.compute_phase83_evar
+compute_phase83_evar_risk_measure = PortfolioAllocator.compute_phase83_evar_risk_measure
 
 # Phase 82 Module-Level Exports
 compute_phase82_barycenter = PortfolioAllocator.compute_phase82_barycenter
