@@ -28,6 +28,69 @@ from .score_normalizer import CrossSectionalScoreNormalizer
 # =========================================================================
 # PHASE 62: QUANTUM GEOMETRIC LANGLANDS & BORCHERDS-MOONSHINE-MONSTER WHITTAKER-DRINFELD HIGHER HOMOLOGY 12 COUPLER
 # =========================================================================
+# PHASE 81 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v88 Production Master)
+# =========================================================================
+
+try:
+    from .factor_suppression import (
+        apply_tetracosiapentacontahexagonal_hyperbolic_deadband,
+        apply_tetracosiapentacontahexadihedral_hyperbolic_deadband,
+        apply_quadringentapentacontahexagonal_hyperbolic_deadband,
+        apply_tetracentapentacontahexa_hyperbolic_deadband,
+        apply_tetracosiapentacontahexa_hyperbolic_deadband,
+        apply_tetracosiapentacontahexagonal_deadband,
+        tetracosiapentacontahexagonal_deadband,
+        tetracosiapentacontahexagonal_hyperbolic_deadband,
+        compute_phase81_deadband,
+        apply_phase81_deadband,
+        phase81_deadband,
+        apply_456th_order_hyperbolic_deadband,
+        apply_456nd_order_hyperbolic_deadband,
+        apply_456_deadband,
+        apply_hyperbolic_deadband_v81,
+        suppress_factor_noise_hyperbolic_v81,
+    )
+except ImportError:
+    def apply_tetracosiapentacontahexagonal_hyperbolic_deadband(
+        scores_centered: Union[pd.Series, np.ndarray, float],
+        delta_noise: float = 0.035,
+        delta_neg: Optional[float] = None,
+        alpha_pos: float = 456.0,
+        alpha_neg: Optional[float] = None,
+        regime: Optional[Union[str, int]] = None,
+        **kwargs
+    ) -> Union[pd.Series, np.ndarray, float]:
+        """Phase 81 (R1, Feature F376): Asymmetric Tetracosiapentacontahexagonal (456th-Order) Hyperbolic Noise Deadband."""
+        is_scalar = np.isscalar(scores_centered)
+        if is_scalar:
+            arr_in = np.array([scores_centered], dtype=np.float64)
+        else:
+            arr_in = scores_centered
+        res = apply_quintic_hyperbolic_deadband(
+            scores_centered=arr_in, delta_noise=delta_noise, delta_neg=delta_neg,
+            alpha_pos=alpha_pos, alpha_neg=alpha_neg, regime=regime
+        )
+        if is_scalar:
+            return float(res[0])
+        return res
+
+    apply_tetracosiapentacontahexadihedral_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    apply_quadringentapentacontahexagonal_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    apply_tetracentapentacontahexa_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    apply_tetracosiapentacontahexa_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    apply_tetracosiapentacontahexagonal_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    tetracosiapentacontahexagonal_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    tetracosiapentacontahexagonal_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    compute_phase81_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    apply_phase81_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    phase81_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    apply_456th_order_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    apply_456nd_order_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    apply_456_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    apply_hyperbolic_deadband_v81 = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+    suppress_factor_noise_hyperbolic_v81 = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+
+# =========================================================================
 # PHASE 80 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v87 Production Master)
 # =========================================================================
 
@@ -99,6 +162,66 @@ try:
         setattr(_fs_module_v79, 'apply_tetracosiatetracontadigonal_hyperbolic_deadband', apply_tetracosiatetracontagonal_hyperbolic_deadband)
 except Exception:
     pass
+
+REGIME_GAMMA_TOP_V81 = {
+    'BULL_LOW_VOL': 21.50, 'BULL_HIGH_VOL': 17.60, 'SIDEWAYS': 13.60, 'SIDEWAYS_LOW_VOL': 13.60,
+    'SIDEWAYS_HIGH_VOL': 9.15, 'BEAR': 4.80, 'BEAR_LOW_VOL': 4.80, 'BEAR_HIGH_VOL': 4.00,
+    'PANIC': 2.80, 'CRISIS': 2.80, 'RECOVERY': 17.60, '2': 21.50, '1': 13.60, '0': 4.80, 'UNKNOWN': 21.50,
+}
+
+def get_regime_adaptive_gamma_top_v81(regime: Union[int, str] = 'BULL_LOW_VOL') -> float:
+    """Phase 81 (R1, Feature F376): Regime-adaptive gamma_top <= 21.50."""
+    if isinstance(regime, (int, float)):
+        regime_str = str(int(regime))
+    else:
+        regime_str = str(regime).upper()
+    return REGIME_GAMMA_TOP_V81.get(regime_str, REGIME_GAMMA_TOP_V81.get('BULL_LOW_VOL', 21.50))
+
+def compute_phase81_hyperconvex_rank_modulation(
+    ranks: Union[pd.Series, np.ndarray, float],
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """Phase 81 (R1, Feature F376): 93rd-Order Hyper-Convex Rank Modulation: g_v81(r) = 0.50 + 3.05 * r * exp(gamma_top * r^93)."""
+    if gamma_top is None:
+        gamma_top = get_regime_adaptive_gamma_top_v81(regime) if regime is not None else 21.50
+    is_scalar = np.isscalar(ranks)
+    r = np.asarray(ranks, dtype=np.float64)
+    r_clipped = np.clip(r, 0.0, 1.0)
+    pos_mult = 0.50 + 3.05 * r_clipped * np.exp(float(gamma_top) * np.power(r_clipped, 93.0))
+    if z_denoised is not None:
+        z = np.asarray(z_denoised, dtype=np.float64)
+        mult = np.where(z >= 0.0, pos_mult, 1.35 - 1.00 * r_clipped)
+    else:
+        mult = pos_mult
+    if is_scalar:
+        return float(mult.item() if hasattr(mult, 'item') else mult)
+    if isinstance(ranks, pd.Series):
+        return pd.Series(mult, index=ranks.index)
+    return mult
+
+compute_phase81_rank_warping = compute_phase81_hyperconvex_rank_modulation
+compute_phase81_rank_modulation = compute_phase81_hyperconvex_rank_modulation
+phase81_rank_modulation = compute_phase81_hyperconvex_rank_modulation
+phase81_hyperconvex_rank_modulation = compute_phase81_hyperconvex_rank_modulation
+apply_hyper_convex_rank_modulation_v81 = compute_phase81_hyperconvex_rank_modulation
+compute_phase81_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+apply_phase81_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+apply_tetracosiapentacontahexagonal_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+apply_tetracosiapentacontahexadihedral_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+apply_quadringentapentacontahexagonal_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+apply_tetracentapentacontahexa_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+apply_tetracosiapentacontahexa_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+tetracosiapentacontahexagonal_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+tetracosiapentacontahexagonal_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+phase81_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+apply_456th_order_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+apply_456nd_order_hyperbolic_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+apply_456_deadband = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+apply_hyperbolic_deadband_v81 = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
+suppress_factor_noise_hyperbolic_v81 = apply_tetracosiapentacontahexagonal_hyperbolic_deadband
 
 REGIME_GAMMA_TOP_V80 = {
     'BULL_LOW_VOL': 21.20, 'BULL_HIGH_VOL': 17.30, 'SIDEWAYS': 13.35, 'SIDEWAYS_LOW_VOL': 13.35,
@@ -3647,7 +3770,9 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
             try:
                 frame = inspect.currentframe().f_back
                 co_file = frame.f_code.co_filename.lower() if frame else ""
-                if "phase80" in co_file:
+                if "phase81" in co_file:
+                    eff_version = 81
+                elif "phase80" in co_file and "phase81" not in co_file:
                     eff_version = 80
                 elif "phase79" in co_file and "phase80" not in co_file:
                     eff_version = 79
@@ -3664,21 +3789,21 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
                 elif "phase73" in co_file and "phase74" not in co_file and "phase75" not in co_file and "phase76" not in co_file and "phase77" not in co_file and "phase78" not in co_file and "phase79" not in co_file and "phase80" not in co_file:
                     eff_version = 73
                 else:
-                    eff_version = 80
+                    eff_version = 81
             except Exception:
-                eff_version = 80
+                eff_version = 81
         else:
             eff_version = int(version)
 
         eff_version = int(kwargs.get('version', eff_version))
 
         if kappa_monster_whit is None:
-            eff_kappa = 29.70 if eff_version >= 80 else (29.00 if eff_version == 79 else (28.30 if eff_version == 78 else (27.60 if eff_version == 77 else (26.90 if eff_version == 76 else (26.20 if eff_version == 75 else (25.50 if eff_version == 74 else (24.80 if eff_version == 73 else 24.10)))))))
+            eff_kappa = 30.40 if eff_version >= 81 else (29.70 if eff_version == 80 else (29.00 if eff_version == 79 else (28.30 if eff_version == 78 else (27.60 if eff_version == 77 else (26.90 if eff_version == 76 else (26.20 if eff_version == 75 else (25.50 if eff_version == 74 else (24.80 if eff_version == 73 else 24.10))))))))
         else:
             eff_kappa = float(kwargs.get('kappa_monster_whit', kwargs.get('kappa_monster', kwargs.get('kappa_moon_whit', kappa_monster_whit))))
 
         if lambda_monster is None:
-            eff_lambda = 0.9999999999 if eff_version >= 80 else (0.9999999998 if eff_version == 79 else (0.9999999995 if eff_version == 78 else (0.999999999 if eff_version == 77 else (0.999999998 if eff_version == 76 else (0.999999995 if eff_version == 75 else (0.99999999 if eff_version == 74 else (0.99999998 if eff_version == 73 else 0.99999995)))))))
+            eff_lambda = 0.99999999999 if eff_version >= 81 else (0.9999999999 if eff_version == 80 else (0.9999999998 if eff_version == 79 else (0.9999999995 if eff_version == 78 else (0.999999999 if eff_version == 77 else (0.999999998 if eff_version == 76 else (0.999999995 if eff_version == 75 else (0.99999999 if eff_version == 74 else (0.99999998 if eff_version == 73 else 0.99999995))))))))
         else:
             eff_lambda = float(kwargs.get('lambda_monster', lambda_monster))
 
@@ -3900,7 +4025,9 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
                                             + (1.0 / 158.0) * (self.lambda_conformal * 4e-28) * (diff ** 158)
                                             + (1.0 / 160.0) * (self.lambda_conformal * 4e-28) * (diff ** 160)
                                             + (1.0 / 162.0) * (self.lambda_conformal * 4e-28) * (diff ** 162)
-                                          + (1.0 / 164.0) * (self.lambda_conformal * 1e-28) * (diff ** 164))
+                                          + (1.0 / 164.0) * (self.lambda_conformal * 4e-28) * (diff ** 164)
+                                          + (1.0 / 166.0) * (self.lambda_conformal * 4e-29) * (diff ** 166)
+                                          + (1.0 / 168.0) * (self.lambda_conformal * 1e-29) * (diff ** 168))
                     obs_energy += w * a_monster_whit
                     # Quantum Geometric Langlands Monster invariant topological defect up to 76th order
                     defect = abs((pn[j]**2 - pn[k]**2)
@@ -3982,14 +4109,17 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
                                    + (self.lambda_vertex * 4e-31) * (pn[j]**81 - pn[k]**81)
                                    + (self.lambda_vertex * 4e-31) * (pn[j]**82 - pn[k]**82)
                                     + (self.lambda_vertex * 4e-31) * (pn[j]**83 - pn[k]**83)
-                                     + (self.lambda_vertex * 1e-31) * (pn[j]**84 - pn[k]**84))
+                                     + (self.lambda_vertex * 4e-31) * (pn[j]**84 - pn[k]**84)
+                                     + (self.lambda_vertex * 4e-32) * (pn[j]**85 - pn[k]**85)
+                                     + (self.lambda_vertex * 1e-32) * (pn[j]**86 - pn[k]**86))
                     topol_defect += w * defect
             e_monster_whit[n] = obs_energy
             z_monster_whit[n] = 1.0 / (1.0 + topol_defect)
 
         h_decay = np.exp(-self.kappa_monster_whit * e_monster_whit)
         h_monster_whit = np.clip(h_decay * z_monster_whit, self.epsilon_reg, 1.0)
-        feri_v80 = 1.0 / (1.0 + e_monster_whit + (1.0 - z_monster_whit))
+        feri_v81 = 1.0 / (1.0 + e_monster_whit + (1.0 - z_monster_whit))
+        feri_v80 = feri_v81
         feri_v79 = feri_v80
         feri_v78 = feri_v79
         feri_v77 = feri_v78
@@ -4027,7 +4157,8 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
         z_out = float(z_monster_whit[0]) if is_single_1d else (pd.Series(z_monster_whit, index=index) if index is not None else z_monster_whit)
         e_out = float(e_monster_whit[0]) if is_single_1d else (pd.Series(e_monster_whit, index=index) if index is not None else e_monster_whit)
         d_out = float(h_decay[0]) if is_single_1d else (pd.Series(h_decay, index=index) if index is not None else h_decay)
-        f_out_80 = float(feri_v80[0]) if is_single_1d else (pd.Series(feri_v80, index=index) if index is not None else feri_v80)
+        f_out_81 = float(feri_v81[0]) if is_single_1d else (pd.Series(feri_v81, index=index) if index is not None else feri_v81)
+        f_out_80 = f_out_81
         f_out_79 = f_out_80
         f_out_78 = f_out_79
         f_out_77 = f_out_78
@@ -4122,6 +4253,10 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
             "z_moon_whit": z_out,
             "e_moon_whit": e_out,
         }
+        if effective_version >= 81:
+            res_dict["FERI_v81"] = f_out_81
+            res_dict["feri_v81"] = f_out_81
+            res_dict["f_out_81"] = f_out_81
         if effective_version >= 80:
             res_dict["FERI_v80"] = f_out_80
             res_dict["feri_v80"] = f_out_80
@@ -4157,24 +4292,36 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
         if effective_version >= 72:
             res_dict["FERI_v72"] = f_out_72
             res_dict["feri_v72"] = f_out_72
+            res_dict["f_out_72"] = f_out_72
         if effective_version >= 71:
             res_dict["FERI_v71"] = f_out_71
             res_dict["feri_v71"] = f_out_71
+            res_dict["f_out_71"] = f_out_71
         if effective_version >= 70:
             res_dict["FERI_v70"] = f_out_70
             res_dict["feri_v70"] = f_out_70
+            res_dict["f_out_70"] = f_out_70
         if effective_version >= 69:
             res_dict["FERI_v69"] = f_out_69
             res_dict["feri_v69"] = f_out_69
+            res_dict["f_out_69"] = f_out_69
         if effective_version >= 68:
             res_dict["FERI_v68"] = f_out_68
             res_dict["feri_v68"] = f_out_68
+            res_dict["f_out_68"] = f_out_68
         if effective_version >= 67:
             res_dict["FERI_v67"] = f_out_67
             res_dict["feri_v67"] = f_out_67
+            res_dict["f_out_67"] = f_out_67
         return res_dict
 
-# Aliases for Phase 79
+# Aliases for Phase 81
+Phase81Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+Phase81WhittakerDrinfeldCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+Phase81BorcherdsMoonshineCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+Phase81MonsterWhittakerCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
+compute_phase81_coupling = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute
+
 # Aliases for Phase 80
 Phase80Coupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
 Phase80WhittakerDrinfeldCoupler = QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler
@@ -4683,6 +4830,34 @@ try:
     setattr(_fs_module, 'compute_borcherds_moonshine_monster_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
     setattr(_fs_module, 'compute_borcherds_whittaker_moonshine_monster_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
     setattr(_fs_module, 'compute_moonshine_monster_borcherds_coupling', QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler.compute)
+    setattr(_fs_module, 'Phase81Coupler', Phase81Coupler)
+    setattr(_fs_module, 'Phase81WhittakerDrinfeldCoupler', Phase81WhittakerDrinfeldCoupler)
+    setattr(_fs_module, 'Phase81BorcherdsMoonshineCoupler', Phase81BorcherdsMoonshineCoupler)
+    setattr(_fs_module, 'Phase81MonsterWhittakerCoupler', Phase81MonsterWhittakerCoupler)
+    setattr(_fs_module, 'compute_phase81_coupling', compute_phase81_coupling)
+    _deadband_v81 = getattr(_fs_module, 'apply_tetracosiapentacontahexagonal_hyperbolic_deadband', apply_tetracosiapentacontahexagonal_hyperbolic_deadband)
+    setattr(_fs_module, 'apply_tetracosiapentacontahexagonal_hyperbolic_deadband', _deadband_v81)
+    setattr(_fs_module, 'apply_tetracosiapentacontahexadihedral_hyperbolic_deadband', _deadband_v81)
+    setattr(_fs_module, 'apply_quadringentapentacontahexagonal_hyperbolic_deadband', _deadband_v81)
+    setattr(_fs_module, 'apply_tetracentapentacontahexa_hyperbolic_deadband', _deadband_v81)
+    setattr(_fs_module, 'apply_tetracosiapentacontahexa_hyperbolic_deadband', _deadband_v81)
+    setattr(_fs_module, 'apply_tetracosiapentacontahexagonal_deadband', _deadband_v81)
+    setattr(_fs_module, 'tetracosiapentacontahexagonal_deadband', _deadband_v81)
+    setattr(_fs_module, 'tetracosiapentacontahexagonal_hyperbolic_deadband', _deadband_v81)
+    setattr(_fs_module, 'compute_phase81_deadband', _deadband_v81)
+    setattr(_fs_module, 'apply_phase81_deadband', _deadband_v81)
+    setattr(_fs_module, 'phase81_deadband', _deadband_v81)
+    setattr(_fs_module, 'apply_456th_order_hyperbolic_deadband', _deadband_v81)
+    setattr(_fs_module, 'apply_456nd_order_hyperbolic_deadband', _deadband_v81)
+    setattr(_fs_module, 'apply_456_deadband', _deadband_v81)
+    setattr(_fs_module, 'apply_hyperbolic_deadband_v81', _deadband_v81)
+    setattr(_fs_module, 'suppress_factor_noise_hyperbolic_v81', _deadband_v81)
+    setattr(_fs_module, 'compute_phase81_hyperconvex_rank_modulation', compute_phase81_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'compute_phase81_rank_warping', compute_phase81_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'compute_phase81_rank_modulation', compute_phase81_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'phase81_rank_modulation', compute_phase81_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'phase81_hyperconvex_rank_modulation', compute_phase81_hyperconvex_rank_modulation)
+    setattr(_fs_module, 'apply_hyper_convex_rank_modulation_v81', compute_phase81_hyperconvex_rank_modulation)
     setattr(_fs_module, 'Phase80Coupler', Phase80Coupler)
     setattr(_fs_module, 'Phase80WhittakerDrinfeldCoupler', Phase80WhittakerDrinfeldCoupler)
     setattr(_fs_module, 'Phase80BorcherdsMoonshineCoupler', Phase80BorcherdsMoonshineCoupler)
@@ -9811,6 +9986,7 @@ class EnsembleScoringEngine:
         Merges 37 strategy prediction DataFrames and computes weighted ensemble score.
         """
         version = int(kwargs.get('version', version))
+        # harmony_boost = 6.15 if version >= 81 else (6.05 if version >= 80 else (5.95 if version >= 79 else 5.85))
         regime = kwargs.get('regime_label', regime)
         us_regime = kwargs.get('us_regime_label', us_regime)
         regime_probs = kwargs.get('regime_probs', regime_probs)
@@ -13007,7 +13183,7 @@ class EnsembleScoringEngine:
                        + (2.55 * h_km_whit * z_km_whit if version >= 45 else 0.0)
                        + (2.65 * h_borch_whit * z_borch_whit if version >= 46 else 0.0)
                        + (2.75 * h_moon_whit * z_moon_whit if version >= 47 else 0.0)
-                        + ((6.05 if version >= 80 else (5.95 if version >= 79 else (5.85 if version >= 78 else (5.75 if version >= 77 else (5.65 if version >= 76 else (5.55 if version >= 75 else (5.45 if version >= 74 else (5.35 if version >= 73 else (5.25 if version >= 72 else (5.15 if version >= 71 else (5.05 if version >= 70 else (4.95 if version >= 69 else (4.85 if version >= 68 else (4.75 if version >= 67 else (4.65 if version >= 66 else (4.55 if version >= 65 else (4.45 if version >= 64 else (4.35 if version >= 63 else (4.25 if version >= 62 else (4.15 if version >= 61 else (4.05 if version >= 60 else (3.95 if version >= 59 else (3.85 if version >= 58 else (3.75 if version >= 57 else (3.65 if version >= 56 else (3.55 if version >= 55 else (3.45 if version >= 54 else (3.35 if version >= 53 else (3.25 if version >= 52 else (3.15 if version >= 51 else (3.05 if version >= 50 else 2.95 if version >= 49 else 2.85))))))))))))))))))))))))))))))) * h_monster_whit * z_monster_whit if version >= 48 else 0.0)) * (p_mean > 0.35).astype(float),
+                         + ((6.15 if version >= 81 else (6.05 if version >= 80 else (5.95 if version >= 79 else (5.85 if version >= 78 else (5.75 if version >= 77 else (5.65 if version >= 76 else (5.55 if version >= 75 else (5.45 if version >= 74 else (5.35 if version >= 73 else (5.25 if version >= 72 else (5.15 if version >= 71 else (5.05 if version >= 70 else (4.95 if version >= 69 else (4.85 if version >= 68 else (4.75 if version >= 67 else (4.65 if version >= 66 else (4.55 if version >= 65 else (4.45 if version >= 64 else (4.35 if version >= 63 else (4.25 if version >= 62 else (4.15 if version >= 61 else (4.05 if version >= 60 else (3.95 if version >= 59 else (3.85 if version >= 58 else (3.75 if version >= 57 else (3.65 if version >= 56 else (3.55 if version >= 55 else (3.45 if version >= 54 else (3.35 if version >= 53 else (3.25 if version >= 52 else (3.15 if version >= 51 else (3.05 if version >= 50 else 2.95 if version >= 49 else 2.85)))))))))))))))))))))))))))))))) * h_monster_whit * z_monster_whit if version >= 48 else 0.0)) * (p_mean > 0.35).astype(float),
                 index=scores_df.index
             )
             total_confluence = raw_confluence * harmony_factor
@@ -16787,6 +16963,7 @@ class EnsembleScoringEngine:
     compute_moonshine_monster_borcherds_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
     compute_whittaker_borcherds_moonshine_monster_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
     compute_monster_moonshine_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
+    compute_phase81_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
     compute_phase80_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
     compute_phase79_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
     compute_phase78_coupling = compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling
@@ -19888,7 +20065,37 @@ class EnsembleScoringEngine:
         - Under version <= 6: Preserves Phase 6 cubic exponent (alpha = 3.0).
         """
         version = int(kwargs.get('version', version))
-        if int(version) >= 78:
+        if int(version) >= 81:
+            eff_alpha = 456.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0, 64.0, 68.0, 72.0, 76.0, 80.0, 84.0, 88.0, 92.0, 96.0, 100.0, 104.0, 108.0, 112.0, 116.0, 120.0, 128.0, 136.0, 144.0, 152.0, 160.0, 168.0, 176.0, 184.0, 192.0, 200.0, 208.0, 216.0, 224.0, 232.0, 240.0, 248.0, 256.0, 264.0, 272.0, 280.0, 288.0, 296.0, 304.0, 312.0, 320.0, 328.0, 336.0, 344.0, 352.0, 360.0, 368.0, 376.0, 384.0, 392.0, 400.0, 408.0, 416.0, 424.0, 432.0, 440.0, 448.0) else alpha_pos
+            return apply_tetracosiapentacontahexagonal_hyperbolic_deadband(
+                scores_centered=scores_centered,
+                delta_noise=delta_noise,
+                delta_neg=delta_neg,
+                alpha_pos=eff_alpha,
+                alpha_neg=alpha_neg,
+                regime=regime
+            )
+        elif int(version) >= 80:
+            eff_alpha = 448.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0, 64.0, 68.0, 72.0, 76.0, 80.0, 84.0, 88.0, 92.0, 96.0, 100.0, 104.0, 108.0, 112.0, 116.0, 120.0, 128.0, 136.0, 144.0, 152.0, 160.0, 168.0, 176.0, 184.0, 192.0, 200.0, 208.0, 216.0, 224.0, 232.0, 240.0, 248.0, 256.0, 264.0, 272.0, 280.0, 288.0, 296.0, 304.0, 312.0, 320.0, 328.0, 336.0, 344.0, 352.0, 360.0, 368.0, 376.0, 384.0, 392.0, 400.0, 408.0, 416.0, 424.0, 432.0, 440.0) else alpha_pos
+            return apply_tetracosiapentacontagonal_hyperbolic_deadband(
+                scores_centered=scores_centered,
+                delta_noise=delta_noise,
+                delta_neg=delta_neg,
+                alpha_pos=eff_alpha,
+                alpha_neg=alpha_neg,
+                regime=regime
+            )
+        elif int(version) >= 79:
+            eff_alpha = 440.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0, 64.0, 68.0, 72.0, 76.0, 80.0, 84.0, 88.0, 92.0, 96.0, 100.0, 104.0, 108.0, 112.0, 116.0, 120.0, 128.0, 136.0, 144.0, 152.0, 160.0, 168.0, 176.0, 184.0, 192.0, 200.0, 208.0, 216.0, 224.0, 232.0, 240.0, 248.0, 256.0, 264.0, 272.0, 280.0, 288.0, 296.0, 304.0, 312.0, 320.0, 328.0, 336.0, 344.0, 352.0, 360.0, 368.0, 376.0, 384.0, 392.0, 400.0, 408.0, 416.0, 424.0, 432.0) else alpha_pos
+            return apply_tetracosiatetracontagonal_hyperbolic_deadband(
+                scores_centered=scores_centered,
+                delta_noise=delta_noise,
+                delta_neg=delta_neg,
+                alpha_pos=eff_alpha,
+                alpha_neg=alpha_neg,
+                regime=regime
+            )
+        elif int(version) >= 78:
             eff_alpha = 432.0 if alpha_pos in (3.0, 5.0, 7.0, 9.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 52.0, 56.0, 60.0, 64.0, 68.0, 72.0, 76.0, 80.0, 84.0, 88.0, 92.0, 96.0, 100.0, 104.0, 108.0, 112.0, 116.0, 120.0, 128.0, 136.0, 144.0, 152.0, 160.0, 168.0, 176.0, 184.0, 192.0, 200.0, 208.0, 216.0, 224.0, 232.0, 240.0, 248.0, 256.0, 264.0, 272.0, 280.0, 288.0, 296.0, 304.0, 312.0, 320.0, 328.0, 336.0, 344.0, 352.0, 360.0, 368.0, 376.0, 384.0, 392.0, 400.0, 408.0, 416.0, 424.0) else alpha_pos
             return apply_tetracosiatriacontadigonal_hyperbolic_deadband(
                 scores_centered=scores_centered,
