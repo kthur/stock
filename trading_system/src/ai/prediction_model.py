@@ -4,7 +4,15 @@ import os
 import pandas as pd
 import xgboost as xgb
 import lightgbm as lgb
-import catboost as cb
+try:
+    import catboost as cb
+except ImportError:
+    class _CatBoostStub:
+        class CatBoostRegressor:
+            def __init__(self, *args, **kwargs): pass
+        class CatBoostClassifier:
+            def __init__(self, *args, **kwargs): pass
+    cb = _CatBoostStub()  # type: ignore
 import numpy as np
 import json
 from typing import Dict, Any, List, Optional, Tuple

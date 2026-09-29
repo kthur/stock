@@ -418,6 +418,8 @@ class RIMValuationEngine(BaseStrategyEngine):
         # Ensure Close / Price
         if 'Close' in df.columns:
             df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+        elif 'close' in df.columns:
+            df['Close'] = pd.to_numeric(df['close'], errors='coerce')
         elif 'price' in df.columns:
             df['Close'] = pd.to_numeric(df['price'], errors='coerce')
         else:
@@ -489,39 +491,63 @@ class RIMValuationEngine(BaseStrategyEngine):
         df.loc[has_negative_equity & (df['rim_filter_reason'] == ''), 'rim_filter_reason'] = 'CAPITAL_IMPAIRMENT'
 
         # Missing Fundamentals (재무데이터미비) / Price Trend Proxy Valuation Anchor
+        df['intrinsic_value'] = np.nan
+        df['discount_ratio'] = np.nan
         missing_fund_mask = df['bps'].isna() & (df['rim_filter_reason'] == '') & (~has_negative_equity)
         if (prices_dict is not None or allow_price_proxy) and missing_fund_mask.any():
-            for idx in df[missing_fund_mask].index:
-                row = df.loc[idx]
-                sym = str(row.get('symbol', ''))
-                sym_clean = sym.split('.')[0]
+            has_sma200 = 'sma_200' in df.columns
+            has_sma60 = 'sma_60' in df.columns
+            has_lower_close = 'close' in df.columns
+            mf_indices = df.index[missing_fund_mask]
+            mf_syms = df.loc[mf_indices, 'symbol'].astype(str).tolist()
+            mf_closes = df.loc[mf_indices, 'Close'].tolist()
+            mf_lcloses = df.loc[mf_indices, 'close'].tolist() if has_lower_close else [np.nan] * len(mf_indices)
+            mf_sma200 = df.loc[mf_indices, 'sma_200'].tolist() if has_sma200 else [None] * len(mf_indices)
+            mf_sma60 = df.loc[mf_indices, 'sma_60'].tolist() if has_sma60 else [None] * len(mf_indices)
+
+            upd_idx = []
+            upd_close = []
+            upd_v0 = []
+            upd_disc = []
+            is_p_dict = isinstance(prices_dict, dict) and bool(prices_dict)
+
+            for idx, sym, p_val, lc_val, s200, s60 in zip(mf_indices, mf_syms, mf_closes, mf_lcloses, mf_sma200, mf_sma60):
                 p_df = None
-                if prices_dict and isinstance(prices_dict, dict):
+                if is_p_dict:
                     p_df = prices_dict.get(sym)
                     if p_df is None:
-                        p_df = prices_dict.get(sym_clean)
-                    if p_df is None:
-                        p_df = prices_dict.get(sym_clean.zfill(6))
+                        sym_clean = sym.split('.')[0]
+                        p_df = prices_dict.get(sym_clean, prices_dict.get(sym_clean.zfill(6)))
 
-                p_val = row.get('Close', np.nan)
-                if (pd.isna(p_val) or p_val <= 0) and isinstance(p_df, pd.DataFrame) and not p_df.empty:
-                    c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
-                    if c_col and not p_df[c_col].dropna().empty:
-                        p_val = float(p_df[c_col].dropna().iloc[-1])
-                        df.loc[idx, 'Close'] = p_val
+                if (pd.isna(p_val) or p_val <= 0) and pd.notna(lc_val):
+                    try:
+                        p_val = float(lc_val)
+                    except (ValueError, TypeError):
+                        pass
+
+                c_arr = None
+                if isinstance(p_df, pd.DataFrame) and not p_df.empty:
+                    cols = p_df.columns
+                    c_col = 'Close' if 'Close' in cols else ('close' if 'close' in cols else None)
+                    if c_col is not None:
+                        raw_c = p_df[c_col].to_numpy(dtype=float, copy=False)
+                        valid_c = raw_c[np.isfinite(raw_c)]
+                        if len(valid_c) > 0:
+                            c_arr = valid_c
+                            if pd.isna(p_val) or p_val <= 0:
+                                p_val = float(c_arr[-1])
 
                 sma_val = None
-                if isinstance(p_df, pd.DataFrame) and not p_df.empty:
-                    c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
-                    if c_col:
-                        c_series = p_df[c_col].dropna().astype(float)
-                        if len(c_series) >= 20:
-                            sma_val = float(c_series.tail(200).mean())
-                        elif len(c_series) >= 5:
-                            sma_val = float(c_series.mean())
+                if c_arr is not None:
+                    if len(c_arr) >= 20:
+                        sma_val = float(np.mean(c_arr[-200:]))
+                    elif len(c_arr) >= 5:
+                        sma_val = float(np.mean(c_arr))
+                    else:
+                        sma_val = float(c_arr[-1])
 
                 if sma_val is None or pd.isna(sma_val) or sma_val <= 0:
-                    s_cand = row.get('sma_200') if 'sma_200' in df.columns else (row.get('sma_60') if 'sma_60' in df.columns else None)
+                    s_cand = s200 if s200 is not None else s60
                     if s_cand is not None and pd.notna(s_cand):
                         try:
                             s_float = float(s_cand)
@@ -529,16 +555,22 @@ class RIMValuationEngine(BaseStrategyEngine):
                                 sma_val = s_float
                         except (ValueError, TypeError):
                             pass
-                    if (sma_val is None or pd.isna(sma_val) or sma_val <= 0) and allow_price_proxy and pd.notna(p_val) and p_val > 0:
+                    if (sma_val is None or pd.isna(sma_val) or sma_val <= 0) and (allow_price_proxy or prices_dict is not None) and pd.notna(p_val) and p_val > 0:
                         sma_val = float(p_val)
 
                 if sma_val is not None and pd.notna(sma_val) and sma_val > 0 and pd.notna(p_val) and p_val > 0:
                     v0_proxy = float(sma_val * 1.05)
-                    disc_proxy = float((v0_proxy - p_val) / p_val)
-                    disc_proxy = float(np.clip(disc_proxy, -0.90, 5.00))
-                    df.loc[idx, 'intrinsic_value'] = v0_proxy
-                    df.loc[idx, 'discount_ratio'] = disc_proxy
-                    df.loc[idx, 'rim_filter_reason'] = 'PRICE_TREND_PROXY'
+                    disc_proxy = float(np.clip((v0_proxy - p_val) / p_val, -0.90, 5.00))
+                    upd_idx.append(idx)
+                    upd_close.append(float(p_val))
+                    upd_v0.append(v0_proxy)
+                    upd_disc.append(disc_proxy)
+
+            if upd_idx:
+                df.loc[upd_idx, 'Close'] = upd_close
+                df.loc[upd_idx, 'intrinsic_value'] = upd_v0
+                df.loc[upd_idx, 'discount_ratio'] = upd_disc
+                df.loc[upd_idx, 'rim_filter_reason'] = 'PRICE_TREND_PROXY'
 
         # Flag remaining missing fundamentals
         missing_fund = df['bps'].isna() & (df['rim_filter_reason'] == '')
@@ -631,8 +663,8 @@ class RIMValuationEngine(BaseStrategyEngine):
                 normalized = True
             return final_roe, normalized
 
-        # Only apply to rows that are not already invalidated
-        valid_for_norm = ~df['rim_filter_reason'].isin(['OPERATING_LOSS', 'LOW_EARNINGS_QUALITY', 'MISSING_FUNDAMENTALS', 'CAPITAL_IMPAIRMENT', 'PREFERRED_SHARE'])
+        # Only apply to rows that are not already invalidated or price-proxied
+        valid_for_norm = ~df['rim_filter_reason'].isin(['OPERATING_LOSS', 'LOW_EARNINGS_QUALITY', 'MISSING_FUNDAMENTALS', 'CAPITAL_IMPAIRMENT', 'PREFERRED_SHARE', 'PRICE_TREND_PROXY'])
         if valid_for_norm.any():
             norm_results = df[valid_for_norm].apply(_apply_roe_normalization, axis=1)
             df.loc[valid_for_norm, 'roe'] = norm_results.apply(lambda x: x[0])
@@ -702,19 +734,23 @@ class RIMValuationEngine(BaseStrategyEngine):
         discount_list = []
         bps_adj_list = []
 
-        # Market-specific risk-free rate and ERP
-        for _, row in df.iterrows():
-            mkt = row.get('market', 'KOSPI')
-            p = row.get('Close', np.nan)
-            b = row.get('bps', np.nan)
-            r = row.get('roe', np.nan)
-            is_hc = bool(row.get('holding_co_flag', False))
-            nd_per_share = float(row.get('net_debt_per_share', 0.0) or 0.0)
-            reason = str(row.get('rim_filter_reason', ''))
+        # Market-specific risk-free rate and ERP (fast column zip iteration instead of iterrows)
+        mkts = df['market'].tolist() if 'market' in df.columns else ['KOSPI'] * len(df)
+        closes = df['Close'].tolist()
+        bps_vals = df['bps'].tolist()
+        roes = df['roe'].tolist()
+        hc_flags = df['holding_co_flag'].tolist()
+        nd_vals = df['net_debt_per_share'].tolist()
+        reasons = df['rim_filter_reason'].tolist()
+        iv_existing = df['intrinsic_value'].tolist()
+        disc_existing = df['discount_ratio'].tolist()
 
+        for mkt, p, b, r, is_hc, nd_per_share, reason, iv_ex, disc_ex in zip(
+            mkts, closes, bps_vals, roes, hc_flags, nd_vals, reasons, iv_existing, disc_existing
+        ):
             if reason == 'PRICE_TREND_PROXY':
-                v0_list.append(row.get('intrinsic_value', np.nan))
-                discount_list.append(row.get('discount_ratio', np.nan))
+                v0_list.append(iv_ex)
+                discount_list.append(disc_ex)
                 bps_adj_list.append(np.nan)
                 continue
 
@@ -738,7 +774,7 @@ class RIMValuationEngine(BaseStrategyEngine):
 
             # Holding company SOTP discount
             if is_hc and pd.notna(v0_raw) and pd.notna(b) and b > 0:
-                b_adj, v0 = self.apply_holding_company_discount(b, v0_raw, nd_per_share)
+                b_adj, v0 = self.apply_holding_company_discount(b, v0_raw, float(nd_per_share or 0.0))
             else:
                 b_adj = b
                 v0 = v0_raw
@@ -747,10 +783,7 @@ class RIMValuationEngine(BaseStrategyEngine):
             bps_adj_list.append(b_adj)
 
             if pd.notna(p) and p > 0 and pd.notna(v0) and v0 > 0:
-                disc = (v0 - p) / p
-                # Clip extreme discount ratios to prevent rank pollution
-                # (> +500% or < -90% are artifacts of data issues, not real value)
-                disc = float(np.clip(disc, -0.90, 5.00))
+                disc = float(np.clip((v0 - p) / p, -0.90, 5.00))
             else:
                 disc = np.nan
             discount_list.append(disc)
@@ -801,6 +834,13 @@ class RIMValuationEngine(BaseStrategyEngine):
                     enhanced = np.where(mkt_ranks >= 0.95, (s_vals * 1.15).clip(0.05, 0.98),
                                np.where(mkt_ranks >= 0.85, (s_vals * 1.10).clip(0.05, 0.98), s_vals))
                     df.loc[mkt_indices, 'rim_score'] = pd.to_numeric(pd.Series(enhanced, index=mkt_indices), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+                elif len(grp) == 1:
+                    df.loc[grp.index, 'rim_score'] = 0.50
+
+            # Ensure valid proxy rows are never left as NaN
+            proxy_valid = valid_mask & is_proxy
+            if proxy_valid.any():
+                df.loc[proxy_valid, 'rim_score'] = df.loc[proxy_valid, 'rim_score'].fillna(0.52).clip(0.05, 0.98)
 
         # 영업손실, 순손실, 일회성 이익 의존, 우선주, 자본잠식 및 결측 종목은 RIM 점수 무효화 (NaN 유지)
         # → 앙상블에서 자동 제외되고 가중치가 재정규화된다.
@@ -866,7 +906,7 @@ class RIMValuationEngine(BaseStrategyEngine):
                 except Exception:
                     pass
             p_dict = prices_dict if isinstance(prices_dict, dict) else kwargs.get("prices_dict", None)
-            allow_proxy = kwargs.get("allow_price_proxy", False)
+            allow_proxy = kwargs.get("allow_price_proxy", True)
             return self.compute_rim_scores(features_df, us10y_yield=us10y, vix_val=vix, prices_dict=p_dict, allow_price_proxy=allow_proxy)
         except Exception as e:
             logger.warning(f"[RIMValuationEngine] compute_scores failed: {e}")

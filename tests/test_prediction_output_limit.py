@@ -214,3 +214,21 @@ class TestMergeAndReportCompatibility:
         assert sections[0].market == "KOSPI"
         assert len(sections[0].rows) == 2
         assert sections[0].rows[0].symbol == "005930"
+
+
+class TestPipelineWorkflowDefaults:
+    def test_pipeline_workflow_defaults_to_all(self):
+        wf_path = Path(__file__).resolve().parent.parent / ".github" / "workflows" / "pipeline.yml"
+        assert wf_path.exists(), f"Workflow file not found: {wf_path}"
+        content = wf_path.read_text(encoding="utf-8")
+
+        # Verify workflow_dispatch default for prediction_limit is 'all'
+        m_dispatch = re.search(r"prediction_limit:\s*\n(?:[^\n]+\n)*?\s+default:\s*'([^']+)'", content)
+        assert m_dispatch is not None, "prediction_limit input default not found in pipeline.yml"
+        assert m_dispatch.group(1) == "all", f"Expected prediction_limit default to be 'all', got '{m_dispatch.group(1)}'"
+
+        # Verify env PREDICTION_OUTPUT_LIMIT default fallback is 'all'
+        m_env = re.search(r"PREDICTION_OUTPUT_LIMIT:\s*\${{\s*inputs\.prediction_limit\s*\|\|\s*'([^']+)'\s*}}", content)
+        assert m_env is not None, "PREDICTION_OUTPUT_LIMIT fallback not found in pipeline.yml"
+        assert m_env.group(1) == "all", f"Expected PREDICTION_OUTPUT_LIMIT fallback to be 'all', got '{m_env.group(1)}'"
+

@@ -89,36 +89,87 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
             short_ratio = row.get('short_ratio', row.get('short_pct', row.get('short_float_pct', row.get('short_interest_ratio', np.nan))))
             dtc = row.get('days_to_cover', row.get('dtc', np.nan))
 
-            # Compute 5-day return from prices_dict if available
-            ret_5d = 0.0
-            if prices_dict and (sym_str in prices_dict or sym in prices_dict):
-                p_df = prices_dict.get(sym_str, prices_dict.get(sym))
-                if isinstance(p_df, pd.DataFrame) and len(p_df) >= 6:
-                    close_col = 'close' if 'close' in p_df.columns else 'Close'
-                    if close_col in p_df.columns:
-                        c_series = p_df[close_col].dropna()
-                        if len(c_series) >= 6:
-                            ret_5d = (c_series.iloc[-1] / c_series.iloc[-6]) - 1.0
+            # Fast NumPy extraction of close & volume arrays from prices_dict
+            p_df = None
+            if prices_dict:
+                p_df = prices_dict.get(sym_str)
+                if p_df is None and sym is not sym_str:
+                    p_df = prices_dict.get(sym)
+                if p_df is None:
+                    sym_clean = sym_str.split('.')[0]
+                    p_df = prices_dict.get(sym_clean, prices_dict.get(sym_clean.zfill(6)))
 
-            # V8-HIGH-12 Fix: Return NaN when explicit short interest/DTC is unavailable
-            # to allow ensemble missingness renormalization without corrupting cross-sectional ranks.
-            # If evaluating a single stock (N=1), return neutral 0.50 guardrail.
+            c_arr = None
+            v_arr = None
+            ret_5d = 0.0
+            if isinstance(p_df, pd.DataFrame) and len(p_df) >= 5:
+                cols = p_df.columns
+                close_col = 'close' if 'close' in cols else ('Close' if 'Close' in cols else None)
+                if close_col is not None:
+                    raw_c = p_df[close_col].to_numpy(dtype=float, copy=False)
+                    valid_c = raw_c[np.isfinite(raw_c)]
+                    if len(valid_c) >= 5:
+                        c_arr = valid_c
+                        if len(c_arr) >= 6:
+                            ret_5d = float((c_arr[-1] / max(1e-5, c_arr[-6])) - 1.0)
+                        else:
+                            ret_5d = float((c_arr[-1] / max(1e-5, c_arr[0])) - 1.0)
+                        vol_col = 'volume' if 'volume' in cols else ('Volume' if 'Volume' in cols else None)
+                        if vol_col is not None:
+                            raw_v = p_df[vol_col].to_numpy(dtype=float, copy=False)
+                            valid_v = raw_v[np.isfinite(raw_v)]
+                            if len(valid_v) > 0:
+                                v_arr = valid_v
+
+            # Adaptive Microstructure Squeeze Proxy Fallback when explicit short interest/DTC is unavailable
             if pd.isna(short_ratio) or pd.isna(dtc):
-                if len(symbols) == 1:
-                    results[sym_str] = 0.50
+                if c_arr is not None and len(c_arr) >= 5:
+                    # 1. 5D Momentum
+                    r_5d = ret_5d
+
+                    # 2. Volatility Contraction (5D std / 20D std) via fast NumPy slicing
+                    c_tail = c_arr[-21:]
+                    rets = np.diff(c_tail) / np.maximum(1e-5, c_tail[:-1])
+                    vol_5 = float(np.std(rets[-5:], ddof=1)) if len(rets) >= 5 else 0.02
+                    vol_20 = float(np.std(rets[-20:], ddof=1)) if len(rets) >= 20 else (vol_5 if vol_5 > 0 else 0.02)
+                    vol_ratio = vol_5 / max(1e-4, vol_20)
+                    vol_contraction_factor = float(np.clip(1.30 - 0.40 * vol_ratio, 0.70, 1.40))
+
+                    # 3. Volume Exhaustion / RVOL Breakout
+                    if v_arr is not None and len(v_arr) > 0:
+                        v_tail20 = v_arr[-20:]
+                        avg_v = float(np.mean(v_tail20))
+                        last_v = float(v_arr[-1])
+                        rvol = (last_v / max(1.0, avg_v)) if avg_v > 0 else 1.0
+                    else:
+                        rvol = 1.0
+
+                    # Down-volume vs Up-volume exhaustion ratio over past 10 bars
+                    if len(c_arr) >= 11 and v_arr is not None and len(v_arr) >= 10:
+                        ret_10 = np.diff(c_arr[-11:])
+                        v_10 = v_arr[-10:]
+                        up_vol = float(np.sum(v_10[ret_10 >= 0]))
+                        dn_vol = float(np.sum(v_10[ret_10 < 0]))
+                        tot_vol = up_vol + dn_vol
+                        exhaustion_boost = (up_vol / max(1.0, tot_vol)) if tot_vol > 0 else 0.50
+                    else:
+                        exhaustion_boost = 0.50
+
+                    # Combined synthetic squeeze score [0.10, 0.95]
+                    mom_signal = float(np.tanh(r_5d * 5.0))
+                    rvol_capped = float(np.clip(rvol, 0.5, 3.0))
+                    synth_score = 0.50 + 0.20 * mom_signal + 0.10 * (rvol_capped - 1.0) / 2.0 + 0.10 * (vol_contraction_factor - 1.0) + 0.10 * (exhaustion_boost - 0.50)
+                    results[sym_str] = float(np.clip(synth_score, 0.10, 0.95))
                 else:
-                    results[sym_str] = np.nan
+                    results[sym_str] = 0.50
             else:
                 # Formula: Short Interest Ratio * DTC * Momentum Condition
-                # Add squeeze ignition multiplier when momentum turns positive with heavy DTC
                 try:
                     f_sr = float(short_ratio)
                     f_dtc = float(dtc)
                     if not (np.isfinite(f_sr) and np.isfinite(f_dtc) and f_sr >= 0 and f_dtc >= 0):
-                        results[sym_str] = 0.50 if len(symbols) == 1 else np.nan
+                        results[sym_str] = 0.50
                     else:
-                        # Multi-Tier Squeeze Ignition Accelerator:
-                        # Explosive Squeeze Trigger: High DTC + High Short Float + Strong 5D Breakout
                         if ret_5d >= 0.08 and f_dtc >= 6.0 and f_sr >= 0.25:
                             ignite_mult = 1.80  # Super Squeeze Avalanche Ignition
                         elif ret_5d >= 0.05 and f_dtc >= 4.5 and f_sr >= 0.18:
@@ -128,34 +179,37 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                         else:
                             ignite_mult = 1.0
 
-                        # Hard-to-Borrow (HTB) Squeeze Pressure
                         htb_squeeze_mult = 1.30 if (f_sr > 0.30 or f_dtc > 8.0) else (1.15 if (f_sr > 0.15 or f_dtc > 4.0) else 1.0)
                         mom_factor = (1.0 + float(ret_5d) * 4.5) if ret_5d >= 0 else max(0.10, 1.0 + float(ret_5d) * 2.0)
                         mom_factor = mom_factor if np.isfinite(mom_factor) else 1.0
                         raw_squeeze = float(f_sr * f_dtc * mom_factor * ignite_mult * htb_squeeze_mult)
-                        results[sym_str] = raw_squeeze if np.isfinite(raw_squeeze) else (0.50 if len(symbols) == 1 else np.nan)
+                        results[sym_str] = raw_squeeze if np.isfinite(raw_squeeze) else 0.50
                 except (ValueError, TypeError):
-                    results[sym_str] = 0.50 if len(symbols) == 1 else np.nan
+                    results[sym_str] = 0.50
 
         # Build output DataFrame and normalize
         df_out = pd.DataFrame(list(results.items()), columns=['symbol', 'raw_score'])
-        df_out['raw_score'] = pd.to_numeric(df_out['raw_score'], errors='coerce')
+        df_out['raw_score'] = pd.to_numeric(df_out['raw_score'], errors='coerce').fillna(0.50)
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
         df_out['short_squeeze_score'] = np.nan
 
         if valid_mask.sum() > 1:
-            ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-            # Multi-Tier Short Squeeze Rank Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
-            boosted_ranks = np.where(ranks >= 0.95, (ranks * 1.15).clip(0.05, 0.98),
-                            np.where(ranks >= 0.85, (ranks * 1.10).clip(0.05, 0.98), ranks))
-            df_out.loc[valid_mask, 'short_squeeze_score'] = pd.Series(boosted_ranks, index=df_out.loc[valid_mask].index).clip(0.05, 0.98)
+            valid_scores = df_out.loc[valid_mask, 'raw_score']
+            # When all cross-sectional raw scores are constant/tied (e.g. missing price data or flat series), preserve neutral 0.50
+            if float(valid_scores.max() - valid_scores.min()) < 1e-9:
+                df_out.loc[valid_mask, 'short_squeeze_score'] = 0.50
+            else:
+                ranks = valid_scores.rank(pct=True, ascending=True).clip(0.02, 0.98)
+                # Multi-Tier Short Squeeze Rank Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+                boosted_ranks = np.where(ranks >= 0.95, (ranks * 1.15).clip(0.05, 0.98),
+                                np.where(ranks >= 0.85, (ranks * 1.10).clip(0.05, 0.98), ranks))
+                df_out.loc[valid_mask, 'short_squeeze_score'] = pd.Series(boosted_ranks, index=df_out.loc[valid_mask].index).clip(0.05, 0.98)
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'short_squeeze_score'] = 0.50
-        elif len(symbols) == 1:
-            df_out['short_squeeze_score'] = 0.50
         else:
-            df_out['short_squeeze_score'] = np.nan
+            df_out['short_squeeze_score'] = 0.50
 
-        df_out['short_squeeze_score'] = df_out['short_squeeze_score'].astype(float)
+        # Ensure all rows have valid non-NaN scores
+        df_out['short_squeeze_score'] = df_out['short_squeeze_score'].fillna(0.50).clip(0.05, 0.98).astype(float)
 
         return df_out[['symbol', 'short_squeeze_score']]

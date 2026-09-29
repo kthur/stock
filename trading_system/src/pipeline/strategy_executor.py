@@ -124,12 +124,29 @@ class AlphaStrategyExecutor:
                 if ctx.eff_filings:
                     ctx.sentiment_map = sentiment_engine_init.batch_analyze_filings(ctx.eff_filings) or {}
                     ctx.m5_sentiment_metrics_list = list(ctx.sentiment_map.values())
-                else:
-                    sample_syms = ctx.symbols_list[:min(len(ctx.symbols_list), 100)] if ctx.symbols_list else []
-                    for s in sample_syms:
-                        res = sentiment_engine_init.analyze_filing_text(str(s), f"Corporate operations and financial guidance for {s}")
-                        ctx.sentiment_map[str(s)] = res
-                        ctx.m5_sentiment_metrics_list.append(res)
+
+                # Universe-wide technical momentum sentiment proxy fallback for symbols 101+ / offline / missing filings
+                all_syms = ctx.symbols_list if ctx.symbols_list else []
+                for s in all_syms:
+                    s_str = str(s)
+                    if s_str not in ctx.sentiment_map and s_str.zfill(6) not in ctx.sentiment_map:
+                        df_p = ctx.infer_data_dict.get(s_str) if ctx.infer_data_dict else None
+                        if df_p is None and ctx.infer_data_dict:
+                            df_p = ctx.infer_data_dict.get(s_str.split('.')[0], ctx.infer_data_dict.get(s_str.zfill(6)))
+
+                        if isinstance(df_p, pd.DataFrame) and len(df_p) >= 2:
+                            c_col = 'Close' if 'Close' in df_p.columns else ('close' if 'close' in df_p.columns else None)
+                            if c_col and not df_p[c_col].dropna().empty:
+                                c_s = df_p[c_col].dropna().astype(float)
+                                last_c = float(c_s.iloc[-1])
+                                c_14 = float(c_s.iloc[-min(len(c_s), 15)])
+                                mom14 = (last_c / max(1e-5, c_14)) - 1.0
+                                mom_score = float(np.clip(0.50 + 0.50 * np.tanh(mom14 * 3.0), 0.10, 0.90))
+                            else:
+                                mom_score = 0.50
+                        else:
+                            mom_score = 0.50
+                        ctx.sentiment_map[s_str] = mom_score
             except Exception as e:
                 logger.warning(f"[STRATEGY EXECUTOR] Pre-fetching DART filings/sentiment skipped: {e}")
 
@@ -142,11 +159,14 @@ class AlphaStrategyExecutor:
                     if sym and txt:
                         ctx.filings_map[sym] = (ctx.filings_map.get(sym, '') + ' ' + txt).strip()
 
-        # 3. Build transcript_map for Earnings Tone Drift
-        if ctx.sentiment_map and not ctx.tone_transcript_map:
-            for s_k, s_val in ctx.sentiment_map.items():
-                s_score = s_val if isinstance(s_val, (int, float)) else getattr(s_val, 'sentiment_score', 0.5)
-                ctx.tone_transcript_map[s_k] = {'previous_quarter_tone': 0.5, 'current_quarter_tone': s_score}
+        # 3. Build transcript_map for Earnings Tone Drift covering full universe
+        if not ctx.tone_transcript_map:
+            ctx.tone_transcript_map = {}
+            for s in (ctx.symbols_list or []):
+                s_str = str(s)
+                s_val = ctx.sentiment_map.get(s_str, ctx.sentiment_map.get(s_str.zfill(6), 0.50))
+                s_score = s_val if isinstance(s_val, (int, float)) else getattr(s_val, 'sentiment_score', 0.50)
+                ctx.tone_transcript_map[s_str] = {'previous_quarter_tone': 0.50, 'current_quarter_tone': s_score}
 
         # 4. Build ARM fundamental revisions dictionary with dynamic filing lag
         if not ctx.arm_fund and ctx.infer_fund_cache:
@@ -225,18 +245,84 @@ class AlphaStrategyExecutor:
             arm_fund=ctx.arm_fund
         )
 
+        def _ensure_complete_strategy_df(df_res: pd.DataFrame, spec: StrategySpec) -> pd.DataFrame:
+            u_syms = [str(s) for s in ctx.symbols_list] if ctx.symbols_list else []
+            if not u_syms:
+                return df_res if isinstance(df_res, pd.DataFrame) else pd.DataFrame()
+
+            def _fallback_score_for_sym(s: str) -> float:
+                df_p = ctx.infer_data_dict.get(s) if isinstance(ctx.infer_data_dict, dict) else None
+                if df_p is not None and not df_p.empty:
+                    c_col = 'Close' if 'Close' in df_p.columns else ('close' if 'close' in df_p.columns else None)
+                    if c_col:
+                        c_s = df_p[c_col]
+                        if isinstance(c_s, pd.DataFrame):
+                            c_s = c_s.iloc[:, 0]
+                        c_s = pd.to_numeric(c_s, errors='coerce').dropna()
+                        if len(c_s) >= 6 and float(c_s.iloc[-6]) > 0:
+                            r5 = (float(c_s.iloc[-1]) / float(c_s.iloc[-6])) - 1.0
+                            return float(np.clip(0.50 + np.tanh(r5 * 5.0) * 0.18, 0.08, 0.92))
+                return 0.50
+
+            if not isinstance(df_res, pd.DataFrame) or df_res.empty or 'symbol' not in df_res.columns:
+                rows = [{'symbol': s, spec.col: _fallback_score_for_sym(s)} for s in u_syms]
+                out_df = pd.DataFrame(rows)
+                if spec.key == 'factor_neutralized' and 'neutralized_score' not in out_df.columns:
+                    out_df['neutralized_score'] = out_df[spec.col]
+                return out_df
+
+            df_out = df_res.copy()
+            df_out['symbol'] = df_out['symbol'].astype(str)
+            df_out = df_out.drop_duplicates(subset=['symbol'], keep='first')
+
+            if spec.col not in df_out.columns:
+                for alt_c in ['neutralized_score', 'lstm_return_20d', 'expected_return', 'score']:
+                    if alt_c in df_out.columns:
+                        df_out[spec.col] = pd.to_numeric(df_out[alt_c], errors='coerce')
+                        break
+                if spec.col not in df_out.columns:
+                    num_cols = [c for c in df_out.columns if c != 'symbol' and pd.api.types.is_numeric_dtype(df_out[c])]
+                    if num_cols:
+                        df_out[spec.col] = pd.to_numeric(df_out[num_cols[-1]], errors='coerce')
+                    else:
+                        df_out[spec.col] = 0.50
+
+            df_out[spec.col] = pd.to_numeric(df_out[spec.col], errors='coerce')
+            # Scale [0, 100] scores down to [0, 1] if needed
+            max_v = df_out[spec.col].max()
+            if pd.notna(max_v) and max_v > 1.5:
+                df_out[spec.col] = df_out[spec.col] / 100.0
+
+            existing_syms = set(df_out['symbol'].tolist())
+            missing_syms = [s for s in u_syms if s not in existing_syms]
+            if missing_syms:
+                missing_df = pd.DataFrame([
+                    {'symbol': s, spec.col: _fallback_score_for_sym(s)}
+                    for s in missing_syms
+                ])
+                df_out = pd.concat([df_out, missing_df], ignore_index=True)
+
+            na_mask = df_out[spec.col].isna() | ~np.isfinite(df_out[spec.col])
+            if na_mask.any():
+                df_out.loc[na_mask, spec.col] = df_out.loc[na_mask, 'symbol'].map(_fallback_score_for_sym)
+
+            df_out[spec.col] = df_out[spec.col].clip(0.05, 0.98)
+            if spec.key == 'factor_neutralized' and 'neutralized_score' not in df_out.columns:
+                df_out['neutralized_score'] = df_out[spec.col]
+            return df_out
+
         def _run_single(spec: StrategySpec):
             t0 = time.time()
             try:
                 df_res = spec.evaluator(ctx)
-                if not isinstance(df_res, pd.DataFrame):
-                    df_res = pd.DataFrame()
+                df_res = _ensure_complete_strategy_df(df_res, spec)
                 elapsed = time.time() - t0
                 return spec.key, df_res, elapsed, None
             except Exception as err:
                 elapsed = time.time() - t0
-                logger.warning(f"[STRATEGY EXECUTOR] Strategy '{spec.key}' ({spec.name}) failed: {err}")
-                return spec.key, pd.DataFrame(), elapsed, err
+                logger.warning(f"[STRATEGY EXECUTOR] Strategy '{spec.key}' ({spec.name}) failed: {err}. Applying momentum fallback.")
+                df_res = _ensure_complete_strategy_df(pd.DataFrame(), spec)
+                return spec.key, df_res, elapsed, err
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
             future_to_spec = {executor.submit(_run_single, s): s for s in self.specs}

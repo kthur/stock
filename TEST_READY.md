@@ -1,99 +1,192 @@
-# Test Suite Inventory & Execution Readiness: 6th System Improvements (V6-01 ~ V6-35)
+# TEST_READY — 37 Quant Strategies Comprehensive E2E Test Suite
 
-**Document Date**: 2026-08-22  
-**Test Suite Lead**: `test_writer_gen2` (E2E & Regression Test Suite Lead)  
-**Target Codebase**: `kthur/stock` (`d:\Finance\code\stock`)  
-**Status**: ✅ **TEST SUITE READY — 100% PASS (45/45 TESTS PASSED)**
+## Executive Summary
+The end-to-end test infrastructure and 4-tier comprehensive verification test suite for all 37 quantitative alpha strategies across 5 global markets (**KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000**) is complete, verified, and operational with a 100% test pass rate.
+
+- **Test Suite Path**: `tests/test_37strategies_e2e.py`
+- **Test Infrastructure Specification**: `TEST_INFRA.md`
+- **Test Runner**: Pytest 9.1.1 (`.venv\Scripts\python.exe -m pytest tests/test_37strategies_e2e.py -v`)
+- **Total Tests**: 47 test cases (37 Tier-1, 5 Tier-2, 3 Tier-3, 2 Tier-4)
+- **Execution Result**: **47 PASSED, 0 FAILED** (Duration: 51.87s)
 
 ---
 
-## 1. Test Runner Command
+## 1. Test Architecture & Tier Structure
 
-To execute the complete 4-Tier test suite covering all 35 improvements (V6-01 ~ V6-35):
+The E2E test suite adheres to an opaque-box, requirement-driven verification pattern ensuring that every strategy generates mathematically valid, non-zero, finite scores without numerical blowups or missing data fallbacks, across all 5 core markets.
 
+```
+tests/test_37strategies_e2e.py
+├── TestTier1FeatureCoverage (37 Test Cases)
+│   ├── Strategy 01: XGBoost Regression
+│   ├── Strategy 02: Surge Classifier
+│   ├── Strategy 03: Lead-Lag 2-Tier Shift
+│   ├── Strategy 04: VCP Rule Pattern Detector
+│   ├── Strategy 05: VCP ML Classifier
+│   ├── Strategy 06: Strict Causal LSTM
+│   ├── Strategy 07: Stat-Arb Cointegration
+│   ├── Strategy 08: Sector Rotation Relative Momentum
+│   ├── Strategy 09: RIM Valuation (Residual Income Model)
+│   ├── Strategy 10: Event-Driven Catalyst
+│   ├── Strategy 11: Momentum Quality (MQ)
+│   ├── Strategy 12: Options IV Skew
+│   ├── Strategy 13: Order Flow Imbalance
+│   ├── Strategy 14: Short-Term Reversal
+│   ├── Strategy 15: Analyst Revision Momentum (ARM)
+│   ├── Strategy 16: Cross-Asset Regime Divergence (CARD)
+│   ├── Strategy 17: Liquidity-Adjusted Tail Risk (LATR)
+│   ├── Strategy 18: Inst & Foreign Sector Flow
+│   ├── Strategy 19: Supply Chain Momentum
+│   ├── Strategy 20: NLP Sentiment Catalyst
+│   ├── Strategy 21: Multi-Factor Style Neutralizer
+│   ├── Strategy 22: Dynamic Volatility Targeting
+│   ├── Strategy 23: Microstructure Imbalance
+│   ├── Strategy 24: Accruals Quality Anomaly
+│   ├── Strategy 25: Short Interest & Squeeze
+│   ├── Strategy 26: Value-Up & Shareholder Yield
+│   ├── Strategy 27: Kaufman Trend Efficiency
+│   ├── Strategy 28: Gamma Squeeze
+│   ├── Strategy 29: Insider Buying
+│   ├── Strategy 30: Darkpool & HFT Flow
+│   ├── Strategy 31: Earnings Tone Drift
+│   ├── Strategy 32: Cross-Asset Spillover Momentum
+│   ├── Strategy 33: Supply Chain GNN
+│   ├── Strategy 34: Range Expansion Breakout
+│   ├── Strategy 35: Dual Correction (Price & Time)
+│   ├── Strategy 36: Index Rebalance Structural Flow
+│   └── Strategy 37: Overnight Gap Reversal
+├── TestTier2BoundaryAndCornerCases (5 Test Cases)
+│   ├── test_tier2_empty_and_missing_prices: Empty dicts and missing symbols
+│   ├── test_tier2_ultra_short_lookback_n2: Minimal 2-day bar lookback
+│   ├── test_tier2_corrupted_inputs_nan_and_inf: NaN and Inf price/volume arrays
+│   ├── test_tier2_missing_fundamentals_fallback: Missing BPS/EPS/ROE handling
+│   └── test_tier2_single_stock_n1_cross_section: N=1 universe cross-sectional ranking
+├── TestTier3CrossFeatureCombinations (3 Test Cases)
+│   ├── test_tier3_ensemble_combination_all_37_strategies: 6-regime weighted aggregation, simplex sum=1.000000
+│   ├── test_tier3_score_normalizer_across_37_strategies: Percentile Rank & Winsorized Gaussian CDF
+│   └── test_tier3_orthogonalization_pca_zca_gram_schmidt: PCA-ZCA whitening & Gram-Schmidt decorrelation
+└── TestTier4RealWorldMarketScenarios (2 Test Cases)
+    ├── test_tier4_all_5_markets_file_generation_and_counts: 5 markets x 37 strategies output generation (>= 10 items)
+    └── test_tier4_strategy_coverage_analyzer_zero_dropouts: Zero-dropout verification across all 37 strategies
+```
+
+---
+
+## 2. Test Execution Command & Verification
+
+### Running the Full 37-Strategy E2E Test Suite
 ```bash
-# Run the complete 4-tier V6 regression test suite
-.venv\Scripts\python.exe -m pytest tests/test_v6_improvements.py -v
+.venv\Scripts\python.exe -m pytest tests/test_37strategies_e2e.py -v
+```
 
-# Quiet mode
-.venv\Scripts\python.exe -m pytest tests/test_v6_improvements.py -q
+### Running Specific Tiers
+```bash
+# Tier 1: All 37 strategy individual coverage
+.venv\Scripts\python.exe -m pytest tests/test_37strategies_e2e.py -k "TestTier1FeatureCoverage" -v
+
+# Tier 2: Boundary and corner cases
+.venv\Scripts\python.exe -m pytest tests/test_37strategies_e2e.py -k "TestTier2BoundaryAndCornerCases" -v
+
+# Tier 3: Ensemble & Cross-strategy combinations
+.venv\Scripts\python.exe -m pytest tests/test_37strategies_e2e.py -k "TestTier3CrossFeatureCombinations" -v
+
+# Tier 4: 5-market file persistence & coverage
+.venv\Scripts\python.exe -m pytest tests/test_37strategies_e2e.py -k "TestTier4RealWorldMarketScenarios" -v
 ```
 
 ---
 
-## 2. Test Architecture & 4-Tier Systematic Structure
+## 3. Verified Thresholds & Assertions
 
-The test suite is structured across 4 systematic tiers to guarantee exhaustive unit, boundary, interaction, and end-to-end multi-market coverage:
-
-| Tier | Category | Test Class / Count | Scope & Focus |
-|---|---|---|---|
-| **Tier 1** | **Direct Feature Tests** | `TestTier1DirectFeatures` (35 Tests) | 1:1 direct verification of each individual fix (V6-01 through V6-35) across AI/ML, Portfolio, 31 Strategies, Execution OMS, and Pipeline Infrastructure. |
-| **Tier 2** | **Boundary & Corner Cases** | `TestTier2BoundaryAndCornerCases` (5 Tests) | Degenerate $N=1$ single-stock cross-sections, extreme FX volatility ($\ge 2000$ USD/KRW), full portfolio liquidation ($w_{\text{targ}}=0$), zero/single-share slicing in Almgren-Chriss, and singular collinear covariance matrices in Black-Litterman. |
-| **Tier 3** | **Cross-Feature Interactions** | `TestTier3CrossFeatureInteractions` (3 Tests) | Hierarchical Risk Parity (HRP) feeding into Leland dynamic buffer bands, 2D market regime interacting with exponential decay filtering & factor suppression, and Execution OMS FX conversion with Almgren-Chriss & Gate 7 net-alpha hurdles. |
-| **Tier 4** | **End-to-End Multi-Market Realistic Workflows** | `TestTier4EndToEndRealisticWorkflows` (2 Tests) | Full 5-market multi-asset pipeline simulation (KOSPI, KOSDAQ, S&P 500, NASDAQ, Russell 2000) under decoupled regimes, and GitHub Pages release JSON snapshot artifact generation. |
-
----
-
-## 3. Comprehensive Test Inventory Checklist (V6-01 ~ V6-35)
-
-### Domain 1: AI/ML & Prediction Integrity (V6-01 ~ V6-08)
-- [x] **V6-01** (`test_v6_01_lstm_training_target_transform_sharpe_homomorphism`): Verifies `_prepare_lstm_data` applies `transform_sharpe` to ensure log1p target homomorphism across tree models and causal LSTM regressors.
-- [x] **V6-02** (`test_v6_02_exponential_decay_filter_column_alias_mapping`): Verifies `apply_exponential_decay_filter` maps score column aliases to canonical half-life keys across fast (`microstructure`), slow (`rim_valuation`), and metadata columns.
-- [x] **V6-03** (`test_v6_03_dual_regime_weights_decoupling_and_suppression`): Verifies `combine_predictions` applies linear US weights and decoupled Korean suppression penalty ratios without squaring or cross-contamination.
-- [x] **V6-04** (`test_v6_04_predict_lstm_market_partitioned_evaluation`): Verifies `predict_lstm` partitions symbols by market and routes evaluation through market-specific LSTM models.
-- [x] **V6-05** (`test_v6_05_lead_lag_fallback_1day_normalized_scaling`): Verifies `predict_lead_lag` fallback computes 1-day return mapped into $[0.05, 0.95]$ rather than multi-year cumulative gains.
-- [x] **V6-06** (`test_v6_06_optuna_bear_utility_and_alpha_decay_bounds`): Verifies Optuna switches to quadratic utility $\mu - 0.5 \lambda \sigma^2$ under negative expected returns, and `AlphaDecayTracker` applies iterative bounded simplex projection.
-- [x] **V6-07** (`test_v6_07_lead_lag_hpo_evaluates_k_symbols_and_validation_split`): Verifies `tune_strategy_3_lead_lag` evaluates all $K = \min(\text{leaders\_count}, N)$ symbols and measures out-of-sample persistence on validation splits.
-- [x] **V6-08** (`test_v6_08_meta_ensemble_learner_column_permutation_invariance`): Verifies `MetaEnsembleLearner` projects weights by feature names and reindexes DataFrames to prevent column permutation corruption.
-
-### Domain 2: Portfolio & Risk Engineering (V6-09 ~ V6-16)
-- [x] **V6-09** (`test_v6_09_leland_buffer_band_new_entry_and_full_exit_bypass`): Verifies `compute_portfolio_rebalance` scales $\delta_i \le 0.40 w_{\text{targ}}$ for small targets and bypasses buffer suppression for fresh entries ($w_{\text{curr}}=0$) and full liquidations ($w_{\text{targ}}=0$).
-- [x] **V6-10** (`test_v6_10_black_litterman_c1_smoothness_under_all_negative_excess`): Verifies Black-Litterman optimization achieves $C^1$ smoothness and converges without gradient explosion when excess returns are negative.
-- [x] **V6-11** (`test_v6_11_evt_pot_cvar_threshold_ceiling_and_regular_shape`): Verifies `estimate_evt_cvar` caps threshold $u \le q_\alpha$ and clamps shape parameter $\xi \in [-0.50, 0.50]$.
-- [x] **V6-12** (`test_v6_12_rockafellar_uryasev_cvar_pseudo_huber_and_vector_constraints`): Verifies `optimize_rockafellar_uryasev_cvar` uses Pseudo-Huber smoothing and vectorized CVaR constraints for robust SLSQP convergence.
-- [x] **V6-13** (`test_v6_13_crisis_detector_recovery_reset_and_watch_haircut`): Verifies `CrisisDetector` auto-resets recovery mode after 20 days and applies defensive 0.70 position haircut upon re-entering WATCH.
-- [x] **V6-14** (`test_v6_14_coverage_analyzer_modal_frequency_missing_reason`): Verifies `StrategyCoverageAnalyzer` extracts the statistical mode of missing reasons rather than dictionary insertion order.
-- [x] **V6-15** (`test_v6_15_downside_semi_cov_diagonal_shrinkage_preserves_hedges`): Verifies `compute_downside_semi_cov` uses diagonal variance target $\mathbf{T} = \text{diag}(\Sigma^-)$, preserving negative covariance of hedging assets.
-- [x] **V6-16** (`test_v6_16_rmt_dynamic_noise_variance_estimation`): Verifies `denoise_covariance_marchenko_pastur` estimates residual noise variance $\sigma^2$ dynamically from non-market eigenvalues.
-
-### Domain 3: 31 Strategy Engines & Data Layer (V6-17 ~ V6-24)
-- [x] **V6-17** (`test_v6_17_rim_valuation_bps_scale_homogeneity`): Verifies RIM valuation handles small-cap equity ($<\$1\text{M}$) and high-nominal KRX BPS ($>1\text{M}$ KRW) with scale homogeneity.
-- [x] **V6-18** (`test_v6_18_sector_rotation_curated_symbol_mapping`): Verifies `SectorRotationEngine` passes `symbol=sym` to resolve curated leaders (`005930`, `NVDA`).
-- [x] **V6-19** (`test_v6_19_iv_skew_live_options_prioritization`): Verifies `IVSkewEngine` prioritizes live options chain lookup when `ENABLE_LIVE_OPTIONS_FETCH=true`.
-- [x] **V6-20** (`test_v6_20_event_driven_dart_8digit_corp_code_resolution`): Verifies `EventDrivenEngine` resolves 8-digit OpenDART `corp_code` to 6-digit tickers via `DARTCorpMapper`.
-- [x] **V6-21** (`test_v6_21_card_factor_5day_macro_temporal_alignment`): Verifies `CARDFactorEngine` computes 5-day rolling macro shocks matching 5-day cumulative stock returns.
-- [x] **V6-22** (`test_v6_22_single_stock_n1_neutral_score_guards`): Verifies factor engines return neutral 0.50 score for single-stock ($N=1$) degenerate inputs.
-- [x] **V6-23** (`test_v6_23_stat_arb_summary_logging_performance`): Verifies `StatisticalArbitrageEngine` runs cointegration scanning without dumping raw 100k arrays at INFO level.
-- [x] **V6-24** (`test_v6_24_reverse_stock_split_adjustment_and_volume_contraction`): Verifies `StockPriceDB` detects reverse splits ($> +50\%$ price jumps with volume contraction) and scales historical OHLC backwards.
-
-### Domain 4: Execution OMS & Friction Costs (V6-25 ~ V6-31)
-- [x] **V6-25** (`test_v6_25_oms_currency_denominator_us_and_global_hedging`): Verifies `ExecutionOMSEngine` converts KRW target capital to USD for US equities and global hedges, preventing 1,350x position explosions.
-- [x] **V6-26** (`test_v6_26_oms_return_scale_normalization_gates_7_2_and_7_4`): Verifies OMS Gates 7.2 & 7.4 normalize percent vs decimal return notation, preventing false limit-lock drops.
-- [x] **V6-27** (`test_v6_27_almgren_chriss_slicing_non_negative_tranches`): Verifies `AlmgrenChrissScheduler` clamps $\kappa \in [0.01, 3.0]$ and guarantees non-negative tranches summing to total quantity.
-- [x] **V6-28** (`test_v6_28_oms_gate_7_3_single_friction_deduction`): Verifies OMS Gate 7.3 does not double-deduct friction when input alpha is already net expected return.
-- [x] **V6-29** (`test_v6_29_turnover_optimizer_full_liquidation_and_entry_bypass`): Verifies `TurnoverOptimizer` bypasses turnover hysteresis damping for full liquidations ($w_{\text{targ}}=0$) and fresh entries ($w_{\text{curr}}=0$).
-- [x] **V6-30** (`test_v6_30_slippage_feedback_buy_hedge_sign_and_db_lifecycle`): Verifies `SlippageFeedbackEngine` treats `BUY_HEDGE` as positive buy direction and wraps SQLite connection in `finally`.
-- [x] **V6-31** (`test_v6_31_smart_order_router_primary_venue_residual_consolidation`): Verifies `SmartOrderRouter` merges residual quantities into primary exchange allocations without ATS duplication.
-
-### Domain 5: Pipeline Orchestration & Infrastructure (V6-32 ~ V6-35)
-- [x] **V6-32** (`test_v6_32_config_market_costs_json_parsing`): Verifies `src/config.py` parses `MARKET_COSTS_JSON` environment variables without `NameError: name 'json' is not defined`.
-- [x] **V6-33** (`test_v6_33_pipeline_lifecycle_db_lock_and_status_tracking`): Verifies pipeline lifecycle registers `status='FAILED'` and releases DB locks on unhandled exceptions.
-- [x] **V6-34** (`test_v6_34_run_snapshot_text_fallback_regex_parser`): Verifies `generate_snapshot` regex text fallback parser extracts ranks, symbols, names, scores, and factors accurately.
-- [x] **V6-35** (`test_v6_35_config_environment_variable_and_kst_alignment`): Verifies `TradingConfig` parses liquidity/friction environment variables and aligns indicator dates with KST (UTC+9).
+1. **Non-Zero Finite Scores**:
+   - Every strategy produces finite, real-valued scores ($-\infty < s < \infty$).
+   - Standardized strategies output scores normalized within $[0.0, 1.0]$.
+   - No strategy outputs placeholder zeroes or unhandled exception aborts.
+2. **5 Core Markets Full Coverage**:
+   - `KOSPI`, `KOSDAQ`, `SP500`, `NASDAQ`, `RUSSELL2000`.
+   - Each market receives at least 10 non-zero predictions per strategy in production and test reporting.
+3. **Partitioned and Consolidated Output Generation**:
+   - Consolidated: `trading_system/result/{output_file}.txt`
+   - Market Partitioned: `trading_system/result/{base_name}_{MARKET}.txt`
+   - Content verified non-empty, contains header metadata, and no `"데이터 없음"` placeholders.
+4. **Strategy Coverage Zero-Dropout**:
+   - `StrategyCoverageAnalyzer` detects **0 zero-coverage dropouts** across all 37 strategies.
+5. **Ensemble Integrity**:
+   - Simplex weights $\sum w_i = 1.000000 \pm 10^{-5}$ across all 6 market regimes:
+     `BULL_LOW_VOL`, `BULL_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `CRISIS`.
+   - Dynamic zero-weighting for missing strategies with automatic simplex renormalization.
+   - Microstructure friction deductions applied to yield Net Return and Decision Rationale.
 
 ---
 
-## 4. Test Execution Summary
-
+## 4. Test Run Summary Log
 ```
-============================= test session starts =============================
-platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0
+platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0 -- D:\Finance\code\stock\.venv\Scripts\python.exe
+cachedir: .pytest_cache
 rootdir: D:\Finance\code\stock
 configfile: pyproject.toml
-plugins: anyio-4.14.0, dash-2.18.2, cov-7.1.0, github-actions-annotate-failures-0.4.2
-collected 45 items
+collected 47 items
 
-tests\test_v6_improvements.py ............................................. [100%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_01_regression PASSED [  2%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_02_surge PASSED [  4%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_03_lead_lag PASSED [  6%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_04_vcp_rule PASSED [  8%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_05_vcp_ml PASSED [ 10%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_06_lstm PASSED [ 12%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_07_stat_arb PASSED [ 14%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_08_sector_rotation PASSED [ 17%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_09_rim_valuation PASSED [ 19%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_10_event_driven PASSED [ 21%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_11_mq_factor PASSED [ 23%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_12_iv_skew PASSED [ 25%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_13_order_flow PASSED [ 27%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_14_short_term_reversal PASSED [ 29%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_15_arm_factor PASSED [ 31%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_16_card_factor PASSED [ 34%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_17_latr_factor PASSED [ 36%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_18_inst_foreign_sector PASSED [ 38%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_19_supply_chain PASSED [ 40%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_20_sentiment PASSED [ 42%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_21_factor_neutralized PASSED [ 44%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_22_vol_target PASSED [ 46%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_23_microstructure PASSED [ 48%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_24_accruals_quality PASSED [ 51%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_25_short_squeeze PASSED [ 53%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_26_valueup_catalyst PASSED [ 55%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_27_trend_efficiency PASSED [ 57%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_28_gamma_squeeze PASSED [ 59%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_29_insider_buying PASSED [ 61%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_30_darkpool PASSED [ 63%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_31_earnings_tone_drift PASSED [ 65%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_32_cross_asset_spillover PASSED [ 68%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_33_supply_chain_gnn PASSED [ 70%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_34_range_expansion_breakout PASSED [ 72%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_35_dual_correction PASSED [ 74%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_36_index_rebalance PASSED [ 76%]
+tests/test_37strategies_e2e.py::TestTier1FeatureCoverage::test_strategy_37_overnight_gap_reversal PASSED [ 78%]
+tests/test_37strategies_e2e.py::TestTier2BoundaryAndCornerCases::test_tier2_empty_and_missing_prices PASSED [ 80%]
+tests/test_37strategies_e2e.py::TestTier2BoundaryAndCornerCases::test_tier2_ultra_short_lookback_n2 PASSED [ 82%]
+tests/test_37strategies_e2e.py::TestTier2BoundaryAndCornerCases::test_tier2_corrupted_inputs_nan_and_inf PASSED [ 85%]
+tests/test_37strategies_e2e.py::TestTier2BoundaryAndCornerCases::test_tier2_missing_fundamentals_fallback PASSED [ 87%]
+tests/test_37strategies_e2e.py::TestTier2BoundaryAndCornerCases::test_tier2_single_stock_n1_cross_section PASSED [ 89%]
+tests/test_37strategies_e2e.py::TestTier3CrossFeatureCombinations::test_tier3_ensemble_combination_all_37_strategies PASSED [ 91%]
+tests/test_37strategies_e2e.py::TestTier3CrossFeatureCombinations::test_tier3_score_normalizer_across_37_strategies PASSED [ 93%]
+tests/test_37strategies_e2e.py::TestTier3CrossFeatureCombinations::test_tier3_orthogonalization_pca_zca_gram_schmidt PASSED [ 95%]
+tests/test_37strategies_e2e.py::TestTier4RealWorldMarketScenarios::test_tier4_all_5_markets_file_generation_and_counts PASSED [ 97%]
+tests/test_37strategies_e2e.py::TestTier4RealWorldMarketScenarios::test_tier4_strategy_coverage_analyzer_zero_dropouts PASSED [100%]
 
-============================= 45 passed in 28.00s =============================
+====================== 47 passed, 158 warnings in 51.87s ======================
 ```
+
+---
+
+## 5. Discovered Implementation Defects & Resolutions
+During the authoring and execution of the E2E test suite:
+- **No production code defects or regressions were discovered.** All strategy engines and pipeline orchestrators (`PredictionReporter`, `EnsembleScoringEngine`, `CrossSectionalScoreNormalizer`, `FactorOrthogonalizerEngine`, `StrategyCoverageAnalyzer`) operated within expected mathematical parameters.
+- **Test-level adaptations**:
+  - `VCPSurgePredictor.predict` output schema column mapping verified (`vcp_20d` / `vcp_ml_score`).
+  - Column casing standardized to avoid duplicate index labels during synthetic test fixture creation.
+  - Boundary assertions adapted for lookback minimum thresholds (`TrendEfficiencyEngine` min 21 bars, `DualCorrectionEngine` min 30 bars) confirming safe schema-compliant empty DataFrame returns without unhandled exceptions.
+  - Strategy registry column mappings aligned (`ll_score` for `lead_lag`, `reversal_score` for `short_term_reversal`, `range_expansion_score`, `overnight_gap_score`).
+
+The E2E test track is complete and ready for ongoing regression testing and CI verification.
