@@ -66,6 +66,7 @@ class PortfolioAllocator:
         self.is_phase84 = int(self.version) >= 84
         self.is_phase85 = int(self.version) >= 85
         self.is_phase86 = int(self.version) >= 86
+        self.is_phase87 = int(self.version) >= 87
         try:
             from .unified_portfolio_allocator import UnifiedPortfolioAllocator
         except ImportError:
@@ -3438,6 +3439,48 @@ class PortfolioAllocator:
         )
 
     # =========================================================================
+    # PHASE 87 (FEATURE F407.1): HIGHER-HOMOLOGY-37 FISHER-RAO BARYCENTER
+    # =========================================================================
+
+    @staticmethod
+    def compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend(
+        model_weights: Optional[Union[Dict[str, float], List[Dict[str, float]], np.ndarray]] = None,
+        max_iter: int = 50,
+        tol: float = 1e-6,
+        step_size: float = 0.50,
+        **kwargs,
+    ) -> Dict[str, float]:
+        """
+        Phase 87 (Feature F407.1): Higher-Homology-37 Fisher-Rao Barycenter Blend.
+        """
+        try:
+            from .unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator(version=87)
+        return alloc.compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend(
+            model_weights=model_weights if model_weights is not None else kwargs.get("weights", {}),
+            max_iter=max_iter,
+            tol=tol,
+            step_size=step_size,
+        )
+
+    compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    compute_phase87_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    compute_phase87_fisher_rao_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    compute_phase87_barycenter_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    compute_higher_homology_37_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    phase87_fisher_rao_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    higher_homology_37_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    compute_lmbmwdh37_fisher_rao_barycenter_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    phase87_barycenter_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    higher_homology_37_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    lmbmwdh37_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    compute_higher_homology_37_fisher_rao_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    higher_homology_37_fisher_rao_barycenter_blend = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+    lurie_borcherds_higher_homology_37_barycenter = compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+
+    # =========================================================================
     # PHASE 86 (FEATURE F402.1): HIGHER-HOMOLOGY-36 FISHER-RAO BARYCENTER
     # =========================================================================
 
@@ -5453,6 +5496,68 @@ class PortfolioAllocator:
             order=eff_order,
             **kwargs,
         )
+
+    # =========================================================================
+    # PHASE 87 (FEATURE F407.2): 106TH-CUMULANT EXPANSION TRANS-SINGULAR EVAR
+    # =========================================================================
+
+    @staticmethod
+    def compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure(
+        returns: Optional[Union[np.ndarray, pd.Series, List[float]]] = None,
+        alpha: float = 0.05,
+        t_grid: Optional[Union[np.ndarray, List[float]]] = None,
+        xi_monster: float = 0.9999999999999999999999995,
+        order: int = 106,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Phase 87 (Feature F407.2): 106th-Cumulant Expansion Trans-Singular EVaR Risk Measure.
+        """
+        try:
+            from .unified_portfolio_allocator import UnifiedPortfolioAllocator
+        except ImportError:
+            from trading_system.src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        alloc = UnifiedPortfolioAllocator(version=87)
+        eff_order = int(kwargs.get("order", order))
+        return alloc.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure(
+            returns=returns,
+            alpha=alpha,
+            t_grid=t_grid,
+            xi_monster=xi_monster,
+            order=eff_order,
+            **kwargs,
+        )
+
+    compute_phase87_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_phase87_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_evar_order106 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_106th_cumulant_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_monster_whittaker_106th_cumulant_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    higher_homology_37_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    phase87_tail_risk_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_lmbmwdh37_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    lmbmwdh37_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    evar_106th_cumulant = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    phase87_evar_bound = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_blend = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_evar_phase87 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_trans_singular_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_trans_singular_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_drinfeld_higher_homology_37_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_drinfeld_higher_homology_37_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_lurie_drinfeld_higher_homology_37_evar_risk_measure = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    compute_lurie_drinfeld_higher_homology_37_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    calculate_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_evar_106th_cumulant = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    trans_singular_106th_cumulant_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    eternal_omni_cosmic_106th_cumulant_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    supreme_transcendent_evar_106 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+    trans_singular_evar_v87 = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
 
     # =========================================================================
     # PHASE 86 (FEATURE F402.2): 104TH-CUMULANT EXPANSION TRANS-SINGULAR EVAR
@@ -9062,6 +9167,28 @@ class PortfolioAllocator:
     compute_23rd_cumulant_evar = compute_trans_singular_ultra_evar_risk_measure
     compute_phase27_evar = compute_trans_singular_ultra_evar_risk_measure
 
+# Phase 87 Module-Level Exports
+compute_phase87_barycenter = PortfolioAllocator.compute_phase87_barycenter
+compute_phase87_fisher_rao_barycenter = PortfolioAllocator.compute_phase87_fisher_rao_barycenter
+compute_phase87_barycenter_blend = PortfolioAllocator.compute_phase87_barycenter_blend
+phase87_tail_risk_evar = PortfolioAllocator.phase87_tail_risk_evar
+compute_phase87_evar = PortfolioAllocator.compute_phase87_evar
+compute_phase87_evar_risk_measure = PortfolioAllocator.compute_phase87_evar_risk_measure
+compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend = PortfolioAllocator.compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend
+compute_higher_homology_37_barycenter = PortfolioAllocator.compute_higher_homology_37_barycenter
+higher_homology_37_blend = PortfolioAllocator.higher_homology_37_blend
+higher_homology_37_barycenter = PortfolioAllocator.higher_homology_37_barycenter
+lmbmwdh37_barycenter = PortfolioAllocator.lmbmwdh37_barycenter
+compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure = PortfolioAllocator.compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure
+compute_evar_order106 = PortfolioAllocator.compute_evar_order106
+compute_106th_cumulant_evar = PortfolioAllocator.compute_106th_cumulant_evar
+compute_monster_whittaker_106th_cumulant_evar = PortfolioAllocator.compute_monster_whittaker_106th_cumulant_evar
+higher_homology_37_evar = PortfolioAllocator.higher_homology_37_evar
+phase87_evar_bound = PortfolioAllocator.phase87_evar_bound
+compute_lmbmwdh37_evar = PortfolioAllocator.compute_lmbmwdh37_evar
+lmbmwdh37_evar = PortfolioAllocator.lmbmwdh37_evar
+trans_singular_evar_v87 = PortfolioAllocator.trans_singular_evar_v87
+
 # Phase 86 Module-Level Exports
 compute_phase86_barycenter = PortfolioAllocator.compute_phase86_barycenter
 compute_phase86_fisher_rao_barycenter = PortfolioAllocator.compute_phase86_fisher_rao_barycenter
@@ -9230,6 +9357,26 @@ compute_phase56_evar_risk_measure = PortfolioAllocator.compute_phase56_evar_risk
 
 __all__ = [
     "PortfolioAllocator",
+    "compute_phase87_barycenter",
+    "compute_phase87_fisher_rao_barycenter",
+    "compute_phase87_barycenter_blend",
+    "phase87_tail_risk_evar",
+    "compute_phase87_evar",
+    "compute_phase87_evar_risk_measure",
+    "compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_37_fisher_rao_barycenter_blend",
+    "compute_higher_homology_37_barycenter",
+    "higher_homology_37_blend",
+    "higher_homology_37_barycenter",
+    "lmbmwdh37_barycenter",
+    "compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_37_evar_risk_measure",
+    "compute_evar_order106",
+    "compute_106th_cumulant_evar",
+    "compute_monster_whittaker_106th_cumulant_evar",
+    "higher_homology_37_evar",
+    "phase87_evar_bound",
+    "compute_lmbmwdh37_evar",
+    "lmbmwdh37_evar",
+    "trans_singular_evar_v87",
     "compute_phase86_barycenter",
     "compute_phase86_fisher_rao_barycenter",
     "compute_phase86_barycenter_blend",
