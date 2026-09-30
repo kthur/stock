@@ -563,6 +563,142 @@ def get_regime_adaptive_gamma_top_v48(regime: Union[int, str] = 'BULL_LOW_VOL') 
 
 
 # =========================================================================
+# PHASE 86 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v93 Production Master)
+# =========================================================================
+
+def apply_tetracosianonacontahexagonal_hyperbolic_deadband(
+    scores_centered: Union[pd.Series, np.ndarray, float],
+    delta_noise: float = 0.035,
+    delta_neg: Optional[float] = None,
+    alpha_pos: float = 496.0,
+    alpha_neg: Optional[float] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 86 (R1, Feature F400): Asymmetric Tetracosianonacontahexagonal (496th-Order) Hyperbolic Noise Deadband:
+        z_denoised = z * tanh((|z| / delta_eff(z))^496)
+    With 496th-order exponent (alpha = 496.0) and delta_noise = 0.035, suppresses near-zero
+    noise (|z| <= 0.0003) reducing noise leakage down to < 10^-496 (0.0 in float64), while transmitting 100.000%
+    of high conviction signals (|z| >= 0.150) with strict rank monotonicity (Spearman rho == 1.0000).
+    """
+    is_scalar = np.isscalar(scores_centered)
+    if is_scalar:
+        arr_in = np.array([scores_centered], dtype=np.float64)
+    else:
+        arr_in = scores_centered
+
+    res = apply_quintic_hyperbolic_deadband(
+        scores_centered=arr_in,
+        delta_noise=delta_noise,
+        delta_neg=delta_neg,
+        alpha_pos=alpha_pos,
+        alpha_neg=alpha_neg,
+        regime=regime
+    )
+    if is_scalar:
+        return float(res[0])
+    return res
+
+apply_tetracosianonacontahexadihedral_hyperbolic_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_quadringentanonahexagonal_hyperbolic_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_quadringentanonacontahexagonal_hyperbolic_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_tetracentanonahexagonal_hyperbolic_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_tetracentanonacontahexagonal_hyperbolic_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_tetracosianonacontahexa_hyperbolic_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_tetracosianonacontahexagonal_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+tetracosianonacontahexagonal_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+tetracosianonacontahexagonal_hyperbolic_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+compute_phase86_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_phase86_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+phase86_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_496th_order_hyperbolic_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_496th_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_496_deadband = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+apply_hyperbolic_deadband_v86 = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+suppress_factor_noise_hyperbolic_v86 = apply_tetracosianonacontahexagonal_hyperbolic_deadband
+
+
+REGIME_GAMMA_TOP_V86 = {
+    'BULL_LOW_VOL': 23.00,
+    'BULL_HIGH_VOL': 18.50,
+    'SIDEWAYS': 14.25,
+    'SIDEWAYS_LOW_VOL': 14.25,
+    'SIDEWAYS_HIGH_VOL': 9.85,
+    'BEAR': 5.30,
+    'BEAR_LOW_VOL': 5.30,
+    'BEAR_HIGH_VOL': 4.20,
+    'PANIC': 3.10,
+    'CRISIS': 3.10,
+    'RECOVERY': 18.50,
+    '2': 23.00,
+    '1': 14.25,
+    '0': 5.30,
+    'UNKNOWN': 23.00,
+}
+
+
+def get_regime_adaptive_gamma_top_v86(regime: Union[int, str] = 'BULL_LOW_VOL') -> float:
+    """
+    Phase 86 (R1, Feature F400): Regime-adaptive gamma_top <= 23.00
+    (Bull Low Vol: 23.00, Bull High Vol: 18.50, Sideways: 14.25, Sideways High Vol: 9.85,
+     Bear Low Vol: 5.30, Bear High Vol: 4.20, Crisis/Panic: 3.10).
+    """
+    if isinstance(regime, (int, float)):
+        regime_str = str(int(regime))
+    else:
+        regime_str = str(regime).upper()
+    return REGIME_GAMMA_TOP_V86.get(regime_str, REGIME_GAMMA_TOP_V86.get('BULL_LOW_VOL', 23.00))
+
+
+def compute_phase86_hyperconvex_rank_modulation(
+    ranks: Union[pd.Series, np.ndarray, float],
+    gamma_top: Optional[float] = None,
+    z_denoised: Optional[Union[pd.Series, np.ndarray, float]] = None,
+    regime: Optional[Union[str, int]] = None,
+    **kwargs
+) -> Union[pd.Series, np.ndarray, float]:
+    """
+    Phase 86 (R1, Feature F400): 103rd-Order Hyper-Convex Rank Modulation:
+        g_v86(r) = 0.50 + 3.30 * r * exp(gamma_top * r^103) (for z_denoised >= 0)
+        g_neg(r) = 1.35 - 1.00 * r (for z_denoised < 0)
+    Concentrates conviction into top alpha names while remaining flat across the bottom 70% of distribution.
+    At r=0.70, g(0.70) <= 2.81. At r=1.00, g(1.00) ~= 3.2e10 > 10000000.0.
+    """
+    if gamma_top is None:
+        if regime is not None:
+            gamma_top = get_regime_adaptive_gamma_top_v86(regime)
+        else:
+            gamma_top = 23.00
+
+    is_scalar = np.isscalar(ranks)
+    r = np.asarray(ranks, dtype=np.float64)
+    r_clipped = np.clip(r, 0.0, 1.0)
+    pos_mult = 0.50 + 3.30 * r_clipped * np.exp(float(gamma_top) * np.power(r_clipped, 103.0))
+    if z_denoised is not None:
+        z = np.asarray(z_denoised, dtype=np.float64)
+        mult = np.where(z >= 0.0, pos_mult, 1.35 - 1.00 * r_clipped)
+    else:
+        mult = pos_mult
+
+    if is_scalar:
+        return float(mult.item() if hasattr(mult, 'item') else mult)
+    if isinstance(ranks, pd.Series):
+        return pd.Series(mult, index=ranks.index)
+    return mult
+
+compute_phase86_rank_warping = compute_phase86_hyperconvex_rank_modulation
+compute_phase86_rank_modulation = compute_phase86_hyperconvex_rank_modulation
+phase86_rank_modulation = compute_phase86_hyperconvex_rank_modulation
+phase86_hyperconvex_rank_modulation = compute_phase86_hyperconvex_rank_modulation
+apply_hyper_convex_rank_modulation_v86 = compute_phase86_hyperconvex_rank_modulation
+
+FERI_v86 = "FERI_v86"
+feri_v86 = "feri_v86"
+f_out_86 = "f_out_86"
+
+
+# =========================================================================
 # PHASE 85 (R1) QUANTITATIVE ALPHA SIGNAL ENHANCEMENTS (v92 Production Master)
 # =========================================================================
 
@@ -9042,6 +9178,30 @@ class RegimeFactorSuppressionEngine:
         }
 
     apply_hyperbolic_noise_deadband = staticmethod(apply_smooth_deadband_attenuation)
+    apply_tetracosianonacontahexagonal_hyperbolic_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_tetracosianonacontahexadihedral_hyperbolic_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_quadringentanonahexagonal_hyperbolic_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_quadringentanonacontahexagonal_hyperbolic_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_tetracentanonahexagonal_hyperbolic_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_tetracentanonacontahexagonal_hyperbolic_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_tetracosianonacontahexa_hyperbolic_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_tetracosianonacontahexagonal_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    tetracosianonacontahexagonal_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    tetracosianonacontahexagonal_hyperbolic_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    compute_phase86_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_phase86_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    phase86_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_496th_order_hyperbolic_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_496th_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_496_deadband = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    apply_hyperbolic_deadband_v86 = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    suppress_factor_noise_hyperbolic_v86 = staticmethod(apply_tetracosianonacontahexagonal_hyperbolic_deadband)
+    compute_phase86_hyperconvex_rank_modulation = staticmethod(compute_phase86_hyperconvex_rank_modulation)
+    compute_phase86_rank_warping = staticmethod(compute_phase86_hyperconvex_rank_modulation)
+    compute_phase86_rank_modulation = staticmethod(compute_phase86_hyperconvex_rank_modulation)
+    phase86_rank_modulation = staticmethod(compute_phase86_hyperconvex_rank_modulation)
+    phase86_hyperconvex_rank_modulation = staticmethod(compute_phase86_hyperconvex_rank_modulation)
+    apply_hyper_convex_rank_modulation_v86 = staticmethod(compute_phase86_hyperconvex_rank_modulation)
     apply_tetracosiaoctacontaoctagonal_hyperbolic_deadband = staticmethod(apply_tetracosiaoctacontaoctagonal_hyperbolic_deadband)
     apply_tetracosiaoctacontaoctadihedral_hyperbolic_deadband = staticmethod(apply_tetracosiaoctacontaoctagonal_hyperbolic_deadband)
     apply_quadringentaoctacontaoctagonal_hyperbolic_deadband = staticmethod(apply_tetracosiaoctacontaoctagonal_hyperbolic_deadband)
@@ -9350,6 +9510,7 @@ class RegimeFactorSuppressionEngine:
     compute_phase54_rank_warping = staticmethod(compute_phase54_hyperconvex_rank_modulation)
 
 FactorSuppressionEngine = RegimeFactorSuppressionEngine
+Phase86FactorSuppressionEngine = RegimeFactorSuppressionEngine
 Phase85FactorSuppressionEngine = RegimeFactorSuppressionEngine
 Phase84FactorSuppressionEngine = RegimeFactorSuppressionEngine
 Phase83FactorSuppressionEngine = RegimeFactorSuppressionEngine
@@ -9387,6 +9548,41 @@ Phase80FactorSuppressionEngine = RegimeFactorSuppressionEngine
 
 
 __all__ = [
+    'apply_tetracosianonacontahexagonal_hyperbolic_deadband',
+    'apply_tetracosianonacontahexadihedral_hyperbolic_deadband',
+    'apply_quadringentanonahexagonal_hyperbolic_deadband',
+    'apply_quadringentanonacontahexagonal_hyperbolic_deadband',
+    'apply_tetracentanonahexagonal_hyperbolic_deadband',
+    'apply_tetracentanonacontahexagonal_hyperbolic_deadband',
+    'apply_tetracosianonacontahexa_hyperbolic_deadband',
+    'apply_tetracosianonacontahexagonal_deadband',
+    'tetracosianonacontahexagonal_deadband',
+    'tetracosianonacontahexagonal_hyperbolic_deadband',
+    'compute_phase86_deadband',
+    'apply_phase86_deadband',
+    'phase86_deadband',
+    'apply_496th_order_hyperbolic_deadband',
+    'apply_496th_deadband',
+    'apply_496_deadband',
+    'apply_hyperbolic_deadband_v86',
+    'suppress_factor_noise_hyperbolic_v86',
+    'compute_phase86_hyperconvex_rank_modulation',
+    'compute_phase86_rank_warping',
+    'compute_phase86_rank_modulation',
+    'phase86_rank_modulation',
+    'phase86_hyperconvex_rank_modulation',
+    'apply_hyper_convex_rank_modulation_v86',
+    'REGIME_GAMMA_TOP_V86',
+    'get_regime_adaptive_gamma_top_v86',
+    'Phase86FactorSuppressionEngine',
+    'FERI_v86',
+    'feri_v86',
+    'f_out_86',
+    'Phase86Coupler',
+    'Phase86WhittakerDrinfeldCoupler',
+    'Phase86BorcherdsMoonshineCoupler',
+    'Phase86MonsterWhittakerCoupler',
+    'compute_phase86_coupling',
     'apply_tetracosiaoctacontaoctagonal_hyperbolic_deadband',
     'apply_tetracosiaoctacontaoctadihedral_hyperbolic_deadband',
     'apply_quadringentaoctacontaoctagonal_hyperbolic_deadband',
@@ -10071,6 +10267,55 @@ __all__ = [
 # =========================================================================
 
 def __getattr__(name: str) -> Any:
+    # Phase 86
+    if name in (
+        'Phase86Coupler',
+        'Phase86WhittakerDrinfeldCoupler',
+        'Phase86BorcherdsMoonshineCoupler',
+        'Phase86MonsterWhittakerCoupler',
+    ):
+        from .ensemble_scorer import QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler as _QGLCALSBMMoWC
+        return _QGLCALSBMMoWC
+    if name == 'compute_phase86_coupling':
+        from .ensemble_scorer import QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler as _QGLCALSBMMoWC
+        return _QGLCALSBMMoWC.compute
+    if name in (
+        'apply_tetracosianonacontahexagonal_hyperbolic_deadband',
+        'apply_tetracosianonacontahexadihedral_hyperbolic_deadband',
+        'apply_quadringentanonahexagonal_hyperbolic_deadband',
+        'apply_quadringentanonacontahexagonal_hyperbolic_deadband',
+        'apply_tetracentanonahexagonal_hyperbolic_deadband',
+        'apply_tetracentanonacontahexagonal_hyperbolic_deadband',
+        'apply_tetracosianonacontahexa_hyperbolic_deadband',
+        'apply_tetracosianonacontahexagonal_deadband',
+        'tetracosianonacontahexagonal_deadband',
+        'tetracosianonacontahexagonal_hyperbolic_deadband',
+        'compute_phase86_deadband',
+        'apply_phase86_deadband',
+        'phase86_deadband',
+        'apply_496th_order_hyperbolic_deadband',
+        'apply_496th_deadband',
+        'apply_496_deadband',
+        'apply_hyperbolic_deadband_v86',
+        'suppress_factor_noise_hyperbolic_v86',
+    ):
+        return apply_tetracosianonacontahexagonal_hyperbolic_deadband
+    if name in (
+        'compute_phase86_hyperconvex_rank_modulation',
+        'compute_phase86_rank_warping',
+        'compute_phase86_rank_modulation',
+        'phase86_rank_modulation',
+        'phase86_hyperconvex_rank_modulation',
+        'apply_hyper_convex_rank_modulation_v86',
+    ):
+        return compute_phase86_hyperconvex_rank_modulation
+    if name in ('REGIME_GAMMA_TOP_V86', 'get_regime_adaptive_gamma_top_v86'):
+        return globals()[name]
+    if name in ('FERI_v86', 'feri_v86', 'f_out_86'):
+        return globals().get(name, name)
+    if name == 'Phase86FactorSuppressionEngine':
+        return RegimeFactorSuppressionEngine
+
     # Phase 85
     if name in (
         'Phase85Coupler',
