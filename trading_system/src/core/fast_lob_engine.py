@@ -1406,6 +1406,79 @@ class FastOrderBookMatchingEngine:
     calculate_knk_quintessence_phantom_tachyon_hydrodynamics = compute_kerr_newman_kiselev_tachyon_queue_acceleration
     calculate_kerr_newman_kiselev_quintessence_phantom_tachyon_hydrodynamics = compute_kerr_newman_kiselev_tachyon_queue_acceleration
     # =========================================================================
+    # PHASE 94 (FEATURE F443): KERR-NEWMAN-KISELEV 72-DARK-ENERGY DAHA L3 SPACETIME HYDRODYNAMICS
+    # =========================================================================
+
+    def compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(
+        self,
+        charge_parameter: float = 0.5,
+        spin_parameter: float = 0.5,
+        c_monster: float = 5.293955920339377e-23,  # 2.0 ** -74
+        w: float = -74.0 / 3.0,
+        k_daha: float = 0.64,
+        k_monster: float = 0.63,
+        daha_72_factor: float = 13.50,
+        theta: float = math.pi / 2.0,
+        levels: int = 10,
+        timestamp_sec: Optional[float] = None,
+        **kwargs,
+    ) -> Dict[str, float]:
+        """
+        Phase 94 (Feature F443): Kerr-Newman-Kiselev 72-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
+        Adds 72nd dark energy component with equation of state w = -74/3 = -24.666666666666668,
+        k_daha = 0.64, k_monster = 0.63, daha_72_factor = 13.50, c_monster = 5.293955920339377e-23 (2^-74),
+        repulsive acceleration -37.5 * c * (r ** 74) * daha_72_factor.
+        """
+        base_res = self.compute_kerr_newman_kiselev_71_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(
+            charge_parameter=charge_parameter, spin_parameter=spin_parameter,
+            c_monster=c_monster, w=w, k_daha=k_daha, k_monster=k_monster,
+            daha_71_factor=daha_72_factor, theta=theta, levels=levels,
+            timestamp_sec=timestamp_sec, **kwargs
+        )
+        accel = base_res.get('knk_71_dark_energy_daha_acceleration', base_res.get('queue_acceleration', 0.0))
+        qi = base_res.get('knk_pcqtgbddddhkmaeetuv_accelerated_qi', 0.0)
+        r_eff = max(1e-10, abs(qi))
+        c_72 = float(kwargs.get('c_72', kwargs.get('c_dark_energy_72', c_monster)))
+        dark_72_accel = -37.5 * c_72 * (r_eff ** 74) * daha_72_factor
+        if not math.isfinite(dark_72_accel):
+            dark_72_accel = 0.0
+        dark_72_accel = max(-1e6, min(1e6, dark_72_accel))
+        corrected_accel = accel + dark_72_accel
+        base_res['knk_72_dark_energy_correction'] = round(dark_72_accel, 8)
+        base_res['knk_72_dark_energy_daha_acceleration'] = round(corrected_accel, 6)
+        base_res['phase94_knk_acceleration'] = round(corrected_accel, 6)
+        base_res['phase93_knk_acceleration'] = round(accel, 6)
+        base_res['daha_72_factor'] = daha_72_factor
+        base_res['k_daha_72'] = k_daha
+        base_res['k_monster_72'] = k_monster
+        base_res['c_monster_72'] = c_monster
+        base_res['w_dark_energy_72'] = w
+        base_res['queue_acceleration'] = round(corrected_accel, 6)
+        base_res['a_knk'] = round(corrected_accel, 6)
+        return base_res
+
+    compute_kerr_newman_kiselev_72_dark_energy_daha_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_phase94_lob_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase94_lob_spacetime_hydrodynamics = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_knk_72_dark_energy_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_kerr_newman_kiselev_72_dark_energy_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase94_daha_l3_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    knk_72_dark_energy_daha_l3 = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    daha_l3_phase94_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase94_dark_energy_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    calculate_phase94_knk_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_knk_phase94_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    daha_phase94_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase94_spacetime_hydrodynamics = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase94_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    l3_phase94_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase94_knk_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_phase94_knk_daha_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    compute_phase94_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    phase94_l3_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+    knk_72_daha_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+
+    # =========================================================================
     # PHASE 93 (FEATURE F438): KERR-NEWMAN-KISELEV 71-DARK-ENERGY DAHA L3 SPACETIME HYDRODYNAMICS
     # =========================================================================
 
@@ -22031,6 +22104,46 @@ def compute_deep_order_book_imbalance_hawkes(
 
 # Class alias for institutional naming conventions
 FastLOBEngine = FastOrderBookMatchingEngine
+
+
+# =============================================================================
+# PHASE 94 (FEATURE F443): MODULE-LEVEL KNK-72 DARK ENERGY DAHA L3 EXPOSURE
+# =============================================================================
+
+def compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(
+    engine: Optional[FastOrderBookMatchingEngine] = None,
+    *args,
+    **kwargs,
+) -> Dict[str, float]:
+    """
+    Module-level interface for Kerr-Newman-Kiselev 72-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
+    Exposes KNK-72 computation on the module level.
+    """
+    if engine is None:
+        engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
+    return engine.compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
+
+
+compute_kerr_newman_kiselev_72_dark_energy_daha_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+compute_phase94_lob_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+phase94_lob_spacetime_hydrodynamics = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+compute_knk_72_dark_energy_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+compute_kerr_newman_kiselev_72_dark_energy_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+phase94_daha_l3_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+knk_72_dark_energy_daha_l3 = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+daha_l3_phase94_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+phase94_dark_energy_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+calculate_phase94_knk_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+compute_knk_phase94_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+daha_phase94_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+phase94_spacetime_hydrodynamics = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+phase94_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+l3_phase94_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+phase94_knk_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+compute_phase94_knk_daha_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+compute_phase94_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+phase94_l3_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+knk_72_daha_queue_acceleration = compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
 
 
 # =============================================================================
