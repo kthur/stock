@@ -30,7 +30,7 @@ class SmartOrderRouter:
         taker_fee_bps: float = 1.5,
         continuous_hawkes: bool = False,
         use_logistic_dark_fill: bool = False,
-        version: int = 6,
+        version: int = 97,
     ):
         self.dark_probe_ratio = float(dark_probe_ratio)
         self.maker_rebate_bps = float(maker_rebate_bps)
@@ -38,7 +38,10 @@ class SmartOrderRouter:
         self.continuous_hawkes = bool(continuous_hawkes)
         self.use_logistic_dark_fill = bool(use_logistic_dark_fill)
         self.version = int(version)
-        self.is_phase94 = (self.version >= 94)
+        self.is_phase97 = (self.version >= 97)
+        self.is_phase96 = self.is_phase97 or (self.version >= 96)
+        self.is_phase95 = self.is_phase96 or (self.version >= 95)
+        self.is_phase94 = self.is_phase95 or (self.version >= 94)
         self.is_phase93 = self.is_phase94 or (self.version >= 93)
         self.is_phase92 = self.is_phase93 or (self.version >= 92)
         self.is_phase91 = self.is_phase92 or (self.version >= 91)
@@ -274,13 +277,16 @@ class SmartOrderRouter:
                 "expected_cost_saving_bps": 0.0
             }
 
-        v_eff = version if version is not None else int(order_plan.get("version", 6))
+        v_eff = version if version is not None else int(order_plan.get("version", getattr(self, "version", 97)))
         qi = queue_imbalance if queue_imbalance is not None else order_plan.get("queue_imbalance", order_plan.get("l3_queue_imbalance"))
         arr_imb = arrival_imbalance if arrival_imbalance is not None else order_plan.get("arrival_imbalance")
         qi_accel = qi_acceleration if qi_acceleration is not None else order_plan.get("qi_acceleration")
         cross_tox = cross_asset_toxicity if cross_asset_toxicity is not None else order_plan.get("cross_asset_toxicity")
 
-        is_phase94 = (v_eff >= 94)
+        is_phase97 = (v_eff >= 97)
+        is_phase96 = is_phase97 or (v_eff >= 96)
+        is_phase95 = is_phase96 or (v_eff >= 95)
+        is_phase94 = is_phase95 or (v_eff >= 94)
         is_phase93 = is_phase94 or (v_eff >= 93)
         is_phase92 = is_phase93 or (v_eff >= 92)
         is_phase91 = is_phase92 or (v_eff >= 91)
@@ -654,7 +660,16 @@ class SmartOrderRouter:
         if g_dir is not None:
             gamma_toxic = float(np.clip(float(g_dir), 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase94 and gamma_toxic > 0.80:
+            if is_phase97 and gamma_toxic > 0.80:
+                # F458: Kerr-Newman-Kiselev 75-Dark-Energy DAHA L3 preemption contracts lit maker floor to 1e-68
+                maker_ratio = float(np.clip(round(0.70 * (1.0 - 0.9999999999999999999999999999999999999986 * gamma_toxic), 70), 1e-68, 0.70))
+            elif is_phase96 and gamma_toxic > 0.80:
+                # F453: Kerr-Newman-Kiselev 74-Dark-Energy DAHA L3 preemption contracts lit maker floor to 1e-67
+                maker_ratio = float(np.clip(round(0.70 * (1.0 - 0.9999999999999999999999999999999999999986 * gamma_toxic), 69), 1e-67, 0.70))
+            elif is_phase95 and gamma_toxic > 0.80:
+                # F448: Kerr-Newman-Kiselev 73-Dark-Energy DAHA L3 preemption contracts lit maker floor to 1e-66
+                maker_ratio = float(np.clip(round(0.70 * (1.0 - 0.9999999999999999999999999999999999999986 * gamma_toxic), 68), 1e-66, 0.70))
+            elif is_phase94 and gamma_toxic > 0.80:
                 # F443: Kerr-Newman-Kiselev 72-Dark-Energy DAHA L3 preemption contracts lit maker floor to 1e-65
                 maker_ratio = float(np.clip(round(0.70 * (1.0 - 0.9999999999999999999999999999999999999986 * gamma_toxic), 67), 1e-65, 0.70))
             elif is_phase93 and gamma_toxic > 0.80:
@@ -931,7 +946,16 @@ class SmartOrderRouter:
                 gamma_raw = (hb_val - base_hwk) / (1.5 * base_hwk) - 0.35 * min(0.0, delta_dir)
             gamma_toxic = float(np.clip(gamma_raw, 0.0, 1.0))
             is_toxic_flow = bool(gamma_toxic > 0.50)
-            if is_phase94 and gamma_toxic > 0.80:
+            if is_phase97 and gamma_toxic > 0.80:
+                # F458: Kerr-Newman-Kiselev 75-Dark-Energy DAHA L3 preemption contracts lit maker floor to 1e-68
+                maker_ratio = float(np.clip(round(0.70 * (1.0 - 0.9999999999999999999999999999999999999986 * gamma_toxic), 70), 1e-68, 0.70))
+            elif is_phase96 and gamma_toxic > 0.80:
+                # F453: Kerr-Newman-Kiselev 74-Dark-Energy DAHA L3 preemption contracts lit maker floor to 1e-67
+                maker_ratio = float(np.clip(round(0.70 * (1.0 - 0.9999999999999999999999999999999999999986 * gamma_toxic), 69), 1e-67, 0.70))
+            elif is_phase95 and gamma_toxic > 0.80:
+                # F448: Kerr-Newman-Kiselev 73-Dark-Energy DAHA L3 preemption contracts lit maker floor to 1e-66
+                maker_ratio = float(np.clip(round(0.70 * (1.0 - 0.9999999999999999999999999999999999999986 * gamma_toxic), 68), 1e-66, 0.70))
+            elif is_phase94 and gamma_toxic > 0.80:
                 # F443: Kerr-Newman-Kiselev 72-Dark-Energy DAHA L3 preemption contracts lit maker floor to 1e-65
                 maker_ratio = float(np.clip(round(0.70 * (1.0 - 0.9999999999999999999999999999999999999986 * gamma_toxic), 67), 1e-65, 0.70))
             elif is_phase93 and gamma_toxic > 0.80:
@@ -1485,9 +1509,9 @@ class SmartOrderRouter:
             rem_qty = total_quantity
 
         # 2. Tier 2: Primary Peg / Maker Leg (modulated continuously)
-        ratio_prec = 65 if is_phase94 else 64 if is_phase93 else 63 if is_phase92 else 62 if is_phase91 else 61 if is_phase90 else 60 if is_phase89 else 59 if is_phase88 else 58 if is_phase87 else 57 if is_phase86 else 56 if is_phase85 else 55 if is_phase84 else 54 if is_phase82 else 53 if is_phase81 else 52 if is_phase80 else 51 if is_phase79 else 50 if is_phase78 else 49 if is_phase77 else 48 if is_phase76 else 47 if is_phase75 else 46 if is_phase74 else 45 if is_phase73 else 44 if is_phase72 else 43 if is_phase71 else 42 if is_phase70 else 41 if is_phase69 else 40 if is_phase68 else 39 if is_phase67 else 38 if is_phase66 else 37 if is_phase65 else 36 if is_phase64 else 35 if is_phase63 else 34 if is_phase62 else 33 if is_phase61 else 32 if is_phase60 else 31 if is_phase59 else 30 if is_phase58 else 29 if is_phase57 else 28 if is_phase56 else 27 if is_phase55 else 26 if is_phase54 else 25 if is_phase53 else 24 if is_phase52 else 23 if is_phase51 else 22 if is_phase50 else 21 if is_phase48 else 20 if is_phase47 else 19 if (is_phase46 or is_phase45) else 18 if is_phase44 else 17 if is_phase43 else 16 if is_phase41 else 15 if is_phase40 else 14 if is_phase39 else 13 if (is_phase38 or is_phase37) else 12 if (is_phase36 or is_phase35 or is_phase34 or is_phase33) else 10 if is_phase32 else 9 if (is_phase31 or is_phase30) else 8 if is_phase27 else 7 if is_phase24 else 6
+        ratio_prec = 68 if is_phase97 else 67 if is_phase96 else 66 if is_phase95 else 65 if is_phase94 else 64 if is_phase93 else 63 if is_phase92 else 62 if is_phase91 else 61 if is_phase90 else 60 if is_phase89 else 59 if is_phase88 else 58 if is_phase87 else 57 if is_phase86 else 56 if is_phase85 else 55 if is_phase84 else 54 if is_phase82 else 53 if is_phase81 else 52 if is_phase80 else 51 if is_phase79 else 50 if is_phase78 else 49 if is_phase77 else 48 if is_phase76 else 47 if is_phase75 else 46 if is_phase74 else 45 if is_phase73 else 44 if is_phase72 else 43 if is_phase71 else 42 if is_phase70 else 41 if is_phase69 else 40 if is_phase68 else 39 if is_phase67 else 38 if is_phase66 else 37 if is_phase65 else 36 if is_phase64 else 35 if is_phase63 else 34 if is_phase62 else 33 if is_phase61 else 32 if is_phase60 else 31 if is_phase59 else 30 if is_phase58 else 29 if is_phase57 else 28 if is_phase56 else 27 if is_phase55 else 26 if is_phase54 else 25 if is_phase53 else 24 if is_phase52 else 23 if is_phase51 else 22 if is_phase50 else 21 if is_phase48 else 20 if is_phase47 else 19 if (is_phase46 or is_phase45) else 18 if is_phase44 else 17 if is_phase43 else 16 if is_phase41 else 15 if is_phase40 else 14 if is_phase39 else 13 if (is_phase38 or is_phase37) else 12 if (is_phase36 or is_phase35 or is_phase34 or is_phase33) else 10 if is_phase32 else 9 if (is_phase31 or is_phase30) else 8 if is_phase27 else 7 if is_phase24 else 6
 
-        min_ratio_prec = 65 if is_phase94 else 64 if is_phase93 else 63 if is_phase92 else 62 if is_phase91 else 61 if is_phase90 else 60 if is_phase89 else 59 if is_phase88 else 58 if is_phase87 else 57 if is_phase86 else 56 if is_phase85 else 55 if is_phase84 else 54 if is_phase82 else 53 if is_phase81 else 52 if is_phase80 else 51 if is_phase79 else 50 if is_phase78 else 49 if is_phase77 else 48 if is_phase76 else 47 if is_phase75 else 46 if is_phase74 else 45 if is_phase73 else 44 if is_phase72 else 43 if is_phase71 else 42 if is_phase70 else 41 if is_phase69 else 40 if is_phase68 else 39 if is_phase67 else 38 if is_phase66 else 37 if is_phase65 else 36 if is_phase64 else 35 if is_phase63 else 34 if is_phase62 else 33 if is_phase61 else 32 if is_phase60 else 31 if is_phase59 else 30 if is_phase58 else 29 if is_phase57 else 28 if is_phase56 else 27 if is_phase55 else 26 if is_phase54 else 25 if is_phase53 else 24 if is_phase52 else 23 if is_phase51 else 22 if is_phase50 else 20 if is_phase48 else 19 if is_phase47 else 18 if (is_phase46 or is_phase45) else 17 if is_phase44 else 16 if is_phase43 else 15 if is_phase41 else 14 if is_phase40 else 13 if is_phase39 else 12 if (is_phase38 or is_phase37 or is_phase36) else 11 if is_phase35 else 10 if is_phase34 else 9 if is_phase33 else 8 if (is_phase32 or is_phase31 or is_phase30) else 7 if is_phase27 else 6 if (is_phase26 or is_phase25 or is_phase24) else 5 if is_phase23 else 4
+        min_ratio_prec = 68 if is_phase97 else 67 if is_phase96 else 66 if is_phase95 else 65 if is_phase94 else 64 if is_phase93 else 63 if is_phase92 else 62 if is_phase91 else 61 if is_phase90 else 60 if is_phase89 else 59 if is_phase88 else 58 if is_phase87 else 57 if is_phase86 else 56 if is_phase85 else 55 if is_phase84 else 54 if is_phase82 else 53 if is_phase81 else 52 if is_phase80 else 51 if is_phase79 else 50 if is_phase78 else 49 if is_phase77 else 48 if is_phase76 else 47 if is_phase75 else 46 if is_phase74 else 45 if is_phase73 else 44 if is_phase72 else 43 if is_phase71 else 42 if is_phase70 else 41 if is_phase69 else 40 if is_phase68 else 39 if is_phase67 else 38 if is_phase66 else 37 if is_phase65 else 36 if is_phase64 else 35 if is_phase63 else 34 if is_phase62 else 33 if is_phase61 else 32 if is_phase60 else 31 if is_phase59 else 30 if is_phase58 else 29 if is_phase57 else 28 if is_phase56 else 27 if is_phase55 else 26 if is_phase54 else 25 if is_phase53 else 24 if is_phase52 else 23 if is_phase51 else 22 if is_phase50 else 20 if is_phase48 else 19 if is_phase47 else 18 if (is_phase46 or is_phase45) else 17 if is_phase44 else 16 if is_phase43 else 15 if is_phase41 else 14 if is_phase40 else 13 if is_phase39 else 12 if (is_phase38 or is_phase37 or is_phase36) else 11 if is_phase35 else 10 if is_phase34 else 9 if is_phase33 else 8 if (is_phase32 or is_phase31 or is_phase30) else 7 if is_phase27 else 6 if (is_phase26 or is_phase25 or is_phase24) else 5 if is_phase23 else 4
 
         maker_rebate = float(dest.get("rebate_bps", self.maker_rebate_bps))
         if rem_qty > 0:

@@ -1502,7 +1502,10 @@ class ExecutionOMSEngine:
 
         # 9. Multivariate Hawkes Cross-Excitation Preemptive Shading (Phase 10 F61.2, Phase 11 F65.2, Phase 12 F69.2, Phase 13 F73.2, Phase 14 F77.2, Phase 15 F81.2, Phase 16 F85.2, Phase 17 F89.2, Phase 18 F93.2.3, Phase 19 F97.2, Phase 20 F101.2.3, Phase 21 F105.2.5, Phase 22 F109.2.3, Phase 23 F113.2.2, Phase 24 F117.2, Phase 25 F121.2, Phase 26 F125.2, Phase 27 F129.2, Phase 28 F133.2, Phase 29 F137.2, Phase 30 F141.2, Phase 31 F145.2, Phase 32 F149.2, Phase 33 F153.2, Phase 47 F209.2, Phase 48 F214.2, Phase 49 F219.2, Phase 50 F224.2)
         v_eff = int(version) if version is not None else 6
-        is_phase94 = (v_eff >= 94)
+        is_phase97 = (v_eff >= 97)
+        is_phase96 = is_phase97 or (v_eff >= 96)
+        is_phase95 = is_phase96 or (v_eff >= 95)
+        is_phase94 = is_phase95 or (v_eff >= 94)
         is_phase93 = is_phase94 or (v_eff >= 93)
         is_phase92 = is_phase93 or (v_eff >= 92)
         is_phase91 = is_phase92 or (v_eff >= 91)
@@ -1512,7 +1515,40 @@ class ExecutionOMSEngine:
         is_phase87 = is_phase88 or (v_eff >= 87)
         is_phase86 = is_phase87 or (v_eff >= 86)
         hawkes_shift = 0.0
-        if is_phase94:
+        if is_phase97:
+            # Phase 97 F458: Tick shading h > 3.0e-11 threshold with 50 nines
+            h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
+            if isinstance(h_int, dict):
+                h_monster_whit = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
+            elif h_int is not None and math.isfinite(float(h_int)):
+                h_monster_whit = float(h_int)
+            else:
+                h_monster_whit = 0.0
+            if h_monster_whit > 0.00000000003:
+                hawkes_shift = -direction * 0.99999999999999999999999999999999999999999999999999 * spr * (h_monster_whit - 0.00000000003)
+        elif is_phase96:
+            # Phase 96 F453: Tick shading h > 4.0e-11 threshold with 49 nines
+            h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
+            if isinstance(h_int, dict):
+                h_monster_whit = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
+            elif h_int is not None and math.isfinite(float(h_int)):
+                h_monster_whit = float(h_int)
+            else:
+                h_monster_whit = 0.0
+            if h_monster_whit > 0.00000000004:
+                hawkes_shift = -direction * 0.9999999999999999999999999999999999999999999999999 * spr * (h_monster_whit - 0.00000000004)
+        elif is_phase95:
+            # Phase 95 F448: Tick shading h > 5.0e-11 threshold with 48 nines
+            h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
+            if isinstance(h_int, dict):
+                h_monster_whit = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
+            elif h_int is not None and math.isfinite(float(h_int)):
+                h_monster_whit = float(h_int)
+            else:
+                h_monster_whit = 0.0
+            if h_monster_whit > 0.00000000005:
+                hawkes_shift = -direction * 0.999999999999999999999999999999999999999999999999 * spr * (h_monster_whit - 0.00000000005)
+        elif is_phase94:
             # Phase 94 F443: Tick shading h > 6.0e-11 threshold with 47 nines
             h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
             if isinstance(h_int, dict):
@@ -2933,7 +2969,10 @@ class AlmgrenChrissScheduler:
 
         # 9. Multivariate Hawkes Cross-Excitation Preemptive Shading (Phase 10 F61.2, Phase 11 F65.2, Phase 12 F69.2, Phase 13 F73.2, Phase 14 F77.2, Phase 15 F81.2, Phase 16 F85.2, Phase 17 F89.2, Phase 18 F93.2.3, Phase 19 F97.2, Phase 20 F101.2.3, Phase 21 F105.2.5, Phase 22 F109.2.3, Phase 23 F113.2.2, Phase 24 F117.2, Phase 25 F121.2, Phase 26 F125.2, Phase 27 F129.2, Phase 28 F133.2, Phase 29 F137.2, Phase 30 F141.2, Phase 31 F145.2, Phase 32 F149.2, Phase 33 F153.2, Phase 47 F209.2, Phase 48 F214.2, Phase 49 F219.2, Phase 50 F224.2)
         v_eff = int(version) if version is not None else 6
-        is_phase94 = (v_eff >= 94)
+        is_phase97 = (v_eff >= 97)
+        is_phase96 = is_phase97 or (v_eff >= 96)
+        is_phase95 = is_phase96 or (v_eff >= 95)
+        is_phase94 = is_phase95 or (v_eff >= 94)
         is_phase93 = is_phase94 or (v_eff >= 93)
         is_phase92 = is_phase93 or (v_eff >= 92)
         is_phase91 = is_phase92 or (v_eff >= 91)
@@ -2943,7 +2982,40 @@ class AlmgrenChrissScheduler:
         is_phase87 = is_phase88 or (v_eff >= 87)
         is_phase86 = is_phase87 or (v_eff >= 86)
         hawkes_shift = 0.0
-        if is_phase94:
+        if is_phase97:
+            # Phase 97 F458: Tick shading h > 3.0e-11 threshold with 50 nines
+            h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
+            if isinstance(h_int, dict):
+                h_monster_whit = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
+            elif h_int is not None and math.isfinite(float(h_int)):
+                h_monster_whit = float(h_int)
+            else:
+                h_monster_whit = 0.0
+            if h_monster_whit > 0.00000000003:
+                hawkes_shift = -direction * 0.99999999999999999999999999999999999999999999999999 * spr * (h_monster_whit - 0.00000000003)
+        elif is_phase96:
+            # Phase 96 F453: Tick shading h > 4.0e-11 threshold with 49 nines
+            h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
+            if isinstance(h_int, dict):
+                h_monster_whit = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
+            elif h_int is not None and math.isfinite(float(h_int)):
+                h_monster_whit = float(h_int)
+            else:
+                h_monster_whit = 0.0
+            if h_monster_whit > 0.00000000004:
+                hawkes_shift = -direction * 0.9999999999999999999999999999999999999999999999999 * spr * (h_monster_whit - 0.00000000004)
+        elif is_phase95:
+            # Phase 95 F448: Tick shading h > 5.0e-11 threshold with 48 nines
+            h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
+            if isinstance(h_int, dict):
+                h_monster_whit = float(h_int.get("cross_excitation_toxicity", h_int.get("total_intensity", 0.0)))
+            elif h_int is not None and math.isfinite(float(h_int)):
+                h_monster_whit = float(h_int)
+            else:
+                h_monster_whit = 0.0
+            if h_monster_whit > 0.00000000005:
+                hawkes_shift = -direction * 0.999999999999999999999999999999999999999999999999 * spr * (h_monster_whit - 0.00000000005)
+        elif is_phase94:
             # Phase 94 F443: Tick shading h > 6.0e-11 threshold with 47 nines
             h_int = hawkes_intensity if hawkes_intensity is not None else kwargs.get("hawkes_intensity", None)
             if isinstance(h_int, dict):
