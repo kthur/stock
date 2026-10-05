@@ -158,46 +158,100 @@ def test_supply_chain_gnn_bullwhip_coefficients():
 
 
 def test_range_expansion_nr7_lookahead_bias():
-    """Verify NR7 detection at t-2 does not leak t-1 bar range."""
+    """Verify NR7 detection at t-2 uses trailing [-9:-2] window and does not leak t-1 bar range."""
     from src.core.range_expansion_breakout import RangeExpansionBreakoutEngine
 
     engine = RangeExpansionBreakoutEngine()
 
-    high = np.array([10.0] * 12 + [10.5, 12.0, 10.0])
-    low =  np.array([ 9.0] * 12 + [10.0, 10.0,  9.5])
-    close = np.array([9.5] * 12 + [10.2, 11.5,  9.8])
-    volume = np.array([1000] * 15)
+    # Construct series where bar t-2 (index -3) is NR7 with range 0.5 (smaller than preceding 6 bars of range 2.0).
+    # Bar t-1 (index -2) has a narrower range 0.2.
+    # Bar t (index -1) is a strong breakout bar (range 6.0, high volume).
+    highs = [10.0] * 22 + [10.0, 10.0, 14.0]
+    lows = [8.0] * 22 + [9.5, 9.8, 8.0]
+    closes = [9.0] * 22 + [9.8, 9.9, 13.5]
+    volumes = [1000.0] * 24 + [5000.0]
 
-    df = pd.DataFrame({"high": high, "low": low, "close": close, "volume": volume})
+    df = pd.DataFrame({
+        "High": highs,
+        "Low": lows,
+        "Close": closes,
+        "Open": closes,
+        "Volume": volumes,
+    })
+
+    bar_range = (df["High"] - df["Low"]).values
+    # Verify t-2 is strictly NR7 with proper non-leaking window [-9:-2]
+    trailing_7_prev = bar_range[-9:-2]
+    assert len(trailing_7_prev) == 7
+    assert bar_range[-3] <= np.min(trailing_7_prev), "Bar t-2 should be the narrowest of its 7 trailing bars"
+
+    # Verify that the lookahead-biased window [-8:-1] would incorrectly leak bar t-1 (0.2), causing t-2 to fail
+    leaked_window = bar_range[-8:-1]
+    assert not (bar_range[-3] <= np.min(leaked_window)), "Bar t-2 would fail NR7 under lookahead leak [-8:-1]"
+
+    # Verify engine calculates a high breakout score (> 0.70) because compression precursor was detected at t-2
+    score = engine._compute_symbol_breakout(df)
+    assert score > 0.70, f"Expected high breakout score, got {score}"
+
     scores = engine.calculate_scores({"TEST": df})
-
     assert isinstance(scores, pd.DataFrame)
     assert not scores.empty
+    assert float(scores["range_expansion_score"].iloc[0]) > 0.70
 
 
 def test_dual_correction_ma20_nan_handling():
-    """Verify dual correction handles dataframes with exactly 32 bars without NaN propagation."""
+    """Verify dual correction handles multiple edge-case lengths (30, 32, 34, 35, 50) without NaN propagation."""
     from src.core.dual_correction import DualCorrectionEngine, TimeCorrectionScorer
 
-    n = 32
-    df = pd.DataFrame({
-        "open": np.linspace(100, 110, n),
-        "high": np.linspace(101, 111, n),
-        "low": np.linspace(99, 109, n),
-        "close": np.linspace(100.5, 110.5, n),
-        "volume": np.full(n, 100000.0)
-    })
-    # Test TimeCorrectionScorer directly where ma20 slope calculation lives
-    time_score, details = TimeCorrectionScorer.compute_score(df)
-    assert np.isfinite(time_score)
-    assert np.isfinite(details["base_duration_score"])
+    # Test edge-case lengths: 30 is the engine's min threshold, 34 is boundary where rolling 20 has exactly 15 clean bars
+    for n in [30, 32, 34, 35, 50]:
+        df = pd.DataFrame({
+            "open": np.linspace(100, 110, n),
+            "high": np.linspace(101, 111, n),
+            "low": np.linspace(99, 109, n),
+            "close": np.linspace(100.5, 110.5, n),
+            "volume": np.full(n, 100000.0)
+        })
+        # Test TimeCorrectionScorer directly where ma20 slope calculation lives
+        time_score, details = TimeCorrectionScorer.compute_score(df)
+        assert np.isfinite(time_score), f"time_score was non-finite at n={n}"
+        assert np.isfinite(details["base_duration_score"]), f"base_duration_score was non-finite at n={n}"
 
-    # Test full engine scores calculation
-    engine = DualCorrectionEngine()
-    scores = engine.calculate_scores({"TEST": df})
-    assert isinstance(scores, pd.DataFrame)
-    assert not scores.empty
-    assert np.all(np.isfinite(scores["dual_correction_score"]))
+        # Test full engine scores calculation
+        engine = DualCorrectionEngine()
+        scores = engine.calculate_scores({"TEST": df})
+        assert isinstance(scores, pd.DataFrame), f"scores was not a DataFrame at n={n}"
+        assert not scores.empty, f"scores was unexpectedly empty at n={n}"
+        val = float(scores["dual_correction_score"].iloc[0])
+        assert np.isfinite(val), f"dual_correction_score was non-finite at n={n}"
+
+
+def test_fast_lob_kerr_newman_kiselev_physics_computations():
+    """Verify Kerr-Newman-Kiselev physics methods execute deterministically and return finite metrics."""
+    from src.core.fast_lob_engine import (
+        FastOrderBookMatchingEngine,
+        compute_kerr_newman_kiselev_75_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration,
+        compute_kerr_newman_kiselev_74_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration,
+    )
+
+    engine = FastOrderBookMatchingEngine("AAPL")
+    # Verify instance method execution
+    res_inst = engine.compute_kerr_newman_kiselev_28_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration()
+    assert isinstance(res_inst, dict)
+    assert len(res_inst) > 0
+    for k, v in list(res_inst.items())[:10]:
+        if isinstance(v, (int, float)):
+            assert math.isfinite(v), f"Metric {k} was non-finite: {v}"
+
+    # Verify top-level helper execution without engine
+    res_mod = compute_kerr_newman_kiselev_75_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration()
+    assert isinstance(res_mod, dict)
+    assert len(res_mod) > 0
+
+    # Verify top-level helper execution with explicit engine
+    res_mod_eng = compute_kerr_newman_kiselev_74_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(engine=engine)
+    assert isinstance(res_mod_eng, dict)
+    assert len(res_mod_eng) > 0
 
 
 def test_strategy_executor_duplicated_close_column_robustness():

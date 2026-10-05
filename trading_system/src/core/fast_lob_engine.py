@@ -22399,7 +22399,9 @@ def compute_kerr_newman_kiselev_75_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 75-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-75 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_75_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22442,7 +22444,9 @@ def compute_kerr_newman_kiselev_74_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 74-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-74 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_74_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22485,7 +22489,9 @@ def compute_kerr_newman_kiselev_73_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 73-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-73 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_73_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22525,7 +22531,9 @@ def compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 72-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-72 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_72_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22565,7 +22573,9 @@ def compute_kerr_newman_kiselev_71_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 71-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-71 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_71_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22605,7 +22615,9 @@ def compute_kerr_newman_kiselev_70_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 70-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-70 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_70_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22645,7 +22657,9 @@ def compute_kerr_newman_kiselev_69_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 69-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-69 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_69_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22685,7 +22699,9 @@ def compute_kerr_newman_kiselev_68_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 68-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-68 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_68_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22725,7 +22741,9 @@ def compute_kerr_newman_kiselev_67_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 67-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-67 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_67_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22765,7 +22783,9 @@ def compute_kerr_newman_kiselev_66_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 66-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-66 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_66_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22805,7 +22825,9 @@ def compute_kerr_newman_kiselev_65_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 65-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-65 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_65_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22845,7 +22867,9 @@ def compute_kerr_newman_kiselev_64_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 64-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-64 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_64_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22885,7 +22909,9 @@ def compute_kerr_newman_kiselev_63_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 63-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-63 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_63_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22925,7 +22951,9 @@ def compute_kerr_newman_kiselev_62_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 62-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-62 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_62_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22961,7 +22989,9 @@ def compute_kerr_newman_kiselev_61_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 61-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-61 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_61_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -22997,7 +23027,9 @@ def compute_kerr_newman_kiselev_60_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 60-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-60 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_60_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -23033,7 +23065,9 @@ def compute_kerr_newman_kiselev_59_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 59-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-59 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_59_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -23069,7 +23103,9 @@ def compute_kerr_newman_kiselev_58_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 58-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-58 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_58_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -23105,7 +23141,9 @@ def compute_kerr_newman_kiselev_57_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 57-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-57 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_57_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -23141,7 +23179,9 @@ def compute_kerr_newman_kiselev_56_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 56-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-56 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_56_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -23177,7 +23217,9 @@ def compute_kerr_newman_kiselev_55_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 55-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-55 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_55_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 
@@ -23213,7 +23255,9 @@ def compute_kerr_newman_kiselev_54_dark_energy_daha_l3_spacetime_hydrodynamic_ac
     Module-level interface for Kerr-Newman-Kiselev 54-Dark-Energy DAHA L3 Spacetime Hydrodynamics.
     Exposes KNK-54 computation on the module level.
     """
-    if engine is None:
+    if not isinstance(engine, FastOrderBookMatchingEngine):
+        if engine is not None:
+            args = (engine,) + args
         engine = FastOrderBookMatchingEngine(symbol=kwargs.get("symbol", "DEFAULT"))
     return engine.compute_kerr_newman_kiselev_54_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration(*args, **kwargs)
 

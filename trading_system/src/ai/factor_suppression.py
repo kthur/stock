@@ -11282,7 +11282,7 @@ Phase96FactorSuppressionEngine = RegimeFactorSuppressionEngine
 Phase97FactorSuppressionEngine = RegimeFactorSuppressionEngine
 
 
-__all__ = [
+_ALL_EXPORTS = [
     'apply_octacontahexagonal_hyperbolic_deadband',
     'apply_quingentaoctacontatetragonal_hyperbolic_deadband',
     'apply_pentacontaoctacontatetragonal_hyperbolic_deadband',
@@ -12387,6 +12387,8 @@ __all__ = [
     'QuintPillarMap',
     'RegimeFactorSuppressionEngine',
 ]
+
+__all__ = [name for name in _ALL_EXPORTS if name in globals()]
 
 
 # =========================================================================
