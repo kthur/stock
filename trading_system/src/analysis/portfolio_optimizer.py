@@ -380,6 +380,27 @@ def compute_tail_stressed_covariance(
     return cov_matrix
 
 
+def _repair_non_finite_covariance(cov_matrix: np.ndarray) -> np.ndarray:
+    """
+    Repairs non-finite covariance entries without fabricating correlation.
+    - Off-diagonal: mirror the transposed entry if finite, otherwise assume uncorrelated (0.0).
+    - Diagonal: missing/non-positive variances fall back to the median finite variance (or 0.04 ~ 20% vol).
+    Returns a symmetric, fully finite matrix. No-op when the input is already finite.
+    """
+    if np.all(np.isfinite(cov_matrix)):
+        return cov_matrix
+    cov = np.array(cov_matrix, dtype=np.float64, copy=True)
+    diag = np.diag(cov)
+    diag_ok = np.isfinite(diag) & (diag > 0)
+    safe_diag_default = float(np.median(diag[diag_ok])) if np.any(diag_ok) else 0.04
+
+    finite_mask = np.isfinite(cov)
+    cov = np.where(finite_mask, cov, np.where(finite_mask.T, cov.T, 0.0))
+    cov = 0.5 * (cov + cov.T)
+    np.fill_diagonal(cov, np.where(diag_ok, diag, safe_diag_default))
+    return cov
+
+
 def calculate_hrp_weights(
     cov_matrix: np.ndarray,
     symbols: Optional[list] = None,
@@ -418,6 +439,10 @@ def calculate_hrp_weights(
         from scipy.cluster.hierarchy import linkage
         from scipy.spatial.distance import squareform
 
+        # Repair non-finite entries BEFORE shrinkage: shrinkage uses mean(diag(S)), so a single NaN
+        # would otherwise propagate to every entry and collapse HRP into equal weights.
+        cov_matrix = _repair_non_finite_covariance(cov_matrix)
+
         # Apply Ledoit-Wolf covariance shrinkage
         cov_matrix = shrink_covariance_matrix(cov_matrix, shrink_factor=0.15)
 
@@ -437,19 +462,8 @@ def calculate_hrp_weights(
         if tail_stress and returns_matrix is not None:
             cov_matrix = compute_tail_stressed_covariance(cov_matrix, returns_matrix=returns_matrix)
 
-        # Replace non-finite entries safely.
-        if not np.all(np.isfinite(cov_matrix)):
-            finite_mask = np.isfinite(cov_matrix)
-            diag_finite = np.diag(cov_matrix)[np.isfinite(np.diag(cov_matrix))]
-            safe_diag_default = float(np.nanmedian(diag_finite)) if len(diag_finite) > 0 and np.nanmedian(diag_finite) > 0 else 0.04  # ~20% vol
-            with np.errstate(invalid="ignore", divide="ignore"):
-                col_fill = np.where(
-                    finite_mask.any(axis=0),
-                    np.nanmean(np.where(finite_mask, cov_matrix, np.nan), axis=0),
-                    0.0,
-                )
-            cov_matrix = np.where(finite_mask, cov_matrix, col_fill)
-            np.fill_diagonal(cov_matrix, np.nan_to_num(np.diag(cov_matrix), nan=safe_diag_default))
+        # Replace non-finite entries safely (tail-stress can also introduce non-finite values).
+        cov_matrix = _repair_non_finite_covariance(cov_matrix)
 
         # Standard deviation & correlation matrix
         vols = np.sqrt(np.abs(np.diag(cov_matrix)))
@@ -706,8 +720,18 @@ def apply_portfolio_constraints(
             if np.any(under_mask) and np.sum(w[under_mask]) > 1e-12:
                 available_room = np.maximum(0.0, cap_weight - w[under_mask])
                 if np.sum(available_room) > 1e-12:
-                    alloc = excess * (available_room / np.sum(available_room))
-                    w[under_mask] += np.minimum(available_room, alloc)
+                    remaining_excess = excess
+                    for _redis_iter in range(10):
+                        if remaining_excess < 1e-12:
+                            break
+                        room = np.maximum(0.0, cap_weight - w[under_mask])
+                        total_room = np.sum(room)
+                        if total_room < 1e-12:
+                            break
+                        alloc = remaining_excess * (room / total_room)
+                        actual = np.minimum(room, alloc)
+                        w[under_mask] += actual
+                        remaining_excess -= np.sum(actual)
                 else:
                     w[under_mask] += excess * (w[under_mask] / np.sum(w[under_mask]))
             else:
@@ -737,8 +761,18 @@ def apply_portfolio_constraints(
                 if np.any(under_mask) and np.sum(w[under_mask]) > 1e-12:
                     available_room = np.maximum(0.0, cap_weight - w[under_mask])
                     if np.sum(available_room) > 1e-12:
-                        alloc = excess_total * (available_room / np.sum(available_room))
-                        w[under_mask] += np.minimum(available_room, alloc)
+                        remaining_excess = excess_total
+                        for _redis_iter in range(10):
+                            if remaining_excess < 1e-12:
+                                break
+                            room = np.maximum(0.0, cap_weight - w[under_mask])
+                            total_room = np.sum(room)
+                            if total_room < 1e-12:
+                                break
+                            alloc = remaining_excess * (room / total_room)
+                            actual = np.minimum(room, alloc)
+                            w[under_mask] += actual
+                            remaining_excess -= np.sum(actual)
                     else:
                         w[under_mask] += excess_total * (w[under_mask] / np.sum(w[under_mask]))
                 else:

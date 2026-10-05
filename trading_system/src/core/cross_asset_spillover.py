@@ -283,7 +283,7 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                 c_now = float(close_s.iloc[-1])
                 c_1d = float(close_s.iloc[-2]) if len(close_s) >= 2 else c_now
                 c_3d = float(close_s.iloc[-4]) if len(close_s) >= 4 else c_1d
-                c_5d = float(close_s.iloc[-5]) if len(close_s) >= 5 else c_3d
+                c_5d = float(close_s.iloc[-6]) if len(close_s) >= 6 else c_3d
 
                 r1 = (c_now / c_1d - 1.0) if c_1d > 0 else 0.0
                 r3 = (c_now / c_3d - 1.0) if c_3d > 0 else 0.0

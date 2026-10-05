@@ -173,7 +173,7 @@ class SupplyChainGNNEngine(BaseStrategyEngine):
                 c_now = float(close_s.iloc[-1])
                 c_1d = float(close_s.iloc[-2]) if len(close_s) >= 2 else c_now
                 c_3d = float(close_s.iloc[-4]) if len(close_s) >= 4 else c_1d
-                c_5d = float(close_s.iloc[-5]) if len(close_s) >= 5 else c_3d
+                c_5d = float(close_s.iloc[-6]) if len(close_s) >= 6 else c_3d
 
                 r1 = (c_now / c_1d - 1.0) if c_1d > 0 else 0.0
                 r3 = (c_now / c_3d - 1.0) if c_3d > 0 else 0.0
@@ -219,9 +219,9 @@ class SupplyChainGNNEngine(BaseStrategyEngine):
         def bullwhip_transform(r: float) -> float:
             if not np.isfinite(r):
                 return 0.0
-            # Bullwhip Operational Leverage: Upstream suppliers experience amplified demand surges (1.25x)
-            # and sharp downside inventory correction shocks (1.35x)
-            return float(r * 1.35) if r < 0 else float(r * 1.25)
+            # Bullwhip Operational Leverage: Upstream suppliers dampen positive demand signals (0.85x)
+            # and experience amplified downside inventory correction shocks (1.35x)
+            return float(r * 1.35) if r < 0 else float(r * 0.85)
 
         # Hop 1 (Linear neighbor momentum aggregation followed by bullwhip operational leverage transform)
         hop1: Dict[str, float] = {}

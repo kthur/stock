@@ -286,14 +286,13 @@ try:
     setattr(_fs_module, 'compute_chiral_oper_coupling', QuantumLanglandsAffineWAlgebraCoupler.compute)
     setattr(_fs_module, 'compute_quant_langlands_coupling', QuantumLanglandsAffineWAlgebraCoupler.compute)
     setattr(_fs_module, 'compute_phase43_coupling', QuantumLanglandsAffineWAlgebraCoupler.compute)
-    setattr(_fs_module, 'compute_phase43_hyperconvex_rank_modulation', compute_phase43_hyperconvex_rank_modulation)
-    setattr(_fs_module, 'compute_phase43_rank_warping', compute_phase43_rank_warping)
-    setattr(_fs_module, 'apply_centapentacontaduogonal_hyperbolic_deadband', apply_centapentacontaduogonal_hyperbolic_deadband)
-    setattr(_fs_module, 'compute_phase43_deadband', apply_centapentacontaduogonal_hyperbolic_deadband)
-    setattr(_fs_module, 'apply_phase43_deadband', apply_centapentacontaduogonal_hyperbolic_deadband)
-    setattr(_fs_module, 'apply_centapentaconta_hyperbolic_deadband', apply_centapentacontaduogonal_hyperbolic_deadband)
-    setattr(_fs_module, 'apply_centapentacontaduogonal_deadband', apply_centapentacontaduogonal_hyperbolic_deadband)
-    setattr(_fs_module, 'apply_centapentacontaduo_hyperbolic_deadband', apply_centapentacontaduogonal_hyperbolic_deadband)
+    _p43_deadband = getattr(_fs_module, 'apply_centapentacontaduogonal_hyperbolic_deadband', None)
+    if _p43_deadband is not None:
+        setattr(_fs_module, 'compute_phase43_deadband', _p43_deadband)
+        setattr(_fs_module, 'apply_phase43_deadband', _p43_deadband)
+        setattr(_fs_module, 'apply_centapentaconta_hyperbolic_deadband', _p43_deadband)
+        setattr(_fs_module, 'apply_centapentacontaduogonal_deadband', _p43_deadband)
+        setattr(_fs_module, 'apply_centapentacontaduo_hyperbolic_deadband', _p43_deadband)
 except Exception:
     pass
 

@@ -138,6 +138,8 @@ class AlphaStrategyExecutor:
                             c_col = 'Close' if 'Close' in df_p.columns else ('close' if 'close' in df_p.columns else None)
                             if c_col and not df_p[c_col].dropna().empty:
                                 c_s = df_p[c_col].dropna().astype(float)
+                                if isinstance(c_s, pd.DataFrame):
+                                    c_s = c_s.iloc[:, 0]
                                 last_c = float(c_s.iloc[-1])
                                 c_14 = float(c_s.iloc[-min(len(c_s), 15)])
                                 mom14 = (last_c / max(1e-5, c_14)) - 1.0
@@ -175,12 +177,15 @@ class AlphaStrategyExecutor:
                 if fd is None or len(fd) == 0:
                     continue
                 if 'date_available' in fd.columns:
-                    fd_valid = fd[pd.to_datetime(fd['date_available']) <= cur_dt]
+                    fd_valid = fd[pd.to_datetime(fd['date_available'], errors='coerce') <= cur_dt]
                 elif 'date' in fd.columns:
                     is_krx = str(sym).isdigit() or str(sym).endswith(('.KS', '.KQ'))
-                    fund_dts = pd.to_datetime(fd['date'])
-                    lags = fund_dts.apply(lambda dt: pd.Timedelta(days=90 if is_krx else 60) if getattr(dt, 'month', 0) == 12 else pd.Timedelta(days=45 if is_krx else 40))
-                    fd_valid = fd[fund_dts + lags <= cur_dt]
+                    fund_dts = pd.to_datetime(fd['date'], errors='coerce')
+                    annual_days = 90 if is_krx else 60
+                    quarter_days = 45 if is_krx else 40
+                    lag_days = np.where(fund_dts.dt.month == 12, annual_days, quarter_days)
+                    lags = pd.Series(pd.to_timedelta(lag_days, unit='D'), index=fund_dts.index)
+                    fd_valid = fd[(fund_dts + lags) <= cur_dt]
                 else:
                     fd_valid = fd
 
@@ -215,7 +220,8 @@ class AlphaStrategyExecutor:
                     tp_val = float(last_row.get('target_price') or 0.0)
                     px_df = ctx.infer_data_dict[sym]
                     if tp_val > 0 and px_df is not None and not px_df.empty:
-                        cur_px = float(px_df['Close'].iloc[-1])
+                        _cc = 'Close' if 'Close' in px_df.columns else ('close' if 'close' in px_df.columns else None)
+                        cur_px = float(px_df[_cc].iloc[-1]) if _cc else 0.0
                         if cur_px > 0:
                             tp_rev = float((tp_val / cur_px - 1.0) * 100.0)
 

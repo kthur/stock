@@ -184,7 +184,8 @@ class TimeCorrectionScorer:
         low_20 = float(close.tail(20).min())
         box_tightness = (high_20 - low_20) / max(curr_p, 1e-6)
 
-        ma_slope = abs(float(ma20.iloc[-1]) - float(ma20.iloc[-15])) / max(float(ma20.iloc[-15]), 1e-6) if len(ma20) >= 15 else 0.05
+        ma20_clean = ma20.dropna()
+        ma_slope = abs(float(ma20_clean.iloc[-1]) - float(ma20_clean.iloc[-15])) / max(float(ma20_clean.iloc[-15]), 1e-6) if len(ma20_clean) >= 15 else 0.05
 
         if box_tightness <= 0.05 and ma_slope <= 0.03:
             base_duration_score = 0.95

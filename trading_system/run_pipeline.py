@@ -746,8 +746,10 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
                     n_col = 'Close' if 'Close' in network_result.columns else ('close' if 'close' in network_result.columns else None)
                     if c_col and n_col:
                         try:
-                            c_last_overlap = float(cached_df.loc[overlap_idx[-1], c_col])
-                            n_last_overlap = float(network_result.loc[overlap_idx[-1], n_col])
+                            _c_val = cached_df.loc[overlap_idx[-1], c_col]
+                            c_last_overlap = float(_c_val.iloc[0]) if isinstance(_c_val, pd.Series) else float(_c_val)
+                            _n_val = network_result.loc[overlap_idx[-1], n_col]
+                            n_last_overlap = float(_n_val.iloc[0]) if isinstance(_n_val, pd.Series) else float(_n_val)
                             if c_last_overlap > 0 and n_last_overlap > 0:
                                 ratio = n_last_overlap / c_last_overlap
                                 if ratio < 0.70 or ratio > 1.40:

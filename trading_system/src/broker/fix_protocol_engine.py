@@ -251,6 +251,13 @@ class FIX44Engine(BrokerProtocol):
             self.buy(code, quantity, price)
         else:
             self.sell(code, quantity, price)
+        # Ensure the returned cl_ord_id maps to the actual order status
+        if cl_ord_id not in self.orders:
+            for oid in reversed(list(self.orders.keys())):
+                if self.orders[oid].get('symbol') == code:
+                    self.orders[cl_ord_id] = self.orders[oid].copy()
+                    self.orders[cl_ord_id]['order_id'] = cl_ord_id
+                    break
         return cl_ord_id
 
     def get_order_status(self, order_id: str) -> Dict[str, Any]:

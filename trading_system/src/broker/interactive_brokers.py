@@ -129,6 +129,13 @@ class InteractiveBrokersConnector(BrokerProtocol):
             self.buy(code, quantity, price)
         else:
             self.sell(code, quantity, price)
+        # Ensure the returned order_id maps to the actual order status
+        if order_id not in self.orders:
+            for oid in reversed(list(self.orders.keys())):
+                if self.orders[oid].get('symbol') == code:
+                    self.orders[order_id] = self.orders[oid].copy()
+                    self.orders[order_id]['order_id'] = order_id
+                    break
         return order_id
 
     def get_order_status(self, order_id: str) -> Dict[str, Any]:

@@ -125,8 +125,10 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
                 trailing_7 = bar_range[-8:-1]
                 if len(trailing_7) >= 7 and bar_range[-2] <= np.min(trailing_7):
                     is_nr7 = 1.0
-                elif len(trailing_7) >= 7 and bar_range[-3] <= np.min(trailing_7):
-                    is_nr7 = 0.70
+                elif w_len >= 9:
+                    trailing_7_prev = bar_range[-9:-2]
+                    if len(trailing_7_prev) >= 7 and bar_range[-3] <= np.min(trailing_7_prev):
+                        is_nr7 = 0.70
 
             # Bollinger Bandwidth Squeeze on recent window
             is_squeeze = 0.0

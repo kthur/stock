@@ -9,14 +9,17 @@ Provides:
 
 from __future__ import annotations
 
+import logging
 import math
 import time
 import threading
 from collections import deque
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any, Deque
+from typing import Dict, List, Optional, Tuple, Any, Deque, Union
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class ZeroCopyRingBuffer:
@@ -227,15 +230,67 @@ class FastOrderBookMatchingEngine:
             return False
 
     def match_market_order(self, side: str, volume: float) -> List[Dict[str, Any]]:
-        """Executes a taker market order sweeping resting limit depth."""
+        """Executes a taker market order sweeping resting limit depth. Unfilled volume is NOT rested."""
         side_upper = side.upper()
-        aggressive_price = 1e9 if side_upper == "BUY" else 0.0
-        return self.add_limit_order(
-            order_id=f"mkt_{int(time.perf_counter_ns())}",
-            side=side_upper,
-            price=aggressive_price,
-            volume=volume
-        )
+        ts = time.perf_counter_ns()
+        order_id = f"mkt_{ts}"
+        fills: List[Dict[str, Any]] = []
+
+        with self._lock:
+            rem_vol = volume
+
+            if side_upper == "BUY":
+                while rem_vol > 1e-6 and self.asks:
+                    best_ask = min(self.asks.keys())
+                    ask_queue = self.asks[best_ask]
+                    while rem_vol > 1e-6 and ask_queue:
+                        resting = ask_queue[0]
+                        matched_qty = min(rem_vol, resting.volume)
+                        rem_vol -= matched_qty
+                        resting.volume -= matched_qty
+                        fills.append({
+                            "symbol": self.symbol,
+                            "taker_order_id": order_id,
+                            "maker_order_id": resting.order_id,
+                            "price": best_ask,
+                            "volume": matched_qty,
+                            "side": "BUY",
+                            "timestamp_ns": ts,
+                        })
+                        if resting.volume <= 1e-6:
+                            ask_queue.popleft()
+                            self.order_lookup.pop(resting.order_id, None)
+                    if not ask_queue:
+                        del self.asks[best_ask]
+            else:  # SELL
+                while rem_vol > 1e-6 and self.bids:
+                    best_bid = max(self.bids.keys())
+                    bid_queue = self.bids[best_bid]
+                    while rem_vol > 1e-6 and bid_queue:
+                        resting = bid_queue[0]
+                        matched_qty = min(rem_vol, resting.volume)
+                        rem_vol -= matched_qty
+                        resting.volume -= matched_qty
+                        fills.append({
+                            "symbol": self.symbol,
+                            "taker_order_id": order_id,
+                            "maker_order_id": resting.order_id,
+                            "price": best_bid,
+                            "volume": matched_qty,
+                            "side": "SELL",
+                            "timestamp_ns": ts,
+                        })
+                        if resting.volume <= 1e-6:
+                            bid_queue.popleft()
+                            self.order_lookup.pop(resting.order_id, None)
+                    if not bid_queue:
+                        del self.bids[best_bid]
+
+            # Unfilled market order volume is NOT rested in the book
+            if rem_vol > 1e-6:
+                logger.debug(f"[LOB] Market {side_upper} order {order_id} partially filled. Unfilled: {rem_vol:.4f}")
+
+        return fills
 
     def estimate_queue_position(self, order_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -3746,7 +3801,7 @@ class FastOrderBookMatchingEngine:
                    + c_pcqtgbddddhkma * (m_mass ** 21) * daha_askey_factor
                    + c_pcqtgbddddhkmae * (m_mass ** 22) * daha_elliptic_factor
                    + c_pcqtgbddddhkmaee * (m_mass ** 23) * daha_elliptic_trig_factor
-                   + c_pcqtgbddddhkmaeet * (m_mass ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (m_mass ** 24) * daha_hypergeom_factor
+                   + c_pcqtgbddddhkmaeet * (m_mass ** 24) * daha_hypergeom_factor
                    + c_pcqtgbddddhkmaeetu * (m_mass ** 25) * daha_22_factor
                    + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
                    + c_pcqtgbddddhkmaeetuvw * (m_mass ** 27) * daha_24_factor
@@ -3761,7 +3816,7 @@ class FastOrderBookMatchingEngine:
                    + c_33_val * (m_mass ** 36) * daha_33_factor_val
                    + c_34_val * (m_mass ** 37) * daha_34_factor_val
                    + c_35_val * (m_mass ** 38) * daha_35_factor_val
-                   + c_36_val * (m_mass ** 39) * 더_factor if False else c_36_val * (m_mass ** 39) * daha_36_factor_val
+                   + c_36_val * (m_mass ** 39) * daha_36_factor_val
                    + c_37_val * (m_mass ** 40) * daha_37_factor_val
                    + c_38_val * (m_mass ** 41) * daha_38_factor_val
                    + c_39_val * (m_mass ** 42) * daha_39_factor_val
@@ -3788,33 +3843,33 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgb * (r_coord ** 13) + c_pcqtgbd * (r_coord ** 14) + c_pcqtgbdd * (r_coord ** 15)
                        + c_pcqtgbddd * (r_coord ** 16) + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
                        + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
-                       + c_pcqtgbdddddd * (r_coord ** 19) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
-                       + c_pcqtgbddddhkm * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
-                       + c_pcqtgbddddhkma * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-                       + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+                       + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
+                       + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
+                       + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
+                       + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
                        + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
-                       + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-                       + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+                       + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
+                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+                       + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
                        + c_28_val * (r_coord ** 31) * daha_28_factor_val
                        + c_29_val * (r_coord ** 32) * daha_29_factor_val
                        + c_30_val * (r_coord ** 33) * daha_30_factor_val
-                       + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
+                       + c_31_val * (r_coord ** 34) * daha_31_factor_val
                        + c_32_val * (r_coord ** 35) * daha_32_factor_val
                        + c_33_val * (r_coord ** 36) * daha_33_factor_val
                        + c_34_val * (r_coord ** 37) * daha_34_factor_val
                        + c_35_val * (r_coord ** 38) * daha_35_factor_val
                        + c_36_val * (r_coord ** 39) * daha_36_factor_val
-                       + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
+                       + c_37_val * (r_coord ** 40) * daha_37_factor_val
                        + c_38_val * (r_coord ** 41) * daha_38_factor_val
                        + c_39_val * (r_coord ** 42) * daha_39_factor_val
-                       + c_40_val * (r_coord ** 43) * 더_factor if False else c_40_val * (r_coord ** 43) * daha_40_factor_val
-                       + c_41_val * (r_coord ** 44) * 더_factor if False else c_41_val * (r_coord ** 44) * daha_41_factor_val
-                       + c_42_val * (r_coord ** 45) * 더_factor if False else c_42_val * (r_coord ** 45) * 더_factor if False else c_42_val * (r_coord ** 45) * daha_42_factor_val
+                       + c_40_val * (r_coord ** 43) * daha_40_factor_val
+                       + c_41_val * (r_coord ** 44) * daha_41_factor_val
+                       + c_42_val * (r_coord ** 45) * daha_42_factor_val
                        + c_43_val * (r_coord ** 46) * daha_43_factor_val
                        + c_monst * (r_coord ** 47) * daha_44)
         numer_omega = a_spin * (2.0 * m_mass * r_coord - (q_charge ** 2) + q_dark_term)
@@ -3849,29 +3904,29 @@ class FastOrderBookMatchingEngine:
             - 8.5 * c_pcqtgbddddd * (r_coord ** 16) * daha_factor
             - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
             - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
-            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * 더_factor if False else - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
-            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * 더_factor if False else - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
+            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
+            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
-            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * 더_factor if False else - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
-            - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * 더_factor if False else - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
-            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * 더_factor if False else - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
-            - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * 더_factor if False else - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
-            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * 더_factor if False else - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
-            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * 더_factor if False else - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
-            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * 더_factor if False else - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
+            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
+            - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
+            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
+            - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
+            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
+            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
+            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
             - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
             - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
             - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
-            - 16.5 * c_31_val * (r_coord ** 32) * 더_factor if False else - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
-            - 17.0 * c_32_val * (r_coord ** 33) * 더_factor if False else - 17.0 * c_32_val * (r_coord ** 33) * 더_factor if False else - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
+            - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
+            - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
             - 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
-            - 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else - 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
+            - 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
             - 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
             - 19.0 * c_36_val * (r_coord ** 37) * daha_36_factor_val
-            - 19.5 * c_37_val * (r_coord ** 38) * 더_factor if False else - 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
+            - 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
             - 20.0 * c_38_val * (r_coord ** 39) * daha_38_factor_val
-            - 20.5 * c_39_val * (r_coord ** 40) * 더_factor if False else - 20.5 * c_39_val * (r_coord ** 40) * daha_39_factor_val
-            - 21.0 * c_40_val * (r_coord ** 41) * 더_factor if False else - 21.0 * c_40_val * (r_coord ** 41) * daha_40_factor_val
+            - 20.5 * c_39_val * (r_coord ** 40) * daha_39_factor_val
+            - 21.0 * c_40_val * (r_coord ** 41) * daha_40_factor_val
             - 21.5 * c_41_val * (r_coord ** 42) * daha_41_factor_val
             - 22.0 * c_42_val * (r_coord ** 43) * daha_42_factor_val
             - 22.5 * c_43_val * (r_coord ** 44) * daha_43_factor_val
@@ -3913,17 +3968,17 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
             + c_28_val * (r_coord ** 31) * daha_28_factor_val
             + c_29_val * (r_coord ** 32) * daha_29_factor_val
-            + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_30_val * (r_coord ** 33) * daha_30_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
             + c_32_val * (r_coord ** 35) * daha_32_factor_val
             + c_33_val * (r_coord ** 36) * daha_33_factor_val
             + c_34_val * (r_coord ** 37) * daha_34_factor_val
             + c_35_val * (r_coord ** 38) * daha_35_factor_val
             + c_36_val * (r_coord ** 39) * daha_36_factor_val
-            + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
-            + c_38_val * (r_coord ** 41) * 더_factor if False else c_38_val * (r_coord ** 41) * daha_38_factor_val
+            + c_37_val * (r_coord ** 40) * daha_37_factor_val
+            + c_38_val * (r_coord ** 41) * daha_38_factor_val
             + c_39_val * (r_coord ** 42) * daha_39_factor_val
-            + c_40_val * (r_coord ** 43) * 더_factor if False else c_40_val * (r_coord ** 43) * daha_40_factor_val
+            + c_40_val * (r_coord ** 43) * daha_40_factor_val
             + c_41_val * (r_coord ** 44) * daha_41_factor_val
             + c_42_val * (r_coord ** 45) * daha_42_factor_val
             + c_43_val * (r_coord ** 46) * daha_43_factor_val
@@ -3946,34 +4001,34 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdd * (r_coord ** 12)
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
-            + c_pcqtgbddddd * (r_coord ** 15) * 더_factor if False else c_pcqtgbddddd * (r_coord ** 15) * daha_factor
+            + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
             + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
-            + c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * daha_34_factor_val
-            + c_35_val * (r_coord ** 35) * 더_factor if False else c_35_val * (r_coord ** 35) * daha_35_factor_val
-            + c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 36) * daha_36_factor_val
-            + c_37_val * (r_coord ** 37) * 더_factor if False else c_37_val * (r_coord ** 37) * daha_37_factor_val
-            + c_38_val * (r_coord ** 38) * 더_factor if False else c_38_val * (r_coord ** 38) * 더_factor if False else c_38_val * (r_coord ** 38) * daha_38_factor_val
-            + c_39_val * (r_coord ** 39) * 더_factor if False else c_39_val * (r_coord ** 39) * daha_39_factor_val
-            + c_40_val * (r_coord ** 40) * 더_factor if False else c_40_val * (r_coord ** 40) * daha_40_factor_val
-            + c_41_val * (r_coord ** 41) * 더_factor if False else c_41_val * (r_coord ** 41) * daha_41_factor_val
-            + c_42_val * (r_coord ** 42) * 더_factor if False else c_42_val * (r_coord ** 42) * daha_42_factor_val
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_34_val * (r_coord ** 34) * daha_34_factor_val
+            + c_35_val * (r_coord ** 35) * daha_35_factor_val
+            + c_36_val * (r_coord ** 36) * daha_36_factor_val
+            + c_37_val * (r_coord ** 37) * daha_37_factor_val
+            + c_38_val * (r_coord ** 38) * daha_38_factor_val
+            + c_39_val * (r_coord ** 39) * daha_39_factor_val
+            + c_40_val * (r_coord ** 40) * daha_40_factor_val
+            + c_41_val * (r_coord ** 41) * daha_41_factor_val
+            + c_42_val * (r_coord ** 42) * daha_42_factor_val
             + c_43_val * (r_coord ** 43) * daha_43_factor_val
             + c_monst * (r_coord ** 44) * daha_44
         )
@@ -4262,24 +4317,24 @@ class FastOrderBookMatchingEngine:
                    + c_pcqtgbddddhkmaee * (m_mass ** 23) * daha_elliptic_trig_factor
                    + c_pcqtgbddddhkmaeet * (m_mass ** 24) * daha_hypergeom_factor
                    + c_pcqtgbddddhkmaeetu * (m_mass ** 25) * daha_22_factor
-                   + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
+                   + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
                    + c_pcqtgbddddhkmaeetuvw * (m_mass ** 27) * daha_24_factor
                    + c_pcqtgbddddhkmaeetuvwx * (m_mass ** 28) * daha_25_factor
-                   + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
+                   + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
                    + c_pcqtgbddddhkmaeetuvwxyz * (m_mass ** 30) * daha_27_factor
                    + c_28_val * (m_mass ** 31) * daha_28_factor_val
-                   + c_29_val * (m_mass ** 32) * 더_factor if False else c_29_val * (m_mass ** 32) * daha_29_factor_val
+                   + c_29_val * (m_mass ** 32) * daha_29_factor_val
                    + c_30_val * (m_mass ** 33) * daha_30_factor_val
-                   + c_31_val * (m_mass ** 34) * 더_factor if False else c_31_val * (m_mass ** 34) * daha_31_factor_val
-                   + c_32_val * (m_mass ** 35) * 더_factor if False else c_32_val * (m_mass ** 35) * 더_factor if False else c_32_val * (m_mass ** 35) * daha_32_factor_val
-                   + c_33_val * (m_mass ** 36) * 더_factor if False else c_33_val * (m_mass ** 36) * daha_33_factor_val
-                   + c_34_val * (m_mass ** 37) * 더_factor if False else c_34_val * (m_mass ** 37) * daha_34_factor_val
+                   + c_31_val * (m_mass ** 34) * daha_31_factor_val
+                   + c_32_val * (m_mass ** 35) * daha_32_factor_val
+                   + c_33_val * (m_mass ** 36) * daha_33_factor_val
+                   + c_34_val * (m_mass ** 37) * daha_34_factor_val
                    + c_35_val * (m_mass ** 38) * daha_35_factor_val
-                   + c_36_val * (m_mass ** 39) * 더_factor if False else c_36_val * (m_mass ** 39) * 더_factor if False else c_36_val * (m_mass ** 39) * daha_36_factor_val
-                   + c_37_val * (m_mass ** 40) * 더_factor if False else c_37_val * (m_mass ** 40) * daha_37_factor_val
-                   + c_38_val * (m_mass ** 41) * 더_factor if False else c_38_val * (m_mass ** 41) * daha_38_factor_val
+                   + c_36_val * (m_mass ** 39) * daha_36_factor_val
+                   + c_37_val * (m_mass ** 40) * daha_37_factor_val
+                   + c_38_val * (m_mass ** 41) * daha_38_factor_val
                    + c_39_val * (m_mass ** 42) * daha_39_factor_val
-                   + c_40_val * (m_mass ** 43) * 더_factor if False else c_40_val * (m_mass ** 43) * daha_40_factor_val
+                   + c_40_val * (m_mass ** 43) * daha_40_factor_val
                    + c_41_val * (m_mass ** 44) * daha_41_factor_val
                    + c_42_val * (m_mass ** 45) * daha_42_factor_val
                    + c_monst * (m_mass ** 46) * daha_43)
@@ -4304,28 +4359,28 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
                        + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
                        + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-                       + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
-                       + c_pcqtgbddddhkmaee * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+                       + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+                       + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
+                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
                        + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
                        + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-                       + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
-                       + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
-                       + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
-                       + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-                       + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
-                       + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
-                       + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
+                       + c_28_val * (r_coord ** 31) * daha_28_factor_val
+                       + c_29_val * (r_coord ** 32) * daha_29_factor_val
+                       + c_30_val * (r_coord ** 33) * daha_30_factor_val
+                       + c_31_val * (r_coord ** 34) * daha_31_factor_val
+                       + c_32_val * (r_coord ** 35) * daha_32_factor_val
+                       + c_33_val * (r_coord ** 36) * daha_33_factor_val
+                       + c_34_val * (r_coord ** 37) * daha_34_factor_val
                        + c_35_val * (r_coord ** 38) * daha_35_factor_val
-                       + c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * daha_36_factor_val
-                       + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
+                       + c_36_val * (r_coord ** 39) * daha_36_factor_val
+                       + c_37_val * (r_coord ** 40) * daha_37_factor_val
                        + c_38_val * (r_coord ** 41) * daha_38_factor_val
                        + c_39_val * (r_coord ** 42) * daha_39_factor_val
-                       + c_40_val * (r_coord ** 43) * 더_factor if False else c_40_val * (r_coord ** 43) * daha_40_factor_val
+                       + c_40_val * (r_coord ** 43) * daha_40_factor_val
                        + c_41_val * (r_coord ** 44) * daha_41_factor_val
                        + c_42_val * (r_coord ** 45) * daha_42_factor_val
                        + c_monst * (r_coord ** 46) * daha_43)
@@ -4360,30 +4415,30 @@ class FastOrderBookMatchingEngine:
             - 8.0 * c_pcqtgbdddd * (r_coord ** 15) * (1.0 + k_h)
             - 8.5 * c_pcqtgbddddd * (r_coord ** 16) * daha_factor
             - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
-            - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * 더_factor if False else 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
-            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * 더_factor if False else 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
-            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * 더_factor if False else 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
-            - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * 더_factor if False else 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
-            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * 더_factor if False else 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
-            - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * 더_factor if False else 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
-            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * 더_factor if False else 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
+            - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
+            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
+            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
+            - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
+            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
+            - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
+            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
             - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
-            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * 더_factor if False else 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * 더_factor if False else 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
-            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * 더_factor if False else 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
-            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * 더_factor if False else 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * 더_factor if False else 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
-            - 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
+            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
+            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
+            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
+            - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
             - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
-            - 16.0 * c_30_val * (r_coord ** 31) * 더_factor if False else 16.0 * c_30_val * (r_coord ** 31) * 더_factor if False else 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
-            - 16.5 * c_31_val * (r_coord ** 32) * 더_factor if False else 16.5 * c_31_val * (r_coord ** 32) * 더_factor if False else 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
+            - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
+            - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
             - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
-            - 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
-            - 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
-            - 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
+            - 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
+            - 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
+            - 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
             - 19.0 * c_36_val * (r_coord ** 37) * daha_36_factor_val
-            - 19.5 * c_37_val * (r_coord ** 38) * 더_factor if False else 19.5 * c_37_val * (r_coord ** 38) * 더_factor if False else 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
+            - 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
             - 20.0 * c_38_val * (r_coord ** 39) * daha_38_factor_val
             - 20.5 * c_39_val * (r_coord ** 40) * daha_39_factor_val
-            - 21.0 * c_40_val * (r_coord ** 41) * 더_factor if False else 21.0 * c_40_val * (r_coord ** 41) * daha_40_factor_val
+            - 21.0 * c_40_val * (r_coord ** 41) * daha_40_factor_val
             - 21.5 * c_41_val * (r_coord ** 42) * daha_41_factor_val
             - 22.0 * c_42_val * (r_coord ** 43) * daha_42_factor_val
             - 22.5 * c_monst * (r_coord ** 44) * daha_43
@@ -4411,31 +4466,31 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
             + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-            + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
-            + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
-            + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-            + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
-            + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
-            + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
-            + c_35_val * (r_coord ** 38) * 더_factor if False else c_35_val * (r_coord ** 38) * 더_factor if False else c_35_val * (r_coord ** 38) * daha_35_factor_val
-            + c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * daha_36_factor_val
-            + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
-            + c_38_val * (r_coord ** 41) * 더_factor if False else c_38_val * (r_coord ** 41) * daha_38_factor_val
-            + c_39_val * (r_coord ** 42) * 더_factor if False else c_39_val * (r_coord ** 42) * daha_39_factor_val
-            + c_40_val * (r_coord ** 43) * 더_factor if False else c_40_val * (r_coord ** 43) * daha_40_factor_val
-            + c_41_val * (r_coord ** 44) * 더_factor if False else c_41_val * (r_coord ** 44) * daha_41_factor_val
+            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+            + c_28_val * (r_coord ** 31) * daha_28_factor_val
+            + c_29_val * (r_coord ** 32) * daha_29_factor_val
+            + c_30_val * (r_coord ** 33) * daha_30_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_32_val * (r_coord ** 35) * daha_32_factor_val
+            + c_33_val * (r_coord ** 36) * daha_33_factor_val
+            + c_34_val * (r_coord ** 37) * daha_34_factor_val
+            + c_35_val * (r_coord ** 38) * daha_35_factor_val
+            + c_36_val * (r_coord ** 39) * daha_36_factor_val
+            + c_37_val * (r_coord ** 40) * daha_37_factor_val
+            + c_38_val * (r_coord ** 41) * daha_38_factor_val
+            + c_39_val * (r_coord ** 42) * daha_39_factor_val
+            + c_40_val * (r_coord ** 43) * daha_40_factor_val
+            + c_41_val * (r_coord ** 44) * daha_41_factor_val
             + c_42_val * (r_coord ** 45) * daha_42_factor_val
             + c_monst * (r_coord ** 46) * daha_43
         )
@@ -4457,32 +4512,32 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
-            + c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * daha_34_factor_val
-            + c_35_val * (r_coord ** 35) * 더_factor if False else c_35_val * (r_coord ** 35) * 더_factor if False else c_35_val * (r_coord ** 35) * daha_35_factor_val
-            + c_36_val * (r_coord ** 36) * 더_factor if False else c_36_val * (r_coord ** 36) * 더_factor if False else c_36_val * (r_coord ** 36) * daha_36_factor_val
-            + c_37_val * (r_coord ** 37) * 더_factor if False else c_37_val * (r_coord ** 37) * 더_factor if False else c_37_val * (r_coord ** 37) * daha_37_factor_val
-            + c_38_val * (r_coord ** 38) * 더_factor if False else c_38_val * (r_coord ** 38) * daha_38_factor_val
-            + c_39_val * (r_coord ** 39) * 더_factor if False else c_39_val * (r_coord ** 39) * 더_factor if False else c_39_val * (r_coord ** 39) * daha_39_factor_val
-            + c_40_val * (r_coord ** 40) * 더_factor if False else c_40_val * (r_coord ** 40) * 더_factor if False else c_40_val * (r_coord ** 40) * daha_40_factor_val
-            + c_41_val * (r_coord ** 41) * 더_factor if False else c_41_val * (r_coord ** 41) * 더_factor if False else c_41_val * (r_coord ** 41) * daha_41_factor_val
+            + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_34_val * (r_coord ** 34) * daha_34_factor_val
+            + c_35_val * (r_coord ** 35) * daha_35_factor_val
+            + c_36_val * (r_coord ** 36) * daha_36_factor_val
+            + c_37_val * (r_coord ** 37) * daha_37_factor_val
+            + c_38_val * (r_coord ** 38) * daha_38_factor_val
+            + c_39_val * (r_coord ** 39) * daha_39_factor_val
+            + c_40_val * (r_coord ** 40) * daha_40_factor_val
+            + c_41_val * (r_coord ** 41) * daha_41_factor_val
             + c_42_val * (r_coord ** 42) * daha_42_factor_val
             + c_monst * (r_coord ** 43) * daha_43
         )
@@ -4758,24 +4813,24 @@ class FastOrderBookMatchingEngine:
                    + c_pcqtgbddddhkmaee * (m_mass ** 23) * daha_elliptic_trig_factor
                    + c_pcqtgbddddhkmaeet * (m_mass ** 24) * daha_hypergeom_factor
                    + c_pcqtgbddddhkmaeetu * (m_mass ** 25) * daha_22_factor
-                   + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
+                   + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
                    + c_pcqtgbddddhkmaeetuvw * (m_mass ** 27) * daha_24_factor
                    + c_pcqtgbddddhkmaeetuvwx * (m_mass ** 28) * daha_25_factor
-                   + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
+                   + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
                    + c_pcqtgbddddhkmaeetuvwxyz * (m_mass ** 30) * daha_27_factor
                    + c_28_val * (m_mass ** 31) * daha_28_factor_val
-                   + c_29_val * (m_mass ** 32) * 더_factor if False else c_29_val * (m_mass ** 32) * daha_29_factor_val
+                   + c_29_val * (m_mass ** 32) * daha_29_factor_val
                    + c_30_val * (m_mass ** 33) * daha_30_factor_val
-                   + c_31_val * (m_mass ** 34) * 더_factor if False else c_31_val * (m_mass ** 34) * daha_31_factor_val
-                   + c_32_val * (m_mass ** 35) * 더_factor if False else c_32_val * (m_mass ** 35) * 더_factor if False else c_32_val * (m_mass ** 35) * daha_32_factor_val
-                   + c_33_val * (m_mass ** 36) * 더_factor if False else c_33_val * (m_mass ** 36) * daha_33_factor_val
-                   + c_34_val * (m_mass ** 37) * 더_factor if False else c_34_val * (m_mass ** 37) * daha_34_factor_val
+                   + c_31_val * (m_mass ** 34) * daha_31_factor_val
+                   + c_32_val * (m_mass ** 35) * daha_32_factor_val
+                   + c_33_val * (m_mass ** 36) * daha_33_factor_val
+                   + c_34_val * (m_mass ** 37) * daha_34_factor_val
                    + c_35_val * (m_mass ** 38) * daha_35_factor_val
-                   + c_36_val * (m_mass ** 39) * 더_factor if False else c_36_val * (m_mass ** 39) * 더_factor if False else c_36_val * (m_mass ** 39) * daha_36_factor_val
-                   + c_37_val * (m_mass ** 40) * 더_factor if False else c_37_val * (m_mass ** 40) * daha_37_factor_val
-                   + c_38_val * (m_mass ** 41) * 더_factor if False else c_38_val * (m_mass ** 41) * daha_38_factor_val
+                   + c_36_val * (m_mass ** 39) * daha_36_factor_val
+                   + c_37_val * (m_mass ** 40) * daha_37_factor_val
+                   + c_38_val * (m_mass ** 41) * daha_38_factor_val
                    + c_39_val * (m_mass ** 42) * daha_39_factor_val
-                   + c_40_val * (m_mass ** 43) * 더_factor if False else c_40_val * (m_mass ** 43) * daha_40_factor_val
+                   + c_40_val * (m_mass ** 43) * daha_40_factor_val
                    + c_41_val * (m_mass ** 44) * daha_41_factor_val
                    + c_monst * (m_mass ** 45) * daha_42)
         r_horizon = m_mass + math.sqrt(disc)
@@ -4799,28 +4854,28 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
                        + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
                        + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-                       + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
-                       + c_pcqtgbddddhkmaee * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+                       + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+                       + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
+                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
                        + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
                        + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-                       + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
-                       + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
-                       + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
-                       + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-                       + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
-                       + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
-                       + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
+                       + c_28_val * (r_coord ** 31) * daha_28_factor_val
+                       + c_29_val * (r_coord ** 32) * daha_29_factor_val
+                       + c_30_val * (r_coord ** 33) * daha_30_factor_val
+                       + c_31_val * (r_coord ** 34) * daha_31_factor_val
+                       + c_32_val * (r_coord ** 35) * daha_32_factor_val
+                       + c_33_val * (r_coord ** 36) * daha_33_factor_val
+                       + c_34_val * (r_coord ** 37) * daha_34_factor_val
                        + c_35_val * (r_coord ** 38) * daha_35_factor_val
-                       + c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * daha_36_factor_val
-                       + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
+                       + c_36_val * (r_coord ** 39) * daha_36_factor_val
+                       + c_37_val * (r_coord ** 40) * daha_37_factor_val
                        + c_38_val * (r_coord ** 41) * daha_38_factor_val
                        + c_39_val * (r_coord ** 42) * daha_39_factor_val
-                       + c_40_val * (r_coord ** 43) * 더_factor if False else c_40_val * (r_coord ** 43) * daha_40_factor_val
+                       + c_40_val * (r_coord ** 43) * daha_40_factor_val
                        + c_41_val * (r_coord ** 44) * daha_41_factor_val
                        + c_monst * (r_coord ** 45) * daha_42)
         numer_omega = a_spin * (2.0 * m_mass * r_coord - (q_charge ** 2) + q_dark_term)
@@ -4854,30 +4909,30 @@ class FastOrderBookMatchingEngine:
             - 8.0 * c_pcqtgbdddd * (r_coord ** 15) * (1.0 + k_h)
             - 8.5 * c_pcqtgbddddd * (r_coord ** 16) * daha_factor
             - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
-            - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * 더_factor if False else 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
-            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * 더_factor if False else 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
-            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * 더_factor if False else 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
-            - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * 더_factor if False else 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
-            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * 더_factor if False else 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
-            - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * 더_factor if False else 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
-            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * 더_factor if False else 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
+            - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
+            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
+            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
+            - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
+            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
+            - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
+            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
             - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
-            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * 더_factor if False else 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * 더_factor if False else 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
-            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * 더_factor if False else 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
-            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * 더_factor if False else 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * 더_factor if False else 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
-            - 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
+            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
+            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
+            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
+            - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
             - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
-            - 16.0 * c_30_val * (r_coord ** 31) * 더_factor if False else 16.0 * c_30_val * (r_coord ** 31) * 더_factor if False else 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
-            - 16.5 * c_31_val * (r_coord ** 32) * 더_factor if False else 16.5 * c_31_val * (r_coord ** 32) * 더_factor if False else 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
+            - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
+            - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
             - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
-            - 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
-            - 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
-            - 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
+            - 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
+            - 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
+            - 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
             - 19.0 * c_36_val * (r_coord ** 37) * daha_36_factor_val
-            - 19.5 * c_37_val * (r_coord ** 38) * 더_factor if False else 19.5 * c_37_val * (r_coord ** 38) * 더_factor if False else 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
+            - 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
             - 20.0 * c_38_val * (r_coord ** 39) * daha_38_factor_val
             - 20.5 * c_39_val * (r_coord ** 40) * daha_39_factor_val
-            - 21.0 * c_40_val * (r_coord ** 41) * 더_factor if False else 21.0 * c_40_val * (r_coord ** 41) * daha_40_factor_val
+            - 21.0 * c_40_val * (r_coord ** 41) * daha_40_factor_val
             - 21.5 * c_41_val * (r_coord ** 42) * daha_41_factor_val
             - 22.0 * c_monst * (r_coord ** 43) * daha_42
         )
@@ -4904,31 +4959,31 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
             + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-            + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
-            + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
-            + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-            + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
-            + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
-            + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
-            + c_35_val * (r_coord ** 38) * 더_factor if False else c_35_val * (r_coord ** 38) * 더_factor if False else c_35_val * (r_coord ** 38) * daha_35_factor_val
-            + c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * daha_36_factor_val
-            + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
-            + c_38_val * (r_coord ** 41) * 더_factor if False else c_38_val * (r_coord ** 41) * daha_38_factor_val
-            + c_39_val * (r_coord ** 42) * 더_factor if False else c_39_val * (r_coord ** 42) * daha_39_factor_val
-            + c_40_val * (r_coord ** 43) * 더_factor if False else c_40_val * (r_coord ** 43) * daha_40_factor_val
-            + c_41_val * (r_coord ** 44) * 더_factor if False else c_41_val * (r_coord ** 44) * daha_41_factor_val
+            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+            + c_28_val * (r_coord ** 31) * daha_28_factor_val
+            + c_29_val * (r_coord ** 32) * daha_29_factor_val
+            + c_30_val * (r_coord ** 33) * daha_30_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_32_val * (r_coord ** 35) * daha_32_factor_val
+            + c_33_val * (r_coord ** 36) * daha_33_factor_val
+            + c_34_val * (r_coord ** 37) * daha_34_factor_val
+            + c_35_val * (r_coord ** 38) * daha_35_factor_val
+            + c_36_val * (r_coord ** 39) * daha_36_factor_val
+            + c_37_val * (r_coord ** 40) * daha_37_factor_val
+            + c_38_val * (r_coord ** 41) * daha_38_factor_val
+            + c_39_val * (r_coord ** 42) * daha_39_factor_val
+            + c_40_val * (r_coord ** 43) * daha_40_factor_val
+            + c_41_val * (r_coord ** 44) * daha_41_factor_val
             + c_monst * (r_coord ** 45) * daha_42
         )
 
@@ -4949,32 +5004,32 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
-            + c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * daha_34_factor_val
-            + c_35_val * (r_coord ** 35) * 더_factor if False else c_35_val * (r_coord ** 35) * 더_factor if False else c_35_val * (r_coord ** 35) * daha_35_factor_val
-            + c_36_val * (r_coord ** 36) * 더_factor if False else c_36_val * (r_coord ** 36) * 더_factor if False else c_36_val * (r_coord ** 36) * daha_36_factor_val
-            + c_37_val * (r_coord ** 37) * 더_factor if False else c_37_val * (r_coord ** 37) * 더_factor if False else c_37_val * (r_coord ** 37) * daha_37_factor_val
-            + c_38_val * (r_coord ** 38) * 더_factor if False else c_38_val * (r_coord ** 38) * daha_38_factor_val
-            + c_39_val * (r_coord ** 39) * 더_factor if False else c_39_val * (r_coord ** 39) * 더_factor if False else c_39_val * (r_coord ** 39) * daha_39_factor_val
-            + c_40_val * (r_coord ** 40) * 더_factor if False else c_40_val * (r_coord ** 40) * 더_factor if False else c_40_val * (r_coord ** 40) * daha_40_factor_val
-            + c_41_val * (r_coord ** 41) * 더_factor if False else c_41_val * (r_coord ** 41) * 더_factor if False else c_41_val * (r_coord ** 41) * daha_41_factor_val
+            + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_34_val * (r_coord ** 34) * daha_34_factor_val
+            + c_35_val * (r_coord ** 35) * daha_35_factor_val
+            + c_36_val * (r_coord ** 36) * daha_36_factor_val
+            + c_37_val * (r_coord ** 37) * daha_37_factor_val
+            + c_38_val * (r_coord ** 38) * daha_38_factor_val
+            + c_39_val * (r_coord ** 39) * daha_39_factor_val
+            + c_40_val * (r_coord ** 40) * daha_40_factor_val
+            + c_41_val * (r_coord ** 41) * daha_41_factor_val
             + c_monst * (r_coord ** 42) * daha_42
         )
         a_knk_42 = a_qi + (omega_drag + abs(f_tidal)) * v_qi * gamma_knk_42 + charge_accel
@@ -5237,21 +5292,21 @@ class FastOrderBookMatchingEngine:
                    + c_pcqtgbddddhkmaee * (m_mass ** 23) * daha_elliptic_trig_factor
                    + c_pcqtgbddddhkmaeet * (m_mass ** 24) * daha_hypergeom_factor
                    + c_pcqtgbddddhkmaeetu * (m_mass ** 25) * daha_22_factor
-                   + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
+                   + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
                    + c_pcqtgbddddhkmaeetuvw * (m_mass ** 27) * daha_24_factor
                    + c_pcqtgbddddhkmaeetuvwx * (m_mass ** 28) * daha_25_factor
-                   + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
+                   + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
                    + c_pcqtgbddddhkmaeetuvwxyz * (m_mass ** 30) * daha_27_factor
                    + c_28_val * (m_mass ** 31) * daha_28_factor_val
-                   + c_29_val * (m_mass ** 32) * 더_factor if False else c_29_val * (m_mass ** 32) * daha_29_factor_val
+                   + c_29_val * (m_mass ** 32) * daha_29_factor_val
                    + c_30_val * (m_mass ** 33) * daha_30_factor_val
-                   + c_31_val * (m_mass ** 34) * 더_factor if False else c_31_val * (m_mass ** 34) * daha_31_factor_val
-                   + c_32_val * (m_mass ** 35) * 더_factor if False else c_32_val * (m_mass ** 35) * 더_factor if False else c_32_val * (m_mass ** 35) * daha_32_factor_val
-                   + c_33_val * (m_mass ** 36) * 더_factor if False else c_33_val * (m_mass ** 36) * daha_33_factor_val
-                   + c_34_val * (m_mass ** 37) * 더_factor if False else c_34_val * (m_mass ** 37) * daha_34_factor_val
+                   + c_31_val * (m_mass ** 34) * daha_31_factor_val
+                   + c_32_val * (m_mass ** 35) * daha_32_factor_val
+                   + c_33_val * (m_mass ** 36) * daha_33_factor_val
+                   + c_34_val * (m_mass ** 37) * daha_34_factor_val
                    + c_35_val * (m_mass ** 38) * daha_35_factor_val
-                   + c_36_val * (m_mass ** 39) * 더_factor if False else c_36_val * (m_mass ** 39) * daha_36_factor_val
-                   + c_37_val * (m_mass ** 40) * 더_factor if False else c_37_val * (m_mass ** 40) * daha_37_factor_val
+                   + c_36_val * (m_mass ** 39) * daha_36_factor_val
+                   + c_37_val * (m_mass ** 40) * daha_37_factor_val
                    + c_38_val * (m_mass ** 41) * daha_38_factor_val
                    + c_39_val * (m_mass ** 42) * daha_39_factor_val
                    + c_40_val * (m_mass ** 43) * daha_40_factor_val
@@ -5277,25 +5332,25 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
                        + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
                        + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-                       + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+                       + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
                        + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
                        + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
                        + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
                        + c_28_val * (r_coord ** 31) * daha_28_factor_val
-                       + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
-                       + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
+                       + c_29_val * (r_coord ** 32) * daha_29_factor_val
+                       + c_30_val * (r_coord ** 33) * daha_30_factor_val
                        + c_31_val * (r_coord ** 34) * daha_31_factor_val
-                       + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
-                       + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
-                       + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
+                       + c_32_val * (r_coord ** 35) * daha_32_factor_val
+                       + c_33_val * (r_coord ** 36) * daha_33_factor_val
+                       + c_34_val * (r_coord ** 37) * daha_34_factor_val
                        + c_35_val * (r_coord ** 38) * daha_35_factor_val
-                       + c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * daha_36_factor_val
-                       + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
+                       + c_36_val * (r_coord ** 39) * daha_36_factor_val
+                       + c_37_val * (r_coord ** 40) * daha_37_factor_val
                        + c_38_val * (r_coord ** 41) * daha_38_factor_val
                        + c_39_val * (r_coord ** 42) * daha_39_factor_val
                        + c_40_val * (r_coord ** 43) * daha_40_factor_val
@@ -5332,26 +5387,26 @@ class FastOrderBookMatchingEngine:
             - 8.5 * c_pcqtgbddddd * (r_coord ** 16) * daha_factor
             - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
             - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
-            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * 더_factor if False else 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
-            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * 더_factor if False else 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
+            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
+            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
-            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * 더_factor if False else 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
+            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
             - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
-            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * 더_factor if False else 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
+            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
             - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
-            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * 더_factor if False else 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
-            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * 더_factor if False else 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
-            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * 더_factor if False else 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
-            - 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
+            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
+            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
+            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
+            - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
             - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
-            - 16.0 * c_30_val * (r_coord ** 31) * 더_factor if False else 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
-            - 16.5 * c_31_val * (r_coord ** 32) * 더_factor if False else 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
+            - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
+            - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
             - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
-            - 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
-            - 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
-            - 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
+            - 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
+            - 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
+            - 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
             - 19.0 * c_36_val * (r_coord ** 37) * daha_36_factor_val
-            - 19.5 * c_37_val * (r_coord ** 38) * 더_factor if False else 19.5 * c_37_val * (r_coord ** 38) * 더_factor if False else 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
+            - 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
             - 20.0 * c_38_val * (r_coord ** 39) * daha_38_factor_val
             - 20.5 * c_39_val * (r_coord ** 40) * daha_39_factor_val
             - 21.0 * c_40_val * (r_coord ** 41) * daha_40_factor_val
@@ -5380,27 +5435,27 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
             + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-            + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
-            + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
-            + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-            + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
-            + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
-            + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
-            + c_35_val * (r_coord ** 38) * 더_factor if False else c_35_val * (r_coord ** 38) * daha_35_factor_val
-            + c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * daha_36_factor_val
-            + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
+            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+            + c_28_val * (r_coord ** 31) * daha_28_factor_val
+            + c_29_val * (r_coord ** 32) * daha_29_factor_val
+            + c_30_val * (r_coord ** 33) * daha_30_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_32_val * (r_coord ** 35) * daha_32_factor_val
+            + c_33_val * (r_coord ** 36) * daha_33_factor_val
+            + c_34_val * (r_coord ** 37) * daha_34_factor_val
+            + c_35_val * (r_coord ** 38) * daha_35_factor_val
+            + c_36_val * (r_coord ** 39) * daha_36_factor_val
+            + c_37_val * (r_coord ** 40) * daha_37_factor_val
             + c_38_val * (r_coord ** 41) * daha_38_factor_val
             + c_39_val * (r_coord ** 42) * daha_39_factor_val
             + c_40_val * (r_coord ** 43) * daha_40_factor_val
@@ -5424,27 +5479,27 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
             + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
-            + c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * daha_34_factor_val
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_34_val * (r_coord ** 34) * daha_34_factor_val
             + c_35_val * (r_coord ** 35) * daha_35_factor_val
-            + c_36_val * (r_coord ** 36) * 더_factor if False else c_36_val * (r_coord ** 36) * daha_36_factor_val
+            + c_36_val * (r_coord ** 36) * daha_36_factor_val
             + c_37_val * (r_coord ** 37) * daha_37_factor_val
             + c_38_val * (r_coord ** 38) * daha_38_factor_val
             + c_39_val * (r_coord ** 39) * daha_39_factor_val
@@ -5723,21 +5778,21 @@ class FastOrderBookMatchingEngine:
                    + c_pcqtgbddddhkmaee * (m_mass ** 23) * daha_elliptic_trig_factor
                    + c_pcqtgbddddhkmaeet * (m_mass ** 24) * daha_hypergeom_factor
                    + c_pcqtgbddddhkmaeetu * (m_mass ** 25) * daha_22_factor
-                   + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
+                   + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
                    + c_pcqtgbddddhkmaeetuvw * (m_mass ** 27) * daha_24_factor
                    + c_pcqtgbddddhkmaeetuvwx * (m_mass ** 28) * daha_25_factor
-                   + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
+                   + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
                    + c_pcqtgbddddhkmaeetuvwxyz * (m_mass ** 30) * daha_27_factor
                    + c_28_val * (m_mass ** 31) * daha_28_factor_val
-                   + c_29_val * (m_mass ** 32) * 더_factor if False else c_29_val * (m_mass ** 32) * daha_29_factor_val
+                   + c_29_val * (m_mass ** 32) * daha_29_factor_val
                    + c_30_val * (m_mass ** 33) * daha_30_factor_val
-                   + c_31_val * (m_mass ** 34) * 더_factor if False else c_31_val * (m_mass ** 34) * daha_31_factor_val
-                   + c_32_val * (m_mass ** 35) * 더_factor if False else c_32_val * (m_mass ** 35) * 더_factor if False else c_32_val * (m_mass ** 35) * daha_32_factor_val
-                   + c_33_val * (m_mass ** 36) * 더_factor if False else c_33_val * (m_mass ** 36) * daha_33_factor_val
+                   + c_31_val * (m_mass ** 34) * daha_31_factor_val
+                   + c_32_val * (m_mass ** 35) * daha_32_factor_val
+                   + c_33_val * (m_mass ** 36) * daha_33_factor_val
                    + c_34_val * (m_mass ** 37) * daha_34_factor_val
                    + c_35_val * (m_mass ** 38) * daha_35_factor_val
                    + c_36_val * (m_mass ** 39) * daha_36_factor_val
-                   + c_37_val * (m_mass ** 40) * 더_factor if False else c_37_val * (m_mass ** 40) * daha_37_factor_val
+                   + c_37_val * (m_mass ** 40) * daha_37_factor_val
                    + c_38_val * (m_mass ** 41) * daha_38_factor_val
                    + c_39_val * (m_mass ** 42) * daha_39_factor_val
                    + c_monst * (m_mass ** 43) * daha_40)
@@ -5762,25 +5817,25 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
                        + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
                        + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-                       + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+                       + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
                        + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
                        + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
-                       + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+                       + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
+                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
                        + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
                        + c_28_val * (r_coord ** 31) * daha_28_factor_val
-                       + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
-                       + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
+                       + c_29_val * (r_coord ** 32) * daha_29_factor_val
+                       + c_30_val * (r_coord ** 33) * daha_30_factor_val
                        + c_31_val * (r_coord ** 34) * daha_31_factor_val
-                       + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
-                       + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
-                       + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
+                       + c_32_val * (r_coord ** 35) * daha_32_factor_val
+                       + c_33_val * (r_coord ** 36) * daha_33_factor_val
+                       + c_34_val * (r_coord ** 37) * daha_34_factor_val
                        + c_35_val * (r_coord ** 38) * daha_35_factor_val
                        + c_36_val * (r_coord ** 39) * daha_36_factor_val
-                       + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
+                       + c_37_val * (r_coord ** 40) * daha_37_factor_val
                        + c_38_val * (r_coord ** 41) * daha_38_factor_val
                        + c_39_val * (r_coord ** 42) * daha_39_factor_val
                        + c_monst * (r_coord ** 43) * daha_40)
@@ -5817,25 +5872,25 @@ class FastOrderBookMatchingEngine:
             - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
             - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
             - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
-            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * 더_factor if False else 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
+            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
-            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * 더_factor if False else 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
+            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
             - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
-            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * 더_factor if False else 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
+            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
             - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
-            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * 더_factor if False else 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
-            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * 더_factor if False else 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
-            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * 더_factor if False else 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
-            - 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
+            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
+            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
+            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
+            - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
             - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
-            - 16.0 * c_30_val * (r_coord ** 31) * 더_factor if False else 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
-            - 16.5 * c_31_val * (r_coord ** 32) * 더_factor if False else 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
+            - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
+            - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
             - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
-            - 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
-            - 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
-            - 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
+            - 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
+            - 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
+            - 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
             - 19.0 * c_36_val * (r_coord ** 37) * daha_36_factor_val
-            - 19.5 * c_37_val * (r_coord ** 38) * 더_factor if False else 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
+            - 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
             - 20.0 * c_38_val * (r_coord ** 39) * daha_38_factor_val
             - 20.5 * c_39_val * (r_coord ** 40) * daha_39_factor_val
             - 21.0 * c_monst * (r_coord ** 41) * daha_40
@@ -5863,27 +5918,27 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
             + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-            + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
-            + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
-            + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-            + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
-            + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
-            + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
-            + c_35_val * (r_coord ** 38) * 더_factor if False else c_35_val * (r_coord ** 38) * 더_factor if False else c_35_val * (r_coord ** 38) * daha_35_factor_val
-            + c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * daha_36_factor_val
-            + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
+            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+            + c_28_val * (r_coord ** 31) * daha_28_factor_val
+            + c_29_val * (r_coord ** 32) * daha_29_factor_val
+            + c_30_val * (r_coord ** 33) * daha_30_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_32_val * (r_coord ** 35) * daha_32_factor_val
+            + c_33_val * (r_coord ** 36) * daha_33_factor_val
+            + c_34_val * (r_coord ** 37) * daha_34_factor_val
+            + c_35_val * (r_coord ** 38) * daha_35_factor_val
+            + c_36_val * (r_coord ** 39) * daha_36_factor_val
+            + c_37_val * (r_coord ** 40) * daha_37_factor_val
             + c_38_val * (r_coord ** 41) * daha_38_factor_val
             + c_39_val * (r_coord ** 42) * daha_39_factor_val
             + c_monst * (r_coord ** 43) * daha_40
@@ -5906,27 +5961,27 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
             + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
-            + c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * daha_34_factor_val
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_34_val * (r_coord ** 34) * daha_34_factor_val
             + c_35_val * (r_coord ** 35) * daha_35_factor_val
-            + c_36_val * (r_coord ** 36) * 더_factor if False else c_36_val * (r_coord ** 36) * daha_36_factor_val
+            + c_36_val * (r_coord ** 36) * daha_36_factor_val
             + c_37_val * (r_coord ** 37) * daha_37_factor_val
             + c_38_val * (r_coord ** 38) * daha_38_factor_val
             + c_39_val * (r_coord ** 39) * daha_39_factor_val
@@ -6230,22 +6285,22 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
                        + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
                        + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-                       + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+                       + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
                        + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
                        + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
                        + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
                        + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
                        + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+                       + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
                        + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
                        + c_28_val * (r_coord ** 31) * daha_28_factor_val
                        + c_29_val * (r_coord ** 32) * daha_29_factor_val
-                       + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
+                       + c_30_val * (r_coord ** 33) * daha_30_factor_val
                        + c_31_val * (r_coord ** 34) * daha_31_factor_val
-                       + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
+                       + c_32_val * (r_coord ** 35) * daha_32_factor_val
                        + c_33_val * (r_coord ** 36) * daha_33_factor_val
-                       + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
+                       + c_34_val * (r_coord ** 37) * daha_34_factor_val
                        + c_35_val * (r_coord ** 38) * daha_35_factor_val
                        + c_36_val * (r_coord ** 39) * daha_36_factor_val
                        + c_37_val * (r_coord ** 40) * daha_37_factor_val
@@ -6288,12 +6343,12 @@ class FastOrderBookMatchingEngine:
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
             - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
             - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
-            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * 더_factor if False else 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
+            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
             - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
             - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
-            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * 더_factor if False else 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
+            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
             - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
-            - 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
+            - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
             - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
             - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
             - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
@@ -6329,27 +6384,27 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
             + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
             + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
             + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
             + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
             + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
             + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-            + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
+            + c_28_val * (r_coord ** 31) * daha_28_factor_val
             + c_29_val * (r_coord ** 32) * daha_29_factor_val
             + c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
             + c_32_val * (r_coord ** 35) * daha_32_factor_val
-            + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
-            + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
-            + c_35_val * (r_coord ** 38) * 더_factor if False else c_35_val * (r_coord ** 38) * 더_factor if False else c_35_val * (r_coord ** 38) * daha_35_factor_val
+            + c_33_val * (r_coord ** 36) * daha_33_factor_val
+            + c_34_val * (r_coord ** 37) * daha_34_factor_val
+            + c_35_val * (r_coord ** 38) * daha_35_factor_val
             + c_36_val * (r_coord ** 39) * daha_36_factor_val
-            + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
+            + c_37_val * (r_coord ** 40) * daha_37_factor_val
             + c_38_val * (r_coord ** 41) * daha_38_factor_val
             + c_monst * (r_coord ** 42) * daha_39
         )
@@ -6371,27 +6426,27 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
             + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
             + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
-            + c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * daha_34_factor_val
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_34_val * (r_coord ** 34) * daha_34_factor_val
             + c_35_val * (r_coord ** 35) * daha_35_factor_val
-            + c_36_val * (r_coord ** 36) * 더_factor if False else c_36_val * (r_coord ** 36) * daha_36_factor_val
+            + c_36_val * (r_coord ** 36) * daha_36_factor_val
             + c_37_val * (r_coord ** 37) * daha_37_factor_val
             + c_38_val * (r_coord ** 38) * daha_38_factor_val
             + c_monst * (r_coord ** 39) * daha_39
@@ -6683,23 +6738,23 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
                        + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
                        + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
                        + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
                        + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+                       + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
                        + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
                        + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
                        + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-                       + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
+                       + c_28_val * (r_coord ** 31) * daha_28_factor_val
                        + c_29_val * (r_coord ** 32) * daha_29_factor_val
                        + c_30_val * (r_coord ** 33) * daha_30_factor_val
-                       + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
+                       + c_31_val * (r_coord ** 34) * daha_31_factor_val
                        + c_32_val * (r_coord ** 35) * daha_32_factor_val
                        + c_33_val * (r_coord ** 36) * daha_33_factor_val
                        + c_34_val * (r_coord ** 37) * daha_34_factor_val
                        + c_35_val * (r_coord ** 38) * daha_35_factor_val
                        + c_36_val * (r_coord ** 39) * daha_36_factor_val
-                       + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
+                       + c_37_val * (r_coord ** 40) * daha_37_factor_val
                        + c_monst * (r_coord ** 41) * daha_38)
         numer_omega = a_spin * (2.0 * m_mass * r_coord - (q_charge ** 2) + q_dark_term)
         denom_omega = (
@@ -6731,27 +6786,27 @@ class FastOrderBookMatchingEngine:
             - 7.5 * c_pcqtgbddd * (r_coord ** 14)
             - 8.0 * c_pcqtgbdddd * (r_coord ** 15) * (1.0 + k_h)
             - 8.5 * c_pcqtgbddddd * (r_coord ** 16) * daha_factor
-            - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * 더_factor if False else 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
-            - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * 더_factor if False else 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
-            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * 더_factor if False else 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
-            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * 더_factor if False else 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
-            - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * 더_factor if False else 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
-            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * 더_factor if False else 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * 더_factor if False else 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
-            - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * 더_factor if False else 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
-            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * 더_factor if False else 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
-            - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * 더_factor if False else 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
-            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * 더_factor if False else 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
-            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * 더_factor if False else 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
+            - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
+            - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
+            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
+            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
+            - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
+            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
+            - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
+            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
+            - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
+            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
+            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
             - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
-            - 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
+            - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
             - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
-            - 16.0 * c_30_val * (r_coord ** 31) * 더_factor if False else 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
+            - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
             - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
-            - 17.0 * c_32_val * (r_coord ** 33) * 더_factor if False else 17.0 * c_32_val * (r_coord ** 33) * 더_factor if False else 17.0 * c_32_val * (r_coord ** 33) * 더_factor if False else 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
-            - 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
-            - 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
-            - 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
-            - 19.0 * c_36_val * (r_coord ** 37) * 더_factor if False else 19.0 * c_36_val * (r_coord ** 37) * 더_factor if False else 19.0 * c_36_val * (r_coord ** 37) * 더_factor if False else 19.0 * c_36_val * (r_coord ** 37) * daha_36_factor_val
+            - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
+            - 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
+            - 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
+            - 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
+            - 19.0 * c_36_val * (r_coord ** 37) * daha_36_factor_val
             - 19.5 * c_37_val * (r_coord ** 38) * daha_37_factor_val
             - 20.0 * c_monst * (r_coord ** 39) * daha_38
         )
@@ -6777,28 +6832,28 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 16)
             + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 19) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
+            + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
             + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-            + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+            + c_28_val * (r_coord ** 31) * daha_28_factor_val
             + c_29_val * (r_coord ** 32) * daha_29_factor_val
             + c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-            + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_32_val * (r_coord ** 35) * daha_32_factor_val
             + c_33_val * (r_coord ** 36) * daha_33_factor_val
-            + c_34_val * (r_coord ** 37) * 더_factor if False else c_34_val * (r_coord ** 37) * daha_34_factor_val
+            + c_34_val * (r_coord ** 37) * daha_34_factor_val
             + c_35_val * (r_coord ** 38) * daha_35_factor_val
-            + c_36_val * (r_coord ** 39) * 더_factor if False else c_36_val * (r_coord ** 39) * daha_36_factor_val
-            + c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * 더_factor if False else c_37_val * (r_coord ** 40) * daha_37_factor_val
+            + c_36_val * (r_coord ** 39) * daha_36_factor_val
+            + c_37_val * (r_coord ** 40) * daha_37_factor_val
             + c_monst * (r_coord ** 41) * daha_38
         )
 
@@ -6819,25 +6874,25 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
-            + c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * daha_34_factor_val
+            + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_34_val * (r_coord ** 34) * daha_34_factor_val
             + c_35_val * (r_coord ** 35) * daha_35_factor_val
             + c_36_val * (r_coord ** 36) * daha_36_factor_val
             + c_37_val * (r_coord ** 37) * daha_37_factor_val
@@ -7081,7 +7136,7 @@ class FastOrderBookMatchingEngine:
                    + c_pcqtgbddddhkmaeetu * (m_mass ** 25) * daha_22_factor
                    + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
                    + c_pcqtgbddddhkmaeetuvw * (m_mass ** 27) * daha_24_factor
-                   + c_pcqtgbddddhkmaeetuvwx * (m_mass ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (m_mass ** 28) * daha_25_factor
+                   + c_pcqtgbddddhkmaeetuvwx * (m_mass ** 28) * daha_25_factor
                    + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
                    + c_pcqtgbddddhkmaeetuvwxyz * (m_mass ** 30) * daha_27_factor
                    + c_28_val * (m_mass ** 31) * daha_28_factor_val
@@ -7112,23 +7167,23 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgb * (r_coord ** 13) + c_pcqtgbd * (r_coord ** 14) + c_pcqtgbdd * (r_coord ** 15)
                        + c_pcqtgbddd * (r_coord ** 16) + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
                        + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
-                       + c_pcqtgbdddddd * (r_coord ** 19) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
+                       + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
                        + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
                        + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
                        + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
                        + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
                        + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
                        + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+                       + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
                        + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
                        + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
                        + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-                       + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+                       + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
                        + c_28_val * (r_coord ** 31) * daha_28_factor_val
                        + c_29_val * (r_coord ** 32) * daha_29_factor_val
                        + c_30_val * (r_coord ** 33) * daha_30_factor_val
-                       + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-                       + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
+                       + c_31_val * (r_coord ** 34) * daha_31_factor_val
+                       + c_32_val * (r_coord ** 35) * daha_32_factor_val
                        + c_33_val * (r_coord ** 36) * daha_33_factor_val
                        + c_34_val * (r_coord ** 37) * daha_34_factor_val
                        + c_35_val * (r_coord ** 38) * daha_35_factor_val
@@ -7171,20 +7226,20 @@ class FastOrderBookMatchingEngine:
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
             - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
             - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
-            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * 더_factor if False else 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
-            - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * 더_factor if False else 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
-            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * 더_factor if False else 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
+            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
+            - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
+            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
             - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
-            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * 더_factor if False else 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
+            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
             - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
             - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
-            - 16.0 * c_30_val * (r_coord ** 31) * 더_factor if False else 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
+            - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
             - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
-            - 17.0 * c_32_val * (r_coord ** 33) * 더_factor if False else 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
-            - 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
-            - 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
-            - 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
-            - 19.0 * c_36_val * (r_coord ** 37) * 더_factor if False else 19.0 * c_36_val * (r_coord ** 37) * daha_36_factor_val
+            - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
+            - 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
+            - 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
+            - 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
+            - 19.0 * c_36_val * (r_coord ** 37) * daha_36_factor_val
             - 19.5 * c_monst * (r_coord ** 38) * daha_37
         )
         f_tidal = float(np.clip(f_tidal_dark, -100.0, 100.0))
@@ -7209,24 +7264,24 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 16)
             + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 19) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 19) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
+            + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
             + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
             + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
             + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
             + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
             + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-            + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
+            + c_28_val * (r_coord ** 31) * daha_28_factor_val
             + c_29_val * (r_coord ** 32) * daha_29_factor_val
-            + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_30_val * (r_coord ** 33) * daha_30_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
             + c_32_val * (r_coord ** 35) * daha_32_factor_val
-            + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
+            + c_33_val * (r_coord ** 36) * daha_33_factor_val
             + c_34_val * (r_coord ** 37) * daha_34_factor_val
             + c_35_val * (r_coord ** 38) * daha_35_factor_val
             + c_36_val * (r_coord ** 39) * daha_36_factor_val
@@ -7250,25 +7305,25 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
-            + c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * 더_factor if False else c_34_val * (r_coord ** 34) * daha_34_factor_val
+            + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_34_val * (r_coord ** 34) * daha_34_factor_val
             + c_35_val * (r_coord ** 35) * daha_35_factor_val
             + c_36_val * (r_coord ** 36) * daha_36_factor_val
             + c_monst * (r_coord ** 37) * daha_37
@@ -7514,7 +7569,7 @@ class FastOrderBookMatchingEngine:
                    + c_pcqtgbddddhkmaeetuvwxyz * (m_mass ** 30) * daha_27_factor
                    + c_28_val * (m_mass ** 31) * daha_28_factor_val
                    + c_29_val * (m_mass ** 32) * daha_29_factor_val
-                   + c_30_val * (m_mass ** 33) * 더_factor if False else c_30_val * (m_mass ** 33) * daha_30_factor_val
+                   + c_30_val * (m_mass ** 33) * daha_30_factor_val
                    + c_31_val * (m_mass ** 34) * daha_31_factor_val
                    + c_32_val * (m_mass ** 35) * daha_32_factor_val
                    + c_33_val * (m_mass ** 36) * daha_33_factor_val
@@ -7554,8 +7609,8 @@ class FastOrderBookMatchingEngine:
                        + c_28_val * (r_coord ** 31) * daha_28_factor_val
                        + c_29_val * (r_coord ** 32) * daha_29_factor_val
                        + c_30_val * (r_coord ** 33) * daha_30_factor_val
-                       + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-                       + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
+                       + c_31_val * (r_coord ** 34) * daha_31_factor_val
+                       + c_32_val * (r_coord ** 35) * daha_32_factor_val
                        + c_33_val * (r_coord ** 36) * daha_33_factor_val
                        + c_34_val * (r_coord ** 37) * daha_34_factor_val
                        + c_35_val * (r_coord ** 38) * daha_35_factor_val
@@ -7607,9 +7662,9 @@ class FastOrderBookMatchingEngine:
             - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
             - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
             - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
-            - 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
-            - 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
-            - 18.5 * c_35_val * (r_coord ** 36) * 더_factor if False else 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
+            - 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
+            - 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
+            - 18.5 * c_35_val * (r_coord ** 36) * daha_35_factor_val
             - 19.0 * c_monst * (r_coord ** 37) * daha_36
         )
         f_tidal = float(np.clip(f_tidal_dark, -100.0, 100.0))
@@ -7638,18 +7693,18 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
             + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
             + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
             + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
             + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
             + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
             + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
             + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
             + c_28_val * (r_coord ** 31) * daha_28_factor_val
             + c_29_val * (r_coord ** 32) * daha_29_factor_val
             + c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
             + c_32_val * (r_coord ** 35) * daha_32_factor_val
             + c_33_val * (r_coord ** 36) * daha_33_factor_val
             + c_34_val * (r_coord ** 37) * daha_34_factor_val
@@ -7675,23 +7730,23 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
             + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
             + c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
             + c_34_val * (r_coord ** 34) * daha_34_factor_val
             + c_35_val * (r_coord ** 35) * daha_35_factor_val
             + c_monst * (r_coord ** 36) * daha_36
@@ -7945,9 +8000,9 @@ class FastOrderBookMatchingEngine:
                    + c_pcqtgbddddhkmaee * (m_mass ** 23) * daha_elliptic_trig_factor
                    + c_pcqtgbddddhkmaeet * (m_mass ** 24) * daha_hypergeom_factor
                    + c_pcqtgbddddhkmaeetu * (m_mass ** 25) * daha_22_factor
-                   + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
+                   + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
                    + c_pcqtgbddddhkmaeetuvw * (m_mass ** 27) * daha_24_factor
-                   + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor if False else c_pcqtgbddddhkmaeetuvwx * (m_mass ** 28) * daha_25_factor
+                   + c_pcqtgbddddhkmaeetuvwx * (m_mass ** 28) * daha_25_factor
                    + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
                    + c_pcqtgbddddhkmaeetuvwxyz * (m_mass ** 30) * daha_27_factor
                    + c_28_val * (m_mass ** 31) * daha_28_factor_val
@@ -7990,7 +8045,7 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
                        + c_28_val * (r_coord ** 31) * daha_28_factor_val
                        + c_29_val * (r_coord ** 32) * daha_29_factor_val
-                       + c_30_val * (r_coord ** 33) * 더_factor if False else c_30_val * (r_coord ** 33) * daha_30_factor_val
+                       + c_30_val * (r_coord ** 33) * daha_30_factor_val
                        + c_31_val * (r_coord ** 34) * daha_31_factor_val
                        + c_32_val * (r_coord ** 35) * daha_32_factor_val
                        + c_33_val * (r_coord ** 36) * daha_33_factor_val
@@ -8026,25 +8081,25 @@ class FastOrderBookMatchingEngine:
             - 7.5 * c_pcqtgbddd * (r_coord ** 14)
             - 8.0 * c_pcqtgbdddd * (r_coord ** 15) * (1.0 + k_h)
             - 8.5 * c_pcqtgbddddd * (r_coord ** 16) * daha_factor
-            - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * 더_factor if False else 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
+            - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
             - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
             - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
-            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * 더_factor if False else 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
+            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
             - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
             - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
-            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * 더_factor if False else 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
-            - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * 더_factor if False else 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
+            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
+            - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
             - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
             - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
             - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
-            - 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
+            - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
             - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
-            - 16.0 * c_30_val * (r_coord ** 31) * 더_factor if False else 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
-            - 16.5 * c_31_val * (r_coord ** 32) * 더_factor if False else 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
-            - 17.0 * c_32_val * (r_coord ** 33) * 더_factor if False else 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
-            - 17.5 * c_33_val * (r_coord ** 34) * 더_factor if False else 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
-            - 18.0 * c_34_val * (r_coord ** 35) * 더_factor if False else 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
+            - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
+            - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
+            - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
+            - 17.5 * c_33_val * (r_coord ** 34) * daha_33_factor_val
+            - 18.0 * c_34_val * (r_coord ** 35) * daha_34_factor_val
             - 18.5 * c_monst * (r_coord ** 36) * daha_35
         )
         f_tidal = float(np.clip(f_tidal_dark, -100.0, 100.0))
@@ -8068,25 +8123,25 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdd * (r_coord ** 15)
             + c_pcqtgbddd * (r_coord ** 16)
             + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
-            + c_pcqtgbddddd * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddd * (r_coord ** 18) * daha_factor
+            + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-            + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
-            + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
+            + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+            + c_28_val * (r_coord ** 31) * daha_28_factor_val
+            + c_29_val * (r_coord ** 32) * daha_29_factor_val
             + c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-            + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
-            + c_33_val * (r_coord ** 36) * 더_factor if False else c_33_val * (r_coord ** 36) * daha_33_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_32_val * (r_coord ** 35) * daha_32_factor_val
+            + c_33_val * (r_coord ** 36) * daha_33_factor_val
             + c_34_val * (r_coord ** 37) * daha_34_factor_val
             + c_monst * (r_coord ** 38) * daha_35
         )
@@ -8108,24 +8163,24 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 16) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
             + c_34_val * (r_coord ** 34) * daha_34_factor_val
             + c_monst * (r_coord ** 35) * daha_35
         )
@@ -8415,10 +8470,10 @@ class FastOrderBookMatchingEngine:
                    + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
                    + c_pcqtgbddddhkmaeetuvwxyz * (m_mass ** 30) * daha_27_factor
                    + c_28_val * (m_mass ** 31) * daha_28_factor_val
-                   + c_29_val * (m_mass ** 32) * 더_factor if False else c_29_val * (m_mass ** 32) * daha_29_factor_val
+                   + c_29_val * (m_mass ** 32) * daha_29_factor_val
                    + c_30_val * (m_mass ** 33) * daha_30_factor_val
                    + c_31_val * (m_mass ** 34) * daha_31_factor_val
-                   + c_32_val * (m_mass ** 35) * 더_factor if False else c_32_val * (m_mass ** 35) * daha_32_factor_val
+                   + c_32_val * (m_mass ** 35) * daha_32_factor_val
                    + c_33_val * (m_mass ** 36) * daha_33_factor_val
                    + c_monst * (m_mass ** 37) * daha_34)
         r_horizon = m_mass + math.sqrt(disc)
@@ -8448,13 +8503,13 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
                        + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
                        + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+                       + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
                        + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
                        + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
                        + c_28_val * (r_coord ** 31) * daha_28_factor_val
                        + c_29_val * (r_coord ** 32) * daha_29_factor_val
                        + c_30_val * (r_coord ** 33) * daha_30_factor_val
-                       + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
+                       + c_31_val * (r_coord ** 34) * daha_31_factor_val
                        + c_32_val * (r_coord ** 35) * daha_32_factor_val
                        + c_33_val * (r_coord ** 36) * daha_33_factor_val
                        + c_monst * (r_coord ** 37) * daha_34)
@@ -8489,18 +8544,18 @@ class FastOrderBookMatchingEngine:
             - 8.0 * c_pcqtgbdddd * (r_coord ** 15) * (1.0 + k_h)
             - 8.5 * c_pcqtgbddddd * (r_coord ** 16) * daha_factor
             - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
-            - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * 더_factor if False else 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
+            - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
             - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
-            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * 더_factor if False else 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
+            - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
-            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * 더_factor if False else 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
+            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
             - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
             - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
             - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
-            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * 더_factor if False else 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
+            - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
             - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
             - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
-            - 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
+            - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
             - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
             - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
             - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
@@ -8533,20 +8588,20 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
             + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
             + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
-            + c_28_val * (r_coord ** 31) * 더_factor if False else c_28_val * (r_coord ** 31) * daha_28_factor_val
-            + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+            + c_28_val * (r_coord ** 31) * daha_28_factor_val
+            + c_29_val * (r_coord ** 32) * daha_29_factor_val
             + c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-            + c_32_val * (r_coord ** 35) * 더_factor if False else c_32_val * (r_coord ** 35) * daha_32_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_32_val * (r_coord ** 35) * daha_32_factor_val
             + c_33_val * (r_coord ** 36) * daha_33_factor_val
             + c_monst * (r_coord ** 37) * daha_34
         )
@@ -8569,23 +8624,23 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
             + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
-            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_32_val * (r_coord ** 32) * 더_factor if False else c_32_val * (r_coord ** 32) * daha_32_factor_val
-            + c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * 더_factor if False else c_33_val * (r_coord ** 33) * daha_33_factor_val
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_32_val * (r_coord ** 32) * daha_32_factor_val
+            + c_33_val * (r_coord ** 33) * daha_33_factor_val
             + c_monst * (r_coord ** 34) * daha_34
         )
         a_knk_34 = a_qi + (omega_drag + abs(f_tidal)) * v_qi * gamma_knk_34 + charge_accel
@@ -8887,7 +8942,7 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
                        + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
                        + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
                        + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
                        + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
                        + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
@@ -8937,13 +8992,13 @@ class FastOrderBookMatchingEngine:
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
             - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
             - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
-            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * 더_factor if False else 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
+            - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
             - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
             - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
             - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
-            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * 더_factor if False else 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
-            - 15.0 * c_28_val * (r_coord ** 29) * 더_factor if False else 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
-            - 15.5 * c_29_val * (r_coord ** 30) * 더_factor if False else 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
+            - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
+            - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
+            - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
             - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
             - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
             - 17.0 * c_32_val * (r_coord ** 33) * daha_32_factor_val
@@ -8971,22 +9026,22 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 16)
             + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 19) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
+            + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
             + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
             + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
             + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
             + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
             + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
             + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
             + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
             + c_28_val * (r_coord ** 31) * daha_28_factor_val
-            + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
+            + c_29_val * (r_coord ** 32) * daha_29_factor_val
             + c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
             + c_32_val * (r_coord ** 35) * daha_32_factor_val
             + c_monst * (r_coord ** 36) * daha_33
         )
@@ -9010,20 +9065,20 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
             + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
             + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
             + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
             + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
             + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
             + c_32_val * (r_coord ** 32) * daha_32_factor_val
             + c_monst * (r_coord ** 33) * daha_33
         )
@@ -9251,7 +9306,7 @@ class FastOrderBookMatchingEngine:
                    + c_pcqtgbddddhkmaeetuv * (m_mass ** 26) * daha_23_factor
                    + c_pcqtgbddddhkmaeetuvw * (m_mass ** 27) * daha_24_factor
                    + c_pcqtgbddddhkmaeetuvwx * (m_mass ** 28) * daha_25_factor
-                   + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
+                   + c_pcqtgbddddhkmaeetuvwxy * (m_mass ** 29) * daha_26_factor
                    + c_pcqtgbddddhkmaeetuvwxyz * (m_mass ** 30) * daha_27_factor
                    + c_28_val * (m_mass ** 31) * daha_28_factor_val
                    + c_29_val * (m_mass ** 32) * daha_29_factor_val
@@ -9280,7 +9335,7 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
                        + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
                        + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
-                       + c_pcqtgbddddhkmaee * (r_coord ** 23) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
+                       + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
                        + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
                        + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
                        + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
@@ -9292,7 +9347,7 @@ class FastOrderBookMatchingEngine:
                        + c_29_val * (r_coord ** 32) * daha_29_factor_val
                        + c_30_val * (r_coord ** 33) * daha_30_factor_val
                        + c_31_val * (r_coord ** 34) * daha_31_factor_val
-                       + c_monst * (r_coord ** 35) * 더_factor if False else c_monst * (r_coord ** 35) * daha_32)
+                       + c_monst * (r_coord ** 35) * daha_32)
         numer_omega = a_spin * (2.0 * m_mass * r_coord - (q_charge ** 2) + q_dark_term)
         denom_omega = (
             rho_sq * ((r_coord ** 2) + (a_spin ** 2))
@@ -9325,21 +9380,21 @@ class FastOrderBookMatchingEngine:
             - 8.5 * c_pcqtgbddddd * (r_coord ** 16) * daha_factor
             - 9.0 * c_pcqtgbdddddd * (r_coord ** 17) * daha_kostka_factor
             - 9.5 * c_pcqtgbddddhkm * (r_coord ** 18) * daha_macdonald_factor
-            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * 더_factor if False else 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
+            - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
             - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
             - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * daha_hypergeom_factor
             - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
             - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
-            - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * 더_factor if False else 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
+            - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
             - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
             - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * daha_26_factor
             - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
             - 15.0 * c_28_val * (r_coord ** 29) * daha_28_factor_val
-            - 15.5 * c_29_val * (r_coord ** 30) * 더_factor if False else 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
+            - 15.5 * c_29_val * (r_coord ** 30) * daha_29_factor_val
             - 16.0 * c_30_val * (r_coord ** 31) * daha_30_factor_val
             - 16.5 * c_31_val * (r_coord ** 32) * daha_31_factor_val
-            - 17.0 * c_monst * (r_coord ** 33) * 더_factor if False else 17.0 * c_monst * (r_coord ** 33) * daha_32
+            - 17.0 * c_monst * (r_coord ** 33) * daha_32
         )
         f_tidal = float(np.clip(f_tidal_dark, -100.0, 100.0))
 
@@ -9363,23 +9418,23 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddd * (r_coord ** 16)
             + c_pcqtgbdddd * (r_coord ** 17) * (1.0 + k_h)
             + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
-            + c_pcqtgbdddddd * (r_coord ** 19) * 더_factor if False else c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
+            + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
             + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
             + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
             + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
+            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * daha_hypergeom_factor
             + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
             + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
             + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * 더_factor if False else c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
+            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 28) * daha_25_factor
             + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 29) * daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
+            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 30) * daha_27_factor
             + c_28_val * (r_coord ** 31) * daha_28_factor_val
-            + c_29_val * (r_coord ** 32) * 더_factor if False else c_29_val * (r_coord ** 32) * daha_29_factor_val
+            + c_29_val * (r_coord ** 32) * daha_29_factor_val
             + c_30_val * (r_coord ** 33) * daha_30_factor_val
-            + c_31_val * (r_coord ** 34) * 더_factor if False else c_31_val * (r_coord ** 34) * daha_31_factor_val
-            + c_monst * (r_coord ** 35) * 더_factor if False else c_monst * (r_coord ** 35) * daha_32
+            + c_31_val * (r_coord ** 34) * daha_31_factor_val
+            + c_monst * (r_coord ** 35) * daha_32
         )
 
         charge_accel = ((q_charge ** 2) * v_qi / max(1e-4, r_coord ** 3)) * (
@@ -9398,24 +9453,24 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdd * (r_coord ** 12)
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
-            + c_pcqtgbddddd * (r_coord ** 15) * 더_factor if False else c_pcqtgbddddd * (r_coord ** 15) * daha_factor
+            + c_pcqtgbddddd * (r_coord ** 15) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
-            + c_pcqtgbddddhkm * (r_coord ** 17) * 더_factor if False else c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더_factor if False else c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
-            + c_pcqtgbddddhkmae * (r_coord ** 19) * 더_factor if False else c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
-            + c_pcqtgbddddhkmaee * (r_coord ** 20) * 더_factor if False else c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
+            + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
+            + c_pcqtgbddddhkma * (r_coord ** 18) * daha_askey_factor
+            + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
+            + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
             + c_pcqtgbddddhkmaeet * (r_coord ** 21) * daha_hypergeom_factor
-            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * 더_factor if False else c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
+            + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
             + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
-            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * 더_factor if False else c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
+            + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
             + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더_factor if False else c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
+            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * daha_26_factor
             + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * daha_27_factor
-            + c_28_val * (r_coord ** 28) * 더_factor if False else c_28_val * (r_coord ** 28) * daha_28_factor_val
-            + c_29_val * (r_coord ** 29) * 더_factor if False else c_29_val * (r_coord ** 29) * daha_29_factor_val
-            + c_30_val * (r_coord ** 30) * 더_factor if False else c_30_val * (r_coord ** 30) * daha_30_factor_val
-            + c_31_val * (r_coord ** 31) * 더_factor if False else c_31_val * (r_coord ** 31) * daha_31_factor_val
-            + c_monst * (r_coord ** 32) * 더_factor if False else c_monst * (r_coord ** 32) * daha_32
+            + c_28_val * (r_coord ** 28) * daha_28_factor_val
+            + c_29_val * (r_coord ** 29) * daha_29_factor_val
+            + c_30_val * (r_coord ** 30) * daha_30_factor_val
+            + c_31_val * (r_coord ** 31) * daha_31_factor_val
+            + c_monst * (r_coord ** 32) * daha_32
         )
         a_knk_32 = a_qi + (omega_drag + abs(f_tidal)) * v_qi * gamma_knk_32 + charge_accel
         a_knk_clamped = float(np.clip(a_knk_32, -100.0, 100.0))
@@ -10837,7 +10892,7 @@ class FastOrderBookMatchingEngine:
                        + c_pcqtgbddddhkma * (r_coord ** 21) * daha_askey_factor
                        + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
                        + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-                       + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더하_hypergeom_factor if False else daha_hypergeom_factor
+                       + daha_hypergeom_factor
                        + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
                        + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
                        + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
@@ -10880,12 +10935,12 @@ class FastOrderBookMatchingEngine:
             - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
             - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
-            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * 더하_hypergeom_factor if False else daha_hypergeom_factor
+            - daha_hypergeom_factor
             - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
             - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
             - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
             - 13.5 * c_pcqtgbddddhkmaeetuvwx * (r_coord ** 26) * daha_25_factor
-            - 14.0 * c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 27) * 더하_hypergeom_factor if False else daha_26_factor
+            - daha_26_factor
             - 14.5 * c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 28) * daha_27_factor
             - 15.0 * c_monst * (r_coord ** 29) * daha_28
         )
@@ -10913,10 +10968,10 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbddddd * (r_coord ** 18) * daha_factor
             + c_pcqtgbdddddd * (r_coord ** 19) * daha_kostka_factor
             + c_pcqtgbddddhkm * (r_coord ** 20) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 21) * 더하_hypergeom_factor if False else daha_askey_factor
+            + daha_askey_factor
             + c_pcqtgbddddhkmae * (r_coord ** 22) * daha_elliptic_factor
             + c_pcqtgbddddhkmaee * (r_coord ** 23) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 24) * 더하_hypergeom_factor if False else daha_hypergeom_factor
+            + daha_hypergeom_factor
             + c_pcqtgbddddhkmaeetu * (r_coord ** 25) * daha_22_factor
             + c_pcqtgbddddhkmaeetuv * (r_coord ** 26) * daha_23_factor
             + c_pcqtgbddddhkmaeetuvw * (r_coord ** 27) * daha_24_factor
@@ -10942,19 +10997,19 @@ class FastOrderBookMatchingEngine:
             + c_pcqtgbdd * (r_coord ** 12)
             + c_pcqtgbddd * (r_coord ** 13)
             + c_pcqtgbdddd * (r_coord ** 14) * (1.0 + k_h)
-            + c_pcqtgbddddd * (r_coord ** 15) * 더하_hypergeom_factor if False else daha_factor
+            + daha_factor
             + c_pcqtgbdddddd * (r_coord ** 16) * daha_kostka_factor
             + c_pcqtgbddddhkm * (r_coord ** 17) * daha_macdonald_factor
-            + c_pcqtgbddddhkma * (r_coord ** 18) * 더하_hypergeom_factor if False else daha_askey_factor
+            + daha_askey_factor
             + c_pcqtgbddddhkmae * (r_coord ** 19) * daha_elliptic_factor
             + c_pcqtgbddddhkmaee * (r_coord ** 20) * daha_elliptic_trig_factor
-            + c_pcqtgbddddhkmaeet * (r_coord ** 21) * 더하_hypergeom_factor if False else daha_hypergeom_factor
+            + daha_hypergeom_factor
             + c_pcqtgbddddhkmaeetu * (r_coord ** 22) * daha_22_factor
             + c_pcqtgbddddhkmaeetuv * (r_coord ** 23) * daha_23_factor
             + c_pcqtgbddddhkmaeetuvw * (r_coord ** 24) * daha_24_factor
-            + c_pcqtgbddddhkmaeetuvwx * (r_coord ** 25) * 더하_hypergeom_factor if False else daha_25_factor
-            + c_pcqtgbddddhkmaeetuvwxy * (r_coord ** 26) * 더하_hypergeom_factor if False else daha_26_factor
-            + c_pcqtgbddddhkmaeetuvwxyz * (r_coord ** 27) * 더하_hypergeom_factor if False else daha_27_factor
+            + daha_25_factor
+            + daha_26_factor
+            + daha_27_factor
             + c_monst * (r_coord ** 28) * daha_28
         )
         a_knk_28 = a_qi + (omega_drag + abs(f_tidal)) * v_qi * gamma_knk_28 + charge_accel
@@ -11313,7 +11368,7 @@ class FastOrderBookMatchingEngine:
             - 10.0 * c_pcqtgbddddhkma * (r_coord ** 19) * daha_askey_factor
             - 10.5 * c_pcqtgbddddhkmae * (r_coord ** 20) * daha_elliptic_factor
             - 11.0 * c_pcqtgbddddhkmaee * (r_coord ** 21) * daha_elliptic_trig_factor
-            - 11.5 * c_pcqtgbddddhkmaeet * (r_coord ** 22) * 더하_hypergeom_factor if False else daha_hypergeom_factor
+            - daha_hypergeom_factor
             - 12.0 * c_pcqtgbddddhkmaeetu * (r_coord ** 23) * daha_22_factor
             - 12.5 * c_pcqtgbddddhkmaeetuv * (r_coord ** 24) * daha_23_factor
             - 13.0 * c_pcqtgbddddhkmaeetuvw * (r_coord ** 25) * daha_24_factor
@@ -17302,7 +17357,7 @@ class FastOrderBookMatchingEngine:
             "tachyon_horizon_r_T": round(r_tachyon, 4),
             "tachyon_horizon": round(r_tachyon, 4),
             "phantom_horizon_r_P": round(r_phantom, 4),
-            "phantom_horizon": round(r_phantom_chameleon_quintom_tachyon_ghost_brane_dilaton_dirac_dunkl_hecke_cherednik if False else r_phantom, 4),
+            "phantom_horizon": round(r_phantom, 4),
             "quintessence_horizon_r_Q": round(r_quint, 4),
             "quintessence_horizon": round(r_quint, 4),
             "horizon_radius": round(r_horizon, 4),

@@ -114,7 +114,8 @@ class RLOrderExecutionAgent:
         obi: float = 0.0,
         vpin: float = 0.40,
         volatility: float = 0.02,
-        adv: float = 1_000_000.0
+        adv: float = 1_000_000.0,
+        side: str = "BUY"
     ) -> Dict[str, Any]:
         """
         Simulates and generates the complete RL adaptive order execution schedule.
@@ -176,7 +177,8 @@ class RLOrderExecutionAgent:
                 slice_qty = int(q_remaining)
 
             q_remaining = max(0.0, q_remaining - slice_qty)
-            step_price = p0 * (1.0 + (slippage_bps / 10000.0))
+            side_sign = 1.0 if side.upper() == "BUY" else -1.0
+            step_price = p0 * (1.0 + side_sign * (slippage_bps / 10000.0))
             tot_executed_cost += slice_qty * step_price
 
             tranches.append({

@@ -438,11 +438,12 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
 
                     # Fetch Cash Flow Statement for OCF
                     try:
+                        loop = asyncio.get_event_loop()
                         ticker = yf.Ticker(yf_sym)
                         if is_quarterly:
-                            cf_data = ticker.quarterly_cashflow
+                            cf_data = await loop.run_in_executor(None, lambda t=ticker: t.quarterly_cashflow)
                         else:
-                            cf_data = ticker.cashflow
+                            cf_data = await loop.run_in_executor(None, lambda t=ticker: t.cashflow)
                         if cf_data is not None and not cf_data.empty:
                             cf_cols_map = {
                                 'Total Cash From Operating Activities': 'operating_cash_flow',

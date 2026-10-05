@@ -714,7 +714,7 @@ class MarketIndicatorStorage:
         krx = _retry_fetch("KRX listing", lambda: fdr.StockListing('KRX'))
 
         # 관리종목 제외 (Volume=0 스냅샷은 거래일시 정지가 아닐 수 있으므로 유니버스 제거 제외)
-        krx.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume', 'code'] else str(c) for c in krx.columns]
+        krx.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume', 'code', 'market'] else str(c) for c in krx.columns]
         excluded = set()
 
         try:
