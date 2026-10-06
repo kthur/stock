@@ -476,7 +476,7 @@ class CrossSectionalFactorNeutralizer:
 
         res_std = np.std(residuals)
         if res_std > 1e-8:
-            z_scores = residuals / res_std
+            z_scores = np.clip(residuals / res_std, -35.0, 35.0)
             # Map back to [0.0, 1.0] using Sigmoid dispersion preservation
             pure_scores = 1.0 / (1.0 + np.exp(-z_scores))
         else:

@@ -215,12 +215,14 @@ class CrossSectionalScoreNormalizer:
                             and (is_exact_zero.sum() / float(n_valid)) > 0.20
                         ):
                             nz_mask = ~is_exact_zero
+                            norm_vals = np.full(n_valid, 0.50, dtype=np.float64)
                             if nz_mask.sum() > 1:
                                 nz_vals = vals[nz_mask]
                                 nz_rank = pd.Series(nz_vals).rank(ascending=True, method='average')
                                 nz_norm = (0.52 + 0.475 * ((nz_rank - 0.5) / float(len(nz_vals)))).clip(0.52, 0.995)
-                                norm_vals = np.full(n_valid, 0.50, dtype=np.float64)
                                 norm_vals[nz_mask] = nz_norm.values
+                            elif nz_mask.sum() == 1:
+                                norm_vals[nz_mask] = 0.75
 
                         norm_df.loc[valid_mask, col] = norm_vals.values if isinstance(norm_vals, pd.Series) else norm_vals
                     elif method_clean in ('winsorized_zscore', 'zscore'):

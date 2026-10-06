@@ -161,14 +161,14 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                     synth_score = 0.50 + 0.20 * mom_signal + 0.10 * (rvol_capped - 1.0) / 2.0 + 0.10 * (vol_contraction_factor - 1.0) + 0.10 * (exhaustion_boost - 0.50)
                     results[sym_str] = float(np.clip(synth_score, 0.10, 0.95))
                 else:
-                    results[sym_str] = 0.50
+                    results[sym_str] = np.nan
             else:
                 # Formula: Short Interest Ratio * DTC * Momentum Condition
                 try:
                     f_sr = float(short_ratio)
                     f_dtc = float(dtc)
                     if not (np.isfinite(f_sr) and np.isfinite(f_dtc) and f_sr >= 0 and f_dtc >= 0):
-                        results[sym_str] = 0.50
+                        results[sym_str] = np.nan
                     else:
                         if ret_5d >= 0.08 and f_dtc >= 6.0 and f_sr >= 0.25:
                             ignite_mult = 1.80  # Super Squeeze Avalanche Ignition
@@ -183,13 +183,13 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                         mom_factor = (1.0 + float(ret_5d) * 4.5) if ret_5d >= 0 else max(0.10, 1.0 + float(ret_5d) * 2.0)
                         mom_factor = mom_factor if np.isfinite(mom_factor) else 1.0
                         raw_squeeze = float(f_sr * f_dtc * mom_factor * ignite_mult * htb_squeeze_mult)
-                        results[sym_str] = raw_squeeze if np.isfinite(raw_squeeze) else 0.50
+                        results[sym_str] = raw_squeeze if np.isfinite(raw_squeeze) else np.nan
                 except (ValueError, TypeError):
-                    results[sym_str] = 0.50
+                    results[sym_str] = np.nan
 
         # Build output DataFrame and normalize
         df_out = pd.DataFrame(list(results.items()), columns=['symbol', 'raw_score'])
-        df_out['raw_score'] = pd.to_numeric(df_out['raw_score'], errors='coerce').fillna(0.50)
+        df_out['raw_score'] = pd.to_numeric(df_out['raw_score'], errors='coerce')
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
         df_out['short_squeeze_score'] = np.nan
 
@@ -207,9 +207,9 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'short_squeeze_score'] = 0.50
         else:
-            df_out['short_squeeze_score'] = 0.50
+            df_out['short_squeeze_score'] = np.nan
 
-        # Ensure all rows have valid non-NaN scores
-        df_out['short_squeeze_score'] = df_out['short_squeeze_score'].fillna(0.50).clip(0.05, 0.98).astype(float)
+        # Clip valid scores without forcing fake 0.50 on NaNs
+        df_out['short_squeeze_score'] = df_out['short_squeeze_score'].clip(0.05, 0.98).astype(float)
 
         return df_out[['symbol', 'short_squeeze_score']]

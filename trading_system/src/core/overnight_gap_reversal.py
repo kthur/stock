@@ -67,6 +67,11 @@ class OvernightGapReversalEngine(BaseStrategyEngine):
         Computes Overnight Gap Reversal score [0.0, 1.0] per symbol.
         Returns DataFrame with ['symbol', 'overnight_gap_score'].
         """
+        if isinstance(symbols, dict):
+            if prices_dict is None:
+                prices_dict = symbols
+            symbols = list(symbols.keys())
+
         if not symbols:
             return pd.DataFrame(columns=['symbol', 'overnight_gap_score'])
 
@@ -94,18 +99,21 @@ class OvernightGapReversalEngine(BaseStrategyEngine):
                     results.append({'symbol': sym, 'overnight_gap_score': 0.50})
                     continue
 
-                close = df[c_col].dropna()
-                open_p = df[o_col].dropna()
-                high = df[h_col].dropna() if h_col else close
-                low = df[l_col].dropna() if l_col else close
+                needed_cols = [c for c in [c_col, o_col, h_col, l_col] if c]
+                clean_df = df[needed_cols].apply(pd.to_numeric, errors='coerce').dropna()
 
-                if len(close) < 15 or len(open_p) < 15:
+                if len(clean_df) < 15:
                     results.append({'symbol': sym, 'overnight_gap_score': 0.50})
                     continue
 
+                close = clean_df[c_col]
+                open_p = clean_df[o_col]
+                high = clean_df[h_col] if h_col else close
+                low = clean_df[l_col] if l_col else close
+
                 # 1. Calculate Overnight Gap % = (Open_t - Close_t-1) / Close_t-1
-                prev_close = close.iloc[-2]
-                curr_open = open_p.iloc[-1]
+                prev_close = float(close.iloc[-2])
+                curr_open = float(open_p.iloc[-1])
 
                 if prev_close <= 0 or curr_open <= 0:
                     results.append({'symbol': sym, 'overnight_gap_score': 0.50})

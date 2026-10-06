@@ -120,12 +120,15 @@ class IndexRebalanceEngine(BaseStrategyEngine):
             return pd.DataFrame(columns=["symbol", "name", "market", "index_rebalance_score", "predicted_flow_krw"])
 
         results = []
-        rebal_info = self.is_near_rebalance_window()
+        as_of = kwargs.get("as_of_date", kwargs.get("date", kwargs.get("current_date", None)))
+        if as_of is not None and hasattr(as_of, "date") and not isinstance(as_of, datetime.date):
+            as_of = as_of.date()
+        rebal_info = self.is_near_rebalance_window(as_of)
         is_active_window = rebal_info["in_window"]
 
         # Market Cap & Liquidity Ranking
-        mcap_col = "market_cap" if "market_cap" in df_uni.columns else ("marcap" if "marcap" in df_uni.columns else None)
-        adv_col = "trading_value" if "trading_value" in df_uni.columns else ("adv" if "adv" in df_uni.columns else None)
+        mcap_col = next((c for c in ["market_cap", "marcap", "mcap", "cap"] if c in df_uni.columns), None)
+        adv_col = next((c for c in ["trading_value", "adv", "adv_20d", "trading_amount", "volume"] if c in df_uni.columns), None)
 
         if mcap_col and mcap_col in df_uni.columns:
             mcap_series = pd.to_numeric(df_uni[mcap_col], errors="coerce").fillna(0.0)
@@ -139,6 +142,11 @@ class IndexRebalanceEngine(BaseStrategyEngine):
         else:
             adv_rank_pct = pd.Series(0.5, index=df_uni.index)
 
+        n_uni = max(len(df_uni), 1)
+        min_rank_threshold = 0.02 if n_uni >= 50 else 0.0
+        max_rank_threshold = max(0.15, 1.0 / n_uni)
+        max_adv_threshold = max(0.20, 1.0 / n_uni)
+
         for idx, row in df_uni.iterrows():
             sym = str(row["symbol"]).strip()
             name = str(row.get("name", sym))
@@ -149,8 +157,8 @@ class IndexRebalanceEngine(BaseStrategyEngine):
             m_rank = float(m_val) if (pd.notna(m_val) and np.isfinite(float(m_val))) else 0.50
             a_rank = float(a_val) if (pd.notna(a_val) and np.isfinite(float(a_val))) else 0.50
 
-            # High probability candidate for inclusion: Top 5-15% market cap + Top 10% liquidity in non-mega caps
-            is_inclusion_candidate = (0.02 <= m_rank <= 0.15) and (a_rank <= 0.20)
+            # High probability candidate for inclusion: Top 5-15% market cap + Top 10% liquidity in non-mega caps (adapted for universe size)
+            is_inclusion_candidate = (min_rank_threshold <= m_rank <= max_rank_threshold) and (a_rank <= max_adv_threshold)
             # Exclusion candidate: Lower 30% of current index constituents
             is_exclusion_candidate = (m_rank > 0.60) and (a_rank > 0.50)
 
@@ -186,3 +194,5 @@ class IndexRebalanceEngine(BaseStrategyEngine):
         if not res_df.empty:
             res_df = res_df.sort_values(by="index_rebalance_score", ascending=False).reset_index(drop=True)
         return res_df
+
+    identify_rebalance_candidates = compute_scores

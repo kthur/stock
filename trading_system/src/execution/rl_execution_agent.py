@@ -195,7 +195,10 @@ class RLOrderExecutionAgent:
 
         tot_shares = total_quantity - int(q_remaining)
         avg_exec_price = tot_executed_cost / tot_shares if tot_shares > 0 else p0
-        implementation_shortfall_bps = ((avg_exec_price - p0) / p0) * 10000.0
+        if str(side).upper() == "BUY":
+            implementation_shortfall_bps = ((avg_exec_price - p0) / p0) * 10000.0 if p0 > 0 else 0.0
+        else:
+            implementation_shortfall_bps = ((p0 - avg_exec_price) / p0) * 10000.0 if p0 > 0 else 0.0
 
         return {
             "symbol": symbol,

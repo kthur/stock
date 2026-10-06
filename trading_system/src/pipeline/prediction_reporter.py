@@ -123,9 +123,8 @@ def save_strategy_predictions_report(
     tmp_path = main_path + ".tmp"
     with open(tmp_path, "w", encoding="utf-8") as f:
         _write_content(f, merged)
-    if os.path.exists(main_path):
-        os.remove(main_path)
-    os.rename(tmp_path, main_path)
+    # D4: Atomic file replace on Windows to eliminate WinError 32 file locking race conditions
+    os.replace(tmp_path, main_path)
     logger.info(f"Saved {title} ({len(merged)} symbols) to {main_path}")
 
     # Per-market partitioned files
@@ -138,8 +137,6 @@ def save_strategy_predictions_report(
         m_tmp = m_path + ".tmp"
         with open(m_tmp, "w", encoding="utf-8") as _mf:
             _write_content(_mf, _m_df, market_label=_m)
-        if os.path.exists(m_path):
-            os.remove(m_path)
-        os.rename(m_tmp, m_path)
+        os.replace(m_tmp, m_path)
 
     return main_path

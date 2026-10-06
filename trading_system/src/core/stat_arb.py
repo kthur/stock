@@ -870,20 +870,22 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             pairs = self.find_cointegrated_pairs(prices_dict, market_map=market_map)
             res = self.get_symbol_stat_arb_scores(pairs)
             if res.empty:
-                return pd.DataFrame([{"symbol": s, "stat_arb_score": 0.50, "long_only_mode": False} for s in all_syms])
+                return pd.DataFrame([{"symbol": s, "stat_arb_score": np.nan, "long_only_mode": False} for s in all_syms])
 
             existing_syms = set(res["symbol"])
-            missing = [{"symbol": s, "stat_arb_score": 0.50, "long_only_mode": False} for s in all_syms if s not in existing_syms]
+            missing = [{"symbol": s, "stat_arb_score": np.nan, "long_only_mode": False} for s in all_syms if s not in existing_syms]
             if missing:
                 res = pd.concat([res, pd.DataFrame(missing)], ignore_index=True)
 
-            # V8-MED-06 Fix: Apply rank booster on full cross-section only when len(pairs) >= 20
+            # V8-MED-06 Fix: Apply rank booster on valid scores only when len(pairs) >= 20
             if len(pairs) >= 20:
-                s_ser = pd.to_numeric(res['stat_arb_score'], errors='coerce').fillna(0.50).clip(0.05, 0.98)
-                ranks = s_ser.rank(pct=True, ascending=True)
-                enhanced = np.where(ranks >= 0.95, (s_ser * 1.15).clip(0.05, 0.98),
-                           np.where(ranks >= 0.85, (s_ser * 1.10).clip(0.05, 0.98), s_ser))
-                res['stat_arb_score'] = pd.to_numeric(pd.Series(enhanced, index=res.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+                valid_mask = res['stat_arb_score'].notna() & np.isfinite(res['stat_arb_score'])
+                if valid_mask.sum() >= 20:
+                    valid_s = res.loc[valid_mask, 'stat_arb_score']
+                    ranks = valid_s.rank(pct=True, ascending=True)
+                    enhanced = np.where(ranks >= 0.95, (valid_s * 1.15).clip(0.05, 0.98),
+                               np.where(ranks >= 0.85, (valid_s * 1.10).clip(0.05, 0.98), valid_s))
+                    res.loc[valid_mask, 'stat_arb_score'] = pd.Series(enhanced, index=res.loc[valid_mask].index).clip(0.05, 0.98)
             return res
 
         except Exception as e:
@@ -891,4 +893,4 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             all_syms = list(prices_dict.keys()) if prices_dict else []
             if not all_syms:
                 return pd.DataFrame(columns=["symbol", "stat_arb_score", "long_only_mode"])
-            return pd.DataFrame([{"symbol": s, "stat_arb_score": 0.50, "long_only_mode": False} for s in all_syms])
+            return pd.DataFrame([{"symbol": s, "stat_arb_score": np.nan, "long_only_mode": False} for s in all_syms])

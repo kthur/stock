@@ -6039,7 +6039,7 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
             version=version,
             **kwargs
         )
-        return coupler.evaluate(pillar_scores, **kwargs)
+        return coupler.evaluate(pillar_scores, version=version, **kwargs)
 
     def evaluate(
         self,
@@ -6431,7 +6431,8 @@ class QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMons
         f_out_54 = f_out_55
         f_out = f_out_55
 
-        effective_version = int(kwargs.get('version', getattr(self, 'version', 97)))
+        _v_arg = kwargs.get('version', None)
+        effective_version = int(_v_arg if _v_arg is not None else getattr(self, 'version', 97))
         res_dict = {
             "h_monster_whit": h_out,
             "z_monster_whit": z_out,
@@ -14259,12 +14260,40 @@ class EnsembleScoringEngine:
 
         if len(ens_scores) >= 5:
             ranks = pd.Series(ens_scores).rank(pct=True).values
-            if int(version) >= 88:
+            if int(version) >= 97:
+                mult = compute_phase97_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 96:
+                mult = compute_phase96_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 95:
+                mult = compute_phase95_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 94:
+                mult = compute_phase94_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 93:
+                mult = compute_phase93_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 92:
+                mult = compute_phase92_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 91:
+                mult = compute_phase91_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 90:
+                mult = compute_phase90_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 89:
+                mult = compute_phase89_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 88:
                 mult = compute_phase88_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
             elif int(version) >= 87:
                 mult = compute_phase87_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
             elif int(version) >= 86:
                 mult = compute_phase86_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 85:
+                mult = compute_phase85_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 84:
+                mult = compute_phase84_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 83:
+                mult = compute_phase83_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 82:
+                mult = compute_phase82_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
+            elif int(version) >= 81:
+                mult = compute_phase81_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
             elif int(version) >= 80:
                 mult = compute_phase80_hyperconvex_rank_modulation(ranks, z_denoised=z_denoised, regime=regime)
             elif int(version) >= 79:
@@ -16143,7 +16172,7 @@ class EnsembleScoringEngine:
 
             # Phase 48 (R1, Feature F211): Quantum Geometric Langlands Chiral Affine Lie Superalgebra Borcherds-Moonshine-Monster Whittaker Coupler
             if version >= 48:
-                monster_whit_res = cls.compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling(p_vals.T)
+                monster_whit_res = cls.compute_quantum_geometric_langlands_borcherds_moonshine_monster_whittaker_coupling(p_vals.T, version=version)
                 h_monster_whit = np.atleast_1d(monster_whit_res["h_monster_whit"]).astype(np.float64)
                 z_monster_whit = np.atleast_1d(monster_whit_res["z_monster_whit"]).astype(np.float64)
             else:

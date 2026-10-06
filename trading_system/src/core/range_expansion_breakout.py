@@ -118,6 +118,13 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
             if not np.isfinite(curr_atr) or curr_atr <= 1e-8:
                 curr_atr = float(tr[-1]) if np.isfinite(tr[-1]) and tr[-1] > 1e-8 else 1e-8
 
+            # D29: Halted/flat stock checks to prevent false breakout scores > 0.95
+            curr_close = float(c[-1]) if w_len > 0 else 0.0
+            curr_range = float(bar_range[-1]) if w_len > 0 else 0.0
+            min_thresh = max(1e-4, 0.0005 * curr_close) if curr_close > 0 else 1e-4
+            if curr_atr < 1e-4 or curr_range < 1e-4 or curr_atr < min_thresh:
+                return 0.50
+
             # 2. Compression Precursor Score C_i (evaluated on recent 1~3 bars prior to current bar)
             # NR7 flag: Was bar t-1 or t-2 the narrowest range of its trailing 7 bars?
             is_nr7 = 0.0
@@ -156,6 +163,8 @@ class RangeExpansionBreakoutEngine(BaseStrategyEngine):
             # 3. Range Expansion Trigger E_i
             # Range Expansion Factor: REF = Current Bar Range / ATR_14
             curr_range = float(bar_range[-1])
+            if curr_atr < 1e-4 or curr_range < 1e-4:
+                return 0.50
             ref = curr_range / max(curr_atr, 1e-8)
 
             # S-curve scaling for REF: 1.0x -> 0.0, 1.5x -> 0.50, 2.5x+ -> 1.0

@@ -579,7 +579,7 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
 
 def invalidate_cache_for_symbols(storage, symbols: List[str]) -> int:
     """
-    V7-20: Immediately invalidates fundamental cache metadata for specific symbols
+    V7-20 / D1: Immediately invalidates fundamental cache metadata for specific symbols
     upon earnings announcement triggers (PEAD acceleration).
     """
     if not storage or not symbols:
@@ -587,8 +587,18 @@ def invalidate_cache_for_symbols(storage, symbols: List[str]) -> int:
     try:
         if hasattr(storage, 'delete_fundamental_meta'):
             return int(storage.delete_fundamental_meta(symbols))
+        elif hasattr(storage, '_connect'):
+            write_lock = getattr(storage, '_write_lock', getattr(storage, '_SHARED_WRITE_LOCK', threading.Lock()))
+            with write_lock:
+                with storage._connect() as conn:
+                    cursor = conn.cursor()
+                    placeholders = ','.join('?' for _ in symbols)
+                    cursor.execute(f"DELETE FROM fundamental_cache_meta WHERE symbol IN ({placeholders})", symbols)  # nosec B608
+                    conn.commit()
+                    return int(cursor.rowcount)
         elif hasattr(storage, '_get_conn'):
-            with storage._SHARED_WRITE_LOCK:
+            write_lock = getattr(storage, '_write_lock', getattr(storage, '_SHARED_WRITE_LOCK', threading.Lock()))
+            with write_lock:
                 with storage._get_conn() as conn:
                     cursor = conn.cursor()
                     placeholders = ','.join('?' for _ in symbols)

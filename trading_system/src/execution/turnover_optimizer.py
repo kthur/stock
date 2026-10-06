@@ -106,5 +106,31 @@ class TurnoverOptimizer:
                 "delta_amount": amount_delta if action != "HOLD" else 0.0,
             }
 
+        # D28: Fix hysteresis weight dampening to prevent portfolio budget drift
+        raw_sum = sum(_get_w(target_allocations, s) for s in all_symbols)
+        preserve_budget = kwargs.get("preserve_budget", abs(raw_sum - 1.0) < 1e-3)
+        final_sum = sum(d["target_weight"] for d in optimized.values())
+
+        if preserve_budget and abs(final_sum - raw_sum) > 1e-5 and final_sum > 1e-12:
+            budget_drift = raw_sum - final_sum
+            # Absorb drift via active rebalances first to preserve HOLD status
+            active_syms = [s for s in all_symbols if optimized[s]["action"] != "HOLD" and optimized[s]["target_weight"] > 0]
+            if active_syms:
+                active_sum = sum(optimized[s]["target_weight"] for s in active_syms)
+                if active_sum > 1e-12:
+                    for s in active_syms:
+                        alloc = budget_drift * (optimized[s]["target_weight"] / active_sum)
+                        new_w = float(np.clip(optimized[s]["target_weight"] + alloc, 0.0, 1.0))
+                        optimized[s]["target_weight"] = new_w
+                        optimized[s]["delta_amount"] = abs(new_w - optimized[s]["current_weight"]) * cap
+            else:
+                # If all positions are HOLD, renormalize across all non-zero positions to preserve budget
+                nz_syms = [s for s in all_symbols if optimized[s]["target_weight"] > 0]
+                if nz_syms:
+                    for s in nz_syms:
+                        new_w = float(optimized[s]["target_weight"] * (raw_sum / final_sum))
+                        optimized[s]["target_weight"] = new_w
+                        optimized[s]["delta_amount"] = abs(new_w - optimized[s]["current_weight"]) * cap
+
         logger.info("[TurnoverOptimizer] Reduced turnover by %s KRW across %d symbols.", f"{total_turnover_reduced:,.0f}", len(all_symbols))
         return optimized

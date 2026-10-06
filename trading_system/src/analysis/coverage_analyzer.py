@@ -120,8 +120,14 @@ class StrategyCoverageAnalyzer:
             c_col = col_map.get(strat)
             if c_col and c_col in target_df.columns:
                 series = pd.to_numeric(target_df[c_col], errors="coerce")
-                # Valid if non-null and finite
-                valid_mask = series.notna() & np.isfinite(series)
+                # Valid if non-null and finite; guard against false 100% coverage when fallback to 0.0-filled ensemble_df occurs
+                if target_df is ensemble_df:
+                    valid_mask = series.notna() & np.isfinite(series) & (series != 0.0)
+                else:
+                    if (series == 0.0).all():
+                        valid_mask = pd.Series(False, index=target_df.index)
+                    else:
+                        valid_mask = series.notna() & np.isfinite(series)
                 valid_cnt = int(valid_mask.sum())
                 missing_cnt = total_symbols - valid_cnt
                 raw_cov = (valid_cnt / total_symbols * 100.0) if total_symbols > 0 else 0.0

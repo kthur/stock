@@ -831,6 +831,13 @@ def apply_portfolio_constraints(
         else:
             break
 
+    # D20: guarantee simplex sum == 1.000000 under saturated capacity
+    sum_final = float(np.sum(w))
+    if sum_final > 1e-12:
+        w = w / sum_final
+    elif n > 0:
+        w = np.full(n, 1.0 / n)
+
     return w
 
 

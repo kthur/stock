@@ -1069,21 +1069,30 @@ class OnDevicePredictionModel:
 
                 df = df.reset_index()
                 date_col = None
-                for col in ['Date', 'date', 'index', 'level_0']:
-                    if col in df.columns:
-                        try:
-                            converted = pd.to_datetime(df[col])
-                            if not converted.isna().all():
-                                date_col = col
-                                df[col] = converted
-                                break
-                        except Exception:
-                            pass
+                # First priority: Existing datetime64 columns
+                for col in ['Date', 'date', 'trade_date', 'datetime', 'timestamp']:
+                    if col in df.columns and pd.api.types.is_datetime64_any_dtype(df[col]):
+                        date_col = col
+                        break
                 if not date_col:
                     for col in df.columns:
                         if pd.api.types.is_datetime64_any_dtype(df[col]):
                             date_col = col
                             break
+
+                # Second priority: Candidate columns convertible to valid market dates (year >= 1990)
+                if not date_col:
+                    for col in ['Date', 'date', 'trade_date', 'datetime', 'timestamp', 'index', 'level_0']:
+                        if col in df.columns:
+                            try:
+                                converted = pd.to_datetime(df[col], errors='coerce')
+                                valid_years = converted.dt.year.dropna()
+                                if not valid_years.empty and valid_years.min() >= 1990:
+                                    date_col = col
+                                    df[col] = converted
+                                    break
+                            except Exception:
+                                pass
 
                 # V8-CRIT-13: Apply market-aware dynamic filing lag (Annual: KRX 90d, US 60d; Quarterly: KRX 45d, US 40d)
                 df_fun_shifted = df_fun.copy()
@@ -1516,7 +1525,7 @@ class OnDevicePredictionModel:
         pct_chg = df['Close'].pct_change()
         vol_20d = pct_chg.rolling(20, min_periods=5).std()
         # R7-1 Fix: Pad denominator with realistic floor (0.005 = 0.5% daily vol) to prevent illiquid noise explosion
-        vol_20d = vol_20d.replace(0.0, np.nan).bfill().ffill().fillna(0.01)
+        vol_20d = vol_20d.replace(0.0, np.nan).ffill().fillna(0.01)
         vol_20d = pd.Series(np.maximum(vol_20d.values, 0.005), index=df.index)
         # Store vol scale for inverse-transform at inference time
         df['_vol_scale'] = vol_20d

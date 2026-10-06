@@ -424,115 +424,15 @@ def normalize_symbol(symbol: str) -> str:
     return s
 
 
-class DataValidator:
-    """
-    Domain-level data validator for cleaning and enforcing invariants on market series.
-    Separates data validation and sanitization domain logic from persistence mechanisms.
-    """
-    @staticmethod
-    def validate_and_clean_price_series(df: pd.DataFrame, max_daily_jump: float = 0.65) -> pd.DataFrame:
-        """
-        Validates price series for unadjusted split anomalies or erroneous data feeds.
-        Interpolates transient spikes/drops > max_daily_jump (65%) across all OHLC columns
-        and enforces strict OHLC boundary invariants (Low <= Open, Close <= High).
-        """
-        if df.empty or len(df) < 5 or 'Close' not in df.columns:
-            return df
+# D7: Reconcile duplicate DataValidator definitions to maintain consistent exports and backwards compatibility
+try:
+    from src.data_layer.data_validator import DataValidator
+except (ImportError, ModuleNotFoundError):
+    try:
+        from data_validator import DataValidator  # type: ignore
+    except Exception:
+        raise
 
-        df_clean = df.copy()
-        close = df_clean['Close']
-        if isinstance(close, pd.DataFrame):
-            close = close.iloc[:, 0]
-
-        pct_chg = close.pct_change().abs()
-        anomalies = pct_chg > max_daily_jump
-        transient_spikes = pd.Series(False, index=df_clean.index)
-        if anomalies.any():
-            # V8-HIGH-13 Fix: Causal isolation for real-time / current bar (eliminate pct_change(-1) lookahead)
-            if len(close) >= 3:
-                next_pct_chg = close.pct_change(-1).abs()
-                is_transient = anomalies.iloc[:-1] & (next_pct_chg.iloc[:-1] > (max_daily_jump * 0.8))
-                transient_spikes.iloc[:-1] = is_transient
-
-                # Causal guard for current bar: check against causal rolling median without looking forward
-                if bool(anomalies.iloc[-1]):
-                    rolling_med = close.iloc[-21:-1].median() if len(close) >= 21 else close.iloc[:-1].median()
-                    if rolling_med > 0 and abs(close.iloc[-1] / rolling_med - 1.0) > (max_daily_jump * 2.0):
-                        transient_spikes.iloc[-1] = True
-            if transient_spikes.any():
-                logger.warning(f"Detected {transient_spikes.sum()} transient price anomalies. Interpolating clean OHLC values.")
-                for col in ['Close', 'Open', 'High', 'Low']:
-                    if col in df_clean.columns:
-                        df_clean.loc[transient_spikes, col] = np.nan
-                        df_clean[col] = df_clean[col].interpolate(method='linear').ffill().bfill()
-
-        # Detect reverse stock splits (permanent upward jumps > 50% that don't revert) with volume contraction
-        rev_split_candidates = (close.pct_change(fill_method=None) > 0.50) & (~transient_spikes)
-        if rev_split_candidates.any():
-            rev_dates = rev_split_candidates[rev_split_candidates].index
-            for date in rev_dates:
-                idx = df_clean.index.get_loc(date)
-                if isinstance(idx, slice):
-                    idx = idx.start
-                elif isinstance(idx, np.ndarray):
-                    idx = np.where(idx)[0][0]
-                if idx > 0:
-                    prev_close = df_clean['Close'].iloc[idx-1]
-                    curr_close = df_clean['Close'].iloc[idx]
-                    if prev_close > 0:
-                        rev_ratio = curr_close / prev_close
-                        if any(abs(rev_ratio - r) / r < 0.08 for r in [1.5, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 50.0, 100.0]):
-                            logger.warning(f"Detected reverse stock split around {date} with ratio {rev_ratio:.4f}. Adjusting historical data.")
-                            for col in ['Open', 'High', 'Low', 'Close']:
-                                if col in df_clean.columns:
-                                    df_clean.iloc[:idx, df_clean.columns.get_loc(col)] *= rev_ratio
-                            if 'Volume' in df_clean.columns:
-                                df_clean.iloc[:idx, df_clean.columns.get_loc('Volume')] /= rev_ratio
-
-        # Detect stock splits (permanent drops > 25% that don't revert) with crash guard & volume confirmation
-        split_candidates = (close.pct_change(fill_method=None) < -0.25) & (~transient_spikes)
-        if split_candidates.any():
-            split_dates = split_candidates[split_candidates].index
-            for date in split_dates:
-                # Get index of the date
-                idx = df_clean.index.get_loc(date)
-                if isinstance(idx, slice):
-                    idx = idx.start
-                elif isinstance(idx, np.ndarray):
-                    idx = np.where(idx)[0][0]
-
-                if idx > 0:
-                    prev_close = df_clean['Close'].iloc[idx-1]
-                    curr_close = df_clean['Close'].iloc[idx]
-                    if prev_close > 0:
-                        ratio = curr_close / prev_close
-                        # Standard split ratio check (e.g. 1:2, 1:3, 1:4, 1:5, 1:10, 2:3, 3:4)
-                        is_standard_split_ratio = any(abs(ratio - r) / r < 0.08 for r in [0.5, 0.3333, 0.25, 0.2, 0.1, 0.05, 0.6667, 0.75])
-
-                        # Volume expansion confirmation (>1.25x volume expansion or zero-volume recovery)
-                        has_vol_confirmation = True
-                        if 'Volume' in df_clean.columns and len(df_clean['Volume']) > idx:
-                            vol_prev = float(df_clean['Volume'].iloc[idx-1])
-                            vol_curr = float(df_clean['Volume'].iloc[idx])
-                            if vol_prev > 0 and vol_curr > 0:
-                                has_vol_confirmation = (vol_curr / vol_prev) >= 1.25
-
-                        if is_standard_split_ratio and has_vol_confirmation:
-                            logger.warning(f"Detected stock split around {date} with ratio {ratio:.4f}. Adjusting historical data.")
-                            for col in ['Open', 'High', 'Low', 'Close']:
-                                if col in df_clean.columns:
-                                    df_clean.iloc[:idx, df_clean.columns.get_loc(col)] *= ratio
-                            if 'Volume' in df_clean.columns:
-                                df_clean.iloc[:idx, df_clean.columns.get_loc('Volume')] /= ratio
-
-        # Enforce OHLC consistency invariants
-        if 'High' in df_clean.columns and 'Low' in df_clean.columns and 'Close' in df_clean.columns:
-            open_series = df_clean['Open'] if 'Open' in df_clean.columns else df_clean['Close']
-            df_clean['High'] = np.fmax(df_clean['High'], np.fmax(open_series, df_clean['Close']))
-            df_clean['Low'] = np.fmin(df_clean['Low'], np.fmin(open_series, df_clean['Close']))
-            df_clean['Low'] = df_clean['Low'].clip(lower=1e-4)
-
-        return df_clean
 
 
 class StockPriceDB:
@@ -540,7 +440,8 @@ class StockPriceDB:
 
     Thread-safe: WAL 모드 + connection 재사용 + mutex lock.
     """
-    _SHARED_WRITE_LOCK = threading.Lock()
+    # D6 fix: Reentrant write lock to eliminate nested deadlock risks
+    _SHARED_WRITE_LOCK = threading.RLock()
 
     def __init__(self, db_path: Union[str, Path] = str(_DEFAULT_STOCK_PRICES_DB)):
         p = Path(db_path)

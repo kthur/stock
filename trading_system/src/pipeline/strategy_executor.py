@@ -70,6 +70,9 @@ class PipelineStrategyContext:
                 zip(self.universe['symbol'], self.universe.get('sector', self.universe.get('industry', 'DEFAULT')))
             )
 
+# Backward-compatibility alias
+StrategyContext = PipelineStrategyContext
+
 
 @dataclass
 class StrategySpec:
@@ -170,17 +173,28 @@ class AlphaStrategyExecutor:
                 s_score = s_val if isinstance(s_val, (int, float)) else getattr(s_val, 'sentiment_score', 0.50)
                 ctx.tone_transcript_map[s_str] = {'previous_quarter_tone': 0.50, 'current_quarter_tone': s_score}
 
-        # 4. Build ARM fundamental revisions dictionary with dynamic filing lag
+        # 4. Build ARM fundamental revisions dictionary with dynamic filing lag (D9: timezone normalized, zero lookahead)
         if not ctx.arm_fund and ctx.infer_fund_cache:
-            cur_dt = pd.to_datetime(ctx.date_str) if ctx.date_str else pd.Timestamp.now()
+            if ctx.date_str:
+                cur_dt = pd.to_datetime(ctx.date_str)
+                if getattr(cur_dt, 'tzinfo', None) is not None:
+                    cur_dt = cur_dt.tz_localize(None)
+            else:
+                cur_dt = pd.Timestamp.now().floor('D')
+
             for sym, fd in ctx.infer_fund_cache.items():
                 if fd is None or len(fd) == 0:
                     continue
                 if 'date_available' in fd.columns:
-                    fd_valid = fd[pd.to_datetime(fd['date_available'], errors='coerce') <= cur_dt]
+                    d_avail = pd.to_datetime(fd['date_available'], errors='coerce')
+                    if hasattr(d_avail, 'dt') and hasattr(d_avail.dt, 'tz') and d_avail.dt.tz is not None:
+                        d_avail = d_avail.dt.tz_localize(None)
+                    fd_valid = fd[d_avail <= cur_dt]
                 elif 'date' in fd.columns:
                     is_krx = str(sym).isdigit() or str(sym).endswith(('.KS', '.KQ'))
                     fund_dts = pd.to_datetime(fd['date'], errors='coerce')
+                    if hasattr(fund_dts, 'dt') and hasattr(fund_dts.dt, 'tz') and fund_dts.dt.tz is not None:
+                        fund_dts = fund_dts.dt.tz_localize(None)
                     annual_days = 90 if is_krx else 60
                     quarter_days = 45 if is_krx else 40
                     lag_days = np.where(fund_dts.dt.month == 12, annual_days, quarter_days)

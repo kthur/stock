@@ -147,8 +147,10 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                             try:
                                 f_val = float(val)
                                 if np.isfinite(f_val):
-                                    # Normalize percentage scale (e.g., 1.5% -> 0.015 if given in %)
-                                    if abs(f_val) > 0.50:
+                                    # D30: Normalize percentage scale to decimal returns without 0.50 threshold discontinuity
+                                    if "change" in str(alias).lower() or "pct" in str(alias).lower():
+                                        macro_ret[k] = f_val / 100.0
+                                    elif abs(f_val) >= 0.15:
                                         macro_ret[k] = f_val / 100.0
                                     else:
                                         macro_ret[k] = f_val
@@ -176,7 +178,8 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                         # If series is already a change / return column
                         if "change" in matched_col.lower() or "pct" in matched_col.lower():
                             val = float(series.iloc[-2] if use_lag else series.iloc[-1])
-                            macro_ret[k] = val / 100.0 if abs(val) > 0.50 else val
+                            # D30: Normalize percentage return column consistently to decimal scale
+                            macro_ret[k] = val / 100.0
                         else:
                             # Series of raw prices/levels -> compute 1d, 3d, 5d returns if sufficient history
                             offset = 1 if use_lag else 0

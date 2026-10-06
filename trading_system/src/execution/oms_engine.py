@@ -10,6 +10,7 @@ import sqlite3
 import datetime
 import logging
 import json
+import threading
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Any, Optional, Tuple, Union
@@ -72,6 +73,8 @@ class ExecutionOMSEngine:
     Order Management & Execution Engine for Stock Trading System.
     Generates actionable trade execution plans and monitors slippage and tracking error.
     """
+    _db_lock = threading.RLock()
+
     def __init__(self, db_path: str = "trade_logs.db", lot_size_krx: int = 1, config: Optional[Any] = None):
         self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
         self.config = config
@@ -95,72 +98,73 @@ class ExecutionOMSEngine:
 
     def _init_db(self):
         """Initializes trade_logs.db schema for order execution & tracking error monitoring."""
-        conn = self._get_conn()
-        try:
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS order_plans (
-                    order_id TEXT PRIMARY KEY,
-                    symbol TEXT NOT NULL,
-                    name TEXT,
-                    market TEXT,
-                    action TEXT NOT NULL,
-                    target_weight REAL NOT NULL,
-                    target_amount REAL NOT NULL,
-                    target_price REAL NOT NULL,
-                    quantity INTEGER,
-                    execution_strategy TEXT DEFAULT 'DIRECT',
-                    slice_count INTEGER DEFAULT 1,
-                    sleeve_type TEXT,
-                    target_take_profit REAL,
-                    target_stop_loss REAL,
-                    status TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    tranches TEXT,
-                    sor_routing TEXT,
-                    expected_cost_saving_bps REAL DEFAULT 0.0
-                )
-            """)
-            # Migration: legacy DBs created before the quantity/execution columns
+        with self._db_lock:
+            conn = self._get_conn()
             try:
-                cols = [r[1] for r in cursor.execute("PRAGMA table_info(order_plans)").fetchall()]
-                if cols and "quantity" not in cols:
-                    cursor.execute("ALTER TABLE order_plans ADD COLUMN quantity INTEGER")
-                if cols and "execution_strategy" not in cols:
-                    cursor.execute("ALTER TABLE order_plans ADD COLUMN execution_strategy TEXT DEFAULT 'DIRECT'")
-                if cols and "slice_count" not in cols:
-                    cursor.execute("ALTER TABLE order_plans ADD COLUMN slice_count INTEGER DEFAULT 1")
-                if cols and "sleeve_type" not in cols:
-                    cursor.execute("ALTER TABLE order_plans ADD COLUMN sleeve_type TEXT")
-                if cols and "target_take_profit" not in cols:
-                    cursor.execute("ALTER TABLE order_plans ADD COLUMN target_take_profit REAL")
-                if cols and "target_stop_loss" not in cols:
-                    cursor.execute("ALTER TABLE order_plans ADD COLUMN target_stop_loss REAL")
-                if cols and "tranches" not in cols:
-                    cursor.execute("ALTER TABLE order_plans ADD COLUMN tranches TEXT")
-                if cols and "sor_routing" not in cols:
-                    cursor.execute("ALTER TABLE order_plans ADD COLUMN sor_routing TEXT")
-                if cols and "expected_cost_saving_bps" not in cols:
-                    cursor.execute("ALTER TABLE order_plans ADD COLUMN expected_cost_saving_bps REAL DEFAULT 0.0")
-            except Exception:
-                pass
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS execution_logs (
-                    execution_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    order_id TEXT NOT NULL,
-                    symbol TEXT NOT NULL,
-                    target_price REAL NOT NULL,
-                    executed_price REAL NOT NULL,
-                    slippage_bps REAL NOT NULL,
-                    executed_volume INTEGER NOT NULL,
-                    executed_at TEXT NOT NULL,
-                    FOREIGN KEY(order_id) REFERENCES order_plans(order_id)
-                )
-            """)
-            conn.commit()
-        finally:
-            if self.db_path != ":memory:":
-                conn.close()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS order_plans (
+                        order_id TEXT PRIMARY KEY,
+                        symbol TEXT NOT NULL,
+                        name TEXT,
+                        market TEXT,
+                        action TEXT NOT NULL,
+                        target_weight REAL NOT NULL,
+                        target_amount REAL NOT NULL,
+                        target_price REAL NOT NULL,
+                        quantity INTEGER,
+                        execution_strategy TEXT DEFAULT 'DIRECT',
+                        slice_count INTEGER DEFAULT 1,
+                        sleeve_type TEXT,
+                        target_take_profit REAL,
+                        target_stop_loss REAL,
+                        status TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        tranches TEXT,
+                        sor_routing TEXT,
+                        expected_cost_saving_bps REAL DEFAULT 0.0
+                    )
+                """)
+                # Migration: legacy DBs created before the quantity/execution columns
+                try:
+                    cols = [r[1] for r in cursor.execute("PRAGMA table_info(order_plans)").fetchall()]
+                    if cols and "quantity" not in cols:
+                        cursor.execute("ALTER TABLE order_plans ADD COLUMN quantity INTEGER")
+                    if cols and "execution_strategy" not in cols:
+                        cursor.execute("ALTER TABLE order_plans ADD COLUMN execution_strategy TEXT DEFAULT 'DIRECT'")
+                    if cols and "slice_count" not in cols:
+                        cursor.execute("ALTER TABLE order_plans ADD COLUMN slice_count INTEGER DEFAULT 1")
+                    if cols and "sleeve_type" not in cols:
+                        cursor.execute("ALTER TABLE order_plans ADD COLUMN sleeve_type TEXT")
+                    if cols and "target_take_profit" not in cols:
+                        cursor.execute("ALTER TABLE order_plans ADD COLUMN target_take_profit REAL")
+                    if cols and "target_stop_loss" not in cols:
+                        cursor.execute("ALTER TABLE order_plans ADD COLUMN target_stop_loss REAL")
+                    if cols and "tranches" not in cols:
+                        cursor.execute("ALTER TABLE order_plans ADD COLUMN tranches TEXT")
+                    if cols and "sor_routing" not in cols:
+                        cursor.execute("ALTER TABLE order_plans ADD COLUMN sor_routing TEXT")
+                    if cols and "expected_cost_saving_bps" not in cols:
+                        cursor.execute("ALTER TABLE order_plans ADD COLUMN expected_cost_saving_bps REAL DEFAULT 0.0")
+                except Exception:
+                    pass
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS execution_logs (
+                        execution_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        order_id TEXT NOT NULL,
+                        symbol TEXT NOT NULL,
+                        target_price REAL NOT NULL,
+                        executed_price REAL NOT NULL,
+                        slippage_bps REAL NOT NULL,
+                        executed_volume INTEGER NOT NULL,
+                        executed_at TEXT NOT NULL,
+                        FOREIGN KEY(order_id) REFERENCES order_plans(order_id)
+                    )
+                """)
+                conn.commit()
+            finally:
+                if self.db_path != ":memory:":
+                    conn.close()
 
     @staticmethod
     def round_to_tick_size(price: float, market: str = "KOSPI") -> float:
@@ -446,8 +450,9 @@ class ExecutionOMSEngine:
                     return max(0, (raw_sh // lot) * lot)
             return 0
 
-        conn = self._get_conn()
+        self._db_lock.acquire()
         try:
+            conn = self._get_conn()
             cursor = conn.cursor()
 
             # Ensure tranches and sor_routing columns exist for legacy databases
@@ -1152,6 +1157,8 @@ class ExecutionOMSEngine:
                         lot_h = getattr(self, 'lot_size_krx', 1) if is_krx_hedge else 1
                         raw_h_qty = int(h_amount_local / max(hedge_price, 1e-6))
                         h_quantity = (raw_h_qty // lot_h) * lot_h
+                        if h_quantity <= 0:
+                            continue
 
                         h_entry = {
                             "order_id": h_order_id,
@@ -1176,11 +1183,21 @@ class ExecutionOMSEngine:
                                 "action": "BUY_HEDGE",
                                 "exec_type": "AGGRESSIVE_TAKER",
                                 "time_offset_min": 0
-                            }]
+                            }],
+                            "sor_routing": {"selected_venue": "DIRECT", "routed_market": target_market},
+                            "expected_cost_saving_bps": 0.0
                         }
                         order_plans.append(h_entry)
                         h_tranches_json = json.dumps(h_entry["tranches"])
-                        if has_tranches_col:
+                        h_sor_json = json.dumps(h_entry["sor_routing"])
+                        h_saving = float(h_entry["expected_cost_saving_bps"])
+                        if has_sor_col and has_tranches_col:
+                            cursor.execute("""
+                                INSERT OR REPLACE INTO order_plans
+                                (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at, tranches, sor_routing, expected_cost_saving_bps)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", target_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount_local, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "FAST", None, None, "HEDGE_ACTIVE", now_str, h_tranches_json, h_sor_json, h_saving))
+                        elif has_tranches_col:
                             cursor.execute("""
                                 INSERT OR REPLACE INTO order_plans
                                 (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, sleeve_type, target_take_profit, target_stop_loss, status, created_at, tranches)
@@ -1197,8 +1214,11 @@ class ExecutionOMSEngine:
 
             conn.commit()
         finally:
-            if self.db_path != ":memory:":
-                conn.close()
+            try:
+                if self.db_path != ":memory:":
+                    conn.close()
+            finally:
+                self._db_lock.release()
         return order_plans
 
     generate_order_plans = generate_order_plan
@@ -1238,52 +1258,56 @@ class ExecutionOMSEngine:
         except (ValueError, TypeError):
             pt, pe = 0.0, 0.0
 
-        conn = self._get_conn()
+        self._db_lock.acquire()
         try:
-            cursor = conn.cursor()
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
 
-            # Determine side from order_plans for directional slippage (BUY: pe > pt is adverse; SELL: pe < pt is adverse)
-            action_row = cursor.execute("SELECT action FROM order_plans WHERE order_id = ?", (order_id,)).fetchone()
-            action = str(action_row[0]).upper() if action_row and action_row[0] else "BUY"
-            side_sign = 1.0 if (action.startswith("BUY") or action in ["LONG", "BUY_HEDGE"]) else -1.0
+                # Determine side from order_plans for directional slippage (BUY: pe > pt is adverse; SELL: pe < pt is adverse)
+                action_row = cursor.execute("SELECT action FROM order_plans WHERE order_id = ?", (order_id,)).fetchone()
+                action = str(action_row[0]).upper() if action_row and action_row[0] else "BUY"
+                side_sign = 1.0 if (action.startswith("BUY") or action in ["LONG", "BUY_HEDGE"]) else -1.0
 
-            if pt <= 0:
-                slippage_bps = 0.0
-            else:
-                raw_slip = side_sign * ((pe - pt) / pt) * 10000.0
-                slippage_bps = raw_slip if math.isfinite(raw_slip) else 0.0
+                if pt <= 0:
+                    slippage_bps = 0.0
+                else:
+                    raw_slip = side_sign * ((pe - pt) / pt) * 10000.0
+                    slippage_bps = raw_slip if math.isfinite(raw_slip) else 0.0
 
-            q_vol = max(0, int(executed_volume)) if executed_volume is not None else 0
+                q_vol = max(0, int(executed_volume)) if executed_volume is not None else 0
 
-            cursor.execute("""
-                INSERT INTO execution_logs
-                (order_id, symbol, target_price, executed_price, slippage_bps, executed_volume, executed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (order_id, symbol, pt, pe, round(slippage_bps, 2), q_vol, now_str))
+                cursor.execute("""
+                    INSERT INTO execution_logs
+                    (order_id, symbol, target_price, executed_price, slippage_bps, executed_volume, executed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (order_id, symbol, pt, pe, round(slippage_bps, 2), q_vol, now_str))
 
-            # Calculate total executed volume so far for this order
-            cursor.execute("""
-                SELECT COALESCE(SUM(executed_volume), 0) FROM execution_logs WHERE order_id = ?
-            """, (order_id,))
-            total_executed = cursor.fetchone()[0]
+                # Calculate total executed volume so far for this order
+                cursor.execute("""
+                    SELECT COALESCE(SUM(executed_volume), 0) FROM execution_logs WHERE order_id = ?
+                """, (order_id,))
+                total_executed = cursor.fetchone()[0]
 
-            # Fetch target quantity from order_plans
-            row = cursor.execute("SELECT quantity FROM order_plans WHERE order_id = ?", (order_id,)).fetchone()
-            target_qty = row[0] if row and row[0] is not None else 0
+                # Fetch target quantity from order_plans
+                row = cursor.execute("SELECT quantity FROM order_plans WHERE order_id = ?", (order_id,)).fetchone()
+                target_qty = row[0] if row and row[0] is not None else 0
 
-            if target_qty > 0 and total_executed < (target_qty * 0.98) and (target_qty - total_executed) > 5:
-                new_status = 'PARTIALLY_FILLED'
-            else:
-                new_status = 'EXECUTED'
+                if target_qty > 0 and total_executed < (target_qty * 0.98) and (target_qty - total_executed) > 5:
+                    new_status = 'PARTIALLY_FILLED'
+                else:
+                    new_status = 'EXECUTED'
 
-            cursor.execute("""
-                UPDATE order_plans SET status = ? WHERE order_id = ?
-            """, (new_status, order_id))
+                cursor.execute("""
+                    UPDATE order_plans SET status = ? WHERE order_id = ?
+                """, (new_status, order_id))
 
-            conn.commit()
+                conn.commit()
+            finally:
+                if self.db_path != ":memory:":
+                    conn.close()
         finally:
-            if self.db_path != ":memory:":
-                conn.close()
+            self._db_lock.release()
 
         return {
             "order_id": order_id,
@@ -1301,15 +1325,21 @@ class ExecutionOMSEngine:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT symbol, target_weight FROM order_plans
+                SELECT symbol, target_weight, action FROM order_plans
                 WHERE status IN ('EXECUTED', 'PENDING', 'PARTIALLY_FILLED')
                 ORDER BY created_at DESC
             """)
             rows = cursor.fetchall()
-            for sym, w in rows:
-                if sym not in holdings and w is not None:
+            seen_symbols = set()
+            for sym, w, act in rows:
+                if sym in seen_symbols:
+                    continue
+                seen_symbols.add(sym)
+                if str(act).upper() != "SELL" and w is not None:
                     try:
-                        holdings[sym] = float(w)
+                        val = float(w)
+                        if val > 0:
+                            holdings[sym] = val
                     except (ValueError, TypeError):
                         continue
         except Exception as e:
@@ -1332,8 +1362,12 @@ class ExecutionOMSEngine:
                 ORDER BY created_at DESC
             """)
             rows = cursor.fetchall()
+            seen_symbols = set()
             for sym, w, p, qty, action, status, dt, sleeve in rows:
-                if sym not in holdings and action == "BUY" and w and float(w) > 0:
+                if sym in seen_symbols:
+                    continue
+                seen_symbols.add(sym)
+                if action == "BUY" and w and float(w) > 0:
                     try:
                         days = 1
                         if dt:

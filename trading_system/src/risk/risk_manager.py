@@ -44,6 +44,10 @@ class PortfolioCircuitBreaker:
     """
     def __init__(self, max_drawdown: float = -0.15):
         safe_mdd = float(max_drawdown) if (max_drawdown is not None and np.isfinite(max_drawdown)) else -0.15
+        if safe_mdd > 0.0:
+            safe_mdd = -safe_mdd
+        elif safe_mdd == 0.0:
+            safe_mdd = -0.15
         self.max_drawdown = min(-0.01, safe_mdd)  # Default -15% MDD hard limit
         self.peak_value = 0.0
         self.is_tripped = False
@@ -363,17 +367,23 @@ class CrisisDetector:
         return float(min(1.0, max(0.0, raw + roc_bonus + term_structure_bonus)))
 
     def _score_drawdown(self, dd: float) -> float:
+        safe_dd = float(dd) if (dd is not None and np.isfinite(dd)) else 0.0
+        safe_dd = max(0.0, safe_dd)
         dd_speed = 0.0
         if len(self._dd_history) >= 5:
-            dd_speed = (dd - self._dd_history[-5]) / 5.0
-        raw = max(0.0, min(1.0, dd / 0.20))
+            prev_dd = self._dd_history[-5]
+            prev_safe = float(prev_dd) if (prev_dd is not None and np.isfinite(prev_dd)) else 0.0
+            dd_speed = (safe_dd - prev_safe) / 5.0
+        raw = max(0.0, min(1.0, safe_dd / 0.20))
         speed_bonus = max(0.0, min(0.3, dd_speed * 5.0))
         return float(np.clip(raw + speed_bonus, 0.0, 1.0))
 
     def _score_volume(self, volume_ratio: float) -> float:
-        if volume_ratio <= 1.0:
+        vr = float(volume_ratio) if (volume_ratio is not None and np.isfinite(volume_ratio)) else 1.0
+        if vr <= 1.0:
             return 0.0
-        return min(1.0, (volume_ratio - 1.0) / (self._volume_spike_threshold - 1.0))
+        denom = max(self._volume_spike_threshold - 1.0, 1e-4)
+        return float(np.clip((vr - 1.0) / denom, 0.0, 1.0))
 
     def _score_trend_breakdown(self, cache: dict | None) -> float:
         if not cache:
@@ -1140,7 +1150,7 @@ class RiskManager:
         vol_scalar = self._volatility_scalar(vix)
         vix_cap = self.get_vix_position_cap(vix)
 
-        effective_scale = max(vol_scalar, vix_cap)
+        effective_scale = min(vol_scalar, vix_cap)
 
         base_quantity = max(0, int(max_value / entry_price)) if (entry_price > 0 and np.isfinite(entry_price)) else 0
         unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price) if (entry_price > 0 and np.isfinite(entry_price)) else 0
@@ -1154,6 +1164,7 @@ class RiskManager:
         )
 
         position_quantity = max(0, int(base_quantity * unified_scale))
+        position_quantity = min(position_quantity, unpenalized_max_position)
 
         if unified_scale < 1.0:
             self.logger.info(

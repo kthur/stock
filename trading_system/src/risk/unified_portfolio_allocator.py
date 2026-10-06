@@ -1101,8 +1101,10 @@ class UnifiedPortfolioAllocator:
             if total_m_weight > 0:
                 blended_series /= total_m_weight
             tot = blended_series.sum()
-            if tot > 0:
+            if tot > 1e-12:
                 blended_series /= tot
+            elif len(blended_series) > 0:
+                blended_series = pd.Series(1.0 / len(blended_series), index=blended_series.index)
             return blended_series.to_dict()
 
         if isinstance(model_weights, dict):
@@ -1127,8 +1129,11 @@ class UnifiedPortfolioAllocator:
                 for s in symbols:
                     blended_dict[s] = sum(q[i] * float(mw_lower.get(model_keys[i], {}).get(s, 0.0)) for i in range(d))
                 tot = sum(blended_dict.values())
-                if tot > 0:
+                if tot > 1e-12:
                     blended_dict = {s: float(w / tot) for s, w in blended_dict.items()}
+                elif symbols:
+                    eq_w = 1.0 / len(symbols)
+                    blended_dict = {s: eq_w for s in symbols}
                 return blended_dict
             else:
                 mw_lower = {str(k).lower(): v for k, v in model_weights.items()}

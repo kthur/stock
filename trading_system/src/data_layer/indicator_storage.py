@@ -152,6 +152,9 @@ class FundamentalCacheStore:
     def get_fundamentals(self, symbol: str) -> pd.DataFrame:
         return self.parent.get_fundamentals(symbol)
 
+    def delete_fundamental_meta(self, symbols: Union[str, List[str]]) -> int:
+        return self.parent.delete_fundamental_meta(symbols)
+
 
 class MarketIndicatorStorage:
     # NYSE fallback would otherwise return ~3.3k symbols (double the real RUSSELL2000);
@@ -181,7 +184,7 @@ class MarketIndicatorStorage:
     }
     _INDICATOR_DEFAULT_BOUNDS = (0.0001, 1e7)
 
-    _SHARED_WRITE_LOCK = threading.Lock()
+    _SHARED_WRITE_LOCK = threading.RLock()
 
     def __init__(self, db_path: Union[str, Path] = str(_DEFAULT_INDICATORS_DB)):
         p = Path(db_path)
@@ -191,9 +194,12 @@ class MarketIndicatorStorage:
             else:
                 p = (_TRADING_SYSTEM_ROOT / p).resolve()
         self.db_path = str(p)
-        # S6 fix: thread-safe write lock to prevent "database is locked" under ThreadPoolExecutor
+        # S6/D6 fix: reentrant write lock to prevent self-deadlock under ThreadPoolExecutor
         self._write_lock = MarketIndicatorStorage._SHARED_WRITE_LOCK
         self._local = threading.local()
+        # D2 fix: Track thread connections and cleanup terminated thread handles to prevent WAL truncation block
+        self._all_conns: Dict[int, sqlite3.Connection] = {}
+        self._conns_lock = threading.Lock()
         with self._write_lock:
             self._init_db()
         # Modular sub-stores for clean SRP delegation
@@ -204,6 +210,18 @@ class MarketIndicatorStorage:
     @contextmanager
     def _connect(self):
         """Thread-local SQLite connection context with WAL mode and connection recycling."""
+        # D2: Automatically reap connections from dead threads
+        alive_threads = {t.ident for t in threading.enumerate()}
+        with self._conns_lock:
+            dead_tids = [tid for tid in self._all_conns if tid not in alive_threads]
+            for tid in dead_tids:
+                dead_conn = self._all_conns.pop(tid, None)
+                if dead_conn:
+                    try:
+                        dead_conn.close()
+                    except Exception:
+                        pass
+
         conn = getattr(self._local, "conn", None)
         if conn is not None:
             try:
@@ -224,6 +242,8 @@ class MarketIndicatorStorage:
             conn.execute("PRAGMA busy_timeout=30000")  # 30s retry on locked DB
             conn.execute("PRAGMA foreign_keys = ON")
             self._local.conn = conn
+            with self._conns_lock:
+                self._all_conns[threading.get_ident()] = conn
 
         try:
             yield conn
@@ -239,11 +259,18 @@ class MarketIndicatorStorage:
             raise
 
     def close(self):
-        """Close thread-local SQLite connection if open and checkpoint WAL."""
+        """Close all thread SQLite connections and checkpoint WAL."""
         try:
             self.checkpoint_wal()
         except Exception:
             pass
+        with self._conns_lock:
+            for conn in list(self._all_conns.values()):
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            self._all_conns.clear()
         conn = getattr(self._local, "conn", None)
         if conn is not None:
             try:
@@ -1230,6 +1257,24 @@ class MarketIndicatorStorage:
             with self._connect() as conn:
                 conn.execute(sql, (symbol, date_str))
                 conn.commit()
+
+    def delete_fundamental_meta(self, symbols: Union[str, List[str]]) -> int:
+        """D1 Fix: Delete fundamental cache metadata for given symbol(s) to force fresh retrieval."""
+        if not symbols:
+            return 0
+        if isinstance(symbols, str):
+            symbols = [symbols]
+        placeholders = ','.join('?' for _ in symbols)
+        sql = f"DELETE FROM fundamental_cache_meta WHERE symbol IN ({placeholders})"
+        with self._write_lock:
+            with self._connect() as conn:
+                cursor = conn.execute(sql, list(symbols))
+                conn.commit()
+                return int(cursor.rowcount)
+
+    def _get_conn(self):
+        """Backward-compatible connection context manager delegating to _connect."""
+        return self._connect()
 
     def save_ensemble_predictions(self, ensemble_df: pd.DataFrame, date_str: str):
         """Save the calculated ensemble predictions to DB.
