@@ -1501,6 +1501,58 @@ def _generate_catalyst_chips(erow: EnsembleRow) -> list[tuple[str, str, str]]:
     return chips[:3]
 
 
+def _get_initial_market_status() -> tuple[str, str, str, str]:
+    """Calculates server-rendered initial market status for KRX and US markets to prevent '계산 중...' flash."""
+    from datetime import datetime, timezone, timedelta
+    now_utc = datetime.now(timezone.utc)
+    # KST (UTC+9)
+    kst = now_utc + timedelta(hours=9)
+    kst_day = kst.weekday()  # 0=Mon, 4=Fri, 5=Sat, 6=Sun
+    kst_mins = kst.hour * 60 + kst.minute
+
+    if 0 <= kst_day <= 4:
+        if 540 <= kst_mins < 930:
+            krx_pulse = "pulse-dot open"
+            krx_text = "개장 중 (Open)"
+        elif 510 <= kst_mins < 540:
+            krx_pulse = "pulse-dot pre"
+            krx_text = "장전 호가 (Pre-Mkt)"
+        else:
+            krx_pulse = "pulse-dot closed"
+            krx_text = "장마감 (Closed)"
+    else:
+        krx_pulse = "pulse-dot closed"
+        krx_text = "주말 휴장 (Closed)"
+
+    # US (EST/EDT) - US DST is between second Sunday of March and first Sunday of November
+    month = kst.month
+    day = kst.day
+    is_dst = (3 < month < 11) or (month == 3 and day >= 8) or (month == 11 and day <= 1)
+    est_offset = -4 if is_dst else -5
+    est = now_utc + timedelta(hours=est_offset)
+    est_day = est.weekday()
+    est_mins = est.hour * 60 + est.minute
+
+    if 0 <= est_day <= 4:
+        if 570 <= est_mins < 960:
+            us_pulse = "pulse-dot open"
+            us_text = "정규장 (Open)"
+        elif 240 <= est_mins < 570:
+            us_pulse = "pulse-dot pre"
+            us_text = "Pre-Market"
+        elif 960 <= est_mins < 1200:
+            us_pulse = "pulse-dot pre"
+            us_text = "After-Hours"
+        else:
+            us_pulse = "pulse-dot closed"
+            us_text = "장마감 (Closed)"
+    else:
+        us_pulse = "pulse-dot closed"
+        us_text = "주말 휴장 (Closed)"
+
+    return krx_pulse, krx_text, us_pulse, us_text
+
+
 def _build_strategy_hub_html() -> str:
     """Builds the mobile bottom sheet modal for jumping to any of the 37 strategies."""
     categories = [
@@ -2366,7 +2418,7 @@ def build_html(
                 ret_pill_class = "pill-pos" if "pos" in rc else ("pill-neg" if "neg" in rc else "pill-neutral")
 
                 cards_html += f"""
-        <div class="stock-card" data-symbol="{erow.symbol}" data-initial-rank="{erow.rank}" data-initial-order="{row_idx}" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 37대 전략 상세 보기">
+        <div class="stock-card" data-symbol="{erow.symbol}" data-initial-rank="{erow.rank}" data-initial-order="{row_idx}" data-score="{score_num}" data-ret="{erow.expected_return}" data-surge="{erow.surge}" data-rim="{erow.rim_valuation}" data-vcp="{erow.vcp_rule}" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 37대 전략 상세 보기">
           <div class="stock-card-header">
             <div class="card-header-left">
               <span class="stock-card-rank"><button class="btn-watchlist" data-sym="{erow.symbol}" onclick="toggleWatchlist('{erow.symbol}', event)" title="관심종목 등록/해제">⭐</button>{card_rank_badge_html}</span>
@@ -2568,6 +2620,34 @@ def build_html(
               <td>{icon} <strong>{reg_key}</strong>{badge_str}</td>
               <td>{desc}</td>
               {cols_td}
+              <td>{goal}</td>
+            </tr>"""
+
+    regimes_summary_data = [
+        ("BULL_LOW_VOL", "🟢", "고수익 + 저변동성", [("Surge", "10%"), ("VCP-M", "8%"), ("InstFor", "7%"), ("Sec-R", "6%"), ("LSTM", "6%")], "공격적 돌파 &amp; 모멘텀 추종"),
+        ("BULL_HIGH_VOL", "🟢", "고수익 + 고변동성", [("Surge", "12%"), ("VCP-M", "8%"), ("LSTM", "6%"), ("InstFor", "5%"), ("Reg", "3%")], "신중한 모멘텀 &amp; 리스크 관리"),
+        ("SIDEWAYS_LOW_VOL", "🟡", "횡보 + 저변동성", [("Stat-Arb", "9%"), ("RIM", "7%"), ("InstFor", "7%"), ("MQ", "6%"), ("Event", "6%")], "섹터 순환매 &amp; 내재가치/Stat-Arb"),
+        ("SIDEWAYS_HIGH_VOL", "🟡", "횡보 + 고변동성", [("Stat-Arb", "11%"), ("RIM", "7%"), ("InstFor", "7%"), ("CARD", "7%"), ("MQ", "6%")], "잔차 평균회귀 &amp; 가치주 차익거래"),
+        ("BEAR_LOW_VOL", "🔴", "음수 수익 + 저변동성", [("Reg/Cash", "16%"), ("RIM", "11%"), ("Stat-Arb", "9%"), ("MQ", "7%"), ("CARD", "7%")], "방어적 펀더멘탈 &amp; RIM 가치 안전마진"),
+        ("BEAR_HIGH_VOL", "🔴", "음수 수익 + 고변동성", [("Reg/Cash", "17%"), ("Stat-Arb", "11%"), ("RIM", "11%"), ("CARD", "8%"), ("MQ", "7%")], "최고 수준의 자본 보존 (현금 70%)"),
+    ]
+    regime_summary_rows_html = ""
+    for reg_key, icon, desc, top_strats, goal in regimes_summary_data:
+        is_us = reg_key in us_clean
+        is_kr = reg_key in kr_clean
+        badges = []
+        if is_us:
+            badges.append('<span style="background:#2ea04330; color:#3fb950; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:700; margin-left:6px; border:1px solid #3fb95060;">🇺🇸 US 현재</span>')
+        if is_kr:
+            badges.append('<span style="background:#388bfd30; color:#58a6ff; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:700; margin-left:6px; border:1px solid #58a6ff60;">🇰🇷 KR 현재</span>')
+        badge_str = " ".join(badges)
+        row_style = ' style="background: rgba(56, 139, 253, 0.15); border-left: 3px solid #38bdf8;"' if (is_us or is_kr) else ""
+        strat_badges = "".join([f'<span class="badge" style="background:rgba(56,189,248,0.15); color:#38bdf8; font-size:10.5px; padding:2px 6px; margin:1px 2px;">{s} {p}</span>' for s, p in top_strats])
+        regime_summary_rows_html += f"""
+            <tr{row_style}>
+              <td style="white-space:nowrap;">{icon} <strong>{reg_key}</strong>{badge_str}</td>
+              <td style="white-space:nowrap;">{desc}</td>
+              <td><div style="display:flex; flex-wrap:wrap; gap:4px;">{strat_badges}</div></td>
               <td>{goal}</td>
             </tr>"""
 
@@ -3158,6 +3238,7 @@ def build_html(
 
     strategy_hub_html = _build_strategy_hub_html()
     mobile_bottom_nav_html = _build_mobile_bottom_nav_html()
+    krx_pulse, krx_text, us_pulse, us_text = _get_initial_market_status()
 
     # ── Full HTML ──
     return f"""<!DOCTYPE html>
@@ -4135,9 +4216,13 @@ def build_html(
       position: sticky !important;
       bottom: 0 !important;
       background: var(--surface) !important;
-      padding: 10px 0 4px 0 !important;
+      padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)) 0 !important;
       border-top: 1px solid var(--border) !important;
       margin-top: 16px !important;
+      z-index: 10;
+    }}
+    #drawer-factors-grid {{
+      padding-bottom: 20px;
     }}
     .ext-portal-btn {{
       flex: 1 !important;
@@ -4298,8 +4383,8 @@ def build_html(
     <span class="badge" style="color: {us_color}; border-color: {us_color}; background: {us_color}20;">🇺🇸 US: {us_label}</span>
     <span class="badge" style="color: {kr_color}; border-color: {kr_color}; background: {kr_color}20;">🇰🇷 KR: {kr_label}</span>
     {dec_badge_html}
-    <span class="badge market-hours-badge" id="krx-status-badge">🇰🇷 KRX <span class="pulse-dot" id="krx-pulse"></span> <span id="krx-status-text">계산 중...</span></span>
-    <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot" id="us-pulse"></span> <span id="us-status-text">계산 중...</span></span>
+    <span class="badge market-hours-badge" id="krx-status-badge">🇰🇷 KRX <span class="{krx_pulse}" id="krx-pulse"></span> <span id="krx-status-text">{krx_text}</span></span>
+    <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="{us_pulse}" id="us-pulse"></span> <span id="us-status-text">{us_text}</span></span>
     <span class="badge badge-date">📅 {report_date}</span>
     <span class="badge badge-updated">🔄 갱신: {now_kst}</span>
   </div>
@@ -4309,7 +4394,7 @@ def build_html(
 <!-- CARD 1: Market Regime & Risk Gates Console (시장 레짐 & 리스크 제어 콘솔)    -->
 <!-- ════════════════════════════════════════════════════════════════════════════ -->
 <div class="regime-risk-card" style="margin: 16px 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-  <div class="regime-risk-header" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: linear-gradient(90deg, #161b22 0%, #1f2937 100%); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
+  <div class="regime-risk-header" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: linear-gradient(90deg, var(--surface2) 0%, var(--surface) 100%); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
     <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
       <span style="font-size: 18px;">🌐</span>
       <h2 style="font-size: 15px; font-weight: 700; color: var(--text); margin: 0;">2D Market Regime &amp; Risk Gates (시장 레짐 &amp; 리스크 제어 콘솔)</h2>
@@ -4324,7 +4409,7 @@ def build_html(
     </div>
   </div>
 
-  <div class="regime-risk-body" style="padding: 16px 20px; background: #0d1117;">
+  <div class="regime-risk-body" style="padding: 16px 20px; background: var(--bg);">
     <!-- Global Macro Metric Grid (10 tiles) -->
     <div class="macro-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px;">
       {dec_cell}
@@ -4387,7 +4472,7 @@ def build_html(
                 </tr>
               </thead>
               <tbody>
-                {regime_matrix_rows_html}
+                {regime_summary_rows_html}
               </tbody>
             </table>
           </div>
@@ -5790,8 +5875,13 @@ document.addEventListener('DOMContentLoaded', function() {{
     }} else if (e.key === 'Escape') {{
       const drawer = document.getElementById('stock-drawer');
       const isDrawerOpen = drawer && (drawer.style.right === '0px' || drawer.classList.contains('drawer-open-mobile') || drawer.style.bottom === '0px');
+      const hubSheet = document.getElementById('strategy-hub-sheet');
+      const isHubOpen = hubSheet && hubSheet.style.bottom === '0px';
+
       if (isDrawerOpen) {{
         closeStockDrawer();
+      }} else if (isHubOpen) {{
+        closeStrategyHub();
       }} else {{
         const dropdown = document.getElementById('search-autocomplete-dropdown');
         if (dropdown) dropdown.style.display = 'none';
@@ -6111,7 +6201,16 @@ function resetTableSort() {{
       th.style.color = '';
     }});
   }});
-  showToast('테이블 정렬이 원래 앙상블 순위로 초기화되었습니다.', '🔄');
+  document.querySelectorAll('.stock-cards-wrap').forEach(wrap => {{
+    const cards = Array.from(wrap.querySelectorAll('.stock-card'));
+    cards.sort((a, b) => {{
+      const idxA = parseInt(a.getAttribute('data-initial-order') || '0', 10);
+      const idxB = parseInt(b.getAttribute('data-initial-order') || '0', 10);
+      return idxA - idxB;
+    }});
+    cards.forEach(c => wrap.appendChild(c));
+  }});
+  showToast('테이블 및 카드 정렬이 원래 앙상블 순위로 초기화되었습니다.', '🔄');
 }}
 
 // ── Unified Multi-Criteria Filter State ──
@@ -6138,6 +6237,8 @@ function applyUnifiedFilters() {{
   let totalMatches = 0;
 
   document.querySelectorAll('#ensemble-panels table tbody').forEach(tbody => {{
+    const parentPanel = tbody.closest('.market-panel');
+    const isPanelHidden = parentPanel && parentPanel.style.display === 'none';
     const rows = Array.from(tbody.querySelectorAll('tr:not(.search-empty-row)'));
     let panelMatches = 0;
     
@@ -6178,7 +6279,9 @@ function applyUnifiedFilters() {{
       row.style.display = show ? '' : 'none';
       if (show) {{
         panelMatches++;
-        totalMatches++;
+        if (!isPanelHidden) {{
+          totalMatches++;
+        }}
       }}
     }});
     
@@ -6199,21 +6302,53 @@ function applyUnifiedFilters() {{
   // Filter stock cards
   document.querySelectorAll('.stock-cards-wrap').forEach(wrap => {{
     const cards = Array.from(wrap.querySelectorAll('.stock-card'));
+    let panelCardMatches = 0;
     cards.forEach(card => {{
       const sym = card.getAttribute('data-symbol') || '';
       const initialRank = parseInt(card.getAttribute('data-initial-rank') || '999', 10);
       const cardText = card.innerText.toLowerCase();
       let textMatch = !query || cardText.includes(query) || sym.toLowerCase().includes(query);
       let qfMatch = true;
-      if (qf === 'top10') qfMatch = initialRank <= 10;
-      else if (qf === 'positive') {{
-        const retText = card.querySelector('.pos, .neg')?.innerText || '';
-        qfMatch = retText.includes('+') || retText.includes('▲');
+      if (qf === 'top10') {{
+        qfMatch = initialRank <= 10;
+      }} else if (qf === 'surge') {{
+        const surgeCell = card.getAttribute('data-surge') || '0';
+        const surgeProb = parseFloat(surgeCell.replace('%', '')) || 0;
+        const scoreVal = parseFloat(card.getAttribute('data-score') || '0') || 0;
+        qfMatch = (surgeProb >= 30.0 || scoreVal >= 75.0);
+      }} else if (qf === 'rim') {{
+        const rimCell = card.getAttribute('data-rim') || '0';
+        qfMatch = rimCell.includes('+') || parseFloat(rimCell.replace('%', '')) > 20.0;
+      }} else if (qf === 'vcp') {{
+        const vcpCell = card.getAttribute('data-vcp') || '';
+        qfMatch = vcpCell.includes('OK') || vcpCell.includes('1') || vcpCell.includes('돌파');
+      }} else if (qf === 'positive') {{
+        const retText = card.getAttribute('data-ret') || '';
+        const retVal = parseFloat(retText.replace(/[%+▲▼ ]/g, '')) || 0;
+        qfMatch = retVal > 0 || retText.includes('+') || retText.includes('▲');
       }} else if (qf === 'watchlist') {{
         qfMatch = watchlist.includes(sym);
       }}
-      card.style.display = (textMatch && qfMatch) ? '' : 'none';
+
+      const show = textMatch && qfMatch;
+      card.style.display = show ? '' : 'none';
+      if (show) panelCardMatches++;
     }});
+
+    // Empty state handling for cards
+    let emptyCard = wrap.querySelector('.search-empty-card');
+    if (panelCardMatches === 0 && cards.length > 0) {{
+      if (!emptyCard) {{
+        emptyCard = document.createElement('div');
+        emptyCard.className = 'search-empty-card';
+        emptyCard.style.cssText = 'grid-column: 1 / -1; padding: 28px 16px; text-align: center; color: var(--muted); font-size: 13px; background: var(--surface2); border: 1px dashed var(--border); border-radius: 8px; margin: 8px 0;';
+        emptyCard.innerHTML = '🔍 일치하는 종목이 없습니다. 다른 검색어나 필터를 선택해 주세요.';
+        wrap.appendChild(emptyCard);
+      }}
+      emptyCard.style.display = '';
+    }} else if (emptyCard) {{
+      emptyCard.style.display = 'none';
+    }}
   }});
 
   const status = document.getElementById('search-status');
@@ -6345,6 +6480,17 @@ function sortTable(table, colIdx) {{
   }});
 
   rows.forEach(r => tbody.appendChild(r));
+  const marketPanel = table.closest('.market-panel');
+  if (marketPanel) {{
+    const cardsWrap = marketPanel.querySelector('.stock-cards-wrap');
+    if (cardsWrap) {{
+      rows.forEach(r => {{
+        const sym = r.getAttribute('data-symbol');
+        const card = cardsWrap.querySelector(`.stock-card[data-symbol="${{sym}}"]`);
+        if (card) cardsWrap.appendChild(card);
+      }});
+    }}
+  }}
 }}
 
 function renderDrawerRadarChart(factors) {{
@@ -6354,8 +6500,14 @@ function renderDrawerRadarChart(factors) {{
   const parseVal = (k) => {{
     const v = factors[k];
     if (v === null || v === undefined) return 50;
-    const num = parseFloat(String(v).replace(/[^0-9.-]/g, ''));
-    return isNaN(num) ? 50 : Math.min(100, Math.max(0, num));
+    let s = String(v).trim();
+    if (s.toLowerCase().includes('nan') || s === 'None' || s === '-' || s === '' || s === 'N/A') return 50;
+    let num = parseFloat(s.replace(/[^0-9.-]/g, ''));
+    if (isNaN(num)) return 50;
+    if (num > 0 && num <= 1.0 && !s.includes('%')) {{
+      num = num * 100;
+    }}
+    return Math.min(100, Math.max(0, num));
   }};
 
   // Full 37-Strategy Mapping across 5 Alpha Dimensions
@@ -6451,10 +6603,15 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   const overlay = document.getElementById('stock-drawer-overlay');
   if (!drawer || !overlay) return;
   
-  if (stockIndex !== -1) {{
+  if (typeof allStocksUniverse !== 'undefined' && allStocksUniverse.length > 0) {{
+    const foundIdx = allStocksUniverse.findIndex(s => s.sym === symbol);
+    if (foundIdx !== -1) {{
+      currentDrawerIndex = foundIdx;
+    }} else if (stockIndex !== -1) {{
+      currentDrawerIndex = stockIndex;
+    }}
+  }} else if (stockIndex !== -1) {{
     currentDrawerIndex = stockIndex;
-  }} else if (typeof allStocksUniverse !== 'undefined') {{
-    currentDrawerIndex = allStocksUniverse.findIndex(s => s.sym === symbol);
   }}
 
   document.getElementById('drawer-stock-name').textContent = name || symbol;
@@ -6534,8 +6691,10 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
     if (isMobile) {{
       drawer.classList.add('drawer-open-mobile');
       drawer.style.bottom = '0px';
+      drawer.style.right = '0px';
     }} else {{
       drawer.style.right = '0px';
+      drawer.style.bottom = '0px';
     }}
     overlay.style.opacity = '1';
   }}, 10);
