@@ -3316,7 +3316,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     )
 
     _strat_executor = AlphaStrategyExecutor()
-    _strat_result = _strat_executor.execute_all(_strat_ctx)
+    _strat_result = _strat_executor.execute_all(_strat_ctx, fallback_on_error=True)
     _raw_strat_outputs = _strat_result.raw_outputs
 
     # Expose shared context variables for downstream compatibility
@@ -4168,6 +4168,30 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         p_weights = ensemble_df_merged['portfolio_weight'] if 'portfolio_weight' in ensemble_df_merged.columns else pd.Series(0.05, index=ensemble_df_merged.index)
         weight_dict = dict(zip(ensemble_df_merged['symbol'], p_weights))
         curr_holdings = oms_engine.get_current_holdings_from_db()
+
+        # Phase 101 (F478): Rebalance Liquidation Guarantee
+        # Explicitly merge existing holdings dropped below top 30 (rank > 30) into top_picks_dicts
+        # with target weight 0.0 and action 'SELL' to guarantee liquidation order generation.
+        top_symbols = {p.get('symbol') for p in top_picks_dicts if isinstance(p, dict)}
+        if curr_holdings:
+            for h_sym in curr_holdings.keys():
+                if h_sym not in top_symbols:
+                    weight_dict[h_sym] = 0.0
+                    h_row = ensemble_df_merged[ensemble_df_merged['symbol'] == h_sym] if ('ensemble_df_merged' in locals() and not ensemble_df_merged.empty) else pd.DataFrame()
+                    if not h_row.empty:
+                        h_dict = h_row.iloc[0].to_dict()
+                        h_dict['portfolio_weight'] = 0.0
+                        h_dict['action'] = "SELL"
+                        top_picks_dicts.append(h_dict)
+                    else:
+                        top_picks_dicts.append({
+                            "symbol": h_sym,
+                            "portfolio_weight": 0.0,
+                            "action": "SELL",
+                            "close_price": _last_close_map.get(str(h_sym)),
+                            "reason": "REBALANCE_LIQUIDATION_DROPPED_TOP30"
+                        })
+                    top_symbols.add(h_sym)
 
         # UnifiedPortfolioAllocator already performed Leland dynamic buffer bands on target weights.
         # If unified allocator succeeded, use_leland_buffer=False prevents redundant double-buffering.

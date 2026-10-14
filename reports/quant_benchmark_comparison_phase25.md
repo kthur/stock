@@ -1,5 +1,5 @@
 # Global Multi-Market Quantitative Benchmark Report (Phase 25 Quantitative Enhancement)
-**Generated**: 2026-09-26 00:09:09 KST | **Simulation Scope**: 5 Global Markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)
+**Generated**: 2026-10-10 15:28:59 KST | **Simulation Scope**: 5 Global Markets (KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000)
 
 ---
 

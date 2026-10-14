@@ -10,7 +10,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class TradeExecutor:
         oms=None,
         dry_run: bool = True,
         max_order_value_krw: float = 50_000_000.0,  # 5천만 원 상한
-        lot_size_krx: int = 1,                      # KRX 정규장 매매수량단위 (1주)
+        lot_size_krx: Optional[int] = None,         # KRX 호가 단위 배수 (Kiwoom 연동 시 1주, 미연동 시 10주 기본)
         lot_size_us: int = 1,                       # US 호가 단위 수량 (1주)
     ):
         import math
@@ -46,7 +46,10 @@ class TradeExecutor:
         except (ValueError, TypeError):
             safe_max_val = 50_000_000.0
         self.max_order_value_krw = max(1000.0, safe_max_val)
-        self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 1
+        if lot_size_krx is not None:
+            self.lot_size_krx = max(1, int(lot_size_krx))
+        else:
+            self.lot_size_krx = 1 if kiwoom is not None else 10
         self.lot_size_us = max(1, int(lot_size_us)) if lot_size_us is not None else 1
         self._executed_today: Dict[str, str] = {}   # symbol -> action (중복 실행 방지)
         self._last_execution_date: str = datetime.now().strftime('%Y-%m-%d')

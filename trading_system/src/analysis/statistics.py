@@ -5,6 +5,7 @@ import math
 from collections import deque
 from dataclasses import dataclass
 from typing import Dict, List
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class AdvancedStatistics:
         return returns
 
     def calculate_sharpe_ratio(self, returns: List[float], periods_per_year: int = 252) -> float:
-        """Sharpe Ratio 계산"""
+        """Sharpe Ratio 계산 (표본 편향 보정 ddof=1 적용)"""
         if not returns:
             return 0.0
         valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
@@ -76,7 +77,8 @@ class AdvancedStatistics:
             return 0.0
 
         avg_return = sum(valid_returns) / len(valid_returns)
-        variance = sum((r - avg_return) ** 2 for r in valid_returns) / len(valid_returns)
+        # Bessel's correction (ddof=1) for unbiased sample standard deviation
+        variance = sum((r - avg_return) ** 2 for r in valid_returns) / (len(valid_returns) - 1)
         std_dev = math.sqrt(variance)
 
         if std_dev == 0 or abs(std_dev) < 1e-9:
@@ -92,7 +94,7 @@ class AdvancedStatistics:
     def calculate_sortino_ratio(
         self, returns: List[float], target_return: float = 0, periods_per_year: int = 252
     ) -> float:
-        """Sortino Ratio 계산"""
+        """Sortino Ratio 계산 (일관된 MAR 허들 및 하방 편차 적용)"""
         if not returns:
             return 0.0
         valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
@@ -100,20 +102,21 @@ class AdvancedStatistics:
             return 0.0
 
         avg_return = sum(valid_returns) / len(valid_returns)
+        mar = target_return if target_return != 0 else (self.risk_free_rate / periods_per_year)
 
-        # 하방 편차만 계산
-        downside_returns = [r for r in valid_returns if r < target_return]
+        # 하방 편차 계산 (LPM_2 order 2 lower partial moment relative to mar)
+        downside_returns = [r for r in valid_returns if r < mar]
 
         if not downside_returns:
-            return 10.0 if avg_return > target_return else 0.0
+            return 10.0 if avg_return > mar else 0.0
 
-        downside_variance = sum((r - target_return) ** 2 for r in downside_returns) / len(valid_returns)
+        downside_variance = sum((r - mar) ** 2 for r in downside_returns) / len(valid_returns)
         downside_std = math.sqrt(downside_variance)
 
         if downside_std == 0 or abs(downside_std) < 1e-9:
             return 0.0
 
-        excess_return = avg_return - (self.risk_free_rate / periods_per_year)
+        excess_return = avg_return - mar
         sortino = (excess_return / downside_std) * math.sqrt(periods_per_year)
         if not math.isfinite(sortino):
             return 0.0
@@ -170,7 +173,7 @@ class AdvancedStatistics:
         return max(-999.0, min(999.0, float(res)))
 
     def calculate_volatility(self, returns: List[float], periods_per_year: int = 252) -> float:
-        """변동성 계산"""
+        """변동성 계산 (표본 편향 보정 ddof=1 적용)"""
         if not returns:
             return 0.0
         valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
@@ -178,24 +181,24 @@ class AdvancedStatistics:
             return 0.0
 
         avg_return = sum(valid_returns) / len(valid_returns)
-        variance = sum((r - avg_return) ** 2 for r in valid_returns) / len(valid_returns)
+        # Bessel's correction (ddof=1) for sample variance
+        variance = sum((r - avg_return) ** 2 for r in valid_returns) / (len(valid_returns) - 1)
         daily_volatility = math.sqrt(variance)
 
         annual_volatility = daily_volatility * math.sqrt(periods_per_year)
         return float(annual_volatility) if math.isfinite(annual_volatility) else 0.0
 
     def calculate_var(self, returns: List[float], confidence: float = 0.95) -> float:
-        """Value at Risk (VaR) 계산"""
+        """Value at Risk (VaR) 계산 (연속 분위수 선형 보간 적용)"""
         if not returns:
             return 0.0
         valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
         if not valid_returns:
             return 0.0
 
-        sorted_returns = sorted(valid_returns)
-        index = max(0, min(len(sorted_returns) - 1, int(len(sorted_returns) * (1.0 - confidence))))
-
-        return float(sorted_returns[index])
+        alpha_pct = max(0.0, min(100.0, (1.0 - confidence) * 100.0))
+        var = float(np.percentile(valid_returns, alpha_pct))
+        return var
 
     def calculate_cvar(self, returns: List[float], confidence: float = 0.95) -> float:
         """Conditional Value at Risk (CVaR) / Expected Shortfall 계산"""
@@ -211,7 +214,8 @@ class AdvancedStatistics:
         if not worse_returns:
             return float(var)
 
-        return float(sum(worse_returns) / len(worse_returns))
+        cvar = float(sum(worse_returns) / len(worse_returns))
+        return cvar
 
     def calculate_information_ratio(
         self, returns: List[float], benchmark_returns: List[float], periods_per_year: int = 252

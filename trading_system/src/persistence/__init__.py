@@ -1,5 +1,18 @@
-"""Persistence Layer Module"""
+"""
+Persistence Layer Module
+Provides access to SQLite WAL price databases, AI prediction stores, asset histories, and trade loggers.
+"""
 
-from .database import AIPredictionDB, AssetHistoryDB, TradeLogger
+from __future__ import annotations
 
-__all__ = ["AIPredictionDB", "AssetHistoryDB", "TradeLogger"]
+try:
+    from src.persistence.database import AIPredictionDB, AssetHistoryDB, TradeLogger, StockPriceDB
+except ImportError:
+    from trading_system.src.persistence.database import AIPredictionDB, AssetHistoryDB, TradeLogger, StockPriceDB
+
+__all__ = [
+    "AIPredictionDB",
+    "AssetHistoryDB",
+    "TradeLogger",
+    "StockPriceDB",
+]

@@ -27,6 +27,20 @@ class CrisisLevel(Enum):
     ACTIVE = "ACTIVE"
     SEVERE = "SEVERE"
 
+    # Semantic compatibility aliases
+    NORMAL = "NONE"
+    ELEVATED = "WATCH"
+    HIGH = "ACTIVE"
+
+
+# 위기 단계별 단일 거래 최대 리스크 한도 (총 자본 대비 %)
+CRISIS_RISK_CAP = {
+    CrisisLevel.NONE: 0.020,    # 2.0%
+    CrisisLevel.WATCH: 0.015,   # 1.5%
+    CrisisLevel.ACTIVE: 0.010,  # 1.0%
+    CrisisLevel.SEVERE: 0.000,  # 신규 매수 차단
+}
+
 
 class RiskLevel(Enum):
     """위험 수준"""
@@ -226,9 +240,11 @@ class CrisisDetector:
         tnx: float | None = None,
         dxy: float | None = None,
         cds_5y: float | None = None,
+        dd: float | None = None,
     ) -> CrisisLevel:
         """종합 위기 평가 - VIX + 거시지표(환율, 유가, 금리, 달러, CDS 신용스프레드) 융합"""
-        dd = self.rm.calculate_drawdown() if self.rm is not None else 0.0
+        if dd is None:
+            dd = self.rm.calculate_drawdown() if self.rm is not None else 0.0
         with self._lock:
             self._vix_history.append(vix)
             self._dd_history.append(dd)
@@ -335,6 +351,33 @@ class CrisisDetector:
             )
         return self.crisis_level
 
+    def evaluate_indicators(
+        self,
+        vix: float = 20.0,
+        dd: float | None = None,
+        daily_volume_ratio: float = 1.0,
+        market_data_cache: dict | None = None,
+        usdkrw: float | None = None,
+        oil: float | None = None,
+        tnx: float | None = None,
+        dxy: float | None = None,
+        cds_5y: float | None = None,
+        positions: dict | None = None,
+    ) -> CrisisLevel:
+        """Explicit indicator evaluation alias."""
+        return self.evaluate(
+            vix=vix,
+            positions=positions,
+            daily_volume_ratio=daily_volume_ratio,
+            market_data_cache=market_data_cache,
+            usdkrw=usdkrw,
+            oil=oil,
+            tnx=tnx,
+            dxy=dxy,
+            cds_5y=cds_5y,
+            dd=dd,
+        )
+
     def _score_vix(self, vix: float) -> float:
         if vix is None or (isinstance(vix, (float, int)) and (np.isnan(vix) or np.isinf(vix))):
             # Fail-safe on missing/corrupted VIX: trigger defensive WATCH baseline (0.35)
@@ -347,19 +390,28 @@ class CrisisDetector:
 
         if fv <= 15.0:
             return 0.0
-        vix_roc = 0.0
+        roc_candidates = []
+        if len(self._vix_history) >= 2:
+            p1 = self._vix_history[-1]
+            if p1 is not None and isinstance(p1, (int, float)) and np.isfinite(p1) and p1 > 0:
+                roc_candidates.append(max(0.0, (fv - p1) / max(p1, 0.1)) * 0.25)
+        if len(self._vix_history) >= 3:
+            p3 = self._vix_history[-3]
+            if p3 is not None and isinstance(p3, (int, float)) and np.isfinite(p3) and p3 > 0:
+                roc_candidates.append(max(0.0, (fv - p3) / max(p3, 0.1)) * 0.18)
         if len(self._vix_history) >= 5:
-            past_vix = self._vix_history[-5]
-            if past_vix is not None and isinstance(past_vix, (int, float)) and np.isfinite(past_vix) and past_vix > 0:
-                vix_roc = (fv - past_vix) / max(past_vix, 0.1)
+            p5 = self._vix_history[-5]
+            if p5 is not None and isinstance(p5, (int, float)) and np.isfinite(p5) and p5 > 0:
+                roc_candidates.append(max(0.0, (fv - p5) / max(p5, 0.1)) * 0.12)
+                roc_candidates.append(max(0.0, (fv - p5) / max(p5, 0.1)) * 0.10)
+        roc_bonus = min(0.3, max(roc_candidates)) if roc_candidates else 0.0
         raw = (fv - 15.0) / 40.0
-        roc_bonus = max(0.0, min(0.3, vix_roc * 0.1))
 
         # MED-11: VIX Term Structure Backwardation Gate (VIX / SMA60 > 1.15)
         term_structure_bonus = 0.0
-        if len(self._vix_history) >= 20:
+        if len(self._vix_history) >= 10:
             hist_sample = [x for x in list(self._vix_history)[-60:] if x is not None and isinstance(x, (int, float)) and np.isfinite(x) and x > 0]
-            if len(hist_sample) >= 10:
+            if len(hist_sample) >= 5:
                 vix_sma60 = float(np.mean(hist_sample))
                 if vix_sma60 > 0 and (fv / vix_sma60) > 1.15:
                     term_structure_bonus = min(0.25, (fv / vix_sma60 - 1.15) * 0.5)
@@ -527,11 +579,17 @@ class CrisisDetector:
         """
         z = composite_score if composite_score is not None else getattr(self, "last_composite_score", 0.0)
         z = float(np.clip(z, 0.0, 1.0))
+        if z <= 0.0:
+            if composite_score is None and getattr(self, "crisis_level", None) not in (None, CrisisLevel.NONE):
+                return self.get_crisis_position_multiplier()
+            return 1.0
         kappa = 10.0
         z0 = 0.45
         g_min = 0.15
         sigmoid_val = 1.0 / (1.0 + np.exp(-kappa * (z - z0)))
         smooth_mult = 1.0 - (1.0 - g_min) * sigmoid_val
+        if composite_score is None and getattr(self, "crisis_level", None) not in (None, CrisisLevel.NONE):
+            return min(float(np.clip(smooth_mult, g_min, 1.0)), self.get_crisis_position_multiplier())
         return float(np.clip(smooth_mult, g_min, 1.0))
 
     def get_smooth_crisis_cash_target(self, composite_score: Optional[float] = None) -> float:
@@ -1042,13 +1100,15 @@ class RiskManager:
 
     def calculate_kelly_fraction(self, win_rate: float, win_loss_ratio: float, half_kelly: bool = True) -> float:
         """Kelly Criterion을 사용한 최적 투자 비중 계산 (f*)"""
-        if win_loss_ratio <= 0:
+        if not math.isfinite(win_rate) or not math.isfinite(win_loss_ratio):
+            return 0.0
+        if win_loss_ratio <= 0.0 or not (0.0 < win_rate < 1.0):
             return 0.0
 
         # Kelly 공식: f* = W - ((1 - W) / R)
         kelly_pct = win_rate - ((1.0 - win_rate) / win_loss_ratio)
 
-        if kelly_pct <= 0:
+        if not math.isfinite(kelly_pct) or kelly_pct <= 0.0:
             return 0.0
 
         # 보수적 운영을 위해 Half Kelly 적용
@@ -1056,7 +1116,7 @@ class RiskManager:
             kelly_pct /= 2.0
 
         # 최대 포지션 한도를 초과하지 않도록 제한 [0.0, max_position_size_pct]
-        return max(0.0, min(kelly_pct, self.max_position_size_pct))
+        return float(np.clip(kelly_pct, 0.0, self.max_position_size_pct))
 
     def get_vix_position_cap(self, vix: float) -> float:
         """VIX 수준에 따른 포지션 크기 상한 (Risk-Off 스위치).
@@ -1124,9 +1184,24 @@ class RiskManager:
         atr: float = 0.0,
     ) -> int:
         """Kelly Criterion 기반 포지션 사이징 (선택적) 및 리스크 기반 사이징"""
+        if (self.crisis_detector.should_block_new_buys() or getattr(self.crisis_detector, "crisis_level", None) == CrisisLevel.SEVERE) and (
+            win_rate > 0.0
+            or win_loss_ratio > 0.0
+            or (vix is not None and isinstance(vix, (int, float)) and vix >= 40.0)
+            or getattr(self.crisis_detector, "last_composite_score", 0.0) >= 0.70
+        ):
+            self.logger.warning(f"New buy sizing blocked for {symbol}: crisis level is SEVERE")
+            return 0
+
+        if entry_price is None or not math.isfinite(entry_price) or entry_price <= 0.0:
+            return 0
+        if stop_loss_price is None or not (isinstance(stop_loss_price, (int, float)) and math.isfinite(stop_loss_price)) or stop_loss_price <= 0.0:
+            stop_loss_pct = float(getattr(self, "default_stop_loss_pct", 0.05))
+            stop_loss_price = float(entry_price * (1.0 - stop_loss_pct))
+
         # 위험금 계산
         risk_per_share = entry_price - stop_loss_price
-        if risk_per_share <= 0:
+        if not math.isfinite(risk_per_share) or risk_per_share <= 0:
             self.logger.warning("Invalid stop loss price")
             return 0
 
@@ -1137,29 +1212,35 @@ class RiskManager:
         # Kelly 공식 적용 (정보가 있는 경우)
         if win_rate > 0 and win_loss_ratio > 0:
             kelly_pct = self.calculate_kelly_fraction(win_rate, win_loss_ratio)
-            if atr > 0.0:
-                asset_vol_annual = (atr / entry_price) * (252**0.5) if entry_price > 0.0 else 0.0
+            # Volatility-targeted upper bound: Kelly already scales inversely with payoff variance.
+            # Enforce volatility budget ceiling without compounding quadratic deflation (sigma^-3 drag).
+            if atr > 0.0 and entry_price > 0.0:
+                asset_vol_annual = (atr / entry_price) * (252**0.5)
                 if asset_vol_annual > 0.0:
-                    vol_scaler = self.target_annual_volatility / asset_vol_annual
-                    vol_scaler = max(0.25, min(1.5, vol_scaler))
-                    kelly_pct *= vol_scaler
+                    vol_budget_pct = self.target_annual_volatility / asset_vol_annual
+                    vol_scaler = max(0.05, min(1.0, vol_budget_pct))
+                    kelly_pct = kelly_pct * vol_scaler
             max_value = min(self.portfolio_value * kelly_pct, max_risk_allowed_value)
         else:
             max_value = max_risk_allowed_value
 
-        vol_scalar = self._volatility_scalar(vix)
+        if not math.isfinite(max_value) or max_value <= 0.0:
+            return 0
+
+        # Phase 101 (F478): VIX Single Gating
+        # Consolidate 3-fold VIX compounding drag into single integrated gating min(vix_cap, smooth_crisis_mult)
+        # to eliminate triple penalization of bottom-rebound alpha while preserving continuous crash protection.
+        smooth_crisis_mult = self.crisis_detector.get_smooth_crisis_position_multiplier()
+        crisis_discrete_mult = self.crisis_detector.get_crisis_position_multiplier()
         vix_cap = self.get_vix_position_cap(vix)
+        integrated_vix_scale = min(vix_cap, smooth_crisis_mult, crisis_discrete_mult)
 
-        effective_scale = min(vol_scalar, vix_cap)
-
-        base_quantity = max(0, int(max_value / entry_price)) if (entry_price > 0 and np.isfinite(entry_price)) else 0
-        unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price) if (entry_price > 0 and np.isfinite(entry_price)) else 0
+        base_quantity = max(0, int(max_value / entry_price)) if (entry_price > 0 and math.isfinite(entry_price)) else 0
+        unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price) if (entry_price > 0 and math.isfinite(entry_price)) else 0
         base_quantity = min(base_quantity, unpenalized_max_position)
 
-        crisis_mult = self.crisis_detector.get_crisis_position_multiplier()
         unified_scale = min(
-            crisis_mult if crisis_mult > 0 else 1.0,
-            effective_scale,
+            integrated_vix_scale,
             self.stress_test_adjustment_factor
         )
 
@@ -1169,7 +1250,7 @@ class RiskManager:
         if unified_scale < 1.0:
             self.logger.info(
                 f"Risk adjusted position sizing: {symbol} qty {base_quantity} -> {position_quantity} "
-                f"(unified_scale={unified_scale:.2f}, crisis_mult={crisis_mult:.2f}, level={self.crisis_detector.crisis_level.value})"
+                f"(unified_scale={unified_scale:.2f}, vix_cap={vix_cap:.2f}, smooth_crisis_mult={smooth_crisis_mult:.2f}, level={self.crisis_detector.crisis_level.value})"
             )
 
         if symbol in self.position_limits:
@@ -1178,15 +1259,17 @@ class RiskManager:
         if position_quantity <= 0:
             return 0
 
-        if vol_scalar < 1.0:
-            self.logger.info(f"Volatility scaling applied: {vol_scalar:.2f}x (VIX={vix})")
+        if integrated_vix_scale < 1.0:
+            self.logger.info(f"Integrated VIX scaling applied: {integrated_vix_scale:.2f}x (VIX={vix}, vix_cap={vix_cap:.2f}, smooth_crisis_mult={smooth_crisis_mult:.2f})")
 
         self.logger.info(f"Calculated position size for {symbol}: {position_quantity} shares")
         return position_quantity
 
+    calculate_position_size = calculate_position_sizing
+
     def check_stop_loss(self, symbol: str, current_price: float, entry_price: float, atr: Optional[float] = None) -> bool:
         """Stop Loss 확인 (A-3 Fix: ATR 기반 동적 조정 지원)"""
-        if atr is not None and atr > 0:
+        if atr is not None and math.isfinite(atr) and atr > 0:
             stop_loss_price = self.calculate_atr_based_stop(entry_price, atr)
         else:
             stop_loss_price = entry_price * (1 - self.default_stop_loss_pct)
@@ -1199,7 +1282,7 @@ class RiskManager:
 
     def check_take_profit(self, symbol: str, current_price: float, entry_price: float, atr: Optional[float] = None) -> bool:
         """Take Profit 확인 (A-3 Fix: ATR 기반 동적 조정 지원)"""
-        if atr is not None and atr > 0:
+        if atr is not None and math.isfinite(atr) and atr > 0:
             take_profit_price = self.calculate_atr_based_target(entry_price, atr)
         else:
             take_profit_price = entry_price * (1 + self.default_take_profit_pct)
@@ -1218,6 +1301,34 @@ class RiskManager:
                 self.peak_value = new_value
 
         self.logger.debug(f"Portfolio value updated: {new_value}")
+
+    def reset_peak_value(self, new_peak: Optional[float] = None) -> None:
+        """포트폴리오 고점(Peak Value) 재설정 (자본 재조정 등)"""
+        with self._lock:
+            if new_peak is not None and np.isfinite(new_peak) and new_peak > 0:
+                self.peak_value = float(new_peak)
+            else:
+                self.peak_value = float(self.portfolio_value)
+        self.logger.info(f"Portfolio peak value reset to: {self.peak_value}")
+
+    def record_cash_flow(self, net_cash_flow: float) -> None:
+        """
+        외부 자본 입출금 반영 (GIPS/Modified Dietz 기준 입출금에 의한 왜곡 없는 순투자 드로다운 유지)
+        """
+        with self._lock:
+            if not np.isfinite(net_cash_flow) or net_cash_flow == 0.0:
+                return
+            old_val = float(self.portfolio_value)
+            self.portfolio_value = max(0.0, float(self.portfolio_value + net_cash_flow))
+            if net_cash_flow > 0.0:
+                # 입금 시 고점도 입금액만큼 상향하여 기존 드로다운율 왜곡 방지
+                self.peak_value += net_cash_flow
+            else:
+                # 출금 시 고점을 비례 축소하여 출금으로 인한 인위적 서킷브레이커 오작동 방지
+                if old_val > 0.0:
+                    scale = self.portfolio_value / old_val
+                    self.peak_value = max(self.portfolio_value, self.peak_value * scale)
+        self.logger.info(f"Recorded cash flow: {net_cash_flow:+.2f} (new value: {self.portfolio_value:.2f}, peak: {self.peak_value:.2f})")
 
     def check_crisis_liquidation(self) -> list[str]:
         """위기 상황에서 청산해야 할 심볼 목록 반환"""
@@ -1361,31 +1472,32 @@ class RiskManager:
         return adjusted_quantity
 
     def calculate_var(self, returns: List[float], confidence: float = 0.95) -> float:
-        """Value at Risk (VaR) 계산"""
+        """Value at Risk (VaR) 계산 (연속 분위수 선형 보간 적용)"""
         if not returns:
-            return 0
+            return 0.0
+        valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
+        if not valid_returns:
+            return 0.0
 
-        sorted_returns = sorted(returns)
-        var_index = int(len(sorted_returns) * (1 - confidence))
-
-        if var_index >= len(sorted_returns):
-            var_index = 0
-
-        var = sorted_returns[var_index]
+        alpha_pct = max(0.0, min(100.0, (1.0 - confidence) * 100.0))
+        var = float(np.percentile(valid_returns, alpha_pct))
         return var
 
     def calculate_cvar(self, returns: List[float], confidence: float = 0.95) -> float:
-        """Conditional Value at Risk (CVaR) 계산"""
+        """Conditional Value at Risk (CVaR) / Expected Shortfall 계산"""
         if not returns:
-            return 0
+            return 0.0
+        valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
+        if not valid_returns:
+            return 0.0
 
-        var = self.calculate_var(returns, confidence)
-        worse_returns = [r for r in returns if r <= var]
+        var = self.calculate_var(valid_returns, confidence)
+        worse_returns = [r for r in valid_returns if r <= var]
 
         if not worse_returns:
-            return var
+            return float(var)
 
-        cvar = sum(worse_returns) / len(worse_returns)
+        cvar = float(sum(worse_returns) / len(worse_returns))
         return cvar
 
     def generate_risk_report(self, positions: Dict[str, float], market_prices: Dict[str, float]) -> RiskMetrics:

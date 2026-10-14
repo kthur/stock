@@ -15,7 +15,7 @@ except ImportError:
     cb = _CatBoostStub()  # type: ignore
 import numpy as np
 import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Union
 
 _HAS_CUDA = False
 try:
@@ -195,6 +195,129 @@ class DateAwareTimeSeriesSplit:
                 yield np.arange(half), np.arange(half, n_samples)
 
 
+def isotonic_pava(arr: Union[np.ndarray, List[float]], weights: Optional[Union[np.ndarray, List[float]]] = None) -> np.ndarray:
+    """
+    Phase 103 (Feature F485.3): Pool Adjacent Violators Algorithm (PAVA)
+    for 1D isotonic non-decreasing projection: min sum w_i * (y_i - x_i)^2 subject to x_1 <= x_2 <= ... <= x_n.
+    """
+    y = np.asarray(arr, dtype=np.float64).copy()
+    n = len(y)
+    if n <= 1:
+        return y
+    w = np.ones(n, dtype=np.float64) if weights is None else np.asarray(weights, dtype=np.float64).copy()
+    blocks = [[float(y[i]), float(w[i]), [i]] for i in range(n)]
+    i = 0
+    while i < len(blocks) - 1:
+        if blocks[i][0] > blocks[i + 1][0] + 1e-12:
+            total_w = blocks[i][1] + blocks[i + 1][1]
+            new_val = (blocks[i][0] * blocks[i][1] + blocks[i + 1][0] * blocks[i + 1][1]) / total_w
+            blocks[i][0] = new_val
+            blocks[i][1] = total_w
+            blocks[i][2].extend(blocks[i + 1][2])
+            del blocks[i + 1]
+            if i > 0:
+                i -= 1
+        else:
+            i += 1
+    out = np.zeros(n, dtype=np.float64)
+    for val, _, indices in blocks:
+        for idx in indices:
+            out[idx] = val
+    return out
+
+
+def regularize_multi_horizon_monotonicity(
+    df: pd.DataFrame,
+    horizons: Union[List[int], Tuple[int, ...]] = (1, 3, 5, 20),
+    prefix: str = "surge_",
+    suffix: str = "d",
+    mode: str = "isotonic",
+) -> pd.DataFrame:
+    """
+    Phase 103 (Feature F485.3): Multi-Horizon Monotonicity Regularization for h in [1, 3, 5, 20].
+
+    Enforces term-structure monotonicity across cumulative horizons:
+        p_1d <= p_3d <= p_5d <= p_20d
+    using either PAVA isotonic projection (mode='isotonic') or cumulative maximum (mode='cumulative_max').
+    """
+    if df is None or df.empty:
+        return df
+
+    cols = [f"{prefix}{h}{suffix}" for h in horizons]
+    valid_cols = [c for c in cols if c in df.columns]
+    if len(valid_cols) < 2:
+        return df
+
+    out_df = df.copy()
+    vals = out_df[valid_cols].values.astype(np.float64)
+
+    for row_idx in range(len(vals)):
+        row_vals = vals[row_idx]
+        if not np.all(np.isfinite(row_vals)):
+            continue
+        if mode == "cumulative_max":
+            reg = np.maximum.accumulate(row_vals)
+        else:  # isotonic
+            reg = isotonic_pava(row_vals)
+        vals[row_idx] = np.clip(reg, 0.0, 1.0)
+
+    out_df[valid_cols] = vals
+    return out_df
+
+
+def compute_cross_sectional_relative_rank_features(
+    df: pd.DataFrame,
+    feature_cols: Optional[List[str]] = None,
+    group_cols: Optional[Union[str, List[str]]] = None,
+    suffix: str = "_rel_rank",
+    clip_range: Tuple[float, float] = (0.05, 0.95),
+) -> pd.DataFrame:
+    """
+    Phase 103 (Feature F485.3): Cross-Sectional Relative Rank Feature Generator.
+
+    Computes group-wise (market/sector) percentile rankings bounded in clip_range.
+    NaNs are strictly preserved. Singletons (groups with count < 2) fall back to neutral 0.50.
+    """
+    if df is None or df.empty:
+        return df
+    out_df = df.copy()
+    if feature_cols is None:
+        num_cols = out_df.select_dtypes(include=[np.number]).columns.tolist()
+        feature_cols = [c for c in num_cols if not c.endswith(suffix) and c != "symbol"]
+
+    if group_cols is None:
+        group_cols = [c for c in ["market", "sector"] if c in out_df.columns]
+        if not group_cols and "market" in out_df.columns:
+            group_cols = ["market"]
+
+    min_c, max_c = clip_range
+    for col in feature_cols:
+        if col not in out_df.columns:
+            continue
+        new_col = f"{col}{suffix}"
+        orig_is_nan = out_df[col].isna()
+
+        if group_cols:
+            grp = out_df.groupby(group_cols)[col]
+            counts = grp.transform('count')
+            ranks = grp.rank(pct=True)
+            scaled = min_c + ranks * (max_c - min_c)
+            scaled = scaled.where(counts >= 2, 0.50)
+        else:
+            count = out_df[col].count()
+            if count < 2:
+                scaled = pd.Series(0.50, index=out_df.index)
+            else:
+                ranks = out_df[col].rank(pct=True)
+                scaled = min_c + ranks * (max_c - min_c)
+
+        scaled = scaled.clip(min_c, max_c)
+        scaled[orig_is_nan] = np.nan
+        out_df[new_col] = scaled
+
+    return out_df
+
+
 class OnDevicePredictionModel:
     # Core OHLCV + feature engineered columns
     FEATURES = [
@@ -232,6 +355,10 @@ class OnDevicePredictionModel:
         'put_call_ratio'
     ]
     ALL_FEATURES = FEATURES + GLOBAL_FEATURES
+
+    isotonic_pava = staticmethod(isotonic_pava)
+    regularize_multi_horizon_monotonicity = staticmethod(regularize_multi_horizon_monotonicity)
+    compute_cross_sectional_relative_rank_features = staticmethod(compute_cross_sectional_relative_rank_features)
 
     def __init__(self, model_dir: Optional[str] = None, config: Optional[Any] = None):
         from pathlib import Path
@@ -3134,6 +3261,9 @@ class OnDevicePredictionModel:
                                 logger.warning(f"Surge prediction for market={mkt}, horizon={h} used momentum heuristic fallback due to missing ML models.")
                             else:
                                 res_df.loc[idx, col_name] = 0.01
+
+        # Phase 103 (Feature F485.3): Multi-Horizon Monotonicity Regularization
+        res_df = regularize_multi_horizon_monotonicity(res_df, horizons=self.surge_horizons)
         return res_df
 
     def predict_all(self, prices_dict: Dict[str, pd.DataFrame],

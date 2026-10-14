@@ -231,13 +231,17 @@ def calculate_black_litterman_weights(
         eff_horizon = max(int(view_horizon), 1)
         Q_daily = Q_decimal / float(eff_horizon)
 
-        # Uncertainty Omega (diagonal of covariance matrix scaled by dynamic meta conviction)
+        # Uncertainty Omega (diagonal of covariance matrix scaled by dynamic meta conviction and horizon scaling)
+        # Phase 101 (F476): Black-Litterman View Uncertainty Horizon Scaling:
+        # Scale Omega diagonal by 1 / eff_horizon: Omega_ii = (Sigma_ii * omega_scale) / (conv_scale * eff_horizon)
+        eff_h_float = float(eff_horizon)
         if meta_convictions is not None and len(meta_convictions) == n:
             conv_scale = np.clip(np.asarray(meta_convictions, dtype=float), 0.10, 1.50)
-            diag_omega = (np.diag(horizon_cov) * omega_scale) / conv_scale
+            diag_omega = (np.diag(horizon_cov) * omega_scale) / (conv_scale * eff_h_float)
             Omega = np.diag(np.maximum(diag_omega, 1e-8))
         else:
-            Omega = np.diag(np.maximum(np.diag(horizon_cov) * omega_scale, 1e-8))
+            diag_omega = (np.diag(horizon_cov) * omega_scale) / eff_h_float
+            Omega = np.diag(np.maximum(diag_omega, 1e-8))
 
         # Solve for posterior expected returns and covariance matrix
         # A = (tau * Sigma + Omega)
@@ -274,7 +278,7 @@ def calculate_black_litterman_weights(
 
         w0 = np.full(n, 1.0 / n)
         cons = {"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)}
-        max_w_bound = float(max_single_stock_weight) if (n * float(max_single_stock_weight) > 1.0) else 1.0
+        max_w_bound = float(max_single_stock_weight) if (n * float(max_single_stock_weight) > 1.0) else (min(0.85, max(float(max_single_stock_weight), 1.0 / max(n - 1, 1))) if n > 1 else 1.0)
         bounds = [(0.0, max_w_bound) for _ in range(n)]
 
         res = minimize(objective, w0, method="SLSQP", jac=objective_grad, bounds=bounds, constraints=cons, options={"ftol": 1e-12, "maxiter": 200})
@@ -593,7 +597,10 @@ def calculate_herc_weights(
     max_k: int = 5,
     risk_measure: str = "volatility",
     max_single_stock_weight: float = 0.20,
-    max_sector_weight: float = 0.35
+    max_sector_weight: float = 0.35,
+    returns_matrix: Optional[Union[np.ndarray, Any]] = None,
+    returns_df: Optional[Any] = None,
+    **kwargs
 ) -> np.ndarray:
     """
     Computes Hierarchical Equal Risk Contribution (HERC) portfolio weights (Raffinot 2017, Lopez de Prado 2020).
@@ -640,9 +647,29 @@ def calculate_herc_weights(
         k = max(2, min(n, int(max_k)))
         cluster_labels = fcluster(link, t=k, criterion="maxclust")
 
-        # Cluster level variance & weights
+        # Cluster level risk & weights
         cluster_weights = np.zeros(n)
-        cluster_vols = {}
+        cluster_risks = {}
+
+        # Phase 101 (F476): Sortino HERC cluster allocation:
+        # Check for returns_matrix or returns_df for downside semivariance
+        ret_data = returns_matrix if returns_matrix is not None else returns_df
+        if ret_data is not None and hasattr(ret_data, 'values'):
+            ret_data = ret_data.values
+        if ret_data is not None and not isinstance(ret_data, np.ndarray):
+            try:
+                ret_data = np.asarray(ret_data, dtype=np.float64)
+            except Exception:
+                ret_data = None
+
+        is_sortino = (
+            str(risk_measure).lower() == "sortino"
+            and ret_data is not None
+            and isinstance(ret_data, np.ndarray)
+            and ret_data.ndim == 2
+            and ret_data.shape[1] == n
+            and ret_data.shape[0] > 1
+        )
 
         for c_id in np.unique(cluster_labels):
             idx = np.where(cluster_labels == c_id)[0]
@@ -650,13 +677,21 @@ def calculate_herc_weights(
             stds_c = np.maximum(np.sqrt(np.maximum(np.diag(cov_c), 1e-8)), 1e-4)
             inv_var = 1.0 / (stds_c ** 2)
             w_intra = inv_var / max(np.sum(inv_var), 1e-12)
-            var_c = float(w_intra.T @ cov_c @ w_intra)
-            cluster_vols[c_id] = np.sqrt(max(var_c, 1e-8))
 
-        # Equal Risk Contribution (ERC) across clusters
-        inv_cluster_vols = {c_id: 1.0 / max(v, 1e-6) for c_id, v in cluster_vols.items()}
-        sum_inv_vols = sum(inv_cluster_vols.values())
-        cluster_capital = {c_id: (inv_v / sum_inv_vols) for c_id, inv_v in inv_cluster_vols.items()}
+            if is_sortino:
+                # Downside semivariance: sigma_k^- = sqrt(1/T * sum(min(R_k, 0)^2))
+                cluster_returns = ret_data[:, idx] @ w_intra
+                downside_returns = np.minimum(cluster_returns, 0.0)
+                sigma_down = float(np.sqrt(np.mean(downside_returns ** 2)))
+                cluster_risks[c_id] = max(sigma_down, 1e-6)
+            else:
+                var_c = float(w_intra.T @ cov_c @ w_intra)
+                cluster_risks[c_id] = np.sqrt(max(var_c, 1e-8))
+
+        # Equal Risk Contribution (ERC) across clusters (inversely weighted by cluster risk)
+        inv_cluster_risks = {c_id: 1.0 / max(v, 1e-6) for c_id, v in cluster_risks.items()}
+        sum_inv_risks = sum(inv_cluster_risks.values())
+        cluster_capital = {c_id: (inv_v / sum_inv_risks) for c_id, inv_v in inv_cluster_risks.items()}
 
         for c_id in np.unique(cluster_labels):
             idx = np.where(cluster_labels == c_id)[0]
@@ -700,10 +735,10 @@ def apply_portfolio_constraints(
         return np.array([])
 
     n = len(weights)
-    w = np.copy(weights)
+    w = np.nan_to_num(np.copy(weights), nan=0.0, posinf=0.0, neginf=0.0)
 
     # 1. Single stock weight capping and Sector weight capping with joint iterative convergence
-    cap_weight = max_single_stock_weight if (n * max_single_stock_weight > 1.0) else 1.0
+    cap_weight = max_single_stock_weight if (n * max_single_stock_weight > 1.0) else (min(0.85, max(max_single_stock_weight, 1.0 / max(n - 1, 1))) if n > 1 else 1.0)
 
     for _outer in range(5):
         changed = False
@@ -831,10 +866,14 @@ def apply_portfolio_constraints(
         else:
             break
 
-    # D20: guarantee simplex sum == 1.000000 under saturated capacity
+    # D20: guarantee simplex sum == 1.000000 under saturated capacity without breaching cap
     sum_final = float(np.sum(w))
     if sum_final > 1e-12:
-        w = w / sum_final
+        w_candidate = w / sum_final
+        if np.all(w_candidate <= cap_weight + 1e-5):
+            w = w_candidate
+        else:
+            w = np.clip(w, 0.0, cap_weight)
     elif n > 0:
         w = np.full(n, 1.0 / n)
 

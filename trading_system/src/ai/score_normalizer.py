@@ -6,10 +6,14 @@ while strictly preserving NaNs for missing factors.
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 import numpy as np
 import pandas as pd
 from scipy.special import erf
+try:
+    from scipy.stats import t as student_t_dist
+except ImportError:
+    student_t_dist = None
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +41,7 @@ class CrossSectionalScoreNormalizer:
         method : str
             'winsorized_zscore' / 'zscore' : Gaussian CDF mapping Phi(Z) in [0.005, 0.995] (Preserves fat-tail dispersion, default)
             'percentile_rank' / 'rank_percentile' : Uniform ranking in [0.005, 0.995]
+            'student_t' / 'student_t_zscore' / 'student_t_4' / 'student_t_nu4' : Student-t (nu=4.0) tail-preserving CDF mapping (Phase 102)
         min_symbols_per_market : int
             Minimum symbol count to perform per-market partitioning before falling back to regional/global.
         """
@@ -56,14 +61,28 @@ class CrossSectionalScoreNormalizer:
 
     def normalize(
         self,
-        df: pd.DataFrame,
-        score_cols: List[str],
+        data: Union[pd.DataFrame, pd.Series],
+        score_cols: Optional[List[str]] = None,
         method: Optional[str] = None,
         group_col: Optional[str] = 'market',
         sector_col: Optional[str] = None,
-    ) -> pd.DataFrame:
-        """Alias for normalize_scores."""
-        return self.normalize_scores(df=df, strategy_cols=score_cols, market_col=group_col, method=method, sector_col=sector_col)
+    ) -> Union[pd.DataFrame, pd.Series]:
+        """
+        Versatile normalization interface supporting both DataFrame and Series inputs.
+        - If data is a Series, normalizes the 1D series and returns a normalized Series.
+        - If data is a DataFrame and score_cols is None, defaults to all numeric columns.
+        """
+        if isinstance(data, pd.Series):
+            df = data.to_frame(name="__score__")
+            norm_df = self.normalize_scores(df, ["__score__"], market_col=None, method=method, sector_col=None)
+            res = norm_df["__score__"]
+            res.name = data.name
+            return res
+
+        if score_cols is None:
+            score_cols = [c for c in data.select_dtypes(include=['number']).columns if c not in (group_col, sector_col)]
+        return self.normalize_scores(df=data, strategy_cols=score_cols, market_col=group_col, method=method, sector_col=sector_col)
+
 
     def normalize_scores(
         self,
@@ -276,6 +295,60 @@ class CrossSectionalScoreNormalizer:
                             phi_z = 0.5 * (1.0 + erf(z_clipped / np.sqrt(2.0)))
                             phi_clean = np.nan_to_num(phi_z, nan=0.50, posinf=0.995, neginf=0.005)
                             norm_df.loc[valid_mask, col] = np.clip(phi_clean, 0.005, 0.995)
+                    elif method_clean in ('student_t', 'student_t_zscore', 'student_t_4', 'student_t_nu4', 'student_t_cdf', 't_student'):
+                        # Phase 102: Student-t (nu=4.0) tail-preserving score normalization (Feature F481)
+                        # Preserves high-conviction alpha dispersion across extreme signals with polynomial tail decay
+                        is_exact_zero = (vals == 0.0)
+                        if (
+                            n_valid >= 4
+                            and (vals >= 0.0).all()
+                            and is_exact_zero.any()
+                            and not is_exact_zero.all()
+                            and (is_exact_zero.sum() / float(n_valid)) > 0.20
+                        ):
+                            nz_mask = ~is_exact_zero
+                            norm_vals = np.full(n_valid, 0.50, dtype=np.float64)
+                            if nz_mask.sum() > 1:
+                                nz_vals = vals[nz_mask]
+                                q005 = np.percentile(nz_vals, 0.5)
+                                q995 = np.percentile(nz_vals, 99.5)
+                                w_vals = np.clip(nz_vals, q005, q995)
+                                med = float(np.median(w_vals))
+                                mad = float(np.median(np.abs(w_vals - med)))
+                                robust_std = 1.4826 * mad
+                                if robust_std < 1e-6:
+                                    sample_std = float(np.std(w_vals))
+                                    robust_std = sample_std if sample_std > 1e-6 else 1.0
+                                z = (w_vals - med) / (robust_std if robust_std > 1e-6 else 1.0)
+                                z_clipped = np.clip(z, -12.0, 12.0)
+                                if student_t_dist is not None:
+                                    t_vals = student_t_dist.cdf(z_clipped, df=4.0)
+                                else:
+                                    t_vals = 0.5 * (1.0 + erf(z_clipped / np.sqrt(2.0)))
+                                t_clean = np.nan_to_num(t_vals, nan=0.50, posinf=0.995, neginf=0.005)
+                                nz_norm = (0.52 + 0.475 * t_clean).clip(0.52, 0.995)
+                                norm_vals[nz_mask] = nz_norm
+                            elif nz_mask.sum() == 1:
+                                norm_vals[nz_mask] = 0.75
+                            norm_df.loc[valid_mask, col] = norm_vals
+                        else:
+                            q005 = np.percentile(vals, 0.5)
+                            q995 = np.percentile(vals, 99.5)
+                            w_vals = np.clip(vals, q005, q995)
+                            med = float(np.median(w_vals))
+                            mad = float(np.median(np.abs(w_vals - med)))
+                            robust_std = 1.4826 * mad
+                            if robust_std < 1e-6:
+                                sample_std = float(np.std(w_vals))
+                                robust_std = sample_std if sample_std > 1e-6 else 1.0
+                            z = (w_vals - med) / (robust_std if robust_std > 1e-6 else 1.0)
+                            z_clipped = np.clip(z, -12.0, 12.0)
+                            if student_t_dist is not None:
+                                t_vals = student_t_dist.cdf(z_clipped, df=4.0)
+                            else:
+                                t_vals = 0.5 * (1.0 + erf(z_clipped / np.sqrt(2.0)))
+                            t_clean = np.nan_to_num(t_vals, nan=0.50, posinf=0.995, neginf=0.005)
+                            norm_df.loc[valid_mask, col] = np.clip(t_clean, 0.005, 0.995)
                     else:
                         clean_vals = np.nan_to_num(vals, nan=0.50, posinf=1.0, neginf=0.0)
                         norm_df.loc[valid_mask, col] = np.clip(clean_vals, 0.0, 1.0)

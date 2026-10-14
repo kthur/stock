@@ -92,6 +92,7 @@ class StrategyExecutionResult:
     """Encapsulates execution results across all factor strategies."""
     raw_outputs: Dict[str, pd.DataFrame] = field(default_factory=dict)
     execution_times: Dict[str, float] = field(default_factory=dict)
+    errors: Dict[str, str] = field(default_factory=dict)
     m5_sentiment_metrics_list: List[Any] = field(default_factory=list)
     sector_mapping: Dict[str, str] = field(default_factory=dict)
     arm_fund: Dict[str, Any] = field(default_factory=dict)
@@ -101,14 +102,79 @@ class StrategyExecutionResult:
         return df if (df is not None and isinstance(df, pd.DataFrame)) else (default if default is not None else pd.DataFrame())
 
 
+
 class AlphaStrategyExecutor:
     """
     Orchestrates the evaluation of multi-factor alpha strategies.
     Ensures thread safety, exception isolation, clean logging, and structured reporting.
     """
 
+    # Declarative registry mapping all 37 strategies to their canonical score columns
+    STRATEGY_SCORE_COLUMNS: Dict[str, str] = {
+        'regression': 'reg_score',
+        'surge': 'surge_score',
+        'lead_lag': 'lead_lag_score',
+        'vcp_rule': 'vcp_score',
+        'vcp_ml': 'vcp_ml_score',
+        'lstm': 'lstm_score',
+        'stat_arb': 'stat_arb_score',
+        'sector_rotation': 'sector_score',
+        'rim_valuation': 'rim_score',
+        'event_driven': 'event_score',
+        'mq_factor': 'mq_score',
+        'iv_skew': 'iv_skew_score',
+        'order_flow': 'order_flow_score',
+        'short_term_reversal': 'reversal_score',
+        'arm_factor': 'arm_score',
+        'card_factor': 'card_score',
+        'latr_factor': 'latr_score',
+        'inst_foreign_sector': 'inst_foreign_sector_score',
+        'supply_chain': 'supply_chain_score',
+        'sentiment': 'sentiment_score',
+        'factor_neutralized': 'factor_neutralized_score',
+        'vol_target': 'vol_target_score',
+        'microstructure': 'microstructure_score',
+        'accruals_quality': 'accruals_quality_score',
+        'short_squeeze': 'short_squeeze_score',
+        'valueup_catalyst': 'valueup_catalyst_score',
+        'trend_efficiency': 'trend_efficiency_score',
+        'gamma_squeeze': 'gamma_squeeze_score',
+        'insider_buying': 'insider_buying_score',
+        'darkpool': 'darkpool_score',
+        'earnings_tone_drift': 'earnings_tone_drift_score',
+        'cross_asset_spillover': 'cross_asset_spillover_score',
+        'supply_chain_gnn': 'supply_chain_gnn_score',
+        'range_expansion_breakout': 'range_expansion_score',
+        'dual_correction': 'dual_correction_score',
+        'index_rebalance': 'index_rebalance_score',
+        'overnight_gap_reversal': 'overnight_gap_score',
+    }
+
     def __init__(self, specs: Optional[List[StrategySpec]] = None):
         self.specs: List[StrategySpec] = specs if specs is not None else self._build_default_strategy_specs()
+
+    def register_strategy(self, spec: StrategySpec, replace: bool = True) -> None:
+        """Register a new strategy or replace an existing strategy spec."""
+        for i, existing in enumerate(self.specs):
+            if existing.key == spec.key:
+                if replace:
+                    self.specs[i] = spec
+                return
+        self.specs.append(spec)
+
+    def get_spec(self, key: str) -> Optional[StrategySpec]:
+        """Look up a StrategySpec by its unique key."""
+        for spec in self.specs:
+            if spec.key == key:
+                return spec
+        return None
+
+    def get_all_strategy_columns(self) -> Dict[str, str]:
+        """Returns mapping from strategy key to score column name."""
+        cols = dict(self.STRATEGY_SCORE_COLUMNS)
+        for spec in self.specs:
+            cols[spec.key] = spec.col
+        return cols
 
     def prepare_shared_context(self, ctx: PipelineStrategyContext) -> None:
         """Pre-computes external filings, sentiment, and fundamental revisions once for all strategies."""
@@ -247,9 +313,17 @@ class AlphaStrategyExecutor:
                     'per': per_val,
                 }
 
-    def execute_all(self, ctx: PipelineStrategyContext) -> StrategyExecutionResult:
+    def execute_all(self, ctx: PipelineStrategyContext, fallback_on_error: bool = False) -> StrategyExecutionResult:
         """
         Executes all registered strategies concurrently with full exception isolation.
+
+        Parameters
+        ----------
+        ctx : PipelineStrategyContext
+            Shared runtime context containing universe, infer_data_dict, etc.
+        fallback_on_error : bool, default False
+            If True, applies graceful momentum/neutral fallback scores on strategy execution errors.
+            If False, retains empty DataFrame for failed strategies to allow error detection.
         """
         self.prepare_shared_context(ctx)
 
@@ -335,13 +409,20 @@ class AlphaStrategyExecutor:
             t0 = time.time()
             try:
                 df_res = spec.evaluator(ctx)
-                df_res = _ensure_complete_strategy_df(df_res, spec)
+                if fallback_on_error or (isinstance(df_res, pd.DataFrame) and not df_res.empty):
+                    df_res = _ensure_complete_strategy_df(df_res, spec)
+                elif not isinstance(df_res, pd.DataFrame):
+                    df_res = pd.DataFrame()
                 elapsed = time.time() - t0
                 return spec.key, df_res, elapsed, None
             except Exception as err:
                 elapsed = time.time() - t0
-                logger.warning(f"[STRATEGY EXECUTOR] Strategy '{spec.key}' ({spec.name}) failed: {err}. Applying momentum fallback.")
-                df_res = _ensure_complete_strategy_df(pd.DataFrame(), spec)
+                if fallback_on_error:
+                    logger.warning(f"[STRATEGY EXECUTOR] Strategy '{spec.key}' ({spec.name}) failed: {err}. Applying momentum fallback.")
+                    df_res = _ensure_complete_strategy_df(pd.DataFrame(), spec)
+                else:
+                    logger.warning(f"[STRATEGY EXECUTOR] Strategy '{spec.key}' ({spec.name}) failed: {err}")
+                    df_res = pd.DataFrame()
                 return spec.key, df_res, elapsed, err
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -350,13 +431,16 @@ class AlphaStrategyExecutor:
                 key, df_res, elapsed, err = future.result()
                 result.raw_outputs[key] = df_res
                 result.execution_times[key] = elapsed
-                if err is None:
+                if err is not None:
+                    result.errors[key] = str(err)
+                else:
                     logger.debug(f"[STRATEGY EXECUTOR] Completed '{key}' in {elapsed:.2f}s ({len(df_res)} rows)")
 
         # Generate reports for all evaluated strategies
         self.save_all_reports(result, ctx)
 
         return result
+
 
     def save_all_reports(self, result: StrategyExecutionResult, ctx: PipelineStrategyContext) -> None:
         """Saves prediction text reports for all strategies."""
@@ -524,11 +608,18 @@ class AlphaStrategyExecutor:
 
         def _eval_cross_asset_spillover(ctx: PipelineStrategyContext) -> pd.DataFrame:
             from src.core.cross_asset_spillover import CrossAssetSpilloverEngine
-            return CrossAssetSpilloverEngine().compute_scores(prices_dict=ctx.infer_data_dict, indicators_df=ctx.indicator_infer)
+            return CrossAssetSpilloverEngine().compute_scores(
+                prices_dict=ctx.infer_data_dict,
+                indicators_df=ctx.indicator_infer,
+                sector_map=ctx.sector_mapping
+            )
 
         def _eval_supply_chain_gnn(ctx: PipelineStrategyContext) -> pd.DataFrame:
             from src.core.supply_chain_gnn import SupplyChainGNNEngine
-            return SupplyChainGNNEngine().compute_scores(prices_dict=ctx.infer_data_dict)
+            return SupplyChainGNNEngine().compute_scores(
+                prices_dict=ctx.infer_data_dict,
+                sector_map=ctx.sector_mapping
+            )
 
         def _eval_range_expansion_breakout(ctx: PipelineStrategyContext) -> pd.DataFrame:
             from src.core.range_expansion_breakout import RangeExpansionBreakoutEngine

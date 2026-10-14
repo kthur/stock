@@ -279,3 +279,10 @@ class FIX44Engine(BrokerProtocol):
             "positions": self.get_positions(),
             "is_connected": self.is_connected
         }
+
+
+# Canonical Institutional Alias
+FIXProtocolEngine = FIX44Engine
+
+__all__ = ["FIXMessage", "FIX44Engine", "FIXProtocolEngine"]
+

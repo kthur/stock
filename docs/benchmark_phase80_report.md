@@ -22,4 +22,4 @@
 | Alpha Spread | >= 222.50% | >= 225.00% |
 
 ## SHA-256 Integrity
-Checksum: 6b6ef1ea4fc292ef4b8c07440223d092b41283a489eb35934bb5872e8ad756b4
+Checksum: 4e2c0e40f6b496ddebab066330ee9c432fe0514e766760ea6db5e10b2e8125be

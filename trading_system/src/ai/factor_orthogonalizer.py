@@ -30,6 +30,108 @@ def safe_matrix_precision_guard(func):
     return wrapper
 
 
+def repair_covariance_psd(C: np.ndarray, ridge_epsilon: float = 1e-6) -> np.ndarray:
+    """
+    Feature F481: Pairwise available-data covariance repair.
+    Projects a non-positive semi-definite (non-PSD) pairwise covariance matrix onto the
+    cone of PSD matrices via spectral eigenvalue thresholding, then rescales to preserve
+    original marginal diagonal variances.
+    """
+    if not isinstance(C, np.ndarray):
+        C_arr = np.asarray(C, dtype=np.float64)
+    else:
+        C_arr = C.astype(np.float64, copy=True)
+    if C_arr.ndim != 2 or C_arr.shape[0] != C_arr.shape[1]:
+        raise ValueError(f"Input covariance matrix must be 2D square, got shape {C_arr.shape}")
+
+    K = C_arr.shape[0]
+    if K <= 1:
+        return np.maximum(C_arr, ridge_epsilon)
+
+    C_sym = 0.5 * (C_arr + C_arr.T)
+    d_orig = np.diag(C_sym).copy()
+    d_orig = np.maximum(d_orig, 1e-8)
+
+    eff_eps = ridge_epsilon * 1.05
+    vals, vecs = np.linalg.eigh(C_sym)
+    vals_repaired = np.maximum(vals, eff_eps)
+    C_psd = vecs @ np.diag(vals_repaired) @ vecs.T
+
+    d_psd = np.diag(C_psd)
+    inv_sqrt_d = 1.0 / np.sqrt(np.maximum(d_psd, 1e-12))
+    R = inv_sqrt_d[:, None] * C_psd * inv_sqrt_d[None, :]
+
+    vR, wR = np.linalg.eigh(R)
+    vR_clipped = np.maximum(vR, eff_eps)
+    R_psd = wR @ np.diag(vR_clipped) @ wR.T
+
+    sqrt_orig = np.sqrt(d_orig)
+    C_repaired = sqrt_orig[:, None] * R_psd * sqrt_orig[None, :]
+    C_repaired = 0.5 * (C_repaired + C_repaired.T)
+
+    v2 = np.linalg.eigvalsh(C_repaired)
+    min_eig = float(np.min(v2))
+    if min_eig < ridge_epsilon:
+        C_repaired += (eff_eps - min_eig) * np.eye(K)
+
+    return C_repaired
+
+
+def compute_pairwise_available_covariance(
+    X: Any,
+    min_periods: int = 3,
+    repair: bool = True,
+    ridge_epsilon: float = 1e-6
+) -> np.ndarray:
+    """
+    Feature F481: Pairwise available-data covariance estimator.
+    Computes pairwise sample covariance using complete cases for each factor pair (i, j).
+    If overlapping valid observations < min_periods, sets covariance to 0.0.
+    Optionally repairs the resulting matrix to guarantee positive semi-definiteness.
+    """
+    if hasattr(X, 'to_numpy'):
+        X_arr = X.to_numpy(dtype=np.float64, copy=False)
+    else:
+        X_arr = np.asarray(X, dtype=np.float64)
+    if X_arr.ndim != 2:
+        raise ValueError(f"Input X must be 2-dimensional, got shape {X_arr.shape}")
+
+    N, K = X_arr.shape
+    C = np.zeros((K, K), dtype=np.float64)
+
+    valid_masks = [~np.isnan(X_arr[:, i]) for i in range(K)]
+
+    for i in range(K):
+        v_i = valid_masks[i]
+        n_i = int(v_i.sum())
+        if n_i >= 2:
+            C[i, i] = float(np.var(X_arr[v_i, i], ddof=1))
+        elif n_i == 1:
+            C[i, i] = 1e-6
+        else:
+            C[i, i] = 1.0
+        if C[i, i] < 1e-8:
+            C[i, i] = 1e-6
+
+        for j in range(i + 1, K):
+            v_j = valid_masks[j]
+            v_ij = v_i & v_j
+            n_ij = int(v_ij.sum())
+            if n_ij >= min_periods and n_ij >= 2:
+                ci = X_arr[v_ij, i] - np.mean(X_arr[v_ij, i])
+                cj = X_arr[v_ij, j] - np.mean(X_arr[v_ij, j])
+                cov_val = float(np.dot(ci, cj) / (n_ij - 1))
+                C[i, j] = cov_val
+                C[j, i] = cov_val
+            else:
+                C[i, j] = 0.0
+                C[j, i] = 0.0
+
+    if repair:
+        C = repair_covariance_psd(C, ridge_epsilon=ridge_epsilon)
+    return C
+
+
 class FactorOrthogonalizerEngine:
     """
     Gram-Schmidt & Equalized Spectral Residual Whitening (ESRW) Decorrelation Engine (R2).
@@ -50,6 +152,9 @@ class FactorOrthogonalizerEngine:
         self.shrinkage_alpha = shrinkage_alpha
         self.preserve_consensus_pc1 = preserve_consensus_pc1
         self.preserve_top_k = preserve_top_k
+
+    compute_pairwise_available_covariance = staticmethod(compute_pairwise_available_covariance)
+    repair_covariance_psd = staticmethod(repair_covariance_psd)
 
     def orthogonalize(
         self,
@@ -107,12 +212,23 @@ class FactorOrthogonalizerEngine:
             scaling_method == 'sigmoid'
         ) and (scaling_method != 'rank')
 
+        if has_nans:
+            X_bar_raw = (X_raw - col_means) / col_stds
+            pairwise_cov = compute_pairwise_available_covariance(
+                X_bar_raw,
+                min_periods=3,
+                repair=True,
+                ridge_epsilon=self.ridge_epsilon
+            )
+        else:
+            pairwise_cov = None
+
         if str(eff_method).startswith('gram_schmidt'):
             X_ortho = self._gram_schmidt(X_clean, valid_cols, weights, col_means, col_stds)
         elif str(eff_method).startswith('esrw') or 'spectral' in str(eff_method).lower():
             N = X_clean.shape[0]
             X_bar = (X_clean - col_means) / col_stds
-            C = np.dot(X_bar.T, X_bar) / max(N - 1, 1)
+            C = pairwise_cov if pairwise_cov is not None else (np.dot(X_bar.T, X_bar) / max(N - 1, 1))
             C_shrunk = self._compute_ledoit_wolf_covariance(X_bar, C)
             X_decorr = self._esrw_whitening(X_bar, C_shrunk)
             X_ortho = col_means + X_decorr * col_stds
@@ -131,7 +247,8 @@ class FactorOrthogonalizerEngine:
                 col_means,
                 col_stds,
                 preserve_pc1=(eff_top_k >= 1),
-                preserve_top_k=eff_top_k
+                preserve_top_k=eff_top_k,
+                pairwise_cov=pairwise_cov
             )
 
 
@@ -236,7 +353,8 @@ class FactorOrthogonalizerEngine:
         means: np.ndarray,
         stds: np.ndarray,
         preserve_pc1: bool = False,
-        preserve_top_k: int = 0
+        preserve_top_k: int = 0,
+        pairwise_cov: Optional[np.ndarray] = None
     ) -> np.ndarray:
         N, K = X.shape
         if K <= 1 or N < 2:
@@ -258,12 +376,14 @@ class FactorOrthogonalizerEngine:
             X_ortho = np.copy(X)
             if len(active_idx) > 1:
                 eff_top = min(preserve_top_k, len(active_idx) - 1) if preserve_top_k > 0 else 0
+                sub_pairwise = pairwise_cov[np.ix_(active_idx, active_idx)] if pairwise_cov is not None else None
                 X_active_ortho = self._pca_zca_symmetric(
                     X[:, active_idx],
                     means[active_idx],
                     stds[active_idx],
                     preserve_pc1=preserve_pc1 if eff_top > 0 or preserve_pc1 else False,
-                    preserve_top_k=eff_top
+                    preserve_top_k=eff_top,
+                    pairwise_cov=sub_pairwise
                 )
                 X_ortho[:, active_idx] = X_active_ortho
             else:
@@ -279,10 +399,16 @@ class FactorOrthogonalizerEngine:
         X_bar = (X - means) / stds
 
         # Compute sample covariance matrix
-        C = np.dot(X_bar.T, X_bar) / max(N - 1, 1)
-
-        # Dynamic Ledoit-Wolf Shrinkage or fallback
-        C_shrunk = self._compute_ledoit_wolf_covariance(X_bar, C)
+        if pairwise_cov is not None:
+            C = (pairwise_cov + pairwise_cov.T) * 0.5
+            mu = np.trace(C) / max(K, 1)
+            target = mu * np.eye(K)
+            delta = self.shrinkage_alpha if self.shrinkage_alpha > 0 else 0.01
+            C_shrunk = (1.0 - delta) * C + delta * target + self.ridge_epsilon * np.eye(K)
+        else:
+            C = np.dot(X_bar.T, X_bar) / max(N - 1, 1)
+            # Dynamic Ledoit-Wolf Shrinkage or fallback
+            C_shrunk = self._compute_ledoit_wolf_covariance(X_bar, C)
         C_sym = (C_shrunk + C_shrunk.T) * 0.5
 
         # Eigen-decomposition of symmetric correlation matrix
@@ -589,3 +715,13 @@ class CrossSectionalFactorNeutralizer:
             "r_squared": round(r2, 4),
             "idiosyncratic_ratio": round(idio_ratio, 4)
         }
+
+
+__all__ = [
+    "FactorOrthogonalizerEngine",
+    "CrossSectionalFactorNeutralizer",
+    "safe_matrix_precision_guard",
+    "compute_pairwise_available_covariance",
+    "repair_covariance_psd",
+]
+

@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 
 from src.config import TradingConfig
 from src.broker.real_broker import BrokerBase
-from src.risk.risk_manager import RiskManager, CrisisLevel
+from src.risk.risk_manager import RiskManager, CrisisLevel, CRISIS_RISK_CAP
 from src.utils.notifier import NotificationSystem
 from src.data_layer.trade_journal import TradeJournal, TradeRecord
 from src.ai.news_sentiment_fetcher import NewsSentimentFetcher
@@ -27,13 +27,8 @@ BUY_EFFECTIVE_RATE  = 1.0 + BUY_COMMISSION_RATE  + BUY_SLIPPAGE_RATE
 # 매도 실효 수익 배율 (청산 가격에 곱함)
 SELL_EFFECTIVE_RATE = 1.0 - SELL_COMMISSION_RATE - SELL_TAX_RATE - SELL_SLIPPAGE_RATE
 
-# 위기 단계별 단일 거래 최대 리스크 한도 (총 자본 대비 %)
-CRISIS_RISK_CAP = {
-    CrisisLevel.NONE:   0.020,  # 2.0%
-    CrisisLevel.WATCH:  0.015,  # 1.5%
-    CrisisLevel.ACTIVE: 0.010,  # 1.0%
-    CrisisLevel.SEVERE: 0.000,  # 신규 매수 차단
-}
+# 위기 단계별 단일 거래 최대 리스크 한도 (총 자본 대비 %) - src.risk.risk_manager 중앙 관리 및 re-export
+CRISIS_RISK_CAP = CRISIS_RISK_CAP
 
 # ATR 기반 트레일링 스탑 — 가격 이력 조회 기간
 ATR_LOOKBACK_DAYS = 14

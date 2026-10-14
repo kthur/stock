@@ -46,7 +46,12 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
         **kwargs: Any,
     ) -> pd.DataFrame:
         symbols = list(prices_dict.keys()) if prices_dict else []
-        return self.calculate_scores(symbols=symbols, prices_dict=prices_dict, **kwargs)
+        return self.calculate_scores(
+            symbols=symbols,
+            prices_dict=prices_dict,
+            features_df=fundamentals_dict,
+            **kwargs,
+        )
 
     def calculate_scores(
         self,
@@ -80,6 +85,14 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                 if 'symbol' in features_df.columns:
                     deduped = features_df.drop_duplicates(subset=['symbol'], keep='last')
                     short_map = deduped.set_index('symbol').to_dict(orient='index')
+
+        has_any_short_data = any(
+            (isinstance(v, dict) and any(
+                k in v and np.isfinite(float(v[k])) for k in ['short_ratio', 'short_pct', 'short_float_pct', 'short_interest_ratio', 'days_to_cover', 'dtc']
+                if v.get(k) is not None
+            ))
+            for v in short_map.values()
+        )
 
         for sym in symbols:
             sym_str = str(sym)
@@ -123,7 +136,10 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
 
             # Adaptive Microstructure Squeeze Proxy Fallback when explicit short interest/DTC is unavailable
             if pd.isna(short_ratio) or pd.isna(dtc):
-                if c_arr is not None and len(c_arr) >= 5:
+                if has_any_short_data:
+                    # HIGH-12 / D16: When short interest data exists in universe, missing symbols return NaN to avoid corrupting ranks
+                    results[sym_str] = np.nan
+                elif c_arr is not None and len(c_arr) >= 5:
                     # 1. 5D Momentum
                     r_5d = ret_5d
 
@@ -160,6 +176,9 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                     rvol_capped = float(np.clip(rvol, 0.5, 3.0))
                     synth_score = 0.50 + 0.20 * mom_signal + 0.10 * (rvol_capped - 1.0) / 2.0 + 0.10 * (vol_contraction_factor - 1.0) + 0.10 * (exhaustion_boost - 0.50)
                     results[sym_str] = float(np.clip(synth_score, 0.10, 0.95))
+                elif features_df is not None:
+                    # Missing price centering when features_df is provided but price is missing
+                    results[sym_str] = 0.50
                 else:
                     results[sym_str] = np.nan
             else:

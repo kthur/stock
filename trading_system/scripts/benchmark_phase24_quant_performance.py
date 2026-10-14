@@ -116,15 +116,28 @@ if __name__ == "__main__":
     phase24_header = "# Global Multi-Market Quantitative Benchmark Report (Phase 24 Quantitative Enhancement)"
     if phase24_header in prior_content:
         idx24 = prior_content.find(phase24_header)
-        next_sep = prior_content.find("\n\n---\n\n", idx24 + 1)
-        if next_sep >= 0:
+        # Look for the next top-level markdown report header instead of mid-table horizontal rules
+        next_header = prior_content.find("\n# ", idx24 + 1)
+        if next_header >= 0:
             before = prior_content[:idx24].rstrip()
-            after = prior_content[next_sep + len("\n\n---\n\n"):].lstrip()
+            after = prior_content[next_header:].lstrip()
             prior_content = ("\n\n---\n\n".join(filter(None, [before, after]))).strip()
         else:
             prior_content = prior_content[:idx24].rstrip()
 
-    combined_canonical = content + ("\n\n---\n\n" + prior_content if prior_content else "")
+    p23_path = "reports/quant_benchmark_comparison_phase23.md"
+    p23_content = ""
+    if os.path.exists(p23_path) and "Phase 23 Quantitative Enhancement" not in prior_content:
+        with open(p23_path, "r", encoding="utf-8") as f_p23:
+            p23_content = f_p23.read().strip()
+
+    if prior_content and not prior_content.startswith(phase24_header):
+        combined_canonical = prior_content + "\n\n---\n\n" + content
+    else:
+        combined_canonical = content + ("\n\n---\n\n" + prior_content if prior_content else "")
+    if p23_content and "Phase 23 Quantitative Enhancement" not in combined_canonical:
+        combined_canonical = combined_canonical + "\n\n---\n\n" + p23_content
+
     os.makedirs("reports", exist_ok=True)
     with open(canon_path, "w", encoding="utf-8") as f_canon:
         f_canon.write(combined_canonical)
