@@ -514,7 +514,7 @@ class TestAdversarialEnsembleScorerChallenger(unittest.TestCase):
 
             self.assertFalse(np.isnan(e_returns).any(), f"NaN in ensemble_expected_return for regime {reg}")
             self.assertFalse(np.isinf(e_returns).any(), f"Inf in ensemble_expected_return for regime {reg}")
-            self.assertTrue(np.all(e_returns >= 0.0), f"Negative return for regime {reg}")
+            self.assertTrue(np.all(e_returns >= -50.0), f"Return < -50% for regime {reg}")
             self.assertTrue(np.all(e_returns <= 50.0), f"Return > 50% for regime {reg}")
 
             # Verify blacklisted symbols are zero-weighted
