@@ -1,95 +1,94 @@
-# Project: 37 Strategies Overhaul & Coverage Assurance
+# Project: Phase 105 (v112 Production Master, Features F495~F499, Release R121)
 
 ## Architecture
-- 37 Multi-factor Strategies:
-  1. XGBoost Regression (`pipeline_result.txt`)
-  2. Surge Classifier (`surge_predictions.txt`)
-  3. Lead-Lag (`lead_lag_predictions.txt`)
-  4. VCP Rule (`vcp_patterns.txt`)
-  5. VCP ML (`vcp_ml_predictions.txt`)
-  6. Strict Causal LSTM (`lstm_predictions.txt`)
-  7. Stat-Arb Cointegration (`stat_arb_predictions.txt`)
-  8. Sector Rotation (`sector_predictions.txt`)
-  9. RIM Valuation (`rim_predictions.txt`)
-  10. Event-Driven (`event_driven_predictions.txt`)
-  11. Momentum Quality (MQ) (`mq_factor_predictions.txt`)
-  12. Options IV Skew (`iv_skew_predictions.txt`)
-  13. Order Flow Imbalance (`order_flow_predictions.txt`)
-  14. Short-Term Reversal (`short_term_reversal_predictions.txt`)
-  15. Analyst Revision Momentum (ARM) (`arm_factor_predictions.txt`)
-  16. Cross-Asset Regime Divergence (CARD) (`card_factor_predictions.txt`)
-  17. Liquidity-Adjusted Tail Risk (LATR) (`latr_factor_predictions.txt`)
-  18. Inst & Foreign Sector (`inst_foreign_sector_predictions.txt`)
-  19. Supply Chain Momentum (`supply_chain_predictions.txt`)
-  20. NLP Sentiment Catalyst (`sentiment_predictions.txt`)
-  21. Multi-Factor Style Neutralizer (`factor_neutralized_predictions.txt`)
-  22. Dynamic Volatility Targeting (`vol_target_predictions.txt`)
-  23. Microstructure Imbalance (`microstructure_predictions.txt`)
-  24. Accruals Quality Anomaly (`accruals_quality_predictions.txt`)
-  25. Short Interest & Squeeze (`short_squeeze_predictions.txt`)
-  26. Value-Up & Shareholder Yield (`valueup_catalyst_predictions.txt`)
-  27. Kaufman Trend Efficiency (`trend_efficiency_predictions.txt`)
-  28. Gamma Squeeze (`gamma_squeeze_predictions.txt`)
-  29. Insider Buying (`insider_buying_predictions.txt`)
-  30. Darkpool & HFT Flow (`darkpool_predictions.txt`)
-  31. Earnings Tone Drift (`earnings_tone_drift_predictions.txt`)
-  32. Cross-Asset Spillover Momentum (`cross_asset_spillover_predictions.txt`)
-  33. Supply Chain GNN (`supply_chain_gnn_predictions.txt`)
-  34. Range Expansion Breakout (`range_expansion_predictions.txt`)
-  35. Dual Correction (`dual_correction_predictions.txt`)
-  36. Index Rebalance Structural Flow (`index_rebalance_predictions.txt`)
-  37. Overnight Gap Reversal (`overnight_gap_predictions.txt`)
-- Normalization & Orthogonalization: `CrossSectionalScoreNormalizer`, `FactorOrthogonalizerEngine`
-- Dynamic Weighted Ensemble: `EnsembleScoringEngine` (6-Regime Matrix, Microstructure Costs)
-- Portfolio Risk Allocation: `UnifiedPortfolioAllocator` (BL, HERC, RP, EVT-CVaR, Leland Buffer)
-- Execution OMS: `ExecutionOMSEngine`, `AlmgrenChrissScheduler`
-- Reporting & Artifacts: `PredictionReporter`, `StrategyCoverageAnalyzer`, `verify_gha_artifacts.py`
+- 30-Year Individual Stock Universe Multi-Factor Walk-Forward Simulation (1996~2026) across 5 markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000).
+- Modular Layers:
+  1. Data & Feature Store Layer: `PointInTimeStockUniverse` & `HistoricalStockUniversePipeline` (`trading_system/src/backtest/historical_stock_universe_pipeline.py`) with dynamic filing lag (KRX 45d/90d, US 40d/60d), survivorship bias defense (listing/delisting cohorts, bankruptcy loss realization), and 20-day rolling ADV calculation.
+  2. Alpha Factor Scoring & Orthogonalization Layer: `HistoricalStockUniverseBacktester` (`trading_system/src/backtest/historical_stock_universe_backtester.py`) with vectorized 37-strategy factor extraction, `CrossSectionalScoreNormalizer` (Student-t $\nu=4.0$ & Winsorized Gaussian CDF, inactive 0-score block isolation), and `FactorOrthogonalizerEngine` (PCA-ZCA symmetric whitening, top-2 PC preservation, pairwise covariance with PSD repair, 2D regime dynamic weighting with active factor re-normalization and Bayesian coverage shrinkage).
+  3. Institutional Portfolio Optimization & Execution Layer: Multi-stock optimizer with strict single-stock $\le 5.0\%$ cap, single-sector $\le 25.0\%$ cap, dual 200-day SMA trend gating (macro + stock), quarterly (60-day) rebalancing, turnover hysteresis bands (3%) with bypass rules, ADV liquidity participation cap $\le 1.5\%$, Gatheral 3/2-power market impact execution, and statutory market frictions (KRX STT, US SEC/FINRA, brokerage, dynamic half-spread).
+  4. Execution Runner, Verification & Documentation Layer: `run_30year_stock_universe_backtest.py`, `verify_30year_stock_universe_backtest.py`, 4 official result artifacts in `trading_system/result/`, comprehensive test suite `tests/test_phase105_stock_universe_backtest.py`, and `AGENTS.md`.
 
 ## Feature Inventory
 Every feature from the Survey phase appears here with its assigned milestone.
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | Stat-Arb FDR & Neutral Fix | Fix FDR rank calculation & emit 0.50 for neutral pairs | M1 | Survey (Explorer 1) |
-| 2 | Short Squeeze Proxy Fallback | Add price-volume microstructure proxy for missing short data | M1 | Survey (Explorer 1) |
-| 3 | RIM Valuation US DB Proxy | Add price-trend proxy when BPS missing for NASDAQ/Russell | M1 | Survey (Explorer 1) |
-| 4 | Sentiment & Tone Truncation Removal | Remove 100-sym cap & provide universe momentum sentiment | M1 | Survey (Explorer 1) |
-| 5 | Sparse Signal Neutral Filling | Assign 0.50 neutral baseline to non-setup stocks (VCP, Lead-Lag) | M1 | Survey (Explorer 1) |
-| 6 | Standardized Output Reporting | Replace inline writers with PredictionReporter; eliminate "데이터 없음" | M2 | Survey (Explorer 2) |
-| 7 | Coverage Analyzer Scoping | Scope denominator to active market in single-target runs | M2 | Survey (Explorer 2) |
-| 8 | Market Split File Reliability | Ensure result_split files are populated with >= 10 valid items | M2 | Survey (Explorer 2) |
-| 9 | Pipeline Pre-Verification Gate | Runtime check in run_pipeline.py for >= 10 valid predictions | M2 | Survey (Explorer 2) |
-| 10 | Ensemble Defensive Weight Reservation | Prevent defensive strategy dropout from inflating momentum beta | M3 | Survey (Explorer 3) |
-| 11 | Portfolio Allocation Normalization | Verify Net Expected Return sorting and 4-model blending | M3 | Survey (Explorer 3) |
-| 12 | Regression Test Suite Verification | Ensure pytest tests/ passes 100% | M4 | Survey (Explorer 3) |
-| 13 | Pipeline End-to-End Validation | Run pipeline verification across all 5 markets | M4 | Survey (Explorer 2, 3) |
-| 14 | HTML Dashboard & Artifact Verification | Confirm generate_report.py and verify_gha_artifacts.py pass | M4 | Survey (Explorer 2) |
+| 1 | F495.1 | Point-in-Time (PIT) Stock Universe across 5 markets with historical listing/delisting cohorts | M1 | Survey (Explorer 1) |
+| 2 | F495.2 | Survivorship Bias Defense with bankruptcy terminal loss realization | M1 | Survey (Explorer 1) |
+| 3 | F495.3 | Dynamic Filing Lag Enforcement (KRX 45d/90d, US 40d/60d) preventing lookahead bias | M1 | Survey (Explorer 1) |
+| 4 | F495.4 | 30-Year Multi-Stock Vectorized Feature Store (OHLCV, 20d ADV, fundamentals, sector tags) | M1 | Survey (Explorer 1) |
+| 5 | F496.1 | Vectorized 37-Strategy Cross-Sectional Factor Scoring on stock panels | M2 | Survey (Explorer 2) |
+| 6 | F496.2 | CrossSectionalScoreNormalizer (Student-t / Winsorized CDF + inactive 0-score block isolation) | M2 | Survey (Explorer 2) |
+| 7 | F496.3 | PCA-ZCA Whitening & Gram-Schmidt Orthogonalization (top-2 PC preservation, PSD repair) | M2 | Survey (Explorer 2) |
+| 8 | F496.4 | 2D Regime Dynamic Weighting with active weight re-normalization & Bayesian shrinkage | M2 | Survey (Explorer 2) |
+| 9 | F497.1 | Multi-Stock Portfolio Optimization with strict single-stock cap <= 5.0% | M3 | Survey (Explorer 3) |
+| 10 | F497.2 | Single-Sector Concentration Guardrail <= 25.0% with headroom redistribution | M3 | Survey (Explorer 3) |
+| 11 | F497.3 | Dual 200-Day SMA Trend Gating (macro index + stock level) & quarterly 60d rebalancing | M3 | Survey (Explorer 3) |
+| 12 | F497.4 | Turnover Hysteresis Band (3%) with fresh entry / full liquidation bypass rules | M3 | Survey (Explorer 3) |
+| 13 | F498.1 | ADV Liquidity Participation Cap <= 1.5% | M3 | Survey (Explorer 3) |
+| 14 | F498.2 | Gatheral 3/2-Power Market Impact Execution & Realistic Statutory Friction Models | M3 | Survey (Explorer 3) |
+| 15 | F499.1 | 30-Year Stock Universe Walk-Forward Runner (run_30year_stock_universe_backtest.py) | M4 | Survey (Explorer 3) |
+| 16 | F499.2 | Independent Strict Verification Script (verify_30year_stock_universe_backtest.py) | M4 | Survey (Explorer 3) |
+| 17 | F499.3 | 4 Official Result Artifacts in trading_system/result/ (report, summary, annual, crisis) | M4 | Survey (Explorer 3) |
+| 18 | F499.4 | Comprehensive Test Suite (tests/test_phase105_stock_universe_backtest.py) | M4 | Survey (Explorer 3) |
+| 19 | F499.5 | AGENTS.md Release R121 Documentation | M4 | Survey (Explorer 3) |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Strategy Defect & Fallback Remediation | Fix stat_arb, short_squeeze, rim_valuation, sentiment, tone drift, vcp, lead-lag | none | IN_PROGRESS |
-| M2 | Output Generation & Coverage Reporting | Standardize PredictionReporter, fix CoverageAnalyzer, ensure >= 10 items | M1 | PLANNED |
-| M3 | Ensemble Scoring & Risk Allocation | Weight re-normalization, defensive reservation, portfolio allocation | M1, M2 | PLANNED |
-| M4 | Regression & E2E Validation | pytest tests/, pipeline validation, verify_gha_artifacts, HTML report | M1, M2, M3 | PLANNED |
+| 1 | M1: PIT Stock Universe & Feature Store (F495) | Point-in-Time universe, survivorship bias defense, dynamic filing lag, 20d ADV feature store | none | DONE |
+| 2 | M2: 37-Strategy Scoring & Orthogonalization (F496) | Vectorized 37-factor scoring, score normalizer, PCA-ZCA whitening, 2D regime weighting | M1 | IN_PROGRESS |
+| 3 | M3: Multi-Stock Optimizer & Liquidity Execution (F497, F498) | 5% stock cap, 25% sector cap, 200d SMA gating, 1.5% ADV cap, 3/2 market impact, frictions | M1, M2 | PLANNED |
+| 4 | M4: Runner, Verification, Artifacts, Tests & Docs (F499) | 30-year runner script, verify script, 4 result artifacts, test suite, AGENTS.md update | M1, M2, M3 | PLANNED |
 
 ## Interface Contracts
-### Strategy Engines -> EnsembleScoringEngine
-- Input: `dict[str, pd.DataFrame]` with strategy name as key, DataFrame indexed or with column `symbol` and strategy score column.
-- Required: Every symbol in target market must have finite float score in [0.0, 1.0] (or neutral 0.50 for unselected stocks). Zero-coverage / NaN completely eliminated.
+### historical_stock_universe_pipeline.py (M1) <-> historical_stock_universe_backtester.py (M2, M3)
+- `PointInTimeStockUniverse`:
+  - `get_active_universe(date: str, market: Optional[str] = None) -> List[str]`: returns list of active symbols at date $t$.
+  - `is_delisted(symbol: str, date: str) -> bool`: returns whether symbol has delisted by date $t$.
+  - `get_delisting_terminal_loss(symbol: str, date: str) -> float`: returns liquidation salvage value or terminal loss fraction (e.g. -1.0 for bankruptcy).
+- `HistoricalStockUniversePipeline`:
+  - `get_market_panel(date: str, lookback_days: int = 252) -> pd.DataFrame`: returns multi-index or symbol-keyed DataFrame with OHLCV, 20-day ADV, sector, and causally lagged fundamentals.
+  - All fundamental data lagged by statutory delay: KRX 45d/90d, US 40d/60d.
+  - Price/volume data causally indexed up to $T-1$.
 
-### PredictionReporter -> File System
-- Output files: `trading_system/result/{strategy_file}.txt` and `trading_system/result_split/{strategy_file}_{MARKET}.txt`.
-- Format: Standard header + tab/space-separated table. Every strategy must contain >= 10 non-zero predictions per market. No `"데이터 없음"` text.
+### historical_stock_universe_backtester.py (M2, M3) <-> run_30year_stock_universe_backtest.py (M4)
+- `HistoricalStockUniverseBacktester`:
+  - `__init__(config: Optional[TradingConfig] = None, max_stock_weight: float = 0.05, max_sector_weight: float = 0.25, max_adv_participation: float = 0.015, rebalance_freq_days: int = 60)`
+  - `run_backtest(start_date: str = '1996-01-01', end_date: str = '2026-08-31') -> Dict[str, Any]`: runs walk-forward backtest.
+  - Returns dictionary with:
+    - `'summary'`: KPI dictionary (`cagr`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `active_win_rate`, `total_trades`, `gross_cagr`, `net_cagr`, etc.)
+    - `'annual_distribution'`: DataFrame with 31 calendar years (1996~2026) showing annual return, volatility, Sharpe, MDD.
+    - `'crisis_breakdown'`: DataFrame with 5 historical crises (1997 IMF, 2000 Dot-com, 2008 GFC, 2020 COVID, 2022 Inflation rate hike) showing duration, benchmark drop, strategy return, and MDD.
+    - `'weights_history'`: DataFrame of portfolio weights at each rebalance date, strictly satisfying $\le 5.0\%$ per stock and $\le 25.0\%$ per sector.
+    - `'daily_curve'`: Series/DataFrame of daily equity, gross vs net equity, cash ratio, and friction drag.
 
-### StrategyCoverageAnalyzer -> Coverage Report
-- Input: `ensemble_df` with `raw_scores` attribute, active market target.
-- Metric: Valid coverage = count(finite & notna) / active_market_symbols >= 95.0%.
+### verify_30year_stock_universe_backtest.py (M4) <-> Verification Suite
+- CLI arguments: `--result-dir trading_system/result --strict`
+- Strict assertions:
+  1. File Existence & Schema (4 result artifacts)
+  2. 31 Annual Distribution Years (1996~2026 unbroken)
+  3. 5 Historical Crisis Windows Defense
+  4. Single-Stock Weight Cap: $\le 5.0\% + 1e-6$
+  5. Single-Sector Weight Cap: $\le 25.0\% + 1e-6$
+  6. ADV Liquidity Participation Cap: $\le 1.5\%$
+  7. Strict Causality & Dynamic Filing Lag (Zero future leakage)
+  8. Survivorship Bias Defense (Delisted cohort loss validation)
+  9. Strict KPI Targets:
+     - CAGR $\ge 25.0\%$
+     - Sharpe $\ge 1.80$
+     - Sortino $\ge 2.50$
+     - MDD $\ge -18.0\%$ (e.g. $-16\%$ to $-6\%$)
+     - Active Rebalance Period Win Rate $\ge 58.0\%$
 
 ## Code Layout
-- `trading_system/src/core/`: Strategy engines (`stat_arb.py`, `short_interest_squeeze.py`, `rim_valuation.py`, etc.)
-- `trading_system/src/pipeline/`: `strategy_executor.py`, `prediction_reporter.py`
-- `trading_system/src/ai/`: `ensemble_scorer.py`, `score_normalizer.py`, `factor_orthogonalizer.py`
-- `trading_system/src/risk/`: `unified_portfolio_allocator.py`
-- `trading_system/src/analysis/`: `coverage_analyzer.py`
-- `trading_system/run_pipeline.py`: Main pipeline orchestration script
-- `trading_system/scripts/verify_gha_artifacts.py`: CI artifact validator
+- `trading_system/src/backtest/historical_stock_universe_pipeline.py`: Point-in-Time universe & 30-year multi-stock feature store
+- `trading_system/src/backtest/historical_stock_universe_backtester.py`: 37-strategy cross-sectional scoring, multi-stock optimizer & liquidity execution
+- `trading_system/scripts/run_30year_stock_universe_backtest.py`: 30-year walk-forward runner
+- `trading_system/scripts/verify_30year_stock_universe_backtest.py`: Independent strict verification script
+- `trading_system/result/`:
+  - `quant_benchmark_30year_stock_universe_report.md`
+  - `backtest_30year_stock_universe_summary.json`
+  - `backtest_30year_stock_universe_annual.csv`
+  - `backtest_30year_stock_universe_crisis.csv`
+- `tests/test_phase105_stock_universe_backtest.py`: Comprehensive test suite
+- `AGENTS.md`: Release R121 documentation

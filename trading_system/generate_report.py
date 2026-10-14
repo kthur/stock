@@ -91,6 +91,7 @@ class EnsembleRow:
     name: str
     score: str
     expected_return: str
+    cagr: str = "-"
     reg: str = ""
     surge: str = ""
     lead_lag: str = ""
@@ -396,6 +397,7 @@ def parse_ensemble(text: str) -> EnsembleData:
     # Parse market sections
     current_market = None
     in_data = False
+    has_cagr_col = any("CAGR" in line.upper() for line in text.splitlines())
 
     for line in text.splitlines():
         l_str = line.strip()
@@ -419,11 +421,19 @@ def parse_ensemble(text: str) -> EnsembleData:
                     name = " ".join(parts[2:s_start])
                     score = parts[s_start]
                     exp_ret = parts[s_start + 1]
-                    s_vals = parts[s_start + 2:]
+
+                    # Feature F494: Detect whether optional third CAGR column exists
+                    if (has_cagr_col and len(parts) >= s_start + 3) or len(parts) >= s_start + 40:
+                        cagr_val = parts[s_start + 2]
+                        s_vals = parts[s_start + 3:]
+                    else:
+                        cagr_val = "-"
+                        s_vals = parts[s_start + 2:]
 
                     current_market.rows.append(EnsembleRow(
                         rank=rank, symbol=symbol, name=name,
                         score=score, expected_return=exp_ret,
+                        cagr=cagr_val,
                         reg=s_vals[0] if len(s_vals) > 0 else "-",
                         surge=s_vals[1] if len(s_vals) > 1 else "-",
                         lead_lag=s_vals[2] if len(s_vals) > 2 else "-",

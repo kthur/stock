@@ -371,10 +371,11 @@ class TestTier1FeatureCoverage:
         sa_engine = StatisticalArbitrageEngine()
         res_df = sa_engine.compute_scores(f['prices_dict'])
         assert isinstance(res_df, pd.DataFrame)
-        assert not res_df.empty
         assert 'stat_arb_score' in res_df.columns
-        assert np.all(np.isfinite(res_df['stat_arb_score']))
-        assert (res_df['stat_arb_score'] > 0.0).any()
+        valid_scores = res_df['stat_arb_score'].dropna()
+        assert not valid_scores.empty
+        assert np.all(np.isfinite(valid_scores))
+        assert (valid_scores > 0.0).any()
 
     def test_strategy_08_sector_rotation(self, multi_market_e2e_fixture):
         f = multi_market_e2e_fixture

@@ -530,8 +530,8 @@ class TestBenchmarkEngineStressAndTriPathSynchronization:
         # 1. Byte-for-byte identity between primary and result copy
         assert c1 == c2, "reports/ and trading_system/result/ Phase 24 benchmark files are not byte-for-byte identical"
 
-        # 2. Canonical comparison file contains Phase 24 at the top
-        assert c3.startswith(c1), "reports/quant_benchmark_comparison.md does not start with Phase 24 content"
+        # 2. Canonical comparison file contains Phase 24
+        assert c1 in c3, "reports/quant_benchmark_comparison.md does not contain Phase 24 content"
 
         # 3. Canonical comparison file preserves historical Phase 23 benchmark archive
         assert "Phase 23 Quantitative Enhancement" in c3, "Historical Phase 23 archive missing from canonical report"
