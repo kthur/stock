@@ -24,6 +24,30 @@ from .factor_suppression import (
 from .factor_orthogonalizer import FactorOrthogonalizerEngine
 from .score_normalizer import CrossSectionalScoreNormalizer
 
+try:
+    from .macro_factor_timing import (
+        DynamicMacroFactorTimingEngine,
+        MacroFactorTimingEngine,
+        Phase106MacroFactorTimingEngine,
+        MacroConditioningEngine,
+        modulate_macro_factor_weights,
+    )
+except ImportError:
+    try:
+        from src.ai.macro_factor_timing import (
+            DynamicMacroFactorTimingEngine,
+            MacroFactorTimingEngine,
+            Phase106MacroFactorTimingEngine,
+            MacroConditioningEngine,
+            modulate_macro_factor_weights,
+        )
+    except ImportError:
+        DynamicMacroFactorTimingEngine = None
+        MacroFactorTimingEngine = None
+        Phase106MacroFactorTimingEngine = None
+        MacroConditioningEngine = None
+        modulate_macro_factor_weights = None
+
 
 # =========================================================================
 # PHASE 62: QUANTUM GEOMETRIC LANGLANDS & BORCHERDS-MOONSHINE-MONSTER WHITTAKER-DRINFELD HIGHER HOMOLOGY 12 COUPLER
@@ -12985,6 +13009,8 @@ class EnsembleScoringEngine:
     calc_realistic_cagr = calculate_realistic_annualized_cagr
     calculate_annualized_cagr_v111 = calculate_realistic_annualized_cagr
     f494_realistic_annualized_cagr = calculate_realistic_annualized_cagr
+    calculate_macro_factor_weights = staticmethod(modulate_macro_factor_weights)
+    modulate_macro_factor_weights = staticmethod(modulate_macro_factor_weights)
 
     def __init__(self, config=None, alpha_smoothing: float = 0.2):
         # Support TradingConfig for centralized constant management
@@ -12992,6 +13018,14 @@ class EnsembleScoringEngine:
         self.alpha_smoothing = alpha_smoothing
         self.version = getattr(config, 'version', 111) if config is not None else 111
         self.is_phase104 = (self.version >= 104)
+        self.is_phase106 = (self.version >= 106)
+        if DynamicMacroFactorTimingEngine is not None:
+            self.macro_factor_timing = DynamicMacroFactorTimingEngine(config=config)
+        else:
+            self.macro_factor_timing = None
+        self.MacroFactorTimingEngine = DynamicMacroFactorTimingEngine
+        self.Phase106MacroFactorTimingEngine = DynamicMacroFactorTimingEngine
+        self.MacroConditioningEngine = DynamicMacroFactorTimingEngine
         self._return_multiplier = 20.0  # default
         if config is not None:
             self._return_multiplier = getattr(config, "ensemble_return_multiplier", 20.0)
@@ -13897,6 +13931,7 @@ class EnsembleScoringEngine:
         enable_tv_smoothing: Optional[bool] = None,
         factor_autocorr_dict: Optional[Dict[str, float]] = None,
         version: int = 6,
+        macro_indicators: Optional[Union[Dict[str, Any], pd.DataFrame]] = None,
         **kwargs
     ) -> Dict[str, float]:
         """
@@ -13910,6 +13945,9 @@ class EnsembleScoringEngine:
         fabricated performance evidence as real — the dashboard must not claim dynamic
         weighting until real history exists.
         """
+        if macro_indicators is None:
+            macro_indicators = kwargs.get('macro_indicators', kwargs.get('indicators', kwargs.get('indicator_infer')))
+
         version = int(kwargs.get('version', version))
         prev_probs: Any = self._prev_regime_probs.get(market) if hasattr(self, '_prev_regime_probs') and isinstance(self._prev_regime_probs, dict) else None
         base_weights = self.get_base_weights(
@@ -13942,18 +13980,25 @@ class EnsembleScoringEngine:
         # Check for cold start (all zeros or empty)
         all_zero = len(clean_sharpes) == 0 or all(abs(v) < 1e-4 for v in clean_sharpes.values())
         if all_zero:
+            eff_base = dict(base_weights)
+            if macro_indicators is not None and getattr(self, 'macro_factor_timing', None) is not None:
+                eff_base = self.macro_factor_timing.modulate_strategy_weights(
+                    base_weights=eff_base,
+                    indicators=macro_indicators,
+                    market=market,
+                )
             self._weight_evolution_history.append(
                 {
                     "timestamp": pd.Timestamp.now().isoformat(),
                     "regime": str(regime_label_for_log),
                     "market": market,
-                    "weights": dict(base_weights),
+                    "weights": dict(eff_base),
                     "cold_start": True,
                 }
             )
-            self._prev_weights[market] = dict(base_weights)
+            self._prev_weights[market] = dict(eff_base)
             self._prev_regime[market] = str(regime_label_for_log)
-            return base_weights
+            return eff_base
 
         # Cap the dynamic multiplier range: exp(gamma*clip(sharpe, ±L)) with
         # L = ln(sqrt(MAX_MULTIPLIER_RATIO))/gamma keeps the multiplier ratio
@@ -14169,6 +14214,13 @@ class EnsembleScoringEngine:
         )
 
         if is_regime_shift and not use_tv_smoothing:
+            # Phase 106: Macro Factor Timing Modulation before instant reset return
+            if macro_indicators is not None and getattr(self, 'macro_factor_timing', None) is not None:
+                dynamic_weights = self.macro_factor_timing.modulate_strategy_weights(
+                    base_weights=dynamic_weights,
+                    indicators=macro_indicators,
+                    market=market,
+                )
             # Backward-compatible instant reset on 1-hot discrete regime shift without TV smoothing
             self._prev_weights[market] = dict(dynamic_weights)
             return dynamic_weights
@@ -14187,6 +14239,14 @@ class EnsembleScoringEngine:
             tot = sum(smoothed.values())
             if tot > 0:
                 dynamic_weights = {k: v / tot for k, v in smoothed.items()}
+
+        # Phase 106: Macro Factor Timing Modulation
+        if macro_indicators is not None and getattr(self, 'macro_factor_timing', None) is not None:
+            dynamic_weights = self.macro_factor_timing.modulate_strategy_weights(
+                base_weights=dynamic_weights,
+                indicators=macro_indicators,
+                market=market,
+            )
 
         self._prev_weights[market] = dict(dynamic_weights)
 
@@ -14518,6 +14578,7 @@ class EnsembleScoringEngine:
                                  decoupling_status: Optional[str] = None,
                                  dual_regimes: Optional[Dict[str, Any]] = None,
                                  prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+                                 macro_indicators: Optional[Union[Dict[str, Any], pd.DataFrame]] = None,
                                  **extra_kwargs: Any) -> pd.DataFrame:
         """
         Calculates 37-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
@@ -14551,8 +14612,17 @@ class EnsembleScoringEngine:
         eff_kr_regime = kr_regime if kr_regime is not None else (regime if regime is not None else 'SIDEWAYS_LOW_VOL')
         eff_decoupling = decoupling_status if decoupling_status is not None else 'COUPLED'
 
-        us_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, eff_us_regime, gamma=gamma, market="us")
-        kr_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, eff_kr_regime, gamma=gamma, market="kr")
+        macro_ind = macro_indicators if macro_indicators is not None else extra_kwargs.get(
+            'macro_indicators', extra_kwargs.get('indicator_infer', extra_kwargs.get('indicators_df'))
+        )
+        us_weights = self.compute_dynamic_weights_from_sharpe(
+            rolling_sharpes or {}, eff_us_regime, gamma=gamma, market="us",
+            macro_indicators=macro_ind, **extra_kwargs
+        )
+        kr_weights = self.compute_dynamic_weights_from_sharpe(
+            rolling_sharpes or {}, eff_kr_regime, gamma=gamma, market="kr",
+            macro_indicators=macro_ind, **extra_kwargs
+        )
 
         # Apply Decoupling Alpha Tilts if active
         if eff_decoupling == 'DECOUPLING_US_BULL_KR_BEAR':

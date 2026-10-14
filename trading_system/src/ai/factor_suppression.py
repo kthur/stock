@@ -40,6 +40,19 @@ QUINT_PILLAR_MAP = QuintPillarMap({
     'net': ['supply_chain', 'supply_chain_gnn', 'cross_asset_spillover', 'dual_correction', 'index_rebalance', 'card_factor', 'latr_factor']
 })
 
+# Phase 106 Macro Factor Timing Pillars
+MACRO_PILLAR_MAP = {
+    'QUALITY_VALUATION': [
+        'rim_valuation', 'accruals_quality', 'mq_factor',
+        'valueup_catalyst', 'factor_neutralized', 'regression',
+    ],
+    'MOMENTUM_BREAKOUT': [
+        'surge', 'range_expansion_breakout', 'vcp_rule',
+        'vcp_ml', 'trend_efficiency', 'sector_rotation',
+    ],
+}
+MACRO_FACTOR_TIMING_PILLARS = MACRO_PILLAR_MAP
+
 
 def apply_quintic_hyperbolic_deadband(
     scores_centered: Union[pd.Series, np.ndarray],
@@ -12230,6 +12243,9 @@ Phase100FactorSuppressionEngine = RegimeFactorSuppressionEngine
 Phase101FactorSuppressionEngine = RegimeFactorSuppressionEngine
 Phase102FactorSuppressionEngine = RegimeFactorSuppressionEngine
 Phase103FactorSuppressionEngine = RegimeFactorSuppressionEngine
+Phase104FactorSuppressionEngine = RegimeFactorSuppressionEngine
+Phase105FactorSuppressionEngine = RegimeFactorSuppressionEngine
+Phase106FactorSuppressionEngine = RegimeFactorSuppressionEngine
 
 
 _ALL_EXPORTS = [
@@ -16420,6 +16436,31 @@ def __getattr__(name: str) -> Any:
     if name == 'compute_perfectoid_prismatic_coupling':
         from .ensemble_scorer import PerfectoidPrismaticCoupler as _PPC
         return _PPC.compute
+    if name in ('Phase106FactorSuppressionEngine', 'Phase105FactorSuppressionEngine', 'Phase104FactorSuppressionEngine'):
+        return RegimeFactorSuppressionEngine
+    if name in (
+        'DynamicMacroFactorTimingEngine',
+        'MacroFactorTimingEngine',
+        'Phase106MacroFactorTimingEngine',
+        'MacroConditioningEngine',
+        'DynamicMacroTimingEngine',
+        'MacroFactorTimer',
+    ):
+        try:
+            from .macro_factor_timing import DynamicMacroFactorTimingEngine
+            return DynamicMacroFactorTimingEngine
+        except ImportError:
+            from trading_system.src.ai.macro_factor_timing import DynamicMacroFactorTimingEngine
+            return DynamicMacroFactorTimingEngine
+    if name == 'modulate_macro_factor_weights':
+        try:
+            from .macro_factor_timing import modulate_macro_factor_weights
+            return modulate_macro_factor_weights
+        except ImportError:
+            from trading_system.src.ai.macro_factor_timing import modulate_macro_factor_weights
+            return modulate_macro_factor_weights
+    if name in ('MACRO_PILLAR_MAP', 'MACRO_FACTOR_TIMING_PILLARS'):
+        return globals()[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 

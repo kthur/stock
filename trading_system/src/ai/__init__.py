@@ -1,7 +1,8 @@
 """
 AI & Quantitative Modeling Layer
 Provides unified access to machine learning prediction models (XGBoost/LSTM/Surge),
-cross-sectional score normalization, factor orthogonalization, and ensemble scoring engines.
+cross-sectional score normalization, factor orthogonalization, ensemble scoring engines,
+and dynamic macro factor timing.
 """
 
 from __future__ import annotations
@@ -15,6 +16,13 @@ try:
     from src.ai.llm_earnings_agent import LLMEarningsAgent
     from src.ai.llm_integration import InvestmentOpinion, LLMEngine, SentimentType
     from src.ai.sentiment import SentimentAnalyzer
+    from src.ai.macro_factor_timing import (
+        DynamicMacroFactorTimingEngine,
+        MacroFactorTimingEngine,
+        Phase106MacroFactorTimingEngine,
+        MacroConditioningEngine,
+        modulate_macro_factor_weights,
+    )
 except ImportError:
     from trading_system.src.ai.prediction_model import OnDevicePredictionModel
     from trading_system.src.ai.ensemble_scorer import EnsembleScoringEngine
@@ -24,6 +32,13 @@ except ImportError:
     from trading_system.src.ai.llm_earnings_agent import LLMEarningsAgent
     from trading_system.src.ai.llm_integration import InvestmentOpinion, LLMEngine, SentimentType
     from trading_system.src.ai.sentiment import SentimentAnalyzer
+    from trading_system.src.ai.macro_factor_timing import (
+        DynamicMacroFactorTimingEngine,
+        MacroFactorTimingEngine,
+        Phase106MacroFactorTimingEngine,
+        MacroConditioningEngine,
+        modulate_macro_factor_weights,
+    )
 
 __all__ = [
     "OnDevicePredictionModel",
@@ -36,4 +51,9 @@ __all__ = [
     "LLMEngine",
     "SentimentAnalyzer",
     "SentimentType",
+    "DynamicMacroFactorTimingEngine",
+    "MacroFactorTimingEngine",
+    "Phase106MacroFactorTimingEngine",
+    "MacroConditioningEngine",
+    "modulate_macro_factor_weights",
 ]
