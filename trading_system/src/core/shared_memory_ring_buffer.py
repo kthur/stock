@@ -1,0 +1,901 @@
+"""
+shared_memory_ring_buffer.py — High-Performance Zero-Copy Shared Memory IPC Ring Buffer
+Phase 108 (Release R124 / v115 Production Master)
+
+Provides:
+  1. SharedMemoryRingBuffer: Lock-free single-producer single-consumer (SPSC)
+     circular ring buffer using multiprocessing.shared_memory.
+  2. Zero-Copy Serialization: Binary struct pack_into / unpack_from directly
+     over memoryview without heap allocations or GC pressure.
+  3. Structured IPC Messages:
+     - LOBTickMessage: Level 2/3 orderbook ticks with 5-level depth snapshots.
+     - RiskAlertMessage: Real-time risk events, stop triggers, and circuit breakers.
+     - ExecutionOrderMessage: Sliced child orders, routing events, and executions.
+  4. Resilient Lifecycle:
+     - 256-byte cacheline-aligned binary header with magic uint32 (0x53484D52 'SHMR').
+     - Monotonic 64-bit sequence counters (head_seq, tail_seq).
+     - Cross-platform POSIX and Windows shared memory naming.
+     - Stale segment detection, heartbeat monitoring, and automatic dead-process reclamation.
+     - Context manager support with zero memory leak guarantees.
+  5. Alias Trees:
+     - ZeroCopySharedMemoryRingBuffer
+     - Phase108SharedMemoryRingBuffer
+     - HighPerformanceSharedMemoryIPC
+     - SharedMemoryIPCRingBuffer
+"""
+
+from __future__ import annotations
+
+import atexit
+import ctypes
+import logging
+import os
+import struct
+import sys
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass
+from enum import IntEnum
+from multiprocessing import shared_memory
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Binary Protocol Constants & Header Offsets
+# ---------------------------------------------------------------------------
+MAGIC_HEADER = 0x53484D52  # 'SHMR' in ASCII
+HEADER_VERSION = 115
+HEADER_SIZE = 256
+DEFAULT_CAPACITY = 2048     # Must be a power of 2
+DEFAULT_SLOT_SIZE = 512    # Fixed slot size in bytes
+
+STATUS_INITIALIZED = 0x01
+STATUS_PRODUCER_LIVE = 0x02
+STATUS_CONSUMER_LIVE = 0x04
+
+# Cacheline-aligned 256-byte Header Offsets
+OFFSET_MAGIC = 0              # uint32: 0x53484D52
+OFFSET_VERSION = 4            # uint16: 115
+OFFSET_STATUS_FLAGS = 6       # uint16: bit flags
+OFFSET_SLOT_SIZE = 8          # uint32: 512
+OFFSET_CAPACITY = 12          # uint32: e.g. 2048
+OFFSET_MASK = 16              # uint32: capacity - 1
+OFFSET_HEADER_SIZE = 20       # uint32: 256
+OFFSET_PRODUCER_PID = 24      # int64
+OFFSET_CONSUMER_PID = 32      # int64
+OFFSET_PRODUCER_HB = 40       # int64 (nanoseconds epoch)
+OFFSET_CONSUMER_HB = 48       # int64 (nanoseconds epoch)
+OFFSET_HEAD_SEQ = 56          # uint64 (written ONLY by producer)
+OFFSET_TAIL_SEQ = 64          # uint64 (written ONLY by consumer)
+OFFSET_DROPPED_COUNT = 72     # uint64
+OFFSET_TOTAL_WRITTEN = 80     # uint64
+OFFSET_TOTAL_READ = 88        # uint64
+OFFSET_SPINLOCK = 96          # uint32 (0: unlocked, 1: locked)
+OFFSET_SLOTS_DATA = 256       # Data region begins at offset 256
+
+HEADER_STRUCT_FMT = "<I H H I I I I q q q q Q Q Q Q Q I 156s"
+
+# Pre-compiled slot struct formats
+# Envelope: msg_type (H=2), msg_len (H=2), seq (Q=8), timestamp_ns (q=8) -> 20 bytes
+LOB_TICK_FMT = "<HHQq 16s dddddd I 5d 5d 5d 5d"   # 248 bytes
+RISK_ALERT_FMT = "<HHQq 32s 16s 8s ii dd i 96s"    # 200 bytes
+EXECUTION_ORDER_FMT = "<HHQq 32s 16s 8s ii dd i 16s" # 120 bytes
+
+LOB_TICK_LEN = struct.calcsize(LOB_TICK_FMT)
+RISK_ALERT_LEN = struct.calcsize(RISK_ALERT_FMT)
+EXECUTION_ORDER_LEN = struct.calcsize(EXECUTION_ORDER_FMT)
+
+
+# ---------------------------------------------------------------------------
+# Process Life & Name Helpers
+# ---------------------------------------------------------------------------
+def is_pid_alive(pid: int) -> bool:
+    """Checks whether a process with the given PID is actively running."""
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        try:
+            handle = ctypes.windll.kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+            )
+            if handle:
+                ctypes.windll.kernel32.CloseHandle(handle)
+                return True
+            return False
+        except Exception:
+            return False
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+
+
+def sanitize_shm_name(name: str) -> str:
+    """Normalizes shared memory name across Windows and POSIX platforms."""
+    clean = name.strip()
+    if os.name == "nt":
+        clean = clean.replace("/", "_").replace("\\", "_")
+    else:
+        if not clean.startswith("/"):
+            clean = "/" + clean
+    return clean
+
+
+# ---------------------------------------------------------------------------
+# Message Types & Dataclasses
+# ---------------------------------------------------------------------------
+class MessageType(IntEnum):
+    HEARTBEAT = 0
+    LOB_TICK = 1
+    RISK_ALERT = 2
+    EXECUTION_ORDER = 3
+    CUSTOM = 99
+
+
+@dataclass
+class LOBTickMessage:
+    symbol: str
+    timestamp_ns: int
+    bid_price: float
+    ask_price: float
+    bid_size: float
+    ask_size: float
+    last_price: float
+    last_size: float
+    depth_levels: int = 5
+    bid_prices: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0)
+    ask_prices: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0)
+    bid_sizes: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0)
+    ask_sizes: Tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.bid_prices, tuple):
+            self.bid_prices = tuple(float(x) for x in self.bid_prices)
+        if not isinstance(self.ask_prices, tuple):
+            self.ask_prices = tuple(float(x) for x in self.ask_prices)
+        if not isinstance(self.bid_sizes, tuple):
+            self.bid_sizes = tuple(float(x) for x in self.bid_sizes)
+        if not isinstance(self.ask_sizes, tuple):
+            self.ask_sizes = tuple(float(x) for x in self.ask_sizes)
+
+
+@dataclass
+class RiskAlertMessage:
+    alert_id: str
+    timestamp_ns: int
+    symbol: str
+    market: str
+    severity: int     # 1=INFO, 2=WARN, 3=CRITICAL, 4=EMERGENCY
+    alert_type: int   # 1=TP, 2=SL, 3=FLASH_CRASH, 4=VIX_SURGE, 5=CIRCUIT_BREAKER
+    metric_value: float
+    threshold_value: float
+    action_code: int  # 1=REDUCE, 2=LIQUIDATE, 3=INVERSE_HEDGE, 4=ALERT_ONLY
+    message: str = ""
+
+
+@dataclass
+class ExecutionOrderMessage:
+    order_id: str
+    symbol: str
+    market: str
+    timestamp_ns: int
+    side: int         # 1=BUY, -1=SELL
+    order_type: int   # 1=LIMIT, 2=MARKET, 3=ALMGREN_CHRISS_SLICE
+    quantity: float
+    price: float
+    status: int       # 1=NEW, 2=ROUTED, 3=FILLED, 4=CANCELLED, 5=REJECTED
+    client_id: str = "OMS_CLIENT"
+
+
+def _pad_tuple5(seq: Any) -> Tuple[float, float, float, float, float]:
+    """Ensures exactly 5 floats in tuple."""
+    if seq is None:
+        return (0.0, 0.0, 0.0, 0.0, 0.0)
+    vals = [float(x) for x in seq]
+    while len(vals) < 5:
+        vals.append(0.0)
+    return (vals[0], vals[1], vals[2], vals[3], vals[4])
+
+
+# ---------------------------------------------------------------------------
+# Core SharedMemoryRingBuffer Implementation
+# ---------------------------------------------------------------------------
+class SharedMemoryRingBuffer:
+    """
+    High-Performance Zero-Copy Shared Memory IPC Ring Buffer.
+    Implements lock-free Single Producer Single Consumer (SPSC) protocol
+    over memory-mapped shared memory.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        capacity: int = DEFAULT_CAPACITY,
+        slot_size: int = DEFAULT_SLOT_SIZE,
+        create: bool = True,
+        auto_unlink: bool = True,
+        spinlock_timeout_us: int = 100_000,
+        client_mode: Optional[str] = None,
+    ) -> None:
+        """
+        Initializes or attaches to a shared memory ring buffer.
+
+        Args:
+            name: Unique identifier for shared memory segment.
+            capacity: Number of slots (must be a positive power of 2).
+            slot_size: Size in bytes of each slot (minimum 256 bytes).
+            create: True to allocate new segment; False to attach to existing.
+            auto_unlink: If True, creator will unlink shared memory on close.
+            spinlock_timeout_us: Microsecond timeout for optional spinlock operations.
+            client_mode: Optional role hint: "producer", "consumer", or None.
+        """
+        self._name = sanitize_shm_name(name)
+        self._is_creator = False
+        self._auto_unlink = auto_unlink
+        self._spinlock_timeout_us = spinlock_timeout_us
+        self._client_mode = client_mode
+        self._is_closed = False
+        self._shm: Optional[shared_memory.SharedMemory] = None
+        self._buf: Optional[memoryview] = None
+
+        if create:
+            if capacity <= 0 or (capacity & (capacity - 1)) != 0:
+                raise ValueError(f"Capacity must be a positive power of 2, got {capacity}")
+            if slot_size < 256:
+                raise ValueError(f"Slot size must be at least 256 bytes, got {slot_size}")
+
+            self._capacity = capacity
+            self._slot_size = slot_size
+            self._mask = capacity - 1
+            total_size = HEADER_SIZE + capacity * slot_size
+
+            # Attempt to allocate; reclaim stale segment if FileExistsError
+            try:
+                self._shm = shared_memory.SharedMemory(
+                    name=self._name, create=True, size=total_size
+                )
+                self._is_creator = True
+            except FileExistsError:
+                if self._reclaim_stale_segment(total_size):
+                    self._shm = shared_memory.SharedMemory(
+                        name=self._name, create=True, size=total_size
+                    )
+                    self._is_creator = True
+                else:
+                    # Segment exists and is active; attach to it
+                    logger.info("Shared memory '%s' already active; attaching as client.", self._name)
+                    self._shm = shared_memory.SharedMemory(name=self._name, create=False)
+                    self._is_creator = False
+
+            self._buf = self._shm.buf
+
+            if self._is_creator:
+                self._init_header()
+            else:
+                self._validate_and_read_header()
+        else:
+            # Client attach mode
+            self._shm = shared_memory.SharedMemory(name=self._name, create=False)
+            self._buf = self._shm.buf
+            self._validate_and_read_header()
+
+        # Register process heartbeat and role
+        pid = os.getpid()
+        now_ns = time.time_ns()
+        if self._client_mode == "consumer" or (not self._is_creator and self._client_mode is None):
+            struct.pack_into("<q", self._buf, OFFSET_CONSUMER_PID, pid)
+            struct.pack_into("<q", self._buf, OFFSET_CONSUMER_HB, now_ns)
+            self._set_status_flag(STATUS_CONSUMER_LIVE)
+        else:
+            struct.pack_into("<q", self._buf, OFFSET_PRODUCER_PID, pid)
+            struct.pack_into("<q", self._buf, OFFSET_PRODUCER_HB, now_ns)
+            self._set_status_flag(STATUS_PRODUCER_LIVE)
+
+        # Register exit hook for clean resource disposal
+        atexit.register(self._cleanup_on_exit)
+
+    # -----------------------------------------------------------------------
+    # Header Initialization & Validation
+    # -----------------------------------------------------------------------
+    def _init_header(self) -> None:
+        """Writes the initial 256-byte header into shared memory."""
+        pid = os.getpid()
+        now_ns = time.time_ns()
+        flags = STATUS_INITIALIZED | STATUS_PRODUCER_LIVE
+        struct.pack_into(
+            HEADER_STRUCT_FMT,
+            self._buf,
+            0,
+            MAGIC_HEADER,
+            HEADER_VERSION,
+            flags,
+            self._slot_size,
+            self._capacity,
+            self._mask,
+            HEADER_SIZE,
+            pid,               # producer_pid
+            0,                 # consumer_pid
+            now_ns,            # producer_heartbeat_ns
+            0,                 # consumer_heartbeat_ns
+            0,                 # head_seq
+            0,                 # tail_seq
+            0,                 # dropped_count
+            0,                 # total_written
+            0,                 # total_read
+            0,                 # spinlock
+            b"\x00" * 156,     # padding
+        )
+
+    def _validate_and_read_header(self) -> None:
+        """Validates magic identifier and loads parameters from header."""
+        magic = struct.unpack_from("<I", self._buf, OFFSET_MAGIC)[0]
+        if magic != MAGIC_HEADER:
+            raise ValueError(
+                f"Invalid shared memory magic: 0x{magic:08X}, expected 0x{MAGIC_HEADER:08X} ('SHMR')"
+            )
+        self._slot_size = struct.unpack_from("<I", self._buf, OFFSET_SLOT_SIZE)[0]
+        self._capacity = struct.unpack_from("<I", self._buf, OFFSET_CAPACITY)[0]
+        self._mask = struct.unpack_from("<I", self._buf, OFFSET_MASK)[0]
+
+        if self._capacity <= 0 or (self._capacity & (self._capacity - 1)) != 0:
+            raise ValueError(f"Corrupted header capacity: {self._capacity}")
+        if self._slot_size < 256:
+            raise ValueError(f"Corrupted header slot_size: {self._slot_size}")
+
+    def _reclaim_stale_segment(self, total_size: int) -> bool:
+        """
+        Inspects existing segment. If owner PID is dead or heartbeat is older than
+        10 seconds, unlinks segment to allow clean re-creation.
+        """
+        try:
+            old_shm = shared_memory.SharedMemory(name=self._name, create=False)
+            buf = old_shm.buf
+            if len(buf) >= HEADER_SIZE:
+                magic = struct.unpack_from("<I", buf, OFFSET_MAGIC)[0]
+                if magic == MAGIC_HEADER:
+                    prod_pid = struct.unpack_from("<q", buf, OFFSET_PRODUCER_PID)[0]
+                    prod_hb = struct.unpack_from("<q", buf, OFFSET_PRODUCER_HB)[0]
+                    now_ns = time.time_ns()
+                    hb_age_sec = (now_ns - prod_hb) / 1e9 if prod_hb > 0 else 999.0
+                    alive = is_pid_alive(prod_pid)
+
+                    if not alive or hb_age_sec > 10.0:
+                        logger.warning(
+                            "Reclaiming stale SHM segment '%s' (PID %d alive=%s, heartbeat age=%.1fs)",
+                            self._name, prod_pid, alive, hb_age_sec,
+                        )
+                        buf.release()
+                        old_shm.close()
+                        old_shm.unlink()
+                        return True
+            buf.release()
+            old_shm.close()
+            return False
+        except Exception as e:
+            logger.warning("Error inspecting stale segment '%s': %s", self._name, e)
+            try:
+                # Force unlink if possible
+                force_shm = shared_memory.SharedMemory(name=self._name, create=False)
+                force_shm.buf.release()
+                force_shm.close()
+                force_shm.unlink()
+                return True
+            except Exception:
+                return False
+
+    def _set_status_flag(self, flag: int) -> None:
+        """Sets a status bitflag in the header."""
+        current = struct.unpack_from("<H", self._buf, OFFSET_STATUS_FLAGS)[0]
+        struct.pack_into("<H", self._buf, OFFSET_STATUS_FLAGS, current | flag)
+
+    # -----------------------------------------------------------------------
+    # Lock-free SPSC Write Operations
+    # -----------------------------------------------------------------------
+    def write_tick(self, tick: LOBTickMessage, timeout_sec: float = 0.0) -> bool:
+        """
+        Zero-copy serialization of Level 2/3 LOB tick into ring buffer.
+        Returns True on successful append, False if buffer is full.
+        """
+        slot_offset = self._reserve_write_slot(timeout_sec)
+        if slot_offset < 0:
+            return False
+
+        current_seq = struct.unpack_from("<Q", self._buf, OFFSET_HEAD_SEQ)[0]
+        sym_bytes = tick.symbol.encode("utf-8")[:16].ljust(16, b"\x00")
+        bids = _pad_tuple5(tick.bid_prices)
+        asks = _pad_tuple5(tick.ask_prices)
+        bsizes = _pad_tuple5(tick.bid_sizes)
+        asizes = _pad_tuple5(tick.ask_sizes)
+
+        struct.pack_into(
+            LOB_TICK_FMT,
+            self._buf,
+            slot_offset,
+            int(MessageType.LOB_TICK),
+            LOB_TICK_LEN,
+            current_seq,
+            tick.timestamp_ns,
+            sym_bytes,
+            tick.bid_price,
+            tick.ask_price,
+            tick.bid_size,
+            tick.ask_size,
+            tick.last_price,
+            tick.last_size,
+            tick.depth_levels,
+            *bids,
+            *asks,
+            *bsizes,
+            *asizes,
+        )
+        self._commit_write(current_seq)
+        return True
+
+    def write_alert(self, alert: RiskAlertMessage, timeout_sec: float = 0.0) -> bool:
+        """
+        Zero-copy serialization of Risk Alert into ring buffer.
+        """
+        slot_offset = self._reserve_write_slot(timeout_sec)
+        if slot_offset < 0:
+            return False
+
+        current_seq = struct.unpack_from("<Q", self._buf, OFFSET_HEAD_SEQ)[0]
+        alert_bytes = alert.alert_id.encode("utf-8")[:32].ljust(32, b"\x00")
+        sym_bytes = alert.symbol.encode("utf-8")[:16].ljust(16, b"\x00")
+        mkt_bytes = alert.market.encode("utf-8")[:8].ljust(8, b"\x00")
+        msg_bytes = alert.message.encode("utf-8")[:96].ljust(96, b"\x00")
+
+        struct.pack_into(
+            RISK_ALERT_FMT,
+            self._buf,
+            slot_offset,
+            int(MessageType.RISK_ALERT),
+            RISK_ALERT_LEN,
+            current_seq,
+            alert.timestamp_ns,
+            alert_bytes,
+            sym_bytes,
+            mkt_bytes,
+            int(alert.severity),
+            int(alert.alert_type),
+            float(alert.metric_value),
+            float(alert.threshold_value),
+            int(alert.action_code),
+            msg_bytes,
+        )
+        self._commit_write(current_seq)
+        return True
+
+    def write_order(self, order: ExecutionOrderMessage, timeout_sec: float = 0.0) -> bool:
+        """
+        Zero-copy serialization of Execution Order into ring buffer.
+        """
+        slot_offset = self._reserve_write_slot(timeout_sec)
+        if slot_offset < 0:
+            return False
+
+        current_seq = struct.unpack_from("<Q", self._buf, OFFSET_HEAD_SEQ)[0]
+        order_bytes = order.order_id.encode("utf-8")[:32].ljust(32, b"\x00")
+        sym_bytes = order.symbol.encode("utf-8")[:16].ljust(16, b"\x00")
+        mkt_bytes = order.market.encode("utf-8")[:8].ljust(8, b"\x00")
+        client_bytes = order.client_id.encode("utf-8")[:16].ljust(16, b"\x00")
+
+        struct.pack_into(
+            EXECUTION_ORDER_FMT,
+            self._buf,
+            slot_offset,
+            int(MessageType.EXECUTION_ORDER),
+            EXECUTION_ORDER_LEN,
+            current_seq,
+            order.timestamp_ns,
+            order_bytes,
+            sym_bytes,
+            mkt_bytes,
+            int(order.side),
+            int(order.order_type),
+            float(order.quantity),
+            float(order.price),
+            int(order.status),
+            client_bytes,
+        )
+        self._commit_write(current_seq)
+        return True
+
+    def write_message(
+        self,
+        msg: Union[LOBTickMessage, RiskAlertMessage, ExecutionOrderMessage],
+        timeout_sec: float = 0.0,
+    ) -> bool:
+        """Generic polymorphic dispatcher for supported IPC messages."""
+        if isinstance(msg, LOBTickMessage):
+            return self.write_tick(msg, timeout_sec)
+        elif isinstance(msg, RiskAlertMessage):
+            return self.write_alert(msg, timeout_sec)
+        elif isinstance(msg, ExecutionOrderMessage):
+            return self.write_order(msg, timeout_sec)
+        else:
+            raise TypeError(f"Unsupported message type: {type(msg)}")
+
+    def _reserve_write_slot(self, timeout_sec: float) -> int:
+        """
+        Verifies buffer capacity and calculates memoryview slot offset.
+        If buffer is full, waits up to timeout_sec; otherwise increments dropped_count.
+        """
+        deadline = time.time() + timeout_sec if timeout_sec > 0 else 0.0
+        while True:
+            head = struct.unpack_from("<Q", self._buf, OFFSET_HEAD_SEQ)[0]
+            tail = struct.unpack_from("<Q", self._buf, OFFSET_TAIL_SEQ)[0]
+            occupancy = head - tail
+
+            if occupancy < self._capacity:
+                slot_index = head & self._mask
+                return OFFSET_SLOTS_DATA + slot_index * self._slot_size
+
+            if timeout_sec <= 0.0 or time.time() >= deadline:
+                # Buffer full: drop message
+                dropped = struct.unpack_from("<Q", self._buf, OFFSET_DROPPED_COUNT)[0]
+                struct.pack_into("<Q", self._buf, OFFSET_DROPPED_COUNT, dropped + 1)
+                return -1
+
+            # Brief spin/sleep
+            time.sleep(0.0001)
+
+    def _commit_write(self, current_seq: int) -> None:
+        """Atomically commits written slot by updating head_seq and telemetry."""
+        now_ns = time.time_ns()
+        struct.pack_into("<Q", self._buf, OFFSET_HEAD_SEQ, current_seq + 1)
+        total_w = struct.unpack_from("<Q", self._buf, OFFSET_TOTAL_WRITTEN)[0]
+        struct.pack_into("<Q", self._buf, OFFSET_TOTAL_WRITTEN, total_w + 1)
+        struct.pack_into("<q", self._buf, OFFSET_PRODUCER_HB, now_ns)
+
+    # -----------------------------------------------------------------------
+    # Lock-free SPSC Read Operations
+    # -----------------------------------------------------------------------
+    def read_message(
+        self, timeout_sec: float = 0.0
+    ) -> Optional[Union[LOBTickMessage, RiskAlertMessage, ExecutionOrderMessage]]:
+        """
+        Direct zero-copy deserialization of the next message in the ring buffer.
+        Returns the parsed message dataclass or None if no message is available.
+        """
+        deadline = time.time() + timeout_sec if timeout_sec > 0 else 0.0
+        while True:
+            head = struct.unpack_from("<Q", self._buf, OFFSET_HEAD_SEQ)[0]
+            tail = struct.unpack_from("<Q", self._buf, OFFSET_TAIL_SEQ)[0]
+
+            if head > tail:
+                slot_index = tail & self._mask
+                slot_offset = OFFSET_SLOTS_DATA + slot_index * self._slot_size
+                msg = self._deserialize_slot(slot_offset)
+
+                # Commit read
+                now_ns = time.time_ns()
+                struct.pack_into("<Q", self._buf, OFFSET_TAIL_SEQ, tail + 1)
+                total_r = struct.unpack_from("<Q", self._buf, OFFSET_TOTAL_READ)[0]
+                struct.pack_into("<Q", self._buf, OFFSET_TOTAL_READ, total_r + 1)
+                struct.pack_into("<q", self._buf, OFFSET_CONSUMER_HB, now_ns)
+                return msg
+
+            if timeout_sec <= 0.0 or time.time() >= deadline:
+                return None
+
+            time.sleep(0.0001)
+
+    def read_batch(
+        self, max_items: int = 100
+    ) -> List[Union[LOBTickMessage, RiskAlertMessage, ExecutionOrderMessage]]:
+        """Reads up to max_items non-blockingly from the buffer."""
+        items: List[Union[LOBTickMessage, RiskAlertMessage, ExecutionOrderMessage]] = []
+        for _ in range(max_items):
+            msg = self.read_message(timeout_sec=0.0)
+            if msg is None:
+                break
+            items.append(msg)
+        return items
+
+    def peek_message(
+        self,
+    ) -> Optional[Union[LOBTickMessage, RiskAlertMessage, ExecutionOrderMessage]]:
+        """Inspects the next available message without advancing tail_seq."""
+        head = struct.unpack_from("<Q", self._buf, OFFSET_HEAD_SEQ)[0]
+        tail = struct.unpack_from("<Q", self._buf, OFFSET_TAIL_SEQ)[0]
+        if head > tail:
+            slot_index = tail & self._mask
+            slot_offset = OFFSET_SLOTS_DATA + slot_index * self._slot_size
+            return self._deserialize_slot(slot_offset)
+        return None
+
+    def _deserialize_slot(
+        self, slot_offset: int
+    ) -> Optional[Union[LOBTickMessage, RiskAlertMessage, ExecutionOrderMessage]]:
+        """Deserializes a binary message from the given slot offset."""
+        msg_type = struct.unpack_from("<H", self._buf, slot_offset)[0]
+
+        if msg_type == int(MessageType.LOB_TICK):
+            vals = struct.unpack_from(LOB_TICK_FMT, self._buf, slot_offset)
+            symbol = vals[4].decode("utf-8", errors="ignore").rstrip("\x00")
+            bids = tuple(vals[12:17])
+            asks = tuple(vals[17:22])
+            bsizes = tuple(vals[22:27])
+            asizes = tuple(vals[27:32])
+            return LOBTickMessage(
+                symbol=symbol,
+                timestamp_ns=vals[3],
+                bid_price=vals[5],
+                ask_price=vals[6],
+                bid_size=vals[7],
+                ask_size=vals[8],
+                last_price=vals[9],
+                last_size=vals[10],
+                depth_levels=vals[11],
+                bid_prices=bids,
+                ask_prices=asks,
+                bid_sizes=bsizes,
+                ask_sizes=asizes,
+            )
+
+        elif msg_type == int(MessageType.RISK_ALERT):
+            vals = struct.unpack_from(RISK_ALERT_FMT, self._buf, slot_offset)
+            alert_id = vals[4].decode("utf-8", errors="ignore").rstrip("\x00")
+            symbol = vals[5].decode("utf-8", errors="ignore").rstrip("\x00")
+            market = vals[6].decode("utf-8", errors="ignore").rstrip("\x00")
+            message = vals[12].decode("utf-8", errors="ignore").rstrip("\x00")
+            return RiskAlertMessage(
+                alert_id=alert_id,
+                timestamp_ns=vals[3],
+                symbol=symbol,
+                market=market,
+                severity=vals[7],
+                alert_type=vals[8],
+                metric_value=vals[9],
+                threshold_value=vals[10],
+                action_code=vals[11],
+                message=message,
+            )
+
+        elif msg_type == int(MessageType.EXECUTION_ORDER):
+            vals = struct.unpack_from(EXECUTION_ORDER_FMT, self._buf, slot_offset)
+            order_id = vals[4].decode("utf-8", errors="ignore").rstrip("\x00")
+            symbol = vals[5].decode("utf-8", errors="ignore").rstrip("\x00")
+            market = vals[6].decode("utf-8", errors="ignore").rstrip("\x00")
+            client_id = vals[12].decode("utf-8", errors="ignore").rstrip("\x00")
+            return ExecutionOrderMessage(
+                order_id=order_id,
+                symbol=symbol,
+                market=market,
+                timestamp_ns=vals[3],
+                side=vals[7],
+                order_type=vals[8],
+                quantity=vals[9],
+                price=vals[10],
+                status=vals[11],
+                client_id=client_id,
+            )
+
+        return None
+
+    # -----------------------------------------------------------------------
+    # Status, Telemetry & Spinlock Primitives
+    # -----------------------------------------------------------------------
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def capacity(self) -> int:
+        return self._capacity
+
+    @property
+    def slot_size(self) -> int:
+        return self._slot_size
+
+    @property
+    def head_seq(self) -> int:
+        return struct.unpack_from("<Q", self._buf, OFFSET_HEAD_SEQ)[0]
+
+    @property
+    def tail_seq(self) -> int:
+        return struct.unpack_from("<Q", self._buf, OFFSET_TAIL_SEQ)[0]
+
+    @property
+    def dropped_count(self) -> int:
+        return struct.unpack_from("<Q", self._buf, OFFSET_DROPPED_COUNT)[0]
+
+    @property
+    def total_written(self) -> int:
+        return struct.unpack_from("<Q", self._buf, OFFSET_TOTAL_WRITTEN)[0]
+
+    @property
+    def total_read(self) -> int:
+        return struct.unpack_from("<Q", self._buf, OFFSET_TOTAL_READ)[0]
+
+    @property
+    def is_closed(self) -> bool:
+        return self._is_closed
+
+    @property
+    def is_creator(self) -> bool:
+        return self._is_creator
+
+    def available_read(self) -> int:
+        """Returns the number of unconsumed messages in the buffer."""
+        head = self.head_seq
+        tail = self.tail_seq
+        return max(0, head - tail)
+
+    def available_write(self) -> int:
+        """Returns the remaining slot capacity available for writing."""
+        head = self.head_seq
+        tail = self.tail_seq
+        return max(0, self._capacity - (head - tail))
+
+    def is_empty(self) -> bool:
+        return self.available_read() == 0
+
+    def is_full(self) -> bool:
+        return self.available_write() == 0
+
+    def update_producer_heartbeat(self) -> None:
+        """Updates producer heartbeat timestamp."""
+        struct.pack_into("<q", self._buf, OFFSET_PRODUCER_HB, time.time_ns())
+
+    def update_consumer_heartbeat(self) -> None:
+        """Updates consumer heartbeat timestamp."""
+        struct.pack_into("<q", self._buf, OFFSET_CONSUMER_HB, time.time_ns())
+
+    def acquire_spinlock(self, timeout_us: Optional[int] = None) -> bool:
+        """Acquires the header spinlock with timeout."""
+        limit_us = timeout_us if timeout_us is not None else self._spinlock_timeout_us
+        deadline_ns = time.time_ns() + limit_us * 1000
+        while True:
+            val = struct.unpack_from("<I", self._buf, OFFSET_SPINLOCK)[0]
+            if val == 0:
+                struct.pack_into("<I", self._buf, OFFSET_SPINLOCK, 1)
+                return True
+            if time.time_ns() >= deadline_ns:
+                return False
+            time.sleep(0.00001)
+
+    def release_spinlock(self) -> None:
+        """Releases the header spinlock."""
+        struct.pack_into("<I", self._buf, OFFSET_SPINLOCK, 0)
+
+    @contextmanager
+    def spinlock_guard(self, timeout_us: Optional[int] = None) -> Generator[bool, None, None]:
+        """Context manager for acquiring the spinlock."""
+        acquired = self.acquire_spinlock(timeout_us)
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                self.release_spinlock()
+
+    def reset(self) -> None:
+        """Resets sequences and counters to zero."""
+        struct.pack_into("<Q", self._buf, OFFSET_HEAD_SEQ, 0)
+        struct.pack_into("<Q", self._buf, OFFSET_TAIL_SEQ, 0)
+        struct.pack_into("<Q", self._buf, OFFSET_DROPPED_COUNT, 0)
+        struct.pack_into("<Q", self._buf, OFFSET_TOTAL_WRITTEN, 0)
+        struct.pack_into("<Q", self._buf, OFFSET_TOTAL_READ, 0)
+
+    def stats(self) -> Dict[str, Any]:
+        """Returns comprehensive diagnostic telemetry."""
+        return {
+            "name": self._name,
+            "capacity": self._capacity,
+            "slot_size": self._slot_size,
+            "head_seq": self.head_seq,
+            "tail_seq": self.tail_seq,
+            "available_read": self.available_read(),
+            "available_write": self.available_write(),
+            "total_written": self.total_written,
+            "total_read": self.total_read,
+            "dropped_count": self.dropped_count,
+            "is_empty": self.is_empty(),
+            "is_full": self.is_full(),
+            "producer_pid": struct.unpack_from("<q", self._buf, OFFSET_PRODUCER_PID)[0],
+            "consumer_pid": struct.unpack_from("<q", self._buf, OFFSET_CONSUMER_PID)[0],
+            "is_closed": self._is_closed,
+            "is_creator": self._is_creator,
+        }
+
+    # -----------------------------------------------------------------------
+    # Lifecycle, Context Manager & Resource Disposal
+    # -----------------------------------------------------------------------
+    def close(self) -> None:
+        """Closes memoryview and local shared memory handle."""
+        if not self._is_closed:
+            self._is_closed = True
+            try:
+                if self._buf is not None:
+                    self._buf.release()
+                    self._buf = None
+            except Exception:
+                pass
+            try:
+                if self._shm is not None:
+                    self._shm.close()
+            except Exception:
+                pass
+
+    def unlink(self) -> None:
+        """Unlinks shared memory segment from the operating system."""
+        try:
+            if self._shm is not None:
+                self._shm.unlink()
+        except Exception:
+            pass
+
+    def __enter__(self) -> SharedMemoryRingBuffer:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+        if self._auto_unlink and self._is_creator:
+            self.unlink()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+            if self._auto_unlink and self._is_creator:
+                self.unlink()
+        except Exception:
+            pass
+
+    def _cleanup_on_exit(self) -> None:
+        """atexit callback to ensure clean shutdown."""
+        try:
+            if not self._is_closed:
+                self.close()
+                if self._auto_unlink and self._is_creator:
+                    self.unlink()
+        except Exception:
+            pass
+
+    @classmethod
+    def cleanup_segment(cls, name: str) -> bool:
+        """Utility classmethod to forcibly unlink a named segment."""
+        clean = sanitize_shm_name(name)
+        try:
+            shm = shared_memory.SharedMemory(name=clean, create=False)
+            try:
+                shm.buf.release()
+            except Exception:
+                pass
+            shm.close()
+            shm.unlink()
+            return True
+        except Exception:
+            return False
+
+
+# ---------------------------------------------------------------------------
+# Complete Alias Trees
+# ---------------------------------------------------------------------------
+ZeroCopySharedMemoryRingBuffer = SharedMemoryRingBuffer
+Phase108SharedMemoryRingBuffer = SharedMemoryRingBuffer
+HighPerformanceSharedMemoryIPC = SharedMemoryRingBuffer
+SharedMemoryIPCRingBuffer = SharedMemoryRingBuffer
+
+__all__ = [
+    "SharedMemoryRingBuffer",
+    "ZeroCopySharedMemoryRingBuffer",
+    "Phase108SharedMemoryRingBuffer",
+    "HighPerformanceSharedMemoryIPC",
+    "SharedMemoryIPCRingBuffer",
+    "MessageType",
+    "LOBTickMessage",
+    "RiskAlertMessage",
+    "ExecutionOrderMessage",
+    "is_pid_alive",
+    "sanitize_shm_name",
+    "MAGIC_HEADER",
+    "HEADER_VERSION",
+    "HEADER_SIZE",
+    "DEFAULT_CAPACITY",
+    "DEFAULT_SLOT_SIZE",
+]
