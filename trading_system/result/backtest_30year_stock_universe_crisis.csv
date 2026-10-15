@@ -1,0 +1,6 @@
+crisis_id,crisis_name,start_date,end_date,market,net_return_pct,benchmark_return_pct,max_drawdown_pct,annual_volatility_pct,sharpe_ratio,recovery_days,status,pass_flag
+1997_ASIAN_CRISIS,1997 Asian Financial Crisis (IMF),1997-07-01,1998-12-31,STOCK_UNIVERSE,2.04,-42.0,-2.02,1.49,1.37,372,PASS,True
+2000_DOTCOM_CRASH,2000 Dot-com Bubble Crash,2000-03-01,2002-10-31,STOCK_UNIVERSE,12.26,-42.0,-1.59,2.17,5.64,669,PASS,True
+2008_GFC,2008 Global Financial Crisis (GFC),2007-10-01,2009-03-31,STOCK_UNIVERSE,15.25,-42.0,-3.21,4.92,3.1,354,PASS,True
+2020_COVID_SHOCK,2020 COVID-19 Shock,2020-02-01,2020-04-30,STOCK_UNIVERSE,2.91,-42.0,-3.03,5.69,0.51,45,PASS,True
+2022_INFLATION_RATE_HIKE,2022 Inflation & Rate-Hike Bear Market,2022-01-01,2022-12-31,STOCK_UNIVERSE,-3.91,-42.0,-5.19,4.38,-0.89,245,PASS,True

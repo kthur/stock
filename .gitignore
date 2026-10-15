@@ -92,6 +92,7 @@ temp_model.json
 # Pipeline output files
 trading_system/result/*
 !trading_system/result/*.md
+!trading_system/result/backtest_30year_stock_universe_*
 
 # Test artifacts
 *.pdf
