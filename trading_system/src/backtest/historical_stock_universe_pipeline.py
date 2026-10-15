@@ -1259,7 +1259,7 @@ class HistoricalStockUniversePipeline:
             return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
 
         n = len(valid_dates)
-        seed = 42 + int(hashlib.md5(symbol.encode()).hexdigest(), 16) % 10000
+        seed = 42 + int(hashlib.md5(symbol.encode(), usedforsecurity=False).hexdigest(), 16) % 10000  # nosec B324
         rng = np.random.RandomState(seed)
 
         is_krx = is_krx_market(meta.market)
@@ -1413,7 +1413,7 @@ class HistoricalStockUniversePipeline:
             quarter_dates = pd.date_range(start_date, end_date, freq="Q")
         if len(quarter_dates) == 0:
             return pd.DataFrame()
-        seed = 42 + int(hashlib.md5(symbol.encode()).hexdigest(), 16) % 10000
+        seed = 42 + int(hashlib.md5(symbol.encode(), usedforsecurity=False).hexdigest(), 16) % 10000  # nosec B324
         rng = np.random.RandomState(seed)
 
         is_krx = is_krx_market(meta.market)

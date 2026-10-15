@@ -1265,7 +1265,7 @@ class MarketIndicatorStorage:
         if isinstance(symbols, str):
             symbols = [symbols]
         placeholders = ','.join('?' for _ in symbols)
-        sql = f"DELETE FROM fundamental_cache_meta WHERE symbol IN ({placeholders})"
+        sql = f"DELETE FROM fundamental_cache_meta WHERE symbol IN ({placeholders})"  # nosec B608
         with self._write_lock:
             with self._connect() as conn:
                 cursor = conn.execute(sql, list(symbols))

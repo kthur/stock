@@ -227,7 +227,7 @@ class AlertDispatcher:
                 },
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                 status = getattr(resp, "status", None) or resp.getcode()
                 if 200 <= status < 300:
                     self.logger.info("[AlertDispatcher] Telegram alert delivered (status=%s).", status)
@@ -282,7 +282,7 @@ class AlertDispatcher:
                 },
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                 status = getattr(resp, "status", None) or resp.getcode()
                 if 200 <= status < 300:
                     self.logger.info("[AlertDispatcher] Slack webhook delivered (status=%s).", status)
