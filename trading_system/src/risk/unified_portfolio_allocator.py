@@ -65,7 +65,7 @@ class UnifiedPortfolioAllocator:
         self.max_sector_weight = float(max_sector_weight) if (max_sector_weight is not None and math.isfinite(float(max_sector_weight)) and float(max_sector_weight) > 0) else 0.35
         self.default_max_total_allocation = float(default_max_total_allocation) if (default_max_total_allocation is not None and math.isfinite(float(default_max_total_allocation)) and float(default_max_total_allocation) > 0) else 0.90
         self.risk_aversion = float(risk_aversion) if (risk_aversion is not None and math.isfinite(float(risk_aversion)) and float(risk_aversion) > 0) else 1.0
-        if version in (85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103):
+        if version in (85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110):
             import inspect
             import re
             frame = inspect.currentframe()
@@ -77,7 +77,14 @@ class UnifiedPortfolioAllocator:
                     if m:
                         version = int(m.group(1))
         self.version = int(version)
-        self.is_phase103 = (self.version >= 103)
+        self.is_phase110 = (self.version >= 110)
+        self.is_phase109 = (self.version >= 109) or self.is_phase110
+        self.is_phase108 = (self.version >= 108) or self.is_phase109
+        self.is_phase107 = (self.version >= 107) or self.is_phase108
+        self.is_phase106 = (self.version >= 106) or self.is_phase107
+        self.is_phase105 = (self.version >= 105) or self.is_phase106
+        self.is_phase104 = (self.version >= 104) or self.is_phase105
+        self.is_phase103 = (self.version >= 103) or self.is_phase104
         self.is_phase102 = (self.version >= 102) or self.is_phase103
         self.is_phase101 = (self.version >= 101) or self.is_phase102
         self.is_phase100 = (self.version >= 100) or self.is_phase101
@@ -108,6 +115,20 @@ class UnifiedPortfolioAllocator:
         self.target_horizon = int(target_horizon)
         self.rebalance_mode = str(rebalance_mode).lower() if rebalance_mode is not None else "boundary"
         self._last_blend_weights: Optional[Dict[str, float]] = None
+        self.herc_entropy_allocator = None
+        if self.is_phase110:
+            try:
+                from src.risk.hierarchical_entropy_allocator import HierarchicalEntropyAllocator
+                self.herc_entropy_allocator = HierarchicalEntropyAllocator(
+                    target_volatility=self.target_volatility,
+                    max_single_weight=self.max_single_weight,
+                    max_sector_weight=self.max_sector_weight,
+                    rebalance_mode=self.rebalance_mode,
+                    version=self.version,
+                )
+            except Exception as e_alloc:
+                logger.debug(f"[HierarchicalEntropyAllocator init] {e_alloc}")
+                self.herc_entropy_allocator = None
 
     @staticmethod
     def calculate_asymmetric_leland_multipliers(
@@ -25138,6 +25159,60 @@ class UnifiedPortfolioAllocator:
         inv_v = 1.0 / vols
         return np.asarray(inv_v / np.sum(inv_v), dtype=float)
 
+    def calculate_herc_entropy_weights(
+        self,
+        cov_matrix: np.ndarray,
+        predicted_returns: Optional[Union[np.ndarray, pd.Series, Dict[str, float]]] = None,
+        returns_df: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+        symbols: Optional[List[str]] = None,
+        sectors: Optional[List[str]] = None,
+        regime: Optional[str] = "SIDEWAYS_LOW_VOL",
+        current_weights: Optional[Dict[str, float]] = None,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """
+        Phase 110: Calculates Multi-Regime Hierarchical Equal Risk Contribution
+        with Meucci's Black-Litterman Entropy Pooling weights.
+        """
+        allocator = getattr(self, "herc_entropy_allocator", None)
+        if allocator is None:
+            try:
+                from src.risk.hierarchical_entropy_allocator import HierarchicalEntropyAllocator
+                allocator = HierarchicalEntropyAllocator(
+                    target_volatility=self.target_volatility,
+                    max_single_weight=self.max_single_weight,
+                    max_sector_weight=self.max_sector_weight,
+                    rebalance_mode=self.rebalance_mode,
+                    version=self.version,
+                )
+                self.herc_entropy_allocator = allocator
+            except Exception as e_alloc:
+                logger.debug(f"[UnifiedPortfolioAllocator calculate_herc_entropy_weights] {e_alloc}")
+                allocator = None
+
+        if allocator is not None:
+            data = returns_df if returns_df is not None else cov_matrix
+            res = allocator.allocate(
+                returns_data=data,
+                cov_matrix=cov_matrix,
+                predicted_returns=predicted_returns,
+                symbols=symbols,
+                sectors=sectors,
+                regime=regime,
+                current_weights=current_weights,
+                **kwargs,
+            )
+            return res.weights_vector
+
+        return calculate_herc_weights(
+            cov_matrix=cov_matrix,
+            symbols=symbols,
+            sectors=sectors,
+            max_single_stock_weight=self.max_single_weight,
+            max_sector_weight=self.max_sector_weight,
+            **kwargs,
+        )
+
     def optimize_multi_model_blend(
         self,
         predicted_returns: np.ndarray,
@@ -25308,20 +25383,30 @@ class UnifiedPortfolioAllocator:
         w_herc = np.full(n, 1.0 / n)
         if blend_cfg["herc"] > 0:
             try:
-                herc_kwargs = {}
-                if getattr(self, "is_phase103", False):
-                    herc_kwargs["risk_measure"] = "sortino"
-                    if returns_df is not None and (hasattr(returns_df, "empty") and not returns_df.empty or len(returns_df) > 0):
-                        herc_kwargs["returns_df"] = returns_df
-                w_herc = calculate_herc_weights(
-                    cov_matrix=cov_matrix,
-                    symbols=symbols,
-                    sectors=sectors,
-                    max_k=min(5, max(2, n // 2)),
-                    max_single_stock_weight=self.max_single_weight,
-                    max_sector_weight=self.max_sector_weight,
-                    **herc_kwargs,
-                )
+                if getattr(self, "is_phase110", False):
+                    w_herc = self.calculate_herc_entropy_weights(
+                        cov_matrix=cov_matrix,
+                        predicted_returns=eff_predicted_returns,
+                        returns_df=returns_df,
+                        symbols=symbols,
+                        sectors=sectors,
+                        regime=regime,
+                    )
+                else:
+                    herc_kwargs = {}
+                    if getattr(self, "is_phase103", False):
+                        herc_kwargs["risk_measure"] = "sortino"
+                        if returns_df is not None and (hasattr(returns_df, "empty") and not returns_df.empty or len(returns_df) > 0):
+                            herc_kwargs["returns_df"] = returns_df
+                    w_herc = calculate_herc_weights(
+                        cov_matrix=cov_matrix,
+                        symbols=symbols,
+                        sectors=sectors,
+                        max_k=min(5, max(2, n // 2)),
+                        max_single_stock_weight=self.max_single_weight,
+                        max_sector_weight=self.max_sector_weight,
+                        **herc_kwargs,
+                    )
             except Exception as e:
                 logger.debug(f"[HERC] Failed, fallback to HRP: {e}")
                 w_hrp_raw = calculate_hrp_weights(cov_matrix, symbols=symbols, sectors=sectors)
