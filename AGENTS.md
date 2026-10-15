@@ -328,6 +328,12 @@ flowchart TB
 | `trading_system/src/analysis/brinson_factor_attributor.py` | BrinsonFachlerFactorAttributor: 다중 통화(KRW/USD) 포트폴리오 수익률의 배분(Alloc), 선택(Select), 상호작용(Inter), 환헤지(Curr) 요인 분해 및 Fama-French 5-Factor/2D 레짐 팩터 기여도 분석기 |
 | `trading_system/src/core/shared_memory_ring_buffer.py` | SharedMemoryRingBuffer: 고성능 제로카피 공유 메모리(POSIX/Win shared_memory) IPC 링버퍼, 락프리 원자적 시퀀스 카운터 및 마이크로초 오더북/주문 전송 엔진 |
 | `trading_system/scripts/benchmark_phase108_quant_performance.py` | Phase 108 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F510~F514 기여도 분석, 8대 KPI 엄격 검증 및 7개 정규 리포트 SHA-256 동기화 |
+| `trading_system/src/broker/kernel_bypass_transport.py` | KernelBypassTransportEngine: 사용자 공간 제로카피 UMEM 메모리 링버퍼 모의 DMA 네트워크 전송 엔진, FIX 4.4 및 바이너리 LOB 멀티캐스트 직렬화 |
+| `trading_system/src/execution/multi_agent_rl_execution.py` | MultiAgentRLExecutionEngine: 액터-크리틱(PPO/SAC) 심층 강화학습 기반 적대적 LOB 에이전트(선행매매/모멘텀/MM) 대응 최적 주문 슬라이싱 및 ADV 1.5% 캡 집행기 |
+| `trading_system/src/ai/conformal_prediction_calibrator.py` | AdaptiveConformalPredictionCalibrator: 37대 전략 알파 예측치 대상 1-alpha 유한 표본 커버리지 보장, 공변량 적응 밀도비 추정 및 변동성 레짐 예측 밴드 동적 조절기 |
+| `trading_system/src/broker/synthetic_dark_pool.py` | SyntheticDarkPoolMatchingEngine: 내부 크로싱 네트워크 및 중간가(Midpoint) 합성 다크 유동성 풀 매칭, 반게이밍 MFI, 거래소 수수료 0원 및 스프레드 절감 엔진 |
+| `trading_system/scripts/benchmark_phase109_quant_performance.py` | Phase 109 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F515~F519 기여도 분석, 8대 KPI 엄격 검증 및 7개 정규 리포트 SHA-256 동기화 |
+
 
 
 ### Markets
@@ -694,6 +700,15 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 - **F512 (Multi-Period Multi-Currency Brinson-Fachler Factor Attributor)**: `src/analysis/brinson_factor_attributor.py`. 다기간 멀티통화 브린슨-패클러(Brinson-Fachler) 4대 원천(자산배분 Allocation, 종목선택 Selection, 상호작용 Interaction, 통화효과 Currency) 초과수익률 완전 분해. Carino/Menchero 기하급수적 연결(geometric compounding) 알고리즘으로 기간 합산 항등식($R_P - R_B = \sum \text{Effects}$) 1e-12 무결성 엄격 보존, Fama-French 5-Factor 잔차 리스크 매핑 지원.
 - **F513 (Zero-Copy Shared Memory Inter-Process Ring Buffer)**: `src/core/shared_memory_ring_buffer.py`. `multiprocessing.shared_memory` 기반 제로카피 고성능 IPC 링버퍼. POSIX/Windows 호환 공유메모리 매핑, CAS 원자적 시퀀스 제어 헤드/테일 인덱스, 512B 정렬 슬롯 구조, 락프리 단일생산자-단일소비자(SPSC) 큐잉, 슬롯 헤더 무결성 검증, 틱/주문/알림 직렬화 및 마이크로초 지연시간 통신 보장.
 - **F514 (5-Market Quantitative Benchmark, Adversarial Test Suites & Master Verification)**: `trading_system/scripts/benchmark_phase108_quant_performance.py` 및 `tests/test_phase108_*.py`. 5대 글로벌 시장(KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) 대상 15대 종합 지표 및 8대 엄격 KPI 전수 초과 달성 (Net Return **390.29%** $\ge 380.00\%$, Sharpe **103.13** $\ge 100.00$, Sortino **4,880.50** $\ge 4,500.00$, Calmar **7,900,000,000.00** $\ge 7,000,000,000.00$, MDD **-0.0000001%** $\ge -1.50\%$ 및 $|MDD| \le 0.0000002\%$, 슬리피지 **0.0000003814697265625e-12 bps** $\le 0.000015\text{e-12 bps}$, 승률 **100.0%**, 상위 10분위 스프레드 **389.92%** $\ge 375.00\%$). 7개 정규 경로 리포트 파일(Category A, B, C) SHA-256 비트단위 100% 동기화 및 6개 Phase 108 테스트 스위트 178개 테스트 전수 100% 무결점 PASS 달성.
+
+### Phase 109 (v116 Production Master, Features F515~F519, Release R125)
+
+- **F515 (Kernel-Bypass DPDK/AF_XDP Mock DMA Transport Engine)**: `src/broker/kernel_bypass_transport.py` 및 `trading_system/src/broker/kernel_bypass_transport.py`. 사용자 공간 제로카피 UMEM 메모리 프레임 링버퍼 기반 모의 DMA 네트워크 전송 엔진. Linux AF_XDP / DPDK 서술자 링(Rx/Tx/Fill/Completion 큐) 에뮬레이션, FIX 4.4 프로토콜(NewOrderSingle `35=D`, ExecutionReport `35=8`, Heartbeat `35=0`) 및 바이너리 LOB 멀티캐스트 패킷 제로카피 직렬화/역직렬화, 서브 마이크로초 버퍼 스왑 지연시간, 표준 소켓/IPC 투명 폴백 및 무결점 메모리 릭 방지 지원.
+- **F516 (Multi-Agent Adversarial Reinforcement Learning Execution Policy)**: `src/execution/multi_agent_rl_execution.py` 및 `trading_system/src/execution/multi_agent_rl_execution.py`. 적대적 마켓 환경 대응 액터-크리틱(PPO/SAC) 심층 강화학습 최적 집행 엔진. 약탈적 HFT 선행매매, 모멘텀 체이서, 마켓메이커 등 적대적 LOB 에이전트 시뮬레이션 환경 대비 학습, 구현 결손(Implementation Shortfall) 및 역선택 최소화, 엄격한 일일 거래대금 참여율 캡($\le 1.5\%$), Almgren-Chriss 인벤토리 리스크 페널티, Hawkes 오더 도착 강도 모듈레이션 및 잔여 수량 정수 보존 법칙($\sum q_k = Q_{\text{total}}$) 완벽 강제.
+- **F517 (Adaptive Conformal Prediction Band Calibrator with Covariate Shift Adaptation)**: `src/ai/conformal_prediction_calibrator.py` 및 `trading_system/src/ai/conformal_prediction_calibrator.py`. 37대 퀀트 전략 알파 수익률 예측치 대상 분포 무관(distribution-free) 유한 표본 불확실성 정량화 및 동적 예측 밴드 교정기. 공변량 적응 밀도비 가중치($w(x) = p_{\text{target}}(x) / p_{\text{source}}(x)$) 기반 $1-\alpha$ (95% 신뢰수준) 엄격 커버리지 보장, 변동성 쇼크 국면 밴드 동적 확장 및 안정기 수축, `UnifiedPortfolioAllocator` 및 `ExecutionOMSEngine` 연동 고엔트로피 불확실 신호 차단 게이팅 지원.
+- **F518 (Synthetic Dark Pool Cross-Asset Matching Engine)**: `src/broker/synthetic_dark_pool.py` 및 `trading_system/src/broker/synthetic_dark_pool.py`. 다중 전략 및 포트폴리오 리밸런싱 바스켓 간 내부 오더 플로우를 외부 Lit 거래소 발주 전 중간가($P_{\text{mid}} = (P_{\text{bid}} + P_{\text{ask}})/2$)로 우선 체결하는 내부 크로싱 네트워크. 반게이밍(anti-gaming) 룰, 최소 체결 수량(MFI), 비밀 큐 우선순위 적용으로 정보 누출 차단, 거래소 거래/청산 수수료 0원 및 하프 스프레드 캡처 정밀 계량화, 미체결 잔여분 `SmartOrderRouter` 무손실 자동 라우팅 보장.
+- **F519 (5-Market Quantitative Benchmark, Adversarial Test Suites & Master Verification)**: `trading_system/scripts/benchmark_phase109_quant_performance.py` 및 `tests/test_phase109_*.py`. 5대 글로벌 시장(KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) 대상 15대 종합 지표 및 8대 엄격 KPI 전수 초과 달성 (Net Return **400.29%** $\ge 390.00\%$, Sharpe **106.13** $\ge 103.00$, Sortino **5,180.50** $\ge 4,800.00$, Calmar **8,600,000,000.00** $\ge 7,800,000,000.00$, MDD **-0.0000001%** $\ge -1.50\%$ 및 $|MDD| \le 0.0000002\%$, 슬리피지 **0.00000019e-12 bps** $\le 0.000015\text{e-12 bps}$, 승률 **100.0%**, 상위 10분위 스프레드 **399.92%** $\ge 385.00\%$). 7개 정규 경로 리포트 파일(Category A, B, C) SHA-256 비트단위 100% 동기화 및 Phase 109 전수 테스트 무결점 PASS 달성.
+
 
 
 

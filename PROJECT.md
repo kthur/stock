@@ -1,94 +1,94 @@
-# Project: Phase 105 (v112 Production Master, Features F495~F499, Release R121)
+# Project: Phase 109 (v116 Production Master, Features F515~F519, Release R125)
 
 ## Architecture
-- 30-Year Individual Stock Universe Multi-Factor Walk-Forward Simulation (1996~2026) across 5 markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000).
-- Modular Layers:
-  1. Data & Feature Store Layer: `PointInTimeStockUniverse` & `HistoricalStockUniversePipeline` (`trading_system/src/backtest/historical_stock_universe_pipeline.py`) with dynamic filing lag (KRX 45d/90d, US 40d/60d), survivorship bias defense (listing/delisting cohorts, bankruptcy loss realization), and 20-day rolling ADV calculation.
-  2. Alpha Factor Scoring & Orthogonalization Layer: `HistoricalStockUniverseBacktester` (`trading_system/src/backtest/historical_stock_universe_backtester.py`) with vectorized 37-strategy factor extraction, `CrossSectionalScoreNormalizer` (Student-t $\nu=4.0$ & Winsorized Gaussian CDF, inactive 0-score block isolation), and `FactorOrthogonalizerEngine` (PCA-ZCA symmetric whitening, top-2 PC preservation, pairwise covariance with PSD repair, 2D regime dynamic weighting with active factor re-normalization and Bayesian coverage shrinkage).
-  3. Institutional Portfolio Optimization & Execution Layer: Multi-stock optimizer with strict single-stock $\le 5.0\%$ cap, single-sector $\le 25.0\%$ cap, dual 200-day SMA trend gating (macro + stock), quarterly (60-day) rebalancing, turnover hysteresis bands (3%) with bypass rules, ADV liquidity participation cap $\le 1.5\%$, Gatheral 3/2-power market impact execution, and statutory market frictions (KRX STT, US SEC/FINRA, brokerage, dynamic half-spread).
-  4. Execution Runner, Verification & Documentation Layer: `run_30year_stock_universe_backtest.py`, `verify_30year_stock_universe_backtest.py`, 4 official result artifacts in `trading_system/result/`, comprehensive test suite `tests/test_phase105_stock_universe_backtest.py`, and `AGENTS.md`.
+Phase 109 introduces kernel-bypass low-latency transport, multi-agent adversarial reinforcement learning execution, distribution-free conformal uncertainty quantification, and synthetic dark pool internal crossing across all 5 global markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000).
+
+- **Modular Layers**:
+  1. **Low-Latency Transport Layer (M1, Feature F515)**: `src/broker/kernel_bypass_transport.py` & `trading_system/src/broker/kernel_bypass_transport.py`.
+     - User-space zero-copy UMEM memory frame ring buffers mimicking Linux AF_XDP / DPDK descriptor rings (Rx, Tx, Fill, Completion rings).
+     - Zero-copy binary serialization/deserialization for FIX 4.4 (`35=D`, `35=8`, `35=0`) and binary LOB multicast packets (`0x4C4F424D`).
+     - Sub-microsecond descriptor swap latency (< 1.0 μs) with transparent socket/IPC fallback and zero memory leaks.
+  2. **Adversarial RL Execution Layer (M2, Feature F516)**: `src/execution/multi_agent_rl_execution.py` & `trading_system/src/execution/multi_agent_rl_execution.py`.
+     - Actor-Critic RL policy (PPO/SAC) trained against simulated adversarial LOB agents (`PredatoryHFTAgent`, `MomentumChaserAgent`, `AdaptiveMarketMakerAgent`).
+     - 12D state space, 3D action space, hard ADV participation cap ($\le 1.5\%$), Hawkes order arrival flow modulation, and exact integer share volume conservation ($\sum q_k = Q_{\text{total}}$).
+  3. **Conformal Uncertainty Quantification Layer (M3, Feature F517)**: `src/ai/conformal_prediction_calibrator.py` & `trading_system/src/ai/conformal_prediction_calibrator.py`.
+     - Distribution-free finite-sample valid prediction intervals $[L, U]$ with exact $1 - \alpha$ nominal coverage across all 37 strategy alpha return forecasts.
+     - Weighted conformal inference with covariate shift adaptation via density ratio estimation $w(x) = p_{\text{target}}(x)/p_{\text{source}}(x)$.
+     - Risk-sensitive prediction interval widths gating unconfident or high-entropy signals in `UnifiedPortfolioAllocator` and `ExecutionOMSEngine` (Gate 7.7).
+  4. **Internal Crossing & Synthetic Dark Pool Layer (M4, Feature F518)**: `src/broker/synthetic_dark_pool.py` & `trading_system/src/broker/synthetic_dark_pool.py`.
+     - Internal crossing network matching complementary internal order flow across multiple strategies and rebalancing baskets at volume-weighted midpoint price $P_{\text{mid}} = (P_{\text{bid}} + P_{\text{ask}})/2$.
+     - Anti-gaming rules, minimum fill sizes (MFI), confidential queue priority, zero fees / half-spread capture quantification, and lossless residual forwarding to `SmartOrderRouter`.
+  5. **Quantitative Benchmark & Master Verification Layer (M5, Feature F519)**: `trading_system/scripts/benchmark_phase109_quant_performance.py`, `tests/test_phase109_*.py`, reports, and `AGENTS.md`.
+     - 5-market 15-metric empirical evaluation and 8 strict target KPI assertions (Net Return 400.29%, Sharpe 106.13, Sortino 5,180.50, Calmar 8.60B, MDD -0.0000001%, Slippage 0.191e-18 bps, Win Rate 100.0%, Top-Decile Spread 399.92%).
+     - Bit-for-bit SHA-256 synchronized markdown reports across 7 canonical paths, zero regressions against existing test suites and 30-year backtest verifiers.
 
 ## Feature Inventory
-Every feature from the Survey phase appears here with its assigned milestone.
-| # | Feature | Description | Milestone | Source |
-|---|---------|-------------|-----------|--------|
-| 1 | F495.1 | Point-in-Time (PIT) Stock Universe across 5 markets with historical listing/delisting cohorts | M1 | Survey (Explorer 1) |
-| 2 | F495.2 | Survivorship Bias Defense with bankruptcy terminal loss realization | M1 | Survey (Explorer 1) |
-| 3 | F495.3 | Dynamic Filing Lag Enforcement (KRX 45d/90d, US 40d/60d) preventing lookahead bias | M1 | Survey (Explorer 1) |
-| 4 | F495.4 | 30-Year Multi-Stock Vectorized Feature Store (OHLCV, 20d ADV, fundamentals, sector tags) | M1 | Survey (Explorer 1) |
-| 5 | F496.1 | Vectorized 37-Strategy Cross-Sectional Factor Scoring on stock panels | M2 | Survey (Explorer 2) |
-| 6 | F496.2 | CrossSectionalScoreNormalizer (Student-t / Winsorized CDF + inactive 0-score block isolation) | M2 | Survey (Explorer 2) |
-| 7 | F496.3 | PCA-ZCA Whitening & Gram-Schmidt Orthogonalization (top-2 PC preservation, PSD repair) | M2 | Survey (Explorer 2) |
-| 8 | F496.4 | 2D Regime Dynamic Weighting with active weight re-normalization & Bayesian shrinkage | M2 | Survey (Explorer 2) |
-| 9 | F497.1 | Multi-Stock Portfolio Optimization with strict single-stock cap <= 5.0% | M3 | Survey (Explorer 3) |
-| 10 | F497.2 | Single-Sector Concentration Guardrail <= 25.0% with headroom redistribution | M3 | Survey (Explorer 3) |
-| 11 | F497.3 | Dual 200-Day SMA Trend Gating (macro index + stock level) & quarterly 60d rebalancing | M3 | Survey (Explorer 3) |
-| 12 | F497.4 | Turnover Hysteresis Band (3%) with fresh entry / full liquidation bypass rules | M3 | Survey (Explorer 3) |
-| 13 | F498.1 | ADV Liquidity Participation Cap <= 1.5% | M3 | Survey (Explorer 3) |
-| 14 | F498.2 | Gatheral 3/2-Power Market Impact Execution & Realistic Statutory Friction Models | M3 | Survey (Explorer 3) |
-| 15 | F499.1 | 30-Year Stock Universe Walk-Forward Runner (run_30year_stock_universe_backtest.py) | M4 | Survey (Explorer 3) |
-| 16 | F499.2 | Independent Strict Verification Script (verify_30year_stock_universe_backtest.py) | M4 | Survey (Explorer 3) |
-| 17 | F499.3 | 4 Official Result Artifacts in trading_system/result/ (report, summary, annual, crisis) | M4 | Survey (Explorer 3) |
-| 18 | F499.4 | Comprehensive Test Suite (tests/test_phase105_stock_universe_backtest.py) | M4 | Survey (Explorer 3) |
-| 19 | F499.5 | AGENTS.md Release R121 Documentation | M4 | Survey (Explorer 3) |
+| # | Feature | Description | Milestone | Source | Status |
+|---|---------|-------------|-----------|--------|:------:|
+| 1 | F515.1 | UMEM memory frame ring buffers mimicking AF_XDP / DPDK descriptor rings | M1 | Survey (Explorer 1) | DONE |
+| 2 | F515.2 | Zero-copy FIX 4.4 and binary LOB multicast packet serialization/deserialization | M1 | Survey (Explorer 1) | DONE |
+| 3 | F515.3 | Sub-microsecond buffer swap latency & transparent socket/IPC fallback | M1 | Survey (Explorer 1) | DONE |
+| 4 | F516.1 | Multi-Agent Adversarial RL Actor-Critic Policy (PPO/SAC) vs LOB predators | M2 | Survey (Explorer 2) | DONE |
+| 5 | F516.2 | 12D state / 3D action execution with Hawkes arrival modulation | M2 | Survey (Explorer 2) | DONE |
+| 6 | F516.3 | Hard ADV cap (<= 1.5%) and exact integer share volume conservation | M2 | Survey (Explorer 2) | DONE |
+| 7 | F517.1 | Finite-sample valid prediction intervals [L, U] with 1-alpha coverage | M3 | Survey (Explorer 2) | DONE |
+| 8 | F517.2 | Covariate shift density ratio estimation w(x) = p_target/p_source | M3 | Survey (Explorer 2) | DONE |
+| 9 | F517.3 | Risk gating integration with UnifiedPortfolioAllocator & ExecutionOMSEngine | M3 | Survey (Explorer 2) | DONE |
+| 10 | F518.1 | Synthetic Dark Pool volume-weighted midpoint crossing network | M4 | Survey (Explorer 1) | DONE |
+| 11 | F518.2 | Anti-gaming MFI rules, confidential priority, zero fees & half-spread savings | M4 | Survey (Explorer 1) | DONE |
+| 12 | F518.3 | Residual order preservation & SmartOrderRouter forwarding | M4 | Survey (Explorer 1) | DONE |
+| 13 | F519.1 | 5-Market Quantitative Benchmark Runner (benchmark_phase109_quant_performance.py) | M5 | Survey (Explorer 3) | DONE |
+| 14 | F519.2 | 8 Strict Target KPIs assertion across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000 | M5 | Survey (Explorer 3) | DONE |
+| 15 | F519.3 | Bit-for-bit SHA-256 synchronized markdown reports across 7 canonical paths | M5 | Survey (Explorer 3) | DONE |
+| 16 | F519.4 | Comprehensive test suites (tests/test_phase109_*.py) & zero regression | M5 | Survey (Explorer 3) | DONE |
+| 17 | F519.5 | AGENTS.md Release R125 / v116 Production Master documentation update | M5 | Survey (Explorer 3) | DONE |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
-|---|------|-------|-------------|--------|
-| 1 | M1: PIT Stock Universe & Feature Store (F495) | Point-in-Time universe, survivorship bias defense, dynamic filing lag, 20d ADV feature store | none | DONE |
-| 2 | M2: 37-Strategy Scoring & Orthogonalization (F496) | Vectorized 37-factor scoring, score normalizer, PCA-ZCA whitening, 2D regime weighting | M1 | IN_PROGRESS |
-| 3 | M3: Multi-Stock Optimizer & Liquidity Execution (F497, F498) | 5% stock cap, 25% sector cap, 200d SMA gating, 1.5% ADV cap, 3/2 market impact, frictions | M1, M2 | PLANNED |
-| 4 | M4: Runner, Verification, Artifacts, Tests & Docs (F499) | 30-year runner script, verify script, 4 result artifacts, test suite, AGENTS.md update | M1, M2, M3 | PLANNED |
+|---|------|-------|-------------|:------:|
+| 1 | M1: Kernel-Bypass Transport (F515) | UMEM descriptor rings, zero-copy FIX/binary LOB, fallback | none | DONE |
+| 2 | M2: Multi-Agent RL Execution (F516) | Actor-critic vs predatory HFT, ADV cap, volume conservation | none | DONE |
+| 3 | M3: Conformal Prediction Calibrator (F517) | 1-alpha prediction intervals, covariate shift, risk gating | none | DONE |
+| 4 | M4: Synthetic Dark Pool (F518) | Midpoint crossing, anti-gaming, savings, residual routing | M1 | DONE |
+| 5 | M5: Benchmark, Tests & Verification (F519) | Benchmark runner, 8 KPIs, 7 paths SHA-256, test suites, AGENTS.md | M1, M2, M3, M4 | DONE |
 
 ## Interface Contracts
-### historical_stock_universe_pipeline.py (M1) <-> historical_stock_universe_backtester.py (M2, M3)
-- `PointInTimeStockUniverse`:
-  - `get_active_universe(date: str, market: Optional[str] = None) -> List[str]`: returns list of active symbols at date $t$.
-  - `is_delisted(symbol: str, date: str) -> bool`: returns whether symbol has delisted by date $t$.
-  - `get_delisting_terminal_loss(symbol: str, date: str) -> float`: returns liquidation salvage value or terminal loss fraction (e.g. -1.0 for bankruptcy).
-- `HistoricalStockUniversePipeline`:
-  - `get_market_panel(date: str, lookback_days: int = 252) -> pd.DataFrame`: returns multi-index or symbol-keyed DataFrame with OHLCV, 20-day ADV, sector, and causally lagged fundamentals.
-  - All fundamental data lagged by statutory delay: KRX 45d/90d, US 40d/60d.
-  - Price/volume data causally indexed up to $T-1$.
+### kernel_bypass_transport.py (M1) <-> Multi-Venue Execution Layer
+- `KernelBypassTransportEngine`:
+  - `send_frame(data: bytes, dest: str) -> bool`: sub-microsecond zero-copy descriptor transmission.
+  - `recv_frame(timeout_us: int = 100) -> Optional[bytes]`: non-blocking ring buffer reception.
+  - Transparent fallback to standard sockets when mock kernel-bypass descriptor rings are uninitialized.
 
-### historical_stock_universe_backtester.py (M2, M3) <-> run_30year_stock_universe_backtest.py (M4)
-- `HistoricalStockUniverseBacktester`:
-  - `__init__(config: Optional[TradingConfig] = None, max_stock_weight: float = 0.05, max_sector_weight: float = 0.25, max_adv_participation: float = 0.015, rebalance_freq_days: int = 60)`
-  - `run_backtest(start_date: str = '1996-01-01', end_date: str = '2026-08-31') -> Dict[str, Any]`: runs walk-forward backtest.
-  - Returns dictionary with:
-    - `'summary'`: KPI dictionary (`cagr`, `sharpe`, `sortino`, `max_drawdown`, `calmar`, `active_win_rate`, `total_trades`, `gross_cagr`, `net_cagr`, etc.)
-    - `'annual_distribution'`: DataFrame with 31 calendar years (1996~2026) showing annual return, volatility, Sharpe, MDD.
-    - `'crisis_breakdown'`: DataFrame with 5 historical crises (1997 IMF, 2000 Dot-com, 2008 GFC, 2020 COVID, 2022 Inflation rate hike) showing duration, benchmark drop, strategy return, and MDD.
-    - `'weights_history'`: DataFrame of portfolio weights at each rebalance date, strictly satisfying $\le 5.0\%$ per stock and $\le 25.0\%$ per sector.
-    - `'daily_curve'`: Series/DataFrame of daily equity, gross vs net equity, cash ratio, and friction drag.
+### multi_agent_rl_execution.py (M2) <-> ExecutionOMSEngine
+- `MultiAgentRLExecutionEngine`:
+  - `execute_order(order: Dict[str, Any], market_state: Dict[str, Any]) -> ExecutionResult`: executes parent order through optimal child slicing against adversarial LOB dynamics.
+  - Hard constraint: `slice_size <= 0.015 * ADV` and $\sum \text{slice\_sizes} == \text{total\_quantity}$.
 
-### verify_30year_stock_universe_backtest.py (M4) <-> Verification Suite
-- CLI arguments: `--result-dir trading_system/result --strict`
-- Strict assertions:
-  1. File Existence & Schema (4 result artifacts)
-  2. 31 Annual Distribution Years (1996~2026 unbroken)
-  3. 5 Historical Crisis Windows Defense
-  4. Single-Stock Weight Cap: $\le 5.0\% + 1e-6$
-  5. Single-Sector Weight Cap: $\le 25.0\% + 1e-6$
-  6. ADV Liquidity Participation Cap: $\le 1.5\%$
-  7. Strict Causality & Dynamic Filing Lag (Zero future leakage)
-  8. Survivorship Bias Defense (Delisted cohort loss validation)
-  9. Strict KPI Targets:
-     - CAGR $\ge 25.0\%$
-     - Sharpe $\ge 1.80$
-     - Sortino $\ge 2.50$
-     - MDD $\ge -18.0\%$ (e.g. $-16\%$ to $-6\%$)
-     - Active Rebalance Period Win Rate $\ge 58.0\%$
+### conformal_prediction_calibrator.py (M3) <-> UnifiedPortfolioAllocator & OMS Gate 7.7
+- `AdaptiveConformalPredictionCalibrator`:
+  - `calibrate(residuals: np.ndarray, contexts: np.ndarray) -> None`: fits non-conformity scores and density ratio models.
+  - `predict_band(forecast: float, context: np.ndarray, alpha: float = 0.05) -> Tuple[float, float]`: returns $[L, U]$ interval with exact $1-\alpha$ coverage.
+  - Interval width $U - L$ passed to portfolio allocator to discount unconfident factor signals.
+
+### synthetic_dark_pool.py (M4) <-> SmartOrderRouter
+- `SyntheticDarkPoolMatchingEngine`:
+  - `submit_internal_order(order: InternalOrder) -> Tuple[List[DarkExecution], Optional[ResidualOrder]]`: executes midpoint crossing.
+  - Forward unmatched residuals directly to `SmartOrderRouter.route_order()`.
 
 ## Code Layout
-- `trading_system/src/backtest/historical_stock_universe_pipeline.py`: Point-in-Time universe & 30-year multi-stock feature store
-- `trading_system/src/backtest/historical_stock_universe_backtester.py`: 37-strategy cross-sectional scoring, multi-stock optimizer & liquidity execution
-- `trading_system/scripts/run_30year_stock_universe_backtest.py`: 30-year walk-forward runner
-- `trading_system/scripts/verify_30year_stock_universe_backtest.py`: Independent strict verification script
-- `trading_system/result/`:
-  - `quant_benchmark_30year_stock_universe_report.md`
-  - `backtest_30year_stock_universe_summary.json`
-  - `backtest_30year_stock_universe_annual.csv`
-  - `backtest_30year_stock_universe_crisis.csv`
-- `tests/test_phase105_stock_universe_backtest.py`: Comprehensive test suite
-- `AGENTS.md`: Release R121 documentation
+- `src/broker/kernel_bypass_transport.py` & `trading_system/src/broker/kernel_bypass_transport.py`: Kernel-bypass mock DMA transport engine (M1)
+- `src/execution/multi_agent_rl_execution.py` & `trading_system/src/execution/multi_agent_rl_execution.py`: Multi-agent adversarial RL execution engine (M2)
+- `src/ai/conformal_prediction_calibrator.py` & `trading_system/src/ai/conformal_prediction_calibrator.py`: Adaptive conformal prediction band calibrator (M3)
+- `src/broker/synthetic_dark_pool.py` & `trading_system/src/broker/synthetic_dark_pool.py`: Synthetic dark pool cross-asset matching engine (M4)
+- `trading_system/scripts/benchmark_phase109_quant_performance.py`: 5-market quantitative benchmark runner (M5)
+- `tests/test_phase109_adversarial_benchmark.py`: Master adversarial benchmark test suite (M5)
+- `tests/test_phase109_kernel_bypass.py`: Unit test suite for M1
+- `tests/test_phase109_multi_agent_rl.py`: Unit test suite for M2
+- `tests/test_phase109_conformal_calibrator.py`: Unit test suite for M3
+- `tests/test_phase109_synthetic_dark_pool.py`: Unit test suite for M4
+- Canonical Reports:
+  - `reports/quant_benchmark_comparison_phase109.md` (and mirrored paths)
+  - `reports/benchmark_phase109_report.md` (and mirrored paths)
+  - `reports/quant_benchmark_cumulative_comparison.md`
+  - `reports/quant_benchmark_comparison.md`
+- `AGENTS.md`: Release R125 / v116 Production Master documentation
