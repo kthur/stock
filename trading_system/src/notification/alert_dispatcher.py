@@ -332,6 +332,8 @@ class AlertDispatcher:
 
         # Log through Python logging facility with complete fault isolation
         try:
+            encoding = getattr(sys.stderr, "encoding", None) or getattr(sys.stdout, "encoding", None) or "ascii"
+            clean_log_text = full_text.encode(encoding, errors="replace").decode(encoding, errors="replace")
             log_method = {
                 AlertLevel.INFO: self.logger.info,
                 AlertLevel.SUCCESS: self.logger.info,
@@ -339,7 +341,7 @@ class AlertDispatcher:
                 AlertLevel.CRITICAL: self.logger.error,
                 AlertLevel.EMERGENCY: self.logger.critical,
             }.get(level, self.logger.info)
-            log_method("[AlertDispatcher] %s", full_text)
+            log_method("[AlertDispatcher] %s", clean_log_text)
         except Exception:
             pass
 

@@ -1,0 +1,118 @@
+{
+  "version": "v114",
+  "release": "R123",
+  "phase107": true,
+  "cycle_count": 5,
+  "current_phase": "IDLE",
+  "last_updated": "2026-10-15T00:06:56.180091+00:00",
+  "capital": 100000000.0,
+  "gross_equity": 100000000.0,
+  "net_equity": 99984384.52,
+  "cash_balance": 69266384.52,
+  "pre_market": {
+    "cycle_id": "CYCLE_00006_PRE_MKT_24ef81",
+    "duration_sec": 0.0034,
+    "is_inverted": false,
+    "term_spread": 0.25,
+    "macro_impulse": 0.0901,
+    "condition_vector": {
+      "term_spread": 0.25,
+      "yield_velocity": 0.06656807650226257,
+      "usdkrw_momentum": -0.16514041292462936,
+      "dxy_momentum": -0.07982976911113136,
+      "sox_spillover": 0.1853331999081395,
+      "wti_terms_of_trade": 0.0996679946249558,
+      "raw_spread_10y2y": 0.25,
+      "is_inverted": false,
+      "macro_impulse": 0.09009301589476847
+    },
+    "quality_boost_active": false,
+    "strategy_weights_count": 10,
+    "top_weighted_strategy": "rim_valuation"
+  },
+  "market_open": {
+    "cycle_id": "CYCLE_00006_MKT_OPEN_35717a",
+    "duration_sec": 0.0016,
+    "candidates_considered": 12,
+    "target_assets_count": 12,
+    "orders_count": 12,
+    "total_target_exposure": 0.5732,
+    "target_allocations": {
+      "NVDA": 0.05,
+      "005930": 0.05,
+      "000660": 0.05,
+      "MSFT": 0.05,
+      "AAPL": 0.0492,
+      "005380": 0.0486,
+      "GOOGL": 0.048,
+      "AMZN": 0.0474,
+      "035420": 0.0468,
+      "JPM": 0.0456,
+      "068270": 0.0444,
+      "247540": 0.0432
+    },
+    "sector_breakdown": {
+      "Technology": 0.2492,
+      "Consumer Discretionary": 0.096,
+      "Communication": 0.0948,
+      "Financials": 0.0456,
+      "Healthcare": 0.044399999999999995,
+      "Materials": 0.043199999999999995
+    }
+  },
+  "intraday_risk": {
+    "cycle_id": "CYCLE_00006_INTRADAY_dbb0ae",
+    "duration_sec": 0.0006,
+    "positions_monitored": 12,
+    "risk_actions_count": 0,
+    "risk_actions": [],
+    "vix_observed": 16.5,
+    "circuit_breaker_triggered": false
+  },
+  "market_close": {
+    "cycle_id": "CYCLE_00006_CLOSE_036c3f",
+    "duration_sec": 0.0006,
+    "gross_equity": 100000000.0,
+    "net_equity": 99984384.52,
+    "cash_balance": 69266384.52,
+    "invested_value": 30718000.0,
+    "holdings_count": 12,
+    "total_fees_paid": 4356.48,
+    "total_market_impact": 13246.7,
+    "total_slippage_cost": 11259.0,
+    "invariant_verified": true,
+    "summary_alert_sent": true
+  },
+  "history": [
+    {
+      "cycle_id": "CYCLE_00002_CLOSE_d1d56c",
+      "timestamp": "2026-10-14T23:38:07.957486+00:00",
+      "net_equity": 99984384.52,
+      "gross_equity": 100000000.0
+    },
+    {
+      "cycle_id": "CYCLE_00003_CLOSE_21dfa4",
+      "timestamp": "2026-10-15T00:01:16.093924+00:00",
+      "net_equity": 99984384.52,
+      "gross_equity": 100000000.0
+    },
+    {
+      "cycle_id": "CYCLE_00004_CLOSE_e8b94f",
+      "timestamp": "2026-10-15T00:01:29.382505+00:00",
+      "net_equity": 99984384.52,
+      "gross_equity": 100000000.0
+    },
+    {
+      "cycle_id": "CYCLE_00005_CLOSE_75ca5d",
+      "timestamp": "2026-10-15T00:06:23.568166+00:00",
+      "net_equity": 99984384.52,
+      "gross_equity": 100000000.0
+    },
+    {
+      "cycle_id": "CYCLE_00006_CLOSE_036c3f",
+      "timestamp": "2026-10-15T00:06:56.176127+00:00",
+      "net_equity": 99984384.52,
+      "gross_equity": 100000000.0
+    }
+  ]
+}
