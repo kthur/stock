@@ -54,7 +54,14 @@ class SmartOrderRouter:
         except Exception:
             pass
         self.version = v
-        self.is_phase103 = (self.version >= 103)
+        self.is_phase110 = (self.version >= 110)
+        self.is_phase109 = self.is_phase110 or (self.version >= 109)
+        self.is_phase108 = self.is_phase109 or (self.version >= 108)
+        self.is_phase107 = self.is_phase108 or (self.version >= 107)
+        self.is_phase106 = self.is_phase107 or (self.version >= 106)
+        self.is_phase105 = self.is_phase106 or (self.version >= 105)
+        self.is_phase104 = self.is_phase105 or (self.version >= 104)
+        self.is_phase103 = self.is_phase104 or (self.version >= 103)
         self.is_phase102 = self.is_phase103 or (self.version >= 102)
         self.is_phase101 = self.is_phase102 or (self.version >= 101)
         self.is_phase100 = self.is_phase101 or (self.version >= 100)
@@ -274,6 +281,7 @@ class SmartOrderRouter:
         arrival_imbalance: Optional[float] = None,
         qi_acceleration: Optional[float] = None,
         cross_asset_toxicity: Optional[float] = None,
+        toxicity_result: Optional[Any] = None,
         version: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
@@ -307,7 +315,14 @@ class SmartOrderRouter:
         if "market_spread_bps" in order_plan and order_plan["market_spread_bps"] is not None:
             market_spread_bps = float(order_plan["market_spread_bps"])
 
-        is_phase103 = (v_eff >= 103)
+        is_phase110 = (v_eff >= 110)
+        is_phase109 = is_phase110 or (v_eff >= 109)
+        is_phase108 = is_phase109 or (v_eff >= 108)
+        is_phase107 = is_phase108 or (v_eff >= 107)
+        is_phase106 = is_phase107 or (v_eff >= 106)
+        is_phase105 = is_phase106 or (v_eff >= 105)
+        is_phase104 = is_phase105 or (v_eff >= 104)
+        is_phase103 = is_phase104 or (v_eff >= 103)
         is_phase102 = is_phase103 or (v_eff >= 102)
         is_phase101 = is_phase102 or (v_eff >= 101)
         is_phase100 = is_phase101 or (v_eff >= 100)
@@ -418,6 +433,34 @@ class SmartOrderRouter:
             eff_dark_ratio = float(np.clip(self.dark_probe_ratio + 0.30 * dp_score, self.dark_probe_ratio, 0.70))
         else:
             eff_dark_ratio = float(self.dark_probe_ratio)
+
+        # Phase 110 (F522): Real-Time Microstructure Toxicity (VPIN + OFI) Modulation
+        tox_eval = toxicity_result if toxicity_result is not None else (order_plan.get("toxicity_result") or order_plan.get("toxicity_eval"))
+        comp_tox = 0.0
+        is_evap = False
+        quote_shade_bps = 0.0
+        if tox_eval is not None:
+            if hasattr(tox_eval, "composite_toxicity"):
+                comp_tox = float(tox_eval.composite_toxicity)
+                is_evap = bool(tox_eval.is_evaporating)
+                quote_shade_bps = float(tox_eval.quote_shade_offset_bps)
+            elif isinstance(tox_eval, dict):
+                comp_tox = float(tox_eval.get("composite_toxicity", tox_eval.get("toxicity_score", 0.0)) or 0.0)
+                is_evap = bool(tox_eval.get("is_evaporating", False) or comp_tox >= 0.85)
+                quote_shade_bps = float(tox_eval.get("quote_shade_offset_bps", 0.0) or 0.0)
+        else:
+            comp_tox = float(order_plan.get("composite_toxicity", order_plan.get("toxicity_score", 0.0)) or 0.0)
+            is_evap = bool(order_plan.get("is_evaporating", False) or comp_tox >= 0.85)
+            quote_shade_bps = float(order_plan.get("quote_shade_offset_bps", 0.0) or 0.0)
+
+        if comp_tox >= 0.65 or is_evap:
+            max_dark_cap = self._resolve_max_dark_cap(v_eff)
+            eff_dark_ratio = float(np.clip(max(eff_dark_ratio, 0.75 + 0.15 * comp_tox), eff_dark_ratio, max_dark_cap))
+            if quote_shade_bps > 0.0:
+                if action in ["BUY", "BID", "LONG"]:
+                    target_price = target_price * (1.0 - quote_shade_bps / 10000.0)
+                else:
+                    target_price = target_price * (1.0 + quote_shade_bps / 10000.0)
 
         # F50, F54, F58, F61, F65, F69, F73, F77, F81, F85, F89, F93, F97, F101.2, F105.2.3, F109.2.1, F113.2.2, F117.2, F121.2, F125.2, F129.2, F137.2, F141.2, F145.2, F149.2, F197.2, F201.2, F205.2 & F209.2: Lit Queue Imbalance & Acceleration Preemption (preemptively route up to 0.9999999999998 to dark ATS)
         if qi is not None or qi_accel is not None:
@@ -1649,6 +1692,9 @@ class SmartOrderRouter:
             "queue_imbalance": round(float(qi), 4) if (qi is not None and math.isfinite(float(qi))) else None,
             "arrival_imbalance": round(float(arr_imb), 4) if (arr_imb is not None and math.isfinite(float(arr_imb))) else None,
             "min_ratio": round(float(min_ratio), min_ratio_prec),
+            "composite_toxicity": round(float(comp_tox), 4) if comp_tox > 0.0 else None,
+            "is_evaporating": is_evap,
+            "quote_shade_offset_bps": round(float(quote_shade_bps), 2) if quote_shade_bps > 0.0 else 0.0,
         }
 
     def determine_destination(self, symbol: str, market: Optional[str] = None) -> Dict[str, Any]:

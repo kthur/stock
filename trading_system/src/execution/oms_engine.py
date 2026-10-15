@@ -137,10 +137,27 @@ class ExecutionOMSEngine:
         except Exception:
             pass
         self.version = v
-        self.is_phase103 = (self.version >= 103)
+        self.is_phase110 = (self.version >= 110)
+        self.is_phase109 = self.is_phase110 or (self.version >= 109)
+        self.is_phase108 = self.is_phase109 or (self.version >= 108)
+        self.is_phase107 = self.is_phase108 or (self.version >= 107)
+        self.is_phase106 = self.is_phase107 or (self.version >= 106)
+        self.is_phase105 = self.is_phase106 or (self.version >= 105)
+        self.is_phase104 = self.is_phase105 or (self.version >= 104)
+        self.is_phase103 = self.is_phase104 or (self.version >= 103)
         self.is_phase102 = self.is_phase103 or (self.version >= 102)
         self.is_phase101 = self.is_phase102 or (self.version >= 101)
         self.is_phase100 = self.is_phase101 or (self.version >= 100)
+        self.toxicity_filter: Optional[Any] = None
+        try:
+            from src.core.intraday_toxicity_filter import IntradayToxicityFilter
+            self.toxicity_filter = IntradayToxicityFilter()
+        except Exception:
+            try:
+                from trading_system.src.core.intraday_toxicity_filter import IntradayToxicityFilter
+                self.toxicity_filter = IntradayToxicityFilter()
+            except Exception:
+                self.toxicity_filter = None
         self.sor: Optional[Any] = None
         try:
             from src.execution.smart_order_router import SmartOrderRouter
@@ -993,6 +1010,50 @@ class ExecutionOMSEngine:
                     discount_frac = max(0.002, min(0.08, discount_frac))
                     target_price = target_price * (1.0 - discount_frac)
                     logger.info(f"[OMS GATE 7.7] {sym} Overheated opening gap (+{gap_val:.2f}%) detected. Routing to DIP_LIMIT with adaptive discount {discount_frac:.2%} (gap={gap_frac:.2%}, atr15m={atr_15m_frac:.2%}).")
+
+                # Gate 7.8: Real-Time Microstructure Liquidity Toxicity (VPIN + OFI) Filter (Phase 110 F522)
+                # Evaluates Volume-Synchronized Probability of Toxicity (VPIN) and multi-level Order Flow Imbalance (OFI).
+                # If combined toxicity breaches threshold (>= 0.70 standard, 0.65 small-cap):
+                # - BUY: switch aggressive orders to PASSIVE_LIMIT with dynamic quote shading to avoid adverse selection
+                # - SELL: switch to FAST_VWAP for rapid liquidation before pre-crash evaporation
+                # - Pre-crash liquidity evaporation (>= 0.85): expand slices and apply protective quote shading
+                tox_input = pred.get("toxicity_result") or pred.get("intraday_toxicity") or pred.get("toxicity_eval")
+                if tox_input is not None and hasattr(tox_input, "composite_toxicity"):
+                    toxicity_val = float(tox_input.composite_toxicity)
+                    is_evaporating = bool(tox_input.is_evaporating)
+                    shade_bps = float(tox_input.quote_shade_offset_bps)
+                    rec_strat = str(tox_input.recommended_strategy)
+                    slice_mult = float(tox_input.slice_count_multiplier)
+                elif isinstance(tox_input, dict):
+                    toxicity_val = float(tox_input.get("composite_toxicity", tox_input.get("toxicity_score", 0.0)) or 0.0)
+                    is_evaporating = bool(tox_input.get("is_evaporating", False) or toxicity_val >= 0.85)
+                    shade_bps = float(tox_input.get("quote_shade_offset_bps", 0.0) or 0.0)
+                    rec_strat = str(tox_input.get("recommended_strategy", "NORMAL"))
+                    slice_mult = float(tox_input.get("slice_count_multiplier", 1.0) or 1.0)
+                else:
+                    toxicity_val = float(pred.get("composite_toxicity", pred.get("toxicity_score", 0.0)) or 0.0)
+                    is_evaporating = bool(pred.get("is_evaporating", False) or toxicity_val >= 0.85)
+                    shade_bps = float(pred.get("quote_shade_offset_bps", 0.0) or 0.0)
+                    rec_strat = str(pred.get("recommended_strategy", "NORMAL"))
+                    slice_mult = float(pred.get("slice_count_multiplier", 1.0) or 1.0)
+
+                if toxicity_val > 0.0 or is_evaporating:
+                    gate_vpin_thresh = vpin_threshold
+                    if action == "BUY" and (toxicity_val >= gate_vpin_thresh or is_evaporating):
+                        logger.warning(f"[OMS GATE 7.8] {sym} High Microstructure Toxicity ({toxicity_val:.2f} >= {gate_vpin_thresh:.2f}) on BUY. Routing to PASSIVE_LIMIT with quote shading.")
+                        exec_strategy = "PASSIVE_LIMIT"
+                        slice_count = max(8, int(slice_count * max(1.5, slice_mult)))
+                        eff_shade = shade_bps if shade_bps > 0.0 else max(2.0, min(50.0, (toxicity_val - 0.50) * 2.0 * max(5.0, spread_val * 10000.0) if toxicity_val > 0.50 else 0.0))
+                        target_price = target_price * (1.0 - eff_shade / 10000.0)
+                    elif action == "SELL" and (toxicity_val >= gate_vpin_thresh or is_evaporating):
+                        logger.warning(f"[OMS GATE 7.8] {sym} High Microstructure Toxicity ({toxicity_val:.2f} >= {gate_vpin_thresh:.2f}) on SELL. Routing to FAST_VWAP for rapid liquidation.")
+                        exec_strategy = "FAST_VWAP"
+                        slice_count = max(2, int(slice_count * min(0.5, slice_mult if slice_mult > 0 else 0.5)))
+
+                    if is_evaporating and action == "BUY":
+                        logger.warning(f"[OMS GATE 7.8] {sym} Pre-crash liquidity evaporation detected ({toxicity_val:.2f} >= 0.85). Expanding slice count and enforcing protective discount.")
+                        slice_count = max(12, slice_count * 2)
+                        target_price = target_price * 0.985  # 1.5% protective discount
 
                 # Feature 13 & F31: Orderbook Imbalance (OBI) & Micro-Price Peg Pricing
                 obi_val = float(pred.get("obi", pred.get("orderbook_imbalance", pred.get("microstructure_imbalance", 0.0))) or 0.0)
