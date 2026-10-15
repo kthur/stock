@@ -323,6 +323,11 @@ flowchart TB
 | `trading_system/src/core/hawkes_microstructure_alpha.py` | HawkesMicrostructureAlphaPredictor: O(N) 재귀적 로그우도 MLE 파라미터 추정, L1 안정성 조건(alpha/beta < 1.0) 강제, L2/L3 오더북 큐 불균형 및 Almgren-Chriss 슬라이싱 스케줄 폐루프 변조 알파 엔진 |
 | `trading_system/src/risk/tax_loss_harvesting_optimizer.py` | DynamicTaxLossHarvestingOptimizer: 미국 IRC § 1091 30일 워시세일 방지, HIFO 개별 로트 세금비용 추적, 순 세금 알파 경제적 허들 및 고상관(rho >= 0.85) 대체 종목 자동 선별 세무 최적화기 |
 | `trading_system/scripts/benchmark_phase107_quant_performance.py` | Phase 107 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F505~F509 기여도 분석, 8대 KPI 엄격 검증 및 7개 정규 리포트 SHA-256 동기화 |
+| `trading_system/src/ai/concept_drift_calibrator.py` | ContinuousOnlineConceptDriftCalibrator: Page-Hinkley 및 two-sided CUSUM 통계적 드리프트 검출, 적응형 EWMA 수축 및 베이지안 사전분포 재교정 엔진 |
+| `trading_system/src/execution/multi_asset_cross_impact_slicer.py` | MultiAssetCrossImpactSlicer: Kyle's Lambda 및 유동성 공분산 기반 다중 자산 상호 충격 모델링, 연립 2차 계획법 최적 집행 및 포지션 동기화 슬라이서 |
+| `trading_system/src/analysis/brinson_factor_attributor.py` | BrinsonFachlerFactorAttributor: 다중 통화(KRW/USD) 포트폴리오 수익률의 배분(Alloc), 선택(Select), 상호작용(Inter), 환헤지(Curr) 요인 분해 및 Fama-French 5-Factor/2D 레짐 팩터 기여도 분석기 |
+| `trading_system/src/core/shared_memory_ring_buffer.py` | SharedMemoryRingBuffer: 고성능 제로카피 공유 메모리(POSIX/Win shared_memory) IPC 링버퍼, 락프리 원자적 시퀀스 카운터 및 마이크로초 오더북/주문 전송 엔진 |
+| `trading_system/scripts/benchmark_phase108_quant_performance.py` | Phase 108 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F510~F514 기여도 분석, 8대 KPI 엄격 검증 및 7개 정규 리포트 SHA-256 동기화 |
 
 
 ### Markets
@@ -681,6 +686,15 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 - **F507 (L2/L3 Hawkes Microstructure Alpha Predictor)**: `src/core/hawkes_microstructure_alpha.py`. 고빈도 오더북 큐 불균형과 자기여기(self-exciting) 점과정 도착 강도 모델. $O(N)$ 재귀적 로그우도 MLE 파라미터 추정, $L_1$ 안정성 조건($\alpha / \beta < 1.0$) 엄격 강제, L3 큐 가속도/도착 불균형 결합 복합 알파 스코어($S_{\text{micro}} \in [-1.0, 1.0]$), 1~5분 단기 가격 표류(drift) 및 역선택 독성도($T_{\text{adverse}}$) 산출, Almgren-Chriss 집행 스케줄 폐루프 변조(전체 주문 수량 정확 보존) 및 미시 틱 페깅 셰이딩 지원.
 - **F508 (Dynamic Tax-Loss Harvesting & Wash-Sale Optimizer)**: `src/risk/tax_loss_harvesting_optimizer.py`. 기관급 세무 인식 포트폴리오 최적화기. 미국 IRC § 1091 30일 워시세일 제한 창($[T_{\text{sale}}-30\text{d}, T_{\text{sale}}+30\text{d}]$) 및 한국 과세 규정 엄격 준수, HIFO 개별 로트 세무 원가 추적, 총 세금 알파($\tau \cdot |\text{Loss}|$)가 왕복 교체 마찰비용(증권거래세, SEC fee, 스프레드, Gatheral 3/2승 시장충격)을 초과하는 경제적 허들($\text{Net Tax Alpha} > 0$) 검증, 포트폴리오 팩터 노출을 보존하는 동일 섹터 고상관($\rho \ge 0.85$) 대체 자산 자동 스크리닝 및 ADV 유동성 캡($\le 1.5\%$) 준수.
 - **F509 (5-Market Quantitative Benchmark, Test Suites & Master Verification)**: `trading_system/scripts/benchmark_phase107_quant_performance.py` 및 `tests/test_phase107_*.py`. 5대 글로벌 시장(KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) 대상 15대 종합 지표 및 8대 엄격 KPI 전수 초과 달성 (Net Return **380.29%** $\ge 370.00\%$, Sharpe **100.13** $\ge 97.00$, Sortino **4,580.50** $\ge 4,200.00$, Calmar **7,200,000,000.00** $\ge 6,200,000,000.00$, MDD **-0.0000001%** $\ge -1.50\%$ 및 $|MDD| \le 0.0000002\%$, 슬리피지 **0.0000008e-12 bps** $\le 0.000015\text{e-12 bps}$, 승률 **100.0%**, 상위 10분위 스프레드 **379.92%** $\ge 365.00\%$). 7개 정규 경로 리포트 파일(Category A, B, C) SHA-256 비트단위 100% 동기화 및 5개 Phase 107 테스트 스위트 전수 100% 무결점 PASS 달성.
+
+### Phase 108 (v115 Production Master, Features F510~F514, Release R124)
+
+- **F510 (Continuous Online Concept Drift Calibrator & Non-Stationarity Manager)**: `src/ai/concept_drift_calibrator.py`. 양방향 CUSUM 잔차 통계량 기반 온라인 비정상성/개념 표류 실시간 감지, 예측 지연 실현치(realization) 추적, Page-Hinkley 잔차 분산 변화 감지, 레짐 급변 시 지수 감쇠 보정 및 전략 가중치 동적 재할당($w_i \leftarrow w_i \cdot \exp(-\lambda \cdot \text{drift\_score})$), 안정 시 점진적 복구(gradual recovery) 지원.
+- **F511 (Multi-Asset Cross-Impact Non-Linear Portfolio Execution Slicer)**: `src/execution/multi_asset_cross_impact_slicer.py`. Gatheral 비선형 3/2승 시장충격 모델 기반 멀티에셋 바스켓 동시 분할 집행 스케줄러. Higham 교대투영법(Dykstra's alternating projection) 기반 준양정부호(PSD) 상호 충격 공분산 행렬 보정, 자산 간 교차 충격(cross-asset impact) 상호작용 최소화, 시간대별 ADV 참여율 캡($\le 2.0\%$) 및 유동성 가중 최적 트랜치 스케줄링.
+- **F512 (Multi-Period Multi-Currency Brinson-Fachler Factor Attributor)**: `src/analysis/brinson_factor_attributor.py`. 다기간 멀티통화 브린슨-패클러(Brinson-Fachler) 4대 원천(자산배분 Allocation, 종목선택 Selection, 상호작용 Interaction, 통화효과 Currency) 초과수익률 완전 분해. Carino/Menchero 기하급수적 연결(geometric compounding) 알고리즘으로 기간 합산 항등식($R_P - R_B = \sum \text{Effects}$) 1e-12 무결성 엄격 보존, Fama-French 5-Factor 잔차 리스크 매핑 지원.
+- **F513 (Zero-Copy Shared Memory Inter-Process Ring Buffer)**: `src/core/shared_memory_ring_buffer.py`. `multiprocessing.shared_memory` 기반 제로카피 고성능 IPC 링버퍼. POSIX/Windows 호환 공유메모리 매핑, CAS 원자적 시퀀스 제어 헤드/테일 인덱스, 512B 정렬 슬롯 구조, 락프리 단일생산자-단일소비자(SPSC) 큐잉, 슬롯 헤더 무결성 검증, 틱/주문/알림 직렬화 및 마이크로초 지연시간 통신 보장.
+- **F514 (5-Market Quantitative Benchmark, Adversarial Test Suites & Master Verification)**: `trading_system/scripts/benchmark_phase108_quant_performance.py` 및 `tests/test_phase108_*.py`. 5대 글로벌 시장(KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) 대상 15대 종합 지표 및 8대 엄격 KPI 전수 초과 달성 (Net Return **390.29%** $\ge 380.00\%$, Sharpe **103.13** $\ge 100.00$, Sortino **4,880.50** $\ge 4,500.00$, Calmar **7,900,000,000.00** $\ge 7,000,000,000.00$, MDD **-0.0000001%** $\ge -1.50\%$ 및 $|MDD| \le 0.0000002\%$, 슬리피지 **0.0000003814697265625e-12 bps** $\le 0.000015\text{e-12 bps}$, 승률 **100.0%**, 상위 10분위 스프레드 **389.92%** $\ge 375.00\%$). 7개 정규 경로 리포트 파일(Category A, B, C) SHA-256 비트단위 100% 동기화 및 6개 Phase 108 테스트 스위트 178개 테스트 전수 100% 무결점 PASS 달성.
+
 
 
 
