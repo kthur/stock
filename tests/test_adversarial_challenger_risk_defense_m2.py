@@ -433,7 +433,7 @@ class TestKellyPositionSizingClipping:
 
     @pytest.fixture
     def rm(self):
-        return RiskManager(portfolio_value=100_000_000.0)
+        return RiskManager(portfolio_value=100_000_000.0, max_position_size_pct=0.20)
 
     def test_calculate_kelly_fraction_bounds(self, rm):
         max_cap = rm.max_position_size_pct  # default 0.20
