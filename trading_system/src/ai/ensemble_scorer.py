@@ -48,6 +48,24 @@ except ImportError:
         MacroConditioningEngine = None
         modulate_macro_factor_weights = None
 
+try:
+    from .graph_granger_causality import (
+        GraphGrangerCausalityNetwork,
+        HighDimensionalGrangerNetwork,
+        Phase110GrangerSpilloverEngine,
+    )
+except ImportError:
+    try:
+        from src.ai.graph_granger_causality import (
+            GraphGrangerCausalityNetwork,
+            HighDimensionalGrangerNetwork,
+            Phase110GrangerSpilloverEngine,
+        )
+    except ImportError:
+        GraphGrangerCausalityNetwork = None
+        HighDimensionalGrangerNetwork = None
+        Phase110GrangerSpilloverEngine = None
+
 
 # =========================================================================
 # PHASE 62: QUANTUM GEOMETRIC LANGLANDS & BORCHERDS-MOONSHINE-MONSTER WHITTAKER-DRINFELD HIGHER HOMOLOGY 12 COUPLER
@@ -13011,6 +13029,9 @@ class EnsembleScoringEngine:
     f494_realistic_annualized_cagr = calculate_realistic_annualized_cagr
     calculate_macro_factor_weights = staticmethod(modulate_macro_factor_weights)
     modulate_macro_factor_weights = staticmethod(modulate_macro_factor_weights)
+    GraphGrangerCausalityNetwork = GraphGrangerCausalityNetwork
+    HighDimensionalGrangerNetwork = HighDimensionalGrangerNetwork
+    Phase110GrangerNetwork = GraphGrangerCausalityNetwork
 
     def __init__(self, config=None, alpha_smoothing: float = 0.2):
         # Support TradingConfig for centralized constant management
@@ -13019,6 +13040,11 @@ class EnsembleScoringEngine:
         self.version = getattr(config, 'version', 111) if config is not None else 111
         self.is_phase104 = (self.version >= 104)
         self.is_phase106 = (self.version >= 106)
+        self.is_phase110 = (self.version >= 110)
+        self.GraphGrangerCausalityNetwork = GraphGrangerCausalityNetwork
+        self.HighDimensionalGrangerNetwork = HighDimensionalGrangerNetwork
+        self.Phase110GrangerNetwork = GraphGrangerCausalityNetwork
+        self.granger_network: Optional[Any] = None
         if DynamicMacroFactorTimingEngine is not None:
             self.macro_factor_timing = DynamicMacroFactorTimingEngine(config=config)
         else:
@@ -14247,6 +14273,24 @@ class EnsembleScoringEngine:
                 indicators=macro_indicators,
                 market=market,
             )
+
+        # Phase 110: Graph Granger Causality Systemic Spillover Weight Modulation
+        active_granger = kwargs.get("granger_network", getattr(self, "granger_network", None))
+        if active_granger is not None and getattr(active_granger, "is_fitted", False):
+            try:
+                top_metrics = getattr(active_granger, "topology_metrics", None) or active_granger.compute_topology_metrics()
+                vix_out = top_metrics.out_degree_centrality.get("VIX", 0.0)
+                dxy_out = top_metrics.out_degree_centrality.get("DXY", 0.0)
+                if vix_out > 0.30 or dxy_out > 0.30:
+                    quality_factors = ["rim_valuation", "accruals_quality", "mq_factor"]
+                    for qf in quality_factors:
+                        if qf in dynamic_weights:
+                            dynamic_weights[qf] *= 1.15
+                    w_sum = sum(dynamic_weights.values())
+                    if w_sum > 0:
+                        dynamic_weights = {k: v / w_sum for k, v in dynamic_weights.items()}
+            except Exception as e:
+                logger.debug(f"[EnsembleScorer] Granger weight modulation exception: {e}")
 
         self._prev_weights[market] = dict(dynamic_weights)
 

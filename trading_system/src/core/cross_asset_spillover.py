@@ -15,6 +15,24 @@ import pandas as pd
 from .base_strategy import BaseStrategyEngine, make_score_dataframe
 from src.core.strategy_registry import register_strategy, StrategyMeta
 
+try:
+    from src.ai.graph_granger_causality import (
+        GraphGrangerCausalityNetwork,
+        HighDimensionalGrangerNetwork,
+        Phase110GrangerSpilloverEngine,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.graph_granger_causality import (
+            GraphGrangerCausalityNetwork,
+            HighDimensionalGrangerNetwork,
+            Phase110GrangerSpilloverEngine,
+        )
+    except ImportError:
+        GraphGrangerCausalityNetwork = None
+        HighDimensionalGrangerNetwork = None
+        Phase110GrangerSpilloverEngine = None
+
 logger = logging.getLogger(__name__)
 
 # Sector Elasticity Coefficients across Global Macro Drivers (SOX, FX, WTI, TNX, VIX, Gold, DXY, SP500)
@@ -112,8 +130,17 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
     and identifies unpriced lead-lag diffusion gaps in individual stock prices.
     """
 
+    GraphGrangerCausalityNetwork = GraphGrangerCausalityNetwork
+    HighDimensionalGrangerNetwork = HighDimensionalGrangerNetwork
+    Phase110GrangerSpilloverEngine = Phase110GrangerSpilloverEngine
+
     def __init__(self, config: Optional[Any] = None) -> None:
         super().__init__(name="CrossAssetSpilloverEngine", config=config)
+        self.granger_network: Optional[Any] = None
+        self.use_dynamic_granger: bool = True
+        self.GraphGrangerCausalityNetwork = GraphGrangerCausalityNetwork
+        self.HighDimensionalGrangerNetwork = HighDimensionalGrangerNetwork
+        self.Phase110GrangerSpilloverEngine = Phase110GrangerSpilloverEngine
 
     def _extract_macro_vector(self, indicators_df: Optional[Any], is_krx: bool = False) -> Dict[str, float]:
         """
@@ -244,6 +271,16 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
 
         sector_map: Dict[str, str] = kwargs.get("sector_map") or {}
 
+        # Check for dynamic Granger causality network
+        active_granger = kwargs.get("granger_network", self.granger_network)
+        dyn_sens_df: Optional[pd.DataFrame] = None
+        if self.use_dynamic_granger and active_granger is not None and getattr(active_granger, "is_fitted", False):
+            try:
+                dyn_sens_df = active_granger.get_sector_macro_sensitivity_matrix(horizon=kwargs.get("granger_horizon", 3))
+            except Exception as e:
+                logger.debug(f"[CrossAssetSpillover] Failed to obtain dynamic Granger sensitivities: {e}")
+                dyn_sens_df = None
+
         if not prices_source:
             return make_score_dataframe({}, score_column="cross_asset_spillover_score")
 
@@ -308,8 +345,16 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                 sec = sector_map.get(sym_str, sector_map.get(sym, "Market"))
                 beta_map = DEFAULT_SECTOR_MACRO_BETAS.get(sec, DEFAULT_SECTOR_MACRO_BETAS.get(str(sec).strip(), DEFAULT_SECTOR_MACRO_BETAS["Market"]))
 
-                # Calculate Macro Impulse I_i(t)
-                macro_impulse = sum(beta_map.get(factor, 0.0) * ret_val for factor, ret_val in macro_vector.items())
+                # Calculate Macro Impulse I_i(t) (Dynamic Granger or Static Beta Map)
+                if dyn_sens_df is not None:
+                    sec_key = sec if sec in dyn_sens_df.index else (str(sec).strip() if str(sec).strip() in dyn_sens_df.index else "Market")
+                    if sec_key in dyn_sens_df.index:
+                        beta_row = dyn_sens_df.loc[sec_key]
+                        macro_impulse = sum(float(beta_row.get(factor, 0.0)) * ret_val for factor, ret_val in macro_vector.items() if factor in dyn_sens_df.columns)
+                    else:
+                        macro_impulse = sum(beta_map.get(factor, 0.0) * ret_val for factor, ret_val in macro_vector.items())
+                else:
+                    macro_impulse = sum(beta_map.get(factor, 0.0) * ret_val for factor, ret_val in macro_vector.items())
                 if not np.isfinite(macro_impulse):
                     macro_impulse = 0.0
 
