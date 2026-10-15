@@ -54,7 +54,8 @@ class SmartOrderRouter:
         except Exception:
             pass
         self.version = v
-        self.is_phase110 = (self.version >= 110)
+        self.is_phase111 = (self.version >= 111)
+        self.is_phase110 = self.is_phase111 or (self.version >= 110)
         self.is_phase109 = self.is_phase110 or (self.version >= 109)
         self.is_phase108 = self.is_phase109 or (self.version >= 108)
         self.is_phase107 = self.is_phase108 or (self.version >= 107)
@@ -315,7 +316,8 @@ class SmartOrderRouter:
         if "market_spread_bps" in order_plan and order_plan["market_spread_bps"] is not None:
             market_spread_bps = float(order_plan["market_spread_bps"])
 
-        is_phase110 = (v_eff >= 110)
+        is_phase111 = (v_eff >= 111)
+        is_phase110 = is_phase111 or (v_eff >= 110)
         is_phase109 = is_phase110 or (v_eff >= 109)
         is_phase108 = is_phase109 or (v_eff >= 108)
         is_phase107 = is_phase108 or (v_eff >= 107)
@@ -1820,4 +1822,79 @@ class SmartOrderRouter:
             probs = np.ones(n) / n
 
         return {venues[i]: float(probs[i]) for i in range(n)}
+
+    def route_triangular_arbitrage(
+        self,
+        triplet: Any,
+        quotes: Dict[str, Any],
+        target_quantities: Optional[Dict[int, int]] = None,
+        execution_slicer: Optional[Any] = None,
+        ats_available: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Phase 111 (Feature F528): Multi-Venue Triangular Arbitrage Routing Hook.
+        Routes atomic triplets across dark pools and lit venues:
+        - Liquid / Follower legs probe dark pools (SyntheticDarkPool) to capture maker rebates (+2.5 bps) and zero impact.
+        - Leader / Illiquid legs route to lit DMA with clamped Limit IOC pricing.
+        """
+        try:
+            from src.execution.triangular_arbitrage_slicer import TriangularArbitrageSlicer
+        except ImportError:
+            from trading_system.src.execution.triangular_arbitrage_slicer import TriangularArbitrageSlicer
+
+        slicer = execution_slicer or TriangularArbitrageSlicer(version=getattr(self, "version", 111))
+        opp = slicer.detect_discrepancy(triplet, quotes)
+        if not opp or not opp.is_actionable:
+            return {
+                "triplet_id": getattr(triplet, "triplet_id", "TRIPLET_UNKNOWN"),
+                "status": "SKIPPED",
+                "reason": "OPPORTUNITY_SUB_HURDLE" if opp is not None else "NO_OPPORTUNITY",
+                "opportunity": opp.to_dict() if opp else None,
+                "routed_legs": [],
+            }
+
+        # Determine target quantities
+        if target_quantities is None:
+            base_q = min(1000, opp.max_tradable_quantity) if opp.max_tradable_quantity > 0 else 100
+            dep_ratio = getattr(triplet, "depositary_ratio", 1.0)
+            target_quantities = {
+                1: base_q,
+                2: int(round(base_q * dep_ratio)),
+                3: base_q,
+            }
+
+        schedule = slicer.compute_slicing_schedule(triplet, target_quantities, quotes)
+        routed_legs = []
+        for leg in triplet.legs:
+            q = quotes.get(leg.symbol)
+            dest = self.determine_destination(leg.symbol, leg.market)
+            # Route follower legs to dark pool if ats_available
+            is_leader = (leg.leg_role.value == "LEADER" if hasattr(leg.leg_role, "value") else str(leg.leg_role) == "LEADER")
+            venue_target = dest["venue"]
+            use_dark = (not is_leader) and ats_available and (dest.get("market_region") in ["US", "KRX"])
+            if use_dark:
+                venue_target = "ATS_DARK_POOL_MIDPOINT"
+
+            routed_legs.append({
+                "leg_id": leg.leg_id,
+                "symbol": leg.symbol,
+                "market": leg.market,
+                "venue": venue_target,
+                "role": "LEADER" if is_leader else "FOLLOWER",
+                "side": leg.side.value if hasattr(leg.side, "value") else str(leg.side),
+                "total_quantity": target_quantities.get(leg.leg_id, 0),
+                "slice_tranches": schedule.slice_tranches.get(leg.leg_id, []),
+                "order_type": "LIMIT_IOC" if is_leader else ("MIDPOINT_PEG" if use_dark else "LIMIT_IOC"),
+                "destination_info": dest,
+            })
+
+        return {
+            "triplet_id": triplet.triplet_id,
+            "status": "ROUTED",
+            "opportunity": opp.to_dict(),
+            "schedule": schedule.to_dict(),
+            "routed_legs": routed_legs,
+            "is_atomic": True,
+        }
+
 

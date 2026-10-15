@@ -137,7 +137,8 @@ class ExecutionOMSEngine:
         except Exception:
             pass
         self.version = v
-        self.is_phase110 = (self.version >= 110)
+        self.is_phase111 = (self.version >= 111)
+        self.is_phase110 = self.is_phase111 or (self.version >= 110)
         self.is_phase109 = self.is_phase110 or (self.version >= 109)
         self.is_phase108 = self.is_phase109 or (self.version >= 108)
         self.is_phase107 = self.is_phase108 or (self.version >= 107)
@@ -158,6 +159,26 @@ class ExecutionOMSEngine:
                 self.toxicity_filter = IntradayToxicityFilter()
             except Exception:
                 self.toxicity_filter = None
+        self.borrow_dynamics_model: Optional[Any] = None
+        try:
+            from src.risk.borrow_dynamics_model import BorrowDynamicsModel
+            self.borrow_dynamics_model = BorrowDynamicsModel(version=self.version)
+        except Exception:
+            try:
+                from trading_system.src.risk.borrow_dynamics_model import BorrowDynamicsModel
+                self.borrow_dynamics_model = BorrowDynamicsModel(version=self.version)
+            except Exception:
+                self.borrow_dynamics_model = None
+        self.triangular_slicer: Optional[Any] = None
+        try:
+            from src.execution.triangular_arbitrage_slicer import TriangularArbitrageSlicer
+            self.triangular_slicer = TriangularArbitrageSlicer(version=self.version)
+        except Exception:
+            try:
+                from trading_system.src.execution.triangular_arbitrage_slicer import TriangularArbitrageSlicer
+                self.triangular_slicer = TriangularArbitrageSlicer(version=self.version)
+            except Exception:
+                self.triangular_slicer = None
         self.sor: Optional[Any] = None
         try:
             from src.execution.smart_order_router import SmartOrderRouter
@@ -1111,6 +1132,37 @@ class ExecutionOMSEngine:
                 target_stop_loss = round(float(target_price * (1.0 - dynamic_sl_pct)), 2)
 
                 order_amount = round(float(quantity * target_price), 2)
+
+                # ── Gate 8.1: Institutional Short Squeeze Guard & Borrow Liquidity Gate (Phase 111 F527) ──
+                try:
+                    is_short_order = bool(action in ["SHORT", "SELL_SHORT"] or pred.get("is_short", False))
+                    g81_verdict = self.evaluate_gate_8_1(
+                        order={
+                            "symbol": sym,
+                            "action": action,
+                            "market": market,
+                            "target_price": target_price,
+                            "expected_return": exp_ret_decimal if 'exp_ret_decimal' in locals() else raw_exp_alpha,
+                            "is_short": is_short_order,
+                        },
+                        borrow_quote=pred.get("borrow_quote"),
+                        squeeze_eval=pred.get("squeeze_eval"),
+                        net_alpha_bps=pred.get("net_alpha_bps"),
+                    )
+                    if g81_verdict.status == "REJECTED":
+                        logger.warning(f"[OMS GATE 8.1] {sym} order REJECTED: {g81_verdict.reason}")
+                        continue
+                    elif g81_verdict.status == "MODIFIED":
+                        if g81_verdict.recommended_exec_strategy and g81_verdict.recommended_exec_strategy != "DIRECT":
+                            exec_strategy = g81_verdict.recommended_exec_strategy
+                        if g81_verdict.slice_count_multiplier > 1.0:
+                            slice_count = max(slice_count, int(slice_count * g81_verdict.slice_count_multiplier))
+                        if g81_verdict.recommended_sleeve:
+                            sleeve_type = g81_verdict.recommended_sleeve
+                        if g81_verdict.target_price_adjustment != 1.0:
+                            target_price = target_price * g81_verdict.target_price_adjustment
+                except Exception as _g81_err:
+                    logger.debug(f"[OMS GATE 8.1] Check exception for {sym}: {_g81_err}")
 
                 # ── Feature 11 & 13: Almgren-Chriss Slicing & Tranche Tagging with OBI Peg Pricing ──
                 tranches = []
@@ -3055,6 +3107,51 @@ class ExecutionOMSEngine:
                     })
 
         return trailing_plans
+
+    def evaluate_gate_8_1(
+        self,
+        order: Union[Dict[str, Any], Any],
+        borrow_quote: Optional[Any] = None,
+        squeeze_eval: Optional[Any] = None,
+        net_alpha_bps: Optional[float] = None,
+        hurdle_rate_bps: float = 10.0,
+    ) -> Any:
+        """
+        Phase 111 (Feature F527): ExecutionOMSEngine Gate 8.1
+        Institutional Short Squeeze Guard & Borrow Liquidity Gate calling BorrowDynamicsModel.evaluate_gate_8_1.
+        """
+        try:
+            from src.risk.borrow_dynamics_model import BorrowDynamicsModel
+        except ImportError:
+            from trading_system.src.risk.borrow_dynamics_model import BorrowDynamicsModel
+
+        model = getattr(self, "borrow_dynamics_model", None) or BorrowDynamicsModel(version=getattr(self, "version", 111))
+        return model.evaluate_gate_8_1(
+            order=order,
+            borrow_quote=borrow_quote,
+            squeeze_eval=squeeze_eval,
+            net_alpha_bps=net_alpha_bps,
+            hurdle_rate_bps=hurdle_rate_bps,
+        )
+
+    def execute_triangular_arbitrage(
+        self,
+        triplet: Any,
+        quotes: Dict[str, Any],
+        target_size: Optional[int] = None,
+        slicer: Optional[Any] = None,
+    ) -> Any:
+        """
+        Phase 111 (Feature F528): Executes triangular parity arbitrage through OMS.
+        Enforces 1.5% ADV cap, exact integer conservation, and emergency partial-fill unwinding.
+        """
+        try:
+            from src.execution.triangular_arbitrage_slicer import TriangularArbitrageSlicer
+        except ImportError:
+            from trading_system.src.execution.triangular_arbitrage_slicer import TriangularArbitrageSlicer
+
+        engine = slicer or getattr(self, "triangular_slicer", None) or TriangularArbitrageSlicer(version=getattr(self, "version", 111))
+        return engine.execute_full_arbitrage(triplet=triplet, quotes=quotes, target_size=target_size)
 
 
 class AlmgrenChrissScheduler:
