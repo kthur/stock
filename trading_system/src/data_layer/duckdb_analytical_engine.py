@@ -161,6 +161,7 @@ class DuckDBAnalyticalEngine:
             ON t.{symbol_col} = q.{symbol_col}
             AND t.{trade_time_col} >= q.{quote_time_col}
             {tolerance_filter}
+        ORDER BY t.{trade_time_col}
         """
         try:
             res = self.execute_query(sql, return_format=return_format)
