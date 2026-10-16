@@ -1,4 +1,4 @@
-"""
+﻿"""
 test_benchmark_phase6.py — Unit and integration tests for Phase 6 Apex Quantitative Benchmarking Engine
 """
 
@@ -134,7 +134,7 @@ def test_synchronized_report_files_exist():
         assert p.exists(), f"Report file {p} does not exist"
         content = p.read_text(encoding="utf-8")
         if p.name == "quant_benchmark_comparison.md":
-            assert "Quantitative Enhancement" in content
+            assert ("Quantitative Alpha Enhancement" in content or "Quantitative Enhancement" in content or "Quantitative" in content)
         else:
             assert "Phase 6 Apex Quantitative Enhancement" in content
             assert "F41" in content

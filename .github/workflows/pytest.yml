@@ -13,7 +13,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -42,15 +42,17 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Install dependencies
+      timeout-minutes: 10
       run: |
         uv pip install --system --upgrade pip
         if [ -f trading_system/requirements.lock ]; then uv pip install --system -r trading_system/requirements.lock; fi
-        uv pip install --system pytest ruff mypy coverage bandit pip-audit pytest-github-actions-annotate-failures
+        uv pip install --system pytest pytest-timeout ruff mypy coverage bandit pip-audit pytest-github-actions-annotate-failures
 
     - name: Run type checking
       id: typecheck
       if: success() || failure()
       continue-on-error: true
+      timeout-minutes: 5
       working-directory: trading_system
       run: |
         python -m mypy src --explicit-package-bases --ignore-missing-imports --warn-unused-configs --warn-redundant-casts --warn-return-any
@@ -59,6 +61,7 @@ jobs:
       id: lint
       if: success() || failure()
       continue-on-error: true
+      timeout-minutes: 5
       run: |
         ruff check trading_system/src
 
@@ -66,6 +69,7 @@ jobs:
       id: security
       if: success() || failure()
       continue-on-error: true
+      timeout-minutes: 5
       run: |
         bandit -r trading_system/src -ll
 
@@ -73,6 +77,7 @@ jobs:
       id: audit
       if: success() || failure()
       continue-on-error: true
+      timeout-minutes: 5
       run: |
         pip-audit -r trading_system/requirements.lock --desc on || true
 
@@ -80,11 +85,13 @@ jobs:
       id: test
       if: success() || failure()
       continue-on-error: true
+      timeout-minutes: 25
       env:
         STOCK_PRICE_FRESHNESS_DAYS: none
+        HISTORICAL_OFFLINE: "1"
         PYTHONPATH: trading_system:trading_system/src:.
       run: |
-        python -m coverage run --source=trading_system/src -m pytest tests/ -v
+        python -m coverage run --source=trading_system/src -m pytest tests/ -v --timeout=120
 
     - name: Generate coverage report
       if: always()

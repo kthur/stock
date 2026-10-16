@@ -857,6 +857,10 @@ class HistoricalDataPipeline:
         """
         Fetches OHLCV series across fallback ticker candidates.
         """
+        if not self.auto_download or os.getenv("HISTORICAL_OFFLINE", "").lower() in ("1", "true", "yes") or os.getenv("STOCK_PRICE_FRESHNESS_DAYS", "").lower() == "none":
+            logger.info("Using deterministic offline anchor fallback for %s (auto_download=%s)", tickers[0], self.auto_download)
+            return self._generate_synthetic_anchor_panel(tickers[0], start_date, end_date)
+
         for sym in tickers:
             # Try FinanceDataReader
             try:
@@ -895,6 +899,10 @@ class HistoricalDataPipeline:
         """
         Fetches 1D macro series with multi-source fallback.
         """
+        if not self.auto_download or os.getenv("HISTORICAL_OFFLINE", "").lower() in ("1", "true", "yes") or os.getenv("STOCK_PRICE_FRESHNESS_DAYS", "").lower() == "none":
+            logger.info("Using deterministic offline macro synthesis for %s (auto_download=%s)", tickers[0], self.auto_download)
+            return self._generate_synthetic_macro_series(tickers[0], start_date, end_date)
+
         for sym in tickers:
             try:
                 import FinanceDataReader as fdr
@@ -910,7 +918,7 @@ class HistoricalDataPipeline:
             try:
                 import yfinance as yf
                 yf_sym = sym.replace("FRED:VIXCLS", "^VIX").replace("FRED:DGS10", "^TNX").replace("FRED:DEXKOUS", "USDKRW=X").replace("FRED:DCOILWTICO", "CL=F")
-                df = yf.download(yf_sym, start=start_date, end=end_date, progress=False)
+                df = yf.download(yf_sym, start=start_date, end=end_date, progress=False, auto_adjust=False)
                 if df is not None and not df.empty and len(df) > 10:
                     if isinstance(df.columns, pd.MultiIndex):
                         df.columns = df.columns.get_level_values(0)

@@ -1,0 +1,459 @@
+name: Daily Pipeline
+
+on:
+  schedule:
+    - cron: '30 11 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      target_market:
+        description: '실행 대상 시장 / 국가 선택 (Select Target Market / Country)'
+        required: true
+        default: 'CORE_5'
+        type: choice
+        options:
+          - 'CORE_5'
+          - 'ALL'
+          - 'KOSPI'
+          - 'KOSDAQ'
+          - 'SP500'
+          - 'NASDAQ'
+          - 'RUSSELL2000'
+          - 'CHINA'
+          - 'JAPAN'
+          - 'INDIA'
+          - 'EUROPE'
+          - 'VIETNAM'
+          - 'TAIWAN'
+          - 'AUSTRALIA'
+          - 'BRAZIL'
+          - 'HKEX'
+          - 'SINGAPORE'
+          - 'CANADA'
+          - 'ASIA_DEV'
+          - 'ASIA_EMG'
+          - 'COMMODITY'
+      prediction_limit:
+        description: '전략별 산출 종목 수 (Strategy Output Limit: all 또는 100)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - 'all'
+          - '100'
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  setup-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          TARGET="${{ inputs.target_market || 'CORE_5' }}"
+          echo "Selected target market input: $TARGET"
+          if [ "$TARGET" = "CORE_5" ]; then
+            echo 'matrix=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]' >> $GITHUB_OUTPUT
+          elif [ "$TARGET" = "ALL" ]; then
+            echo 'matrix=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "CHINA", "JAPAN", "INDIA", "EUROPE", "VIETNAM", "TAIWAN", "AUSTRALIA", "BRAZIL", "HKEX", "SINGAPORE", "CANADA"]' >> $GITHUB_OUTPUT
+          elif [ "$TARGET" = "ASIA_DEV" ]; then
+            echo 'matrix=["JAPAN", "TAIWAN", "HKEX", "SINGAPORE"]' >> $GITHUB_OUTPUT
+          elif [ "$TARGET" = "ASIA_EMG" ]; then
+            echo 'matrix=["CHINA", "INDIA", "VIETNAM"]' >> $GITHUB_OUTPUT
+          elif [ "$TARGET" = "COMMODITY" ]; then
+            echo 'matrix=["AUSTRALIA", "BRAZIL", "CANADA"]' >> $GITHUB_OUTPUT
+          else
+            echo "matrix=[\"$TARGET\"]" >> $GITHUB_OUTPUT
+          fi
+
+  run-pipeline:
+    needs: setup-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
+    timeout-minutes: 350   # 5시간 50분 (GitHub Runner 6시간 리밋 이내)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
+
+      - name: Cache uv packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml', '**/requirements*.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Create venv and install dependencies
+        run: |
+          uv venv --seed .venv --python 3.12
+          if [ -f trading_system/requirements.lock ]; then
+            uv pip install -r trading_system/requirements.lock
+          elif [ -f pyproject.toml ]; then
+            uv pip install -e .
+          elif [ -f trading_system/pyproject.toml ]; then
+            uv pip install ./trading_system
+          else
+            echo "CRITICAL: No lockfile or pyproject.toml found for deterministic build."
+            exit 1
+          fi
+
+      - name: Create logs directory
+        run: mkdir -p trading_system/logs
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(TZ='Asia/Seoul' date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Cache stock_prices.db
+        uses: actions/cache@v4
+        id: db-cache
+        with:
+          path: trading_system/stock_prices.db
+          key: stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}-${{ github.run_id }}
+          restore-keys: |
+            stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}-
+            stock-prices-db-${{ matrix.target }}-
+            stock-prices-db-
+
+      - name: Cache market_indicators.db
+        uses: actions/cache@v4
+        id: indicators-cache
+        with:
+          path: trading_system/market_indicators.db
+          key: market-indicators-db-${{ matrix.target }}-${{ steps.date.outputs.date }}-${{ github.run_id }}
+          restore-keys: |
+            market-indicators-db-${{ matrix.target }}-${{ steps.date.outputs.date }}-
+            market-indicators-db-${{ matrix.target }}-
+            market-indicators-db-
+
+      - name: Cache AI models (Restore only)
+        uses: actions/cache/restore@v4
+        id: models-cache
+        with:
+          path: trading_system/models
+          key: ai-models-${{ matrix.target }}-${{ steps.date.outputs.date }}
+          restore-keys: |
+            ai-models-${{ matrix.target }}-
+
+      - name: Run prediction pipeline for ${{ matrix.target }}
+        id: run
+        env:
+          DOWNLOAD_DB_FROM_GITHUB: 'true'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DB_PATH: market_indicators.db
+          STOCK_PRICE_DB_PATH: stock_prices.db
+          STOCK_PRICE_FRESHNESS_DAYS: '1'
+          TRAIN_SAMPLE_SP500: all
+          TRAIN_SAMPLE_KRX: all
+          TRAIN_START_DATE: '2006-01-01'
+          TRAIN_SEED: '42'
+          UPDATE_INTERVAL: '0'
+          INFERENCE_TARGET: ${{ matrix.target }}
+          BROKER_TYPE: DUMMY
+          MOCK_TRADING_ENABLED: 'True'
+          DEBUG_MODE: 'False'
+          LOG_LEVEL: INFO
+          SKIP_TRAINING: 'True'
+          FORCE_CPU: '1'
+          TZ: 'Asia/Seoul'
+          PREDICTION_OUTPUT_LIMIT: ${{ inputs.prediction_limit || 'all' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          KOREABANK_ECOS_KEY: ${{ secrets.KOREABANK_ECOS_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          .venv/bin/python trading_system/run_pipeline.py 2>&1
+
+      # P0/P2: GitHub Step Summary — visible in GHA Actions tab without opening logs
+      - name: Write Step Summary
+        if: always()
+        run: |
+          STATUS="${{ steps.run.outcome }}"
+          ICON="✅"
+          [ "$STATUS" != "success" ] && ICON="❌"
+          echo "## ${ICON} Pipeline: ${{ matrix.target }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ⚙️ 실행 정보" >> $GITHUB_STEP_SUMMARY
+          echo "| 항목 | 값 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 실행 대상 | ${{ matrix.target }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 상태 | ${STATUS} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 실행 일시 | $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| SKIP_TRAINING | ${{ env.SKIP_TRAINING }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 37대 전략 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
+          echo "| 전략 / 파일명 | 크기 | 줄 수 |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------------|------|-------|" >> $GITHUB_STEP_SUMMARY
+          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt stat_arb_predictions.txt sector_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt inst_foreign_sector_predictions.txt supply_chain_predictions.txt sentiment_predictions.txt factor_neutralized_predictions.txt vol_target_predictions.txt microstructure_predictions.txt accruals_quality_predictions.txt short_squeeze_predictions.txt valueup_catalyst_predictions.txt trend_efficiency_predictions.txt gamma_squeeze_predictions.txt insider_buying_predictions.txt darkpool_predictions.txt earnings_tone_drift_predictions.txt cross_asset_spillover_predictions.txt supply_chain_gnn_predictions.txt range_expansion_predictions.txt dual_correction_predictions.txt index_rebalance_predictions.txt overnight_gap_predictions.txt hft_order_flow_predictions.txt pipeline_result.csv; do
+            FPATH="trading_system/result/$f"
+            if [ -f "$FPATH" ]; then
+              SIZE=$(du -sh "$FPATH" 2>/dev/null | cut -f1)
+              LINES=$(wc -l < "$FPATH" 2>/dev/null || echo "?")
+              echo "| $f | $SIZE | $LINES |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $f | ⚠️ 없음 | - |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          if [ -f "trading_system/result/ensemble_predictions.txt" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 37대 전략 동적 앙상블 상세 추천 리스트" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            head -n 60 trading_system/result/ensemble_predictions.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f "trading_system/result/strategy_data_coverage_report.txt" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🔍 전략별 데이터 커버리지 & 결측 분석" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            cat trading_system/result/strategy_data_coverage_report.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # P0: Telegram failure notification — send CRITICAL alert when pipeline fails
+      - name: Notify Telegram on Failure
+        if: failure()
+        run: |
+          TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}"
+          CHAT="${{ secrets.TELEGRAM_CHAT_ID }}"
+          if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
+            RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            MSG="🚨 *[CRITICAL] GHA Pipeline Failed*%0A%0A"
+            MSG+="*Market:* ${{ matrix.target }}%0A"
+            MSG+="*Status:* ${{ steps.run.outcome }}%0A"
+            MSG+="*Time:* $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')%0A%0A"
+            MSG+="*Run URL:* ${RUN_URL}"
+            curl -sf -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+              -d "chat_id=${CHAT}&text=${MSG}&parse_mode=Markdown" > /dev/null || true
+          fi
+
+      - name: Rename output files to avoid conflicts
+        if: always()
+        run: |
+          mkdir -p trading_system/result_split
+          for f in pipeline_result surge_predictions lead_lag_predictions vcp_patterns vcp_ml_predictions lstm_predictions stat_arb_predictions sector_predictions rim_predictions event_driven_predictions mq_factor_predictions iv_skew_predictions order_flow_predictions short_term_reversal_predictions ensemble_predictions strategy_data_coverage_report portfolio_allocation arm_factor_predictions card_factor_predictions latr_factor_predictions inst_foreign_sector_predictions supply_chain_predictions sentiment_predictions factor_neutralized_predictions vol_target_predictions microstructure_predictions accruals_quality_predictions short_squeeze_predictions valueup_catalyst_predictions trend_efficiency_predictions gamma_squeeze_predictions insider_buying_predictions hft_order_flow_predictions darkpool_predictions earnings_tone_drift_predictions cross_asset_spillover_predictions supply_chain_gnn_predictions range_expansion_predictions dual_correction_predictions index_rebalance_predictions overnight_gap_predictions run_comparison; do
+            src="trading_system/result/${f}.txt"
+            if [ -f "$src" ]; then
+              cp "$src" "trading_system/result_split/${f}_${{ matrix.target }}.txt"
+            fi
+          done
+          # backtest_summary.json is JSON (not .txt) — carry it per-market so the
+          # merge job can reconstruct the dashboard's real performance table
+          if [ -f "trading_system/result/backtest_summary.json" ]; then
+            cp "trading_system/result/backtest_summary.json" "trading_system/result_split/backtest_summary_${{ matrix.target }}.json"
+          fi
+
+      - name: Upload split results as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-${{ matrix.target }}
+          path: trading_system/result_split/
+          retention-days: 7
+
+      - name: Upload market indicators DB
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-${{ matrix.target }}
+          path: trading_system/market_indicators.db
+          retention-days: 7
+
+  merge-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: run-pipeline
+    if: always()
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(TZ='Asia/Seoul' date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Download all market result artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: result-*
+          path: trading_system/artifacts_in
+        continue-on-error: true
+
+      - name: Guard - require at least one successful market
+        run: |
+          FOUND=0
+          if ls trading_system/artifacts_in/*/*.txt >/dev/null 2>&1 || ls trading_system/result_*/*.txt >/dev/null 2>&1; then
+            FOUND=1
+          fi
+          if [ "$FOUND" != "1" ]; then
+            echo "::error::All market pipelines failed - no prediction files. Skipping release & deploy."
+            exit 1
+          fi
+
+      - name: Merge and reconstruct outputs
+        run: |
+          mkdir -p trading_system/result
+          # Copy all market-split prediction files and backtest summaries into result directory
+          cp trading_system/artifacts_in/*/*.* trading_system/result/ 2>/dev/null || true
+          cp trading_system/result_*/*.* trading_system/result/ 2>/dev/null || true
+
+          # Run python merging script to generate unified result files
+          python3 trading_system/merge_predictions.py
+          python3 trading_system/generate_run_snapshot.py
+
+      - name: Upload merged results as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged-results
+          path: trading_system/result/
+          retention-days: 7
+
+      - name: Create GitHub Release and Upload Assets
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check for target files safely using find to avoid argument errors if directory has different files
+          if ls trading_system/result/*.txt 1> /dev/null 2>&1 || ls trading_system/result/*/*.txt 1> /dev/null 2>&1; then
+            TAG_NAME="v${{ steps.date.outputs.date }}"
+            gh release create "$TAG_NAME" \
+              --title "Daily Predictions $TAG_NAME" \
+              --notes "Daily prediction results for $TAG_NAME (Merged SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ)." \
+              || echo "Release $TAG_NAME already exists"
+            
+            # Upload all strategy files and report outputs
+            for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt \
+                      vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt \
+                      stat_arb_predictions.txt sector_predictions.txt \
+                      rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt \
+                      iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt \
+                      arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt \
+                      inst_foreign_sector_predictions.txt supply_chain_predictions.txt sentiment_predictions.txt \
+                      factor_neutralized_predictions.txt vol_target_predictions.txt microstructure_predictions.txt \
+                      accruals_quality_predictions.txt short_squeeze_predictions.txt valueup_catalyst_predictions.txt \
+                      trend_efficiency_predictions.txt gamma_squeeze_predictions.txt insider_buying_predictions.txt \
+                      earnings_tone_drift_predictions.txt hft_order_flow_predictions.txt darkpool_predictions.txt \
+                      cross_asset_spillover_predictions.txt supply_chain_gnn_predictions.txt range_expansion_predictions.txt \
+                      dual_correction_predictions.txt index_rebalance_predictions.txt overnight_gap_predictions.txt \
+                      ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt run_comparison.txt; do
+              fpath="trading_system/result/$f"
+              [ -f "$fpath" ] && gh release upload "$TAG_NAME" "$fpath" --clobber || true
+            done
+            # JSON metadata (realized backtest summary & run snapshot) for external consumers and permanent backup
+            [ -f "trading_system/result/backtest_summary.json" ] && gh release upload "$TAG_NAME" "trading_system/result/backtest_summary.json" --clobber || true
+            [ -f "trading_system/result/run_snapshot.json" ] && gh release upload "$TAG_NAME" "trading_system/result/run_snapshot.json" --clobber || true
+
+          else
+            echo "No prediction output files found to upload."
+          fi
+
+  deploy-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
+    needs: merge-and-release
+    if: needs.merge-and-release.result == 'success'
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download merged results artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: merged-results
+          path: trading_system/result
+
+      - name: Download per-market indicator DBs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: db-*
+          path: trading_system/db_split
+        continue-on-error: true
+
+      - name: List downloaded DB artifacts
+        run: |
+          find trading_system/db_split -name '*.db' | sed 's/^/  /' || true
+
+      - name: Verify merged results present (abort stale deploys)
+        run: |
+          if ! ls trading_system/result/*.txt >/dev/null 2>&1; then
+            echo "::error::Merged result files missing - refusing to deploy a stale/fabricated dashboard."
+            exit 1
+          fi
+          ls -la trading_system/result/ | head -40
+
+      - name: Install uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
+
+      - name: Generate HTML dashboard
+        timeout-minutes: 5
+        run: |
+          mkdir -p gh-pages
+          uv python install 3.12
+          uv venv --python 3.12 .venv
+          # Install minimal deps required by generate_report.py
+          uv pip sync trading_system/requirements.lock
+          .venv/bin/python trading_system/generate_report.py \
+            --result-dir trading_system/result \
+            --out gh-pages/index.html
+          # Copy any extra static assets if they exist
+          cp trading_system/result/pipeline_result.txt gh-pages/ 2>/dev/null || true
+
+      - name: Write build info
+        run: |
+          echo "Built: $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')" > gh-pages/build.txt
+          echo "Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> gh-pages/build.txt
+          ls -lh gh-pages/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: gh-pages/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+        with:
+          timeout: 900000
+          error_count: 10
+          reporting_interval: 5000
+
+      - name: Verify Pages deployment outcome
+        if: always()
+        run: |
+          if [ "${{ steps.deployment.outcome }}" = "success" ]; then
+            echo "::notice::GitHub Pages deployment succeeded: ${{ steps.deployment.outputs.page_url }}"
+          else
+            echo "::warning::GitHub Pages deployment was delayed or timed out in GitHub queue (outcome=${{ steps.deployment.outcome }}). The artifact remains valid and will be published on subsequent runs."
+          fi

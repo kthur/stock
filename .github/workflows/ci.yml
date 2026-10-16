@@ -1,0 +1,144 @@
+name: CI / Testing & Security Audit
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: "latest"
+
+    - name: Cache uv packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml', '**/requirements*.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-${{ matrix.python-version }}-
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      timeout-minutes: 10
+      run: |
+        uv pip install --system --upgrade pip
+        if [ -f trading_system/requirements.lock ]; then uv pip install --system -r trading_system/requirements.lock; fi
+        uv pip install --system pytest pytest-timeout ruff mypy coverage bandit pip-audit pytest-github-actions-annotate-failures
+
+    - name: Run type checking
+      id: typecheck
+      if: success() || failure()
+      continue-on-error: true
+      timeout-minutes: 5
+      working-directory: trading_system
+      run: |
+        python -m mypy src --explicit-package-bases --ignore-missing-imports --warn-unused-configs --warn-redundant-casts --warn-return-any
+
+    - name: Lint (ruff)
+      id: lint
+      if: success() || failure()
+      continue-on-error: true
+      timeout-minutes: 5
+      run: |
+        ruff check trading_system/src
+
+    - name: Security audit (bandit)
+      id: security
+      if: success() || failure()
+      continue-on-error: true
+      timeout-minutes: 5
+      run: |
+        bandit -r trading_system/src -ll
+
+    - name: Dependency vulnerability audit (pip-audit)
+      id: audit
+      if: success() || failure()
+      continue-on-error: true
+      timeout-minutes: 5
+      run: |
+        pip-audit -r trading_system/requirements.lock --desc on || true
+
+    - name: Run unit tests
+      id: test
+      if: success() || failure()
+      continue-on-error: true
+      timeout-minutes: 25
+      env:
+        STOCK_PRICE_FRESHNESS_DAYS: none
+        HISTORICAL_OFFLINE: "1"
+        PYTHONPATH: trading_system:trading_system/src:.
+      run: |
+        python -m coverage run --source=trading_system/src -m pytest tests/ -v --timeout=120
+
+    - name: Generate coverage report
+      if: always()
+      run: |
+        if [ -f .coverage ]; then
+          python -m coverage report
+          python -m coverage xml -o coverage.xml
+        else
+          echo "No .coverage file found; skipping coverage reporting."
+        fi
+
+    - name: Upload coverage to artifacts
+      if: always() && matrix.python-version == '3.12'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage.xml
+        if-no-files-found: ignore
+
+    - name: Write CI Step Summary
+      if: always()
+      env:
+        TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
+        LINT_OUTCOME: ${{ steps.lint.outcome }}
+        SECURITY_OUTCOME: ${{ steps.security.outcome }}
+        AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+        TEST_OUTCOME: ${{ steps.test.outcome }}
+      run: |
+        echo "## 📋 CI 검증 및 테스트 결과 요약" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| 검증 항목 | 상태 | 결과 |" >> $GITHUB_STEP_SUMMARY
+        echo "|---|:---:|:---:|" >> $GITHUB_STEP_SUMMARY
+        for item in "타입 검사 (mypy):$TYPECHECK_OUTCOME" "린트 검사 (ruff):$LINT_OUTCOME" "보안 감사 (bandit):$SECURITY_OUTCOME" "의존성 감사 (pip-audit):$AUDIT_OUTCOME" "단위 테스트 (pytest):$TEST_OUTCOME"; do
+          NAME="${item%%:*}"
+          STATUS="${item##*:}"
+          if [ "$STATUS" = "success" ]; then
+            ICON="✅"
+            LABEL="통과"
+          elif [ "$STATUS" = "failure" ]; then
+            ICON="❌"
+            LABEL="실패"
+          elif [ "$STATUS" = "skipped" ]; then
+            ICON="⚠️"
+            LABEL="건너뜀"
+          else
+            ICON="ℹ️"
+            LABEL="$STATUS"
+          fi
+          echo "| $NAME | $ICON | $LABEL |" >> $GITHUB_STEP_SUMMARY
+        done

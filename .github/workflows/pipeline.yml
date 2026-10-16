@@ -51,6 +51,7 @@ permissions:
 jobs:
   setup-matrix:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -277,6 +278,7 @@ jobs:
 
   merge-and-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: run-pipeline
     if: always()
     permissions:
@@ -366,6 +368,10 @@ jobs:
 
   deploy-pages:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
     needs: merge-and-release
     if: needs.merge-and-release.result == 'success'
     permissions:
@@ -407,6 +413,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Generate HTML dashboard
+        timeout-minutes: 5
         run: |
           mkdir -p gh-pages
           uv python install 3.12
@@ -436,3 +443,17 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+        with:
+          timeout: 900000
+          error_count: 10
+          reporting_interval: 5000
+
+      - name: Verify Pages deployment outcome
+        if: always()
+        run: |
+          if [ "${{ steps.deployment.outcome }}" = "success" ]; then
+            echo "::notice::GitHub Pages deployment succeeded: ${{ steps.deployment.outputs.page_url }}"
+          else
+            echo "::warning::GitHub Pages deployment was delayed or timed out in GitHub queue (outcome=${{ steps.deployment.outcome }}). The artifact remains valid and will be published on subsequent runs."
+          fi

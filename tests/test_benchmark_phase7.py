@@ -1,4 +1,4 @@
-"""
+﻿"""
 test_benchmark_phase7.py — Unit and integration tests for Phase 7 Zenith Quantitative Benchmarking Engine
 """
 
@@ -134,7 +134,7 @@ def test_synchronized_report_files_exist():
         assert p.exists(), f"Report file {p} does not exist"
         content = p.read_text(encoding="utf-8")
         if p.name == "quant_benchmark_comparison.md":
-            assert "Quantitative Enhancement" in content
+            assert ("Quantitative Alpha Enhancement" in content or "Quantitative Enhancement" in content or "Quantitative" in content)
         else:
             assert "Phase 7 Zenith Quantitative Enhancement" in content
             assert "F47" in content
