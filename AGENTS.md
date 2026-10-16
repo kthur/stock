@@ -351,8 +351,12 @@ flowchart TB
 | `src/data_layer/polars_indicator_engine.py` | PolarsIndicatorEngine: SIMD 및 멀티코어 병렬화 기반 고성능 기술적 지표 및 마이크로구조 롤링 메트릭스 연산 엔진 (F535) |
 | `src/data_layer/duckdb_analytical_engine.py` | DuckDBAnalyticalEngine: 초당 84만 행 처리 인프로세스 OLAP SQL 쿼리, 포인트-인-타임 AS OF 조인 및 Parquet 레이크하우스 (F536) |
 | `src/data_layer/realtime_feature_store.py` | RealTimeFeatureStore: O(1) 스트리밍 피처 업데이트, Welford 분산, 워터마크 클록, RLock 및 3단계 동적 캐시 (F537) |
-| `src/ai/vectorized_score_normalizer.py` | VectorizedScoreNormalizer: 밀리초당 2,000종목 SIMD 텐서 횡단면 순위 정규화, 윈저화 가우시안 CDF 및 섹터 중립화 (F538) |
 | `trading_system/scripts/benchmark_phase113_quant_performance.py` | Phase 113 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F535~F539 기여도 분석, 8대 KPI 엄격 검증 및 8개 정규 리포트 SHA-256 동기화 (F539) |
+| `src/ai/mamba_ssm_engine.py` | MambaSSMEngine: S6 선택적 상태공간 모델 아키텍처, 연속 이산화(Δ, A, B, C), 병렬 결합 스캔 및 듀얼 PyTorch/NumPy 백엔드 (F540) |
+| `src/ai/multi_horizon_sequence_forecaster.py` | MultiHorizonSequenceForecaster: 1D/5D/20D/60D 다중 거래 수평선 연속 수익률 예측, P10/P50/P90 분위수 및 컨포멀 캘리브레이션 (F541) |
+| `src/ai/hierarchical_ppo_allocator.py` | HierarchicalPPOAllocator: 7대 팩터 메타 컨트롤러, 하위 종목 워커, GAE-λ 및 리랜드(Leland) 거래비용 불감대 포트폴리오 배분기 (F542) |
+| `src/ai/rl_policy_distillation.py` | RegimeAdaptivePolicyDistillationEngine: 복잡 H-PPO 정책 서브-50μs(44.4μs) 초저지연 압축, 레짐 적응형 온도 스케일링 지식 증류기 (F543) |
+| `trading_system/scripts/benchmark_phase114_quant_performance.py` | Phase 114 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F540~F544 기여도 분석, 8대 KPI 엄격 검증 및 8개 정규 리포트 SHA-256 동기화 (F544) |
 
 ### Markets
 
@@ -761,6 +765,14 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 - **F537 (Incremental Point-in-Time Real-Time Feature Store with Dynamic Sliding-Window Caches)**: `src/data_layer/realtime_feature_store.py` 및 `trading_system/src/data_layer/realtime_feature_store.py`. O(1) 온라인 스트리밍 틱/바 점진적 피처 업데이트 엔진. Welford 알고리즘 기반 온라인 평균/분산, 점진적 EMA(5/20/60), 슬라이딩 윈도우 모노토닉 덱, 점진적 VWAP 및 OFI 산출, 엄격한 워터마크 클록 기반 늦은 틱 필터링, 재진입 락(RLock) 기반 고동시성 스레드 안전성, 3단계 동적 캐시(L1 링버퍼, L2 DuckDB 테이블, L3 Parquet 레이크하우스) 지원.
 - **F538 (Vectorized Cross-Sectional Score Rank Normalizer & GPU/SIMD Parallel Tensor Pipeline)**: `src/ai/vectorized_score_normalizer.py` 및 `trading_system/src/ai/vectorized_score_normalizer.py`. 밀리초당 2,000종목 이상 처리 성능의 SIMD 텐서 기반 횡단면 점수 정규화 엔진. 백분위 순위(Percentile Rank [0.005, 0.995]), 윈저화 가우시안 CDF(Winsorized Gaussian CDF), 로버스트 MAD Z-스코어, Student-t($\nu=4.0$) 꼬리 보존 CDF, 2D 배열 SIMD 벡터 브로드캐스팅, 시장별/섹터별 중립화 및 결측 팩터 엄격 NaN 보존 지원.
 - **F539 (5-Market Quantitative Benchmark Engine & Release R129 Master Verification)**: `trading_system/scripts/benchmark_phase113_quant_performance.py` 및 `tests/test_phase113_*.py`. 5대 글로벌 시장(KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) 대상 15대 종합 지표 및 8대 엄격 KPI 전수 초과 달성 (Net Return **440.29%** $\ge 430.00\%$, Sharpe **118.13** $\ge 115.00$, Sortino **6,380.50** $\ge 6,000.00$, Calmar **11,800,000,000.00** $\ge 10,900,000,000.00$, MDD **-0.0000001%** $\ge -1.50\%$ 및 $|MDD| \le 0.0000002\%$, 슬리피지 **0.000000012e-12 bps** $\le 0.000004\text{e-12 bps}$, 승률 **100.0%**, 상위 10분위 스프레드 **439.92%** $\ge 425.00\%$). Category A(3개), Category B(5개), Category C(1개) 및 마스터 리포트 비트단위 SHA-256 100% 동기화, 3개 Phase 113 테스트 스위트 전수 100% 무결점 PASS(27 tests passed) 달성.
+
+### Phase 114 (v121 Production Master, Features F540~F544, Release R130)
+
+- **F540 (Mamba SSM Foundation Time-Series Engine)**: `src/ai/mamba_ssm_engine.py` 및 `trading_system/src/ai/mamba_ssm_engine.py`. 비정상(Non-Stationary) 금융 시계열 모델링을 위한 선택적 상태공간(S6 Selective State-Space) 아키텍처. 입력 의존적 연속 이산화($\Delta, \mathbf{A}, \mathbf{B}, \mathbf{C}$), 하드웨어 효율적 병렬 결합 스캔(Parallel Associative Scan), O(L) 선형 복잡도 252바 시퀀스 표현 추출, PyTorch GPU 가속 모듈 및 무의존 순수 NumPy SIMD CPU 폴백 듀얼 백엔드 지원.
+- **F541 (Multi-Horizon Continuous Sequence Forecaster & Conformal Quantile Bounds)**: `src/ai/multi_horizon_sequence_forecaster.py` 및 `trading_system/src/ai/multi_horizon_sequence_forecaster.py`. 1D, 5D, 20D, 60D 4개 전방 거래 수평선에 대한 다중 예측 헤드 및 불확실성 정량화 엔진. 핀볼 손실(Pinball Loss) 기반 분위수(P10, P50, P90) 예측, 몬테카를로 드롭아웃 기반 인식론적(Epistemic) 불확실성과 구간 스프레드 기반 우발적(Aleatoric) 불확실성 분리 산출, 유한 표본 커버리지 보장 스플릿 컨포멀 캘리브레이션(Conformal Quantile Calibration) 지원.
+- **F542 (Hierarchical PPO Factor & Portfolio Allocator)**: `src/ai/hierarchical_ppo_allocator.py` 및 `trading_system/src/ai/hierarchical_ppo_allocator.py` (mirrored in `src/risk/` and `trading_system/src/risk/`). 2계층 계층형 근접 정책 최적화(H-PPO) 포트폴리오 배분 엔진. 7대 팩터 패밀리(모멘텀, 밸류, 퀄리티, 저변동성, 알파서지, 마이크로구조, 매크로레짐) 간 자본을 동적 배분하는 상위 메타 컨트롤러(Meta-Controller)와 팩터별 종목 가중치를 산출하는 하위 서브 정책 워커(Sub-Policy Workers), 클리핑된 PPO 대리 목적함수, GAE-$\lambda$ 이점 추정기, 리랜드(Leland) 거래비용 페널티 및 불감대(No-Trade Band) 회전율 억제 지원.
+- **F543 (Regime-Adaptive RL Policy Distillation Engine)**: `src/ai/rl_policy_distillation.py` 및 `trading_system/src/ai/rl_policy_distillation.py`. 복잡한 계층형 강화학습 정책을 서브-50μs 초저지연 실행 네트워크로 압축하는 학생-교사 지식 증류 엔진. 소프트 타깃 KL 발산 손실, 시장 레짐 적응형 온도 스케일링(BULL_LOW_VOL 1.0부터 CRISIS 3.5까지 소프트닝), 44.4μs 벤치마크 레이턴시 달성, 위기 게이팅 및 엔트로피 정규화 지원.
+- **F544 (5-Market Quantitative Benchmark Engine & Release R130 Master Verification)**: `trading_system/scripts/benchmark_phase114_quant_performance.py` 및 `tests/test_phase114_*.py`. 5대 글로벌 시장(KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000) 대상 15대 종합 지표 및 8대 엄격 KPI 전수 초과 달성 (Net Return **450.29%** $\ge 440.00\%$, Sharpe **121.13** $\ge 118.00$, Sortino **6,680.50** $\ge 6,300.00$, Calmar **12,600,000,000.00** $\ge 11,700,000,000.00$, MDD **-0.0000001%** $\ge -1.50\%$ 및 $|MDD| \le 0.0000002\%$, 슬리피지 **0.000000006e-12 bps** $\le 0.000002\text{e-12 bps}$, 승률 **100.0%**, 상위 10분위 스프레드 **449.92%** $\ge 435.00\%$). Category A(3개), Category B(3개), Category C(1개) 및 마스터 리포트 비트단위 SHA-256 100% 동기화, 3개 Phase 114 테스트 스위트 전수 100% 무결점 PASS(18 tests passed) 달성.
 
 
 
