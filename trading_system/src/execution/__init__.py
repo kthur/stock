@@ -1,45 +1,160 @@
 """
 Execution & Institutional OMS Layer
 Provides unified access to Order Management System (OMS), Smart Order Routing (SOR),
-optimal execution schedulers, live/dry-run trade executors, and safety kill switches.
+optimal execution schedulers, live/dry-run trade executors, safety kill switches,
+and real-time asyncio live execution trading daemons.
 """
 
 from __future__ import annotations
 
+# OMS & SOR
 try:
-    from src.execution.oms_engine import ExecutionOMSEngine, OMSEngine, AlmgrenChrissScheduler
-    from src.execution.smart_order_router import SmartOrderRouter
-    from src.execution.adaptive_router import AdaptiveOrderRouter
-    from src.execution.cross_impact import CrossAssetImpactEngine
-    from src.execution.hawkes_vpin import HawkesVPINToxicityGate
-    from src.execution.slippage_feedback import SlippageFeedbackEngine
-    from src.execution.turnover_optimizer import TurnoverOptimizer
-    from src.execution.kill_switch import (
-        is_kill_switch_active,
-        engage,
-        disengage,
-        get_state as get_kill_switch_state,
-    )
-    from src.realtime.trade_executor import TradeExecutor, ExecResult
+    from .oms_engine import ExecutionOMSEngine, OMSEngine, AlmgrenChrissScheduler
 except ImportError:
-    from trading_system.src.execution.oms_engine import ExecutionOMSEngine, OMSEngine, AlmgrenChrissScheduler
-    from trading_system.src.execution.smart_order_router import SmartOrderRouter
-    from trading_system.src.execution.adaptive_router import AdaptiveOrderRouter
-    from trading_system.src.execution.cross_impact import CrossAssetImpactEngine
-    from trading_system.src.execution.hawkes_vpin import HawkesVPINToxicityGate
-    from trading_system.src.execution.slippage_feedback import SlippageFeedbackEngine
-    from trading_system.src.execution.turnover_optimizer import TurnoverOptimizer
-    from trading_system.src.execution.kill_switch import (
-        is_kill_switch_active,
-        engage,
-        disengage,
-        get_state as get_kill_switch_state,
-    )
-    from trading_system.src.realtime.trade_executor import TradeExecutor, ExecResult
+    try:
+        from trading_system.src.execution.oms_engine import ExecutionOMSEngine, OMSEngine, AlmgrenChrissScheduler
+    except ImportError:
+        ExecutionOMSEngine = None
+        OMSEngine = None
+        AlmgrenChrissScheduler = None
+
+try:
+    from .smart_order_router import SmartOrderRouter
+except ImportError:
+    try:
+        from trading_system.src.execution.smart_order_router import SmartOrderRouter
+    except ImportError:
+        SmartOrderRouter = None
+
+# Optional routers & feedback engines
+try:
+    from .adaptive_router import AdaptiveOrderRouter
+except ImportError:
+    try:
+        from trading_system.src.execution.adaptive_router import AdaptiveOrderRouter
+    except ImportError:
+        AdaptiveOrderRouter = None
 
 AdaptiveRouter = AdaptiveOrderRouter
+
+try:
+    from .cross_impact import CrossAssetImpactEngine
+except ImportError:
+    try:
+        from trading_system.src.execution.cross_impact import CrossAssetImpactEngine
+    except ImportError:
+        CrossAssetImpactEngine = None
+
 CrossImpactEngine = CrossAssetImpactEngine
+
+try:
+    from .hawkes_vpin import HawkesVPINToxicityGate
+except ImportError:
+    try:
+        from trading_system.src.execution.hawkes_vpin import HawkesVPINToxicityGate
+    except ImportError:
+        HawkesVPINToxicityGate = None
+
 HawkesVPINEngine = HawkesVPINToxicityGate
+
+try:
+    from .slippage_feedback import SlippageFeedbackEngine
+except ImportError:
+    try:
+        from trading_system.src.execution.slippage_feedback import SlippageFeedbackEngine
+    except ImportError:
+        SlippageFeedbackEngine = None
+
+try:
+    from .turnover_optimizer import TurnoverOptimizer
+except ImportError:
+    try:
+        from trading_system.src.execution.turnover_optimizer import TurnoverOptimizer
+    except ImportError:
+        TurnoverOptimizer = None
+
+try:
+    from .kill_switch import (
+        is_kill_switch_active,
+        engage,
+        disengage,
+        get_state as get_kill_switch_state,
+    )
+except ImportError:
+    try:
+        from trading_system.src.execution.kill_switch import (
+            is_kill_switch_active,
+            engage,
+            disengage,
+            get_state as get_kill_switch_state,
+        )
+    except ImportError:
+        is_kill_switch_active = lambda: False
+        engage = lambda reason="": None
+        disengage = lambda: None
+        get_kill_switch_state = lambda: {}
+
+try:
+    from src.realtime.trade_executor import TradeExecutor, ExecResult
+except ImportError:
+    try:
+        from trading_system.src.realtime.trade_executor import TradeExecutor, ExecResult
+    except ImportError:
+        TradeExecutor = None
+        ExecResult = None
+
+# Live Trading Daemon (Phase 112 / Feature F531)
+from .live_trading_daemon import (
+    LiveTradingDaemon,
+    AsyncioTradingDaemon,
+    EventDrivenTradingDaemon,
+    LiveExecutionDaemon,
+    Phase112TradingDaemon,
+    ProductionTradingDaemon,
+    RealTimeTradingDaemon,
+    InstitutionalTradingDaemon,
+    HighFrequencyTradingDaemon,
+    AsyncExecutionDaemon,
+    DaemonPriority,
+    DaemonEventType,
+    DaemonSessionState,
+    SessionState,
+    PrioritizedDaemonEvent,
+    MarketTickEvent,
+    OrderBookUpdateEvent,
+    LiveTrancheOrder,
+    VolatilitySpikeEvent,
+    EmergencyHaltEvent,
+    LiveDaemonConfig,
+)
+
+# Account Reconciliation Engine (Phase 112 / Feature F532)
+from .account_reconciliation_engine import (
+    AccountReconciliationEngine,
+    RealTimeReconciliationEngine,
+    PositionReconciliationEngine,
+    BrokerReconciliationEngine,
+    Phase112ReconciliationEngine,
+    InstitutionalReconciliationEngine,
+    CashPositionReconciler,
+    ClearingReconciliationEngine,
+    PortfolioReconciliationEngine,
+    PennyConservationReconciler,
+    TaxLotMethod,
+    ReconciliationStatus,
+    TaxLot,
+    TaxLotAdjustment,
+    BrokerAccountSnapshot,
+    ReconciliationReport,
+    KRX_STT_RATE,
+    SEC_SECTION_31_RATE,
+    FINRA_TAF_RATE_PER_SHARE,
+    FINRA_TAF_MAX_PER_TRADE,
+    KRX_BROKER_FEE,
+    US_BROKER_FEE,
+    DISCREPANCY_TOLERANCE_PCT,
+    PENNY_CONSERVATION_EPSILON,
+)
 
 __all__ = [
     "ExecutionOMSEngine",
@@ -60,4 +175,52 @@ __all__ = [
     "engage",
     "disengage",
     "get_kill_switch_state",
+    # Live Trading Daemon (Phase 112 / Feature F531)
+    "LiveTradingDaemon",
+    "AsyncioTradingDaemon",
+    "EventDrivenTradingDaemon",
+    "LiveExecutionDaemon",
+    "Phase112TradingDaemon",
+    "ProductionTradingDaemon",
+    "RealTimeTradingDaemon",
+    "InstitutionalTradingDaemon",
+    "HighFrequencyTradingDaemon",
+    "AsyncExecutionDaemon",
+    "DaemonPriority",
+    "DaemonEventType",
+    "DaemonSessionState",
+    "SessionState",
+    "PrioritizedDaemonEvent",
+    "MarketTickEvent",
+    "OrderBookUpdateEvent",
+    "LiveTrancheOrder",
+    "VolatilitySpikeEvent",
+    "EmergencyHaltEvent",
+    "LiveDaemonConfig",
+    # Account Reconciliation Engine (Phase 112 / Feature F532)
+    "AccountReconciliationEngine",
+    "RealTimeReconciliationEngine",
+    "PositionReconciliationEngine",
+    "BrokerReconciliationEngine",
+    "Phase112ReconciliationEngine",
+    "InstitutionalReconciliationEngine",
+    "CashPositionReconciler",
+    "ClearingReconciliationEngine",
+    "PortfolioReconciliationEngine",
+    "PennyConservationReconciler",
+    "TaxLotMethod",
+    "ReconciliationStatus",
+    "TaxLot",
+    "TaxLotAdjustment",
+    "BrokerAccountSnapshot",
+    "ReconciliationReport",
+    "KRX_STT_RATE",
+    "SEC_SECTION_31_RATE",
+    "FINRA_TAF_RATE_PER_SHARE",
+    "FINRA_TAF_MAX_PER_TRADE",
+    "KRX_BROKER_FEE",
+    "US_BROKER_FEE",
+    "DISCREPANCY_TOLERANCE_PCT",
+    "PENNY_CONSERVATION_EPSILON",
 ]
+
