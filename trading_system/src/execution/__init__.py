@@ -156,6 +156,47 @@ from .account_reconciliation_engine import (
     PENNY_CONSERVATION_EPSILON,
 )
 
+# Real-Time Lockless Queue OMS Dispatcher (Phase 115 / Feature F548)
+try:
+    from .lockless_oms_dispatcher import (
+        CircuitBreakerState,
+        OverflowPolicy,
+        DispatchStatus,
+        CircuitBreakerConfig,
+        DispatchOrder,
+        DispatchResult,
+        SPSCLocklessQueue,
+        MPSCLocklessQueue,
+        MicrosecondCircuitBreaker,
+        LocklessOMSDispatcher,
+        RealTimeLocklessQueueDispatcher,
+        Phase115OMSDispatcher,
+        InstitutionalOrderDispatcher,
+        FastOMSDispatcher,
+        MicrosecondRiskGate,
+    )
+except ImportError:
+    try:
+        from trading_system.src.execution.lockless_oms_dispatcher import (
+            CircuitBreakerState,
+            OverflowPolicy,
+            DispatchStatus,
+            CircuitBreakerConfig,
+            DispatchOrder,
+            DispatchResult,
+            SPSCLocklessQueue,
+            MPSCLocklessQueue,
+            MicrosecondCircuitBreaker,
+            LocklessOMSDispatcher,
+            RealTimeLocklessQueueDispatcher,
+            Phase115OMSDispatcher,
+            InstitutionalOrderDispatcher,
+            FastOMSDispatcher,
+            MicrosecondRiskGate,
+        )
+    except ImportError:
+        pass
+
 __all__ = [
     "ExecutionOMSEngine",
     "OMSEngine",
@@ -222,5 +263,21 @@ __all__ = [
     "US_BROKER_FEE",
     "DISCREPANCY_TOLERANCE_PCT",
     "PENNY_CONSERVATION_EPSILON",
+    # Real-Time Lockless Queue OMS Dispatcher (Phase 115 / Feature F548)
+    "CircuitBreakerState",
+    "OverflowPolicy",
+    "DispatchStatus",
+    "CircuitBreakerConfig",
+    "DispatchOrder",
+    "DispatchResult",
+    "SPSCLocklessQueue",
+    "MPSCLocklessQueue",
+    "MicrosecondCircuitBreaker",
+    "LocklessOMSDispatcher",
+    "RealTimeLocklessQueueDispatcher",
+    "Phase115OMSDispatcher",
+    "InstitutionalOrderDispatcher",
+    "FastOMSDispatcher",
+    "MicrosecondRiskGate",
 ]
 

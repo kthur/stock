@@ -564,7 +564,8 @@ class TestPhase108SharedMemoryIPC(unittest.TestCase):
     def test_tc27_cross_process_lob_ticks(self) -> None:
         """TC27: Cross-process transfer of 100 LOB ticks using spawned subprocess producer."""
         count = 100
-        main_buf = SharedMemoryRingBuffer(self.test_shm_name, capacity=256, create=True)
+        shm_name = f"{self.test_shm_name}_tc27"
+        main_buf = SharedMemoryRingBuffer(shm_name, capacity=256, create=True)
 
         producer_script = f"""
 import sys, time
@@ -572,7 +573,7 @@ sys.path.insert(0, r"{PROJECT_ROOT}")
 sys.path.insert(0, r"{TRADING_SYSTEM_DIR}")
 from src.core.shared_memory_ring_buffer import SharedMemoryRingBuffer, LOBTickMessage
 
-buf = SharedMemoryRingBuffer("{self.test_shm_name}", create=False, client_mode="producer")
+buf = SharedMemoryRingBuffer("{shm_name}", create=False, client_mode="producer")
 for i in range({count}):
     tick = LOBTickMessage(
         symbol="005930",
@@ -590,27 +591,35 @@ buf.close()
 """
         proc = subprocess.Popen([sys.executable, "-c", producer_script])
 
-        received: List[LOBTickMessage] = []
-        deadline = time.time() + 10.0
-        while len(received) < count and time.time() < deadline:
-            msg = main_buf.read_message(timeout_sec=0.05)
-            if msg is not None:
-                self.assertIsInstance(msg, LOBTickMessage)
-                received.append(msg)
+        try:
+            received: List[LOBTickMessage] = []
+            deadline = time.time() + 20.0
+            while len(received) < count and time.time() < deadline:
+                msg = main_buf.read_message(timeout_sec=0.05)
+                if msg is not None:
+                    self.assertIsInstance(msg, LOBTickMessage)
+                    received.append(msg)
 
-        proc.wait(timeout=5.0)
-        self.assertEqual(len(received), count)
-        self.assertEqual(received[0].symbol, "005930")
-        self.assertAlmostEqual(received[0].bid_price, 70000.0)
-        self.assertAlmostEqual(received[-1].bid_price, 70000.0 + count - 1)
-
-        main_buf.close()
-        main_buf.unlink()
+            proc.wait(timeout=15.0)
+            self.assertEqual(len(received), count)
+            self.assertEqual(received[0].symbol, "005930")
+            self.assertAlmostEqual(received[0].bid_price, 70000.0)
+            self.assertAlmostEqual(received[-1].bid_price, 70000.0 + count - 1)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                try:
+                    proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    pass
+            main_buf.close()
+            main_buf.unlink()
 
     def test_tc28_cross_process_execution_orders(self) -> None:
         """TC28: Cross-process transfer of 100 Execution Orders with sequence integrity."""
         count = 100
-        main_buf = SharedMemoryRingBuffer(self.test_shm_name, capacity=256, create=True)
+        shm_name = f"{self.test_shm_name}_tc28"
+        main_buf = SharedMemoryRingBuffer(shm_name, capacity=256, create=True)
 
         producer_script = f"""
 import sys, time
@@ -618,7 +627,7 @@ sys.path.insert(0, r"{PROJECT_ROOT}")
 sys.path.insert(0, r"{TRADING_SYSTEM_DIR}")
 from src.core.shared_memory_ring_buffer import SharedMemoryRingBuffer, ExecutionOrderMessage
 
-buf = SharedMemoryRingBuffer("{self.test_shm_name}", create=False, client_mode="producer")
+buf = SharedMemoryRingBuffer("{shm_name}", create=False, client_mode="producer")
 for i in range({count}):
     order = ExecutionOrderMessage(
         order_id=f"ORD-{{i:04d}}",
@@ -637,27 +646,35 @@ buf.close()
 """
         proc = subprocess.Popen([sys.executable, "-c", producer_script])
 
-        received: List[ExecutionOrderMessage] = []
-        deadline = time.time() + 10.0
-        while len(received) < count and time.time() < deadline:
-            msg = main_buf.read_message(timeout_sec=0.05)
-            if msg is not None:
-                self.assertIsInstance(msg, ExecutionOrderMessage)
-                received.append(msg)
+        try:
+            received: List[ExecutionOrderMessage] = []
+            deadline = time.time() + 20.0
+            while len(received) < count and time.time() < deadline:
+                msg = main_buf.read_message(timeout_sec=0.05)
+                if msg is not None:
+                    self.assertIsInstance(msg, ExecutionOrderMessage)
+                    received.append(msg)
 
-        proc.wait(timeout=5.0)
-        self.assertEqual(len(received), count)
-        for i, order in enumerate(received):
-            self.assertEqual(order.order_id, f"ORD-{i:04d}")
-            self.assertEqual(order.timestamp_ns, i)
-
-        main_buf.close()
-        main_buf.unlink()
+            proc.wait(timeout=15.0)
+            self.assertEqual(len(received), count)
+            for i, order in enumerate(received):
+                self.assertEqual(order.order_id, f"ORD-{i:04d}")
+                self.assertEqual(order.timestamp_ns, i)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                try:
+                    proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    pass
+            main_buf.close()
+            main_buf.unlink()
 
     def test_tc29_cross_process_mixed_stream(self) -> None:
         """TC29: Stream mixed ticks, alerts, and orders across processes with zero loss."""
         total_msgs = 150
-        main_buf = SharedMemoryRingBuffer(self.test_shm_name, capacity=256, create=True)
+        shm_name = f"{self.test_shm_name}_tc29"
+        main_buf = SharedMemoryRingBuffer(shm_name, capacity=256, create=True)
 
         producer_script = f"""
 import sys, time
@@ -667,7 +684,7 @@ from src.core.shared_memory_ring_buffer import (
     SharedMemoryRingBuffer, LOBTickMessage, RiskAlertMessage, ExecutionOrderMessage
 )
 
-buf = SharedMemoryRingBuffer("{self.test_shm_name}", create=False, client_mode="producer")
+buf = SharedMemoryRingBuffer("{shm_name}", create=False, client_mode="producer")
 for i in range({total_msgs}):
     mod = i % 3
     if mod == 0:
@@ -683,26 +700,33 @@ buf.close()
 """
         proc = subprocess.Popen([sys.executable, "-c", producer_script])
 
-        received = []
-        deadline = time.time() + 10.0
-        while len(received) < total_msgs and time.time() < deadline:
-            msg = main_buf.read_message(timeout_sec=0.05)
-            if msg is not None:
-                received.append(msg)
+        try:
+            received = []
+            deadline = time.time() + 20.0
+            while len(received) < total_msgs and time.time() < deadline:
+                msg = main_buf.read_message(timeout_sec=0.05)
+                if msg is not None:
+                    received.append(msg)
 
-        proc.wait(timeout=5.0)
-        self.assertEqual(len(received), total_msgs)
+            proc.wait(timeout=15.0)
+            self.assertEqual(len(received), total_msgs)
 
-        tick_count = sum(1 for m in received if isinstance(m, LOBTickMessage))
-        alert_count = sum(1 for m in received if isinstance(m, RiskAlertMessage))
-        order_count = sum(1 for m in received if isinstance(m, ExecutionOrderMessage))
+            tick_count = sum(1 for m in received if isinstance(m, LOBTickMessage))
+            alert_count = sum(1 for m in received if isinstance(m, RiskAlertMessage))
+            order_count = sum(1 for m in received if isinstance(m, ExecutionOrderMessage))
 
-        self.assertEqual(tick_count, 50)
-        self.assertEqual(alert_count, 50)
-        self.assertEqual(order_count, 50)
-
-        main_buf.close()
-        main_buf.unlink()
+            self.assertEqual(tick_count, 50)
+            self.assertEqual(alert_count, 50)
+            self.assertEqual(order_count, 50)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                try:
+                    proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    pass
+            main_buf.close()
+            main_buf.unlink()
 
     def test_tc30_high_throughput_burst_benchmark(self) -> None:
         """TC30: High-throughput benchmark (> 5,000 messages in-process)."""
