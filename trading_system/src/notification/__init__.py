@@ -20,6 +20,15 @@ from .alert_dispatcher import (
     AlertLevel,
     ChannelType,
 )
+from .interactive_telegram_ops_bot import (
+    InteractiveTelegramOpsBot,
+    TelegramOpsBot,
+    InteractiveOpsBot,
+    TwoWayTelegramBot,
+    Phase112TelegramOpsBot,
+    TelegramOpsCommandResult,
+    CallbackTokenPayload,
+)
 
 __all__ = [
     "AlertDispatcher",
@@ -29,4 +38,12 @@ __all__ = [
     "Phase106AlertDispatcher",
     "AlertLevel",
     "ChannelType",
+    "InteractiveTelegramOpsBot",
+    "TelegramOpsBot",
+    "InteractiveOpsBot",
+    "TwoWayTelegramBot",
+    "Phase112TelegramOpsBot",
+    "TelegramOpsCommandResult",
+    "CallbackTokenPayload",
 ]
+
