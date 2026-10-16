@@ -5,7 +5,10 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 import lightgbm as lgb
-import catboost as cb
+try:
+    import catboost as cb
+except ImportError:
+    cb = None
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple, Any
@@ -52,7 +55,7 @@ class VCPSurgePredictor:
 
         self.models: Dict[str, Dict[int, xgb.XGBClassifier]] = {}
         self.lgb_models: Dict[str, Dict[int, lgb.LGBMClassifier]] = {}
-        self.cat_models: Dict[str, Dict[int, cb.CatBoostClassifier]] = {}
+        self.cat_models: Dict[str, Dict[int, Any]] = {}
 
         self._surge_xgb_kwargs: Dict[str, Any] = dict(
             n_estimators=500,
@@ -514,24 +517,25 @@ class VCPSurgePredictor:
                     local_lgb_models[h] = model_lgb
 
                 # 3. CatBoost
-                if vv.any():
-                    model_cat = cb.CatBoostClassifier(**kw_cat, early_stopping_rounds=50)
-                    model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
-                else:
-                    model_cat = cb.CatBoostClassifier(**kw_cat)
-                    model_cat.fit(X_train, y_train, verbose=False)
+                if cb is not None:
+                    if vv.any():
+                        model_cat = cb.CatBoostClassifier(**kw_cat, early_stopping_rounds=50)
+                        model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+                    else:
+                        model_cat = cb.CatBoostClassifier(**kw_cat)
+                        model_cat.fit(X_train, y_train, verbose=False)
 
-                if vv.any() and len(np.unique(y_val)) >= 2:
-                    try:
-                        calib_method = 'isotonic' if len(y_val) >= 100 else 'sigmoid'
-                        calib_cat = CalibratedClassifierCV(model_cat, method=calib_method, cv='prefit')
-                        calib_cat.fit(X_val, y_val)
-                        local_cat_models[h] = calib_cat
-                    except Exception as _ce:
-                        logger.debug(f"VCP ML CatBoost calibration fallback: {_ce}")
+                    if vv.any() and len(np.unique(y_val)) >= 2:
+                        try:
+                            calib_method = 'isotonic' if len(y_val) >= 100 else 'sigmoid'
+                            calib_cat = CalibratedClassifierCV(model_cat, method=calib_method, cv='prefit')
+                            calib_cat.fit(X_val, y_val)
+                            local_cat_models[h] = calib_cat
+                        except Exception as _ce:
+                            logger.debug(f"VCP ML CatBoost calibration fallback: {_ce}")
+                            local_cat_models[h] = model_cat
+                    else:
                         local_cat_models[h] = model_cat
-                else:
-                    local_cat_models[h] = model_cat
 
                 # Calculate metrics (R8-3: PR-AUC / Average Precision & F1 Score for imbalanced surge events)
                 X_eval = X_val if vv.any() else X_train
@@ -856,24 +860,25 @@ class VCPSurgePredictor:
                     del self.lgb_models[market]
 
             # Load CatBoost models
-            for market in MARKETS + ['KRX']:
-                self.cat_models[market] = {}
-                for h in SURGE_HORIZONS:
-                    path = self.model_dir / f"cat_vcp_surge_{market}_{h}d.bin"
-                    if path.exists():
-                        model = cb.CatBoostClassifier()
-                        model.load_model(str(path))
+            if cb is not None:
+                for market in MARKETS + ['KRX']:
+                    self.cat_models[market] = {}
+                    for h in SURGE_HORIZONS:
+                        path = self.model_dir / f"cat_vcp_surge_{market}_{h}d.bin"
+                        if path.exists():
+                            model = cb.CatBoostClassifier()
+                            model.load_model(str(path))
 
-                        try:
-                            fn_cat = model.feature_names_ if hasattr(model, "feature_names_") and model.feature_names_ else cols
-                            val_df = pd.DataFrame(0.0, index=[0], columns=fn_cat)
-                            _ = model.predict_proba(val_df)
-                            self.cat_models[market][h] = model
-                            logger.debug(f"Loaded VCP ML CatBoost model for {market} {h}d")
-                        except Exception as e:
-                            logger.warning(f"VCP ML CatBoost model for {market} {h}d validation failed: {e}. Skipping.")
-                if not self.cat_models[market]:
-                    del self.cat_models[market]
+                            try:
+                                fn_cat = model.feature_names_ if hasattr(model, "feature_names_") and model.feature_names_ else cols
+                                val_df = pd.DataFrame(0.0, index=[0], columns=fn_cat)
+                                _ = model.predict_proba(val_df)
+                                self.cat_models[market][h] = model
+                                logger.debug(f"Loaded VCP ML CatBoost model for {market} {h}d")
+                            except Exception as e:
+                                logger.warning(f"VCP ML CatBoost model for {market} {h}d validation failed: {e}. Skipping.")
+                    if not self.cat_models[market]:
+                        del self.cat_models[market]
 
             total_xgb = sum(len(v) for v in self.models.values())
             total_lgb = sum(len(v) for v in self.lgb_models.values())
