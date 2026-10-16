@@ -42,6 +42,41 @@ except ImportError:
         modulate_macro_factor_weights,
     )
 
+# Phase 116 Microstructure Alpha Engines (F550 & F551)
+try:
+    from src.ai.hawkes_microstructure_engine import (
+        HawkesMicrostructureEngine,
+        HawkesChannel,
+        MicrostructureEvent,
+        HawkesParameters4D,
+        HawkesIntensitySnapshot,
+        HawkesFitResult,
+    )
+    from src.ai.microprice_drift_forecaster import (
+        MicropriceDriftForecaster,
+        MicropriceDriftConfig,
+        DriftProjection,
+        MicropriceForecasterOutput,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.hawkes_microstructure_engine import (
+            HawkesMicrostructureEngine,
+            HawkesChannel,
+            MicrostructureEvent,
+            HawkesParameters4D,
+            HawkesIntensitySnapshot,
+            HawkesFitResult,
+        )
+        from trading_system.src.ai.microprice_drift_forecaster import (
+            MicropriceDriftForecaster,
+            MicropriceDriftConfig,
+            DriftProjection,
+            MicropriceForecasterOutput,
+        )
+    except ImportError:
+        pass
+
 __all__ = [
     "OnDevicePredictionModel",
     "EnsembleScoringEngine",
@@ -59,4 +94,15 @@ __all__ = [
     "Phase106MacroFactorTimingEngine",
     "MacroConditioningEngine",
     "modulate_macro_factor_weights",
+    # Phase 116 Exports (F550 & F551)
+    "HawkesMicrostructureEngine",
+    "HawkesChannel",
+    "MicrostructureEvent",
+    "HawkesParameters4D",
+    "HawkesIntensitySnapshot",
+    "HawkesFitResult",
+    "MicropriceDriftForecaster",
+    "MicropriceDriftConfig",
+    "DriftProjection",
+    "MicropriceForecasterOutput",
 ]

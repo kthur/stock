@@ -197,6 +197,33 @@ except ImportError:
     except ImportError:
         pass
 
+# Dynamic Dark Pool Conditional Liquidity Seeker (Phase 116 / Feature F553)
+try:
+    from .darkpool_liquidity_seeker import (
+        DarkPoolLiquiditySeeker,
+        DarkPoolSeekerConfig,
+        DarkSweepResult,
+        DarkPoolTelemetrySummary,
+        ProbeOrder,
+        ProbeResult,
+        ProbeStatus,
+        WalkPhase,
+    )
+except ImportError:
+    try:
+        from trading_system.src.execution.darkpool_liquidity_seeker import (
+            DarkPoolLiquiditySeeker,
+            DarkPoolSeekerConfig,
+            DarkSweepResult,
+            DarkPoolTelemetrySummary,
+            ProbeOrder,
+            ProbeResult,
+            ProbeStatus,
+            WalkPhase,
+        )
+    except ImportError:
+        pass
+
 __all__ = [
     "ExecutionOMSEngine",
     "OMSEngine",
@@ -279,5 +306,14 @@ __all__ = [
     "InstitutionalOrderDispatcher",
     "FastOMSDispatcher",
     "MicrosecondRiskGate",
+    # Dynamic Dark Pool Conditional Liquidity Seeker (Phase 116 / Feature F553)
+    "DarkPoolLiquiditySeeker",
+    "DarkPoolSeekerConfig",
+    "DarkSweepResult",
+    "DarkPoolTelemetrySummary",
+    "ProbeOrder",
+    "ProbeResult",
+    "ProbeStatus",
+    "WalkPhase",
 ]
 
