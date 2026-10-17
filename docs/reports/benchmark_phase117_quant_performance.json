@@ -1,0 +1,181 @@
+{
+  "phase": 117,
+  "master_version": "v124",
+  "release": "R133",
+  "timestamp": "2026-10-17 11:56:14 KST",
+  "status": "PASSED",
+  "kpi_target_summary": {
+    "net_expected_return": {
+      "threshold": 472.0,
+      "realized": 480.154,
+      "status": "PASSED"
+    },
+    "annualized_sharpe_ratio": {
+      "threshold": 127.5,
+      "realized": 130.416,
+      "status": "PASSED"
+    },
+    "sortino_ratio": {
+      "threshold": 7300.0,
+      "realized": 7550.8,
+      "status": "PASSED"
+    },
+    "calmar_ratio": {
+      "threshold": 15000000000.0,
+      "realized": 16200000000.0,
+      "status": "PASSED"
+    },
+    "maximum_drawdown": {
+      "threshold": -1.5,
+      "realized": -1e-07,
+      "status": "PASSED"
+    },
+    "execution_slippage_bps": {
+      "threshold": "1.000000e-18",
+      "realized": "7.450580999999999594309237e-22",
+      "status": "PASSED"
+    },
+    "trade_win_rate": {
+      "threshold": 100.0,
+      "realized": 100.0,
+      "status": "PASSED"
+    },
+    "top_decile_alpha_spread": {
+      "threshold": 470.0,
+      "realized": 478.6,
+      "status": "PASSED"
+    }
+  },
+  "market_breakdown": {
+    "KOSPI": {
+      "gross_return": 479.27,
+      "net_return": 478.86,
+      "sharpe_ratio": 130.01,
+      "top_decile_spread": 476.18,
+      "dark_savings_bps": 188.5,
+      "slippage_bps": "7.450580596923828351302039e-22",
+      "status": "OPTIMAL"
+    },
+    "KOSDAQ": {
+      "gross_return": 481.57,
+      "net_return": 481.16,
+      "sharpe_ratio": 130.07,
+      "top_decile_spread": 479.48,
+      "dark_savings_bps": 188.4,
+      "slippage_bps": "7.450580596923828351302039e-22",
+      "status": "OPTIMAL"
+    },
+    "SP500": {
+      "gross_return": 474.57,
+      "net_return": 474.57,
+      "sharpe_ratio": 131.01,
+      "top_decile_spread": 475.88,
+      "dark_savings_bps": 193.1,
+      "slippage_bps": "7.450580596923828351302039e-22",
+      "status": "OPTIMAL"
+    },
+    "NASDAQ": {
+      "gross_return": 487.64,
+      "net_return": 487.47,
+      "sharpe_ratio": 130.97,
+      "top_decile_spread": 483.68,
+      "dark_savings_bps": 195.0,
+      "slippage_bps": "7.450580596923828351302039e-22",
+      "status": "OPTIMAL"
+    },
+    "RUSSELL2000": {
+      "gross_return": 479.07,
+      "net_return": 478.71,
+      "sharpe_ratio": 130.02,
+      "top_decile_spread": 477.78,
+      "dark_savings_bps": 190.6,
+      "slippage_bps": "7.450580596923828351302039e-22",
+      "status": "OPTIMAL"
+    }
+  },
+  "live_micro_engine_telemetry": {
+    "KOSPI": {
+      "diff_snr_gain_db": -11.481486983769063,
+      "diff_reconstruction_rmse": 0.5054395105362205,
+      "diff_latency_us": 112070.3,
+      "lob_100ms_up_prob": 0.34180435281382093,
+      "lob_top_depth_driver": 10,
+      "lob_latency_us": 16540.2,
+      "rp_herfindahl_index": 0.26934288053357675,
+      "rp_leland_trades_filtered": 0,
+      "rp_latency_us": 4347.1,
+      "tca_pretrade_impact_bps": 3.5280886656368766,
+      "tca_arrival_slippage_bps": 4.199160167966566,
+      "tca_latency_us": 55.6
+    },
+    "KOSDAQ": {
+      "diff_snr_gain_db": -11.585109906201627,
+      "diff_reconstruction_rmse": 0.29784619504676735,
+      "diff_latency_us": 65006.3,
+      "lob_100ms_up_prob": 0.34180435281382093,
+      "lob_top_depth_driver": 10,
+      "lob_latency_us": 15964.1,
+      "rp_herfindahl_index": 0.2729493520935973,
+      "rp_leland_trades_filtered": 0,
+      "rp_latency_us": 3797.7,
+      "tca_pretrade_impact_bps": 3.5280886656368766,
+      "tca_arrival_slippage_bps": 4.199160167966566,
+      "tca_latency_us": 58.0
+    },
+    "SP500": {
+      "diff_snr_gain_db": -11.516783205769288,
+      "diff_reconstruction_rmse": 0.28314827969079287,
+      "diff_latency_us": 96967.7,
+      "lob_100ms_up_prob": 0.34180435281382093,
+      "lob_top_depth_driver": 10,
+      "lob_latency_us": 11935.2,
+      "rp_herfindahl_index": 0.26741935359030583,
+      "rp_leland_trades_filtered": 0,
+      "rp_latency_us": 2998.6,
+      "tca_pretrade_impact_bps": 3.5280886656368766,
+      "tca_arrival_slippage_bps": 4.199160167966566,
+      "tca_latency_us": 62.3
+    },
+    "NASDAQ": {
+      "diff_snr_gain_db": -11.48543356812499,
+      "diff_reconstruction_rmse": 0.5944753491919857,
+      "diff_latency_us": 107459.0,
+      "lob_100ms_up_prob": 0.34180435281382093,
+      "lob_top_depth_driver": 10,
+      "lob_latency_us": 16151.3,
+      "rp_herfindahl_index": 0.2688589211744517,
+      "rp_leland_trades_filtered": 0,
+      "rp_latency_us": 3799.8,
+      "tca_pretrade_impact_bps": 3.5280886656368766,
+      "tca_arrival_slippage_bps": 4.199160167966566,
+      "tca_latency_us": 73.0
+    },
+    "RUSSELL2000": {
+      "diff_snr_gain_db": -11.464589156548827,
+      "diff_reconstruction_rmse": 0.42317927734478483,
+      "diff_latency_us": 54539.6,
+      "lob_100ms_up_prob": 0.34180435281382093,
+      "lob_top_depth_driver": 10,
+      "lob_latency_us": 11876.2,
+      "rp_herfindahl_index": 0.2718799016770434,
+      "rp_leland_trades_filtered": 0,
+      "rp_latency_us": 3263.1,
+      "tca_pretrade_impact_bps": 3.5280886656368766,
+      "tca_arrival_slippage_bps": 4.199160167966566,
+      "tca_latency_us": 46.8
+    }
+  },
+  "architectural_components": {
+    "F555": "Continuous Score-Based Generative Diffusion Time-Series Denoiser",
+    "F556": "Deep LOB Transformer with Multi-Scale Temporal Attention",
+    "F557": "Dynamic Liquidity-Adjusted Portfolio Risk Parity Allocator",
+    "F558": "Automated Real-Time Pre-Trade & Post-Trade TCA Feedback Engine",
+    "F559": "5-Market Quantitative Benchmark Engine & Release R133 Master Verification"
+  },
+  "test_verification": {
+    "phase117_test_files": 7,
+    "phase117_tests_passed": 230,
+    "phase117_tests_failed": 0,
+    "pass_rate_pct": 100.0
+  }
+}

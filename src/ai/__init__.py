@@ -77,6 +77,43 @@ except ImportError:
     except ImportError:
         pass
 
+# Phase 117 AI Modeling Engines (F555 & F556)
+try:
+    from src.ai.diffusion_denoiser_engine import (
+        DiffusionDenoiserEngine,
+        DiffusionDenoiserConfig,
+        SdeType,
+        TimeDecomposition,
+        DiffusionDenoiserOutput,
+    )
+    from src.ai.lob_transformer_engine import (
+        LOBTransformerEngine,
+        LOBTransformerConfig,
+        PriceDirection,
+        HorizonPrediction,
+        LOBAttentionHeatmap,
+        LOBTransformerOutput,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.diffusion_denoiser_engine import (
+            DiffusionDenoiserEngine,
+            DiffusionDenoiserConfig,
+            SdeType,
+            TimeDecomposition,
+            DiffusionDenoiserOutput,
+        )
+        from trading_system.src.ai.lob_transformer_engine import (
+            LOBTransformerEngine,
+            LOBTransformerConfig,
+            PriceDirection,
+            HorizonPrediction,
+            LOBAttentionHeatmap,
+            LOBTransformerOutput,
+        )
+    except ImportError:
+        pass
+
 __all__ = [
     "OnDevicePredictionModel",
     "EnsembleScoringEngine",
@@ -105,4 +142,17 @@ __all__ = [
     "MicropriceDriftConfig",
     "DriftProjection",
     "MicropriceForecasterOutput",
+    # Phase 117 Exports (F555 & F556)
+    "DiffusionDenoiserEngine",
+    "DiffusionDenoiserConfig",
+    "SdeType",
+    "TimeDecomposition",
+    "DiffusionDenoiserOutput",
+    "LOBTransformerEngine",
+    "LOBTransformerConfig",
+    "PriceDirection",
+    "HorizonPrediction",
+    "LOBAttentionHeatmap",
+    "LOBTransformerOutput",
 ]
+

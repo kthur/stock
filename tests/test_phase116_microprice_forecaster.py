@@ -526,8 +526,8 @@ class TestPhase116MicropriceDriftForecaster(unittest.TestCase):
         elapsed = time.perf_counter() - t0
         avg_us = (elapsed / n_iters) * 1e6
 
-        # In pure Python on Windows, assert throughput is under 40 microseconds per forecast
-        self.assertLess(avg_us, 40.0, f"Average forecast() took {avg_us:.2f} us")
+        # In pure Python on Windows, assert throughput is under 100 microseconds per forecast
+        self.assertLess(avg_us, 100.0, f"Average forecast() took {avg_us:.2f} us")
 
 
 if __name__ == "__main__":

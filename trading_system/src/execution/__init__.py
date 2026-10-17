@@ -224,6 +224,27 @@ except ImportError:
     except ImportError:
         pass
 
+# Real-Time Closed-Loop TCA Feedback Engine (Phase 117 / Feature F558)
+try:
+    from .realtime_tca_feedback_engine import (
+        RealTimeTCAFeedbackEngine,
+        TCAFeedbackConfig,
+        PreTradeImpactEstimate,
+        PostTradeISReport,
+        DynamicFeedbackAdjustment,
+    )
+except ImportError:
+    try:
+        from trading_system.src.execution.realtime_tca_feedback_engine import (
+            RealTimeTCAFeedbackEngine,
+            TCAFeedbackConfig,
+            PreTradeImpactEstimate,
+            PostTradeISReport,
+            DynamicFeedbackAdjustment,
+        )
+    except ImportError:
+        pass
+
 __all__ = [
     "ExecutionOMSEngine",
     "OMSEngine",
@@ -315,5 +336,12 @@ __all__ = [
     "ProbeResult",
     "ProbeStatus",
     "WalkPhase",
+    # Real-Time Closed-Loop TCA Feedback Engine (Phase 117 / Feature F558)
+    "RealTimeTCAFeedbackEngine",
+    "TCAFeedbackConfig",
+    "PreTradeImpactEstimate",
+    "PostTradeISReport",
+    "DynamicFeedbackAdjustment",
 ]
+
 
