@@ -114,6 +114,27 @@ except ImportError:
     except ImportError:
         pass
 
+# Phase 118 Neural SDE Volatility Forecaster (F561)
+try:
+    from src.ai.neural_sde_volatility_forecaster import (
+        NeuralSDEVolatilityForecaster,
+        NeuralSDEConfig,
+        JumpProcessType,
+        VolatilitySurface,
+        JumpDiffusionOutput,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.neural_sde_volatility_forecaster import (
+            NeuralSDEVolatilityForecaster,
+            NeuralSDEConfig,
+            JumpProcessType,
+            VolatilitySurface,
+            JumpDiffusionOutput,
+        )
+    except ImportError:
+        pass
+
 __all__ = [
     "OnDevicePredictionModel",
     "EnsembleScoringEngine",
@@ -154,5 +175,11 @@ __all__ = [
     "HorizonPrediction",
     "LOBAttentionHeatmap",
     "LOBTransformerOutput",
+    # Phase 118 Exports (F561)
+    "NeuralSDEVolatilityForecaster",
+    "NeuralSDEConfig",
+    "JumpProcessType",
+    "VolatilitySurface",
+    "JumpDiffusionOutput",
 ]
 

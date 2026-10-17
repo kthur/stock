@@ -372,6 +372,11 @@ flowchart TB
 | `src/risk/dynamic_liquidity_risk_parity.py` | Dynamic Liquidity-Adjusted Portfolio Risk Parity Allocator: Amihud & Roll Regularized Covariance, Spinu Convex Solver, Leland Dynamic Buffer Bands & Emergency Shock Trigger (F557) |
 | `src/execution/realtime_tca_feedback_engine.py` | Automated Real-Time Pre-Trade & Post-Trade TCA Feedback Engine: 4-Way IS Decomposition, Discrete Markouts, Closed-Loop Delta kappa & Delta eta Parameter Adaptation (F558) |
 | `trading_system/scripts/benchmark_phase117_quant_performance.py` | Phase 117 Quant Benchmark Engine: 5-Market 15 Comprehensive Metrics & F555~F559 Attribution Analysis, 8 Strict KPIs Verification & Canonical Reports SHA-256 Synchronization (F559) |
+| `src/core/simd_lob_matching_core.py` | Ultra-Low Latency SIMD/AVX2 Vectorized Zero-Copy LOB Matching Core: 가격 래더 연속 배열, 원형 링 버퍼 풀, IOC/FOK 스윕 및 결정론적 Price-Time 체결 (F560) |
+| `src/ai/neural_sde_volatility_forecaster.py` | Neural SDE Stochastic Volatility & Jump-Diffusion Forecaster: 연속시간 머튼/쿠 점프확산 SDE ($dX_t = \mu dt + \sigma dW_t + J_t dN_t$), 변동성 곡면, 스마일/스큐 및 점프 위험 알파 조건화 (F561) |
+| `src/risk/cross_asset_graph_flow_allocator.py` | Cross-Asset Lead-Lag Graph Flow Liquidity Rebalancing Allocator: 6대 자산군 방향성 그래프 유동성 네트워크, 스펙트럼 갭, 중심성 지표 및 Leland 동적 버퍼 밴드 (F562) |
+| `src/broker/sub_nano_dma_broker_gateway.py` | Sub-Nanosecond Direct Memory Access (DMA) Smart Router & Broker Gateway: 커널 바이패스 공유 메모리 IPC, 36B 바이너리 패킹, 하트비트 장애극복 & 서킷브레이커 (F563) |
+| `trading_system/scripts/benchmark_phase118_quant_performance.py` | Phase 118 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F560~F564 기여도 분석, 8대 KPI 엄격 검증 및 정규 리포트 SHA-256 동기화 (F564) |
 
 ### Markets
 

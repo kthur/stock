@@ -105,7 +105,43 @@ except ImportError:
     from trading_system.src.broker.interactive_brokers import InteractiveBrokersConnector
     from trading_system.src.broker.fix_protocol_engine import FIXProtocolEngine, FIX44Engine
 
+# Phase 118 Sub-Nanosecond DMA Broker Gateway (F563)
+try:
+    from .sub_nano_dma_broker_gateway import (
+        SubNanoDMABrokerGateway,
+        DMAGatewayConfig,
+        DMAOrder,
+        BrokerState,
+        OrderSide,
+        OrderType,
+        DispatchReceipt,
+        MemoryMappedRingBuffer,
+    )
+except ImportError:
+    try:
+        from trading_system.src.broker.sub_nano_dma_broker_gateway import (
+            SubNanoDMABrokerGateway,
+            DMAGatewayConfig,
+            DMAOrder,
+            BrokerState,
+            OrderSide,
+            OrderType,
+            DispatchReceipt,
+            MemoryMappedRingBuffer,
+        )
+    except ImportError:
+        pass
+
 __all__ = [
+    # Phase 118 Sub-Nanosecond DMA Broker Gateway (F563)
+    "SubNanoDMABrokerGateway",
+    "DMAGatewayConfig",
+    "DMAOrder",
+    "BrokerState",
+    "OrderSide",
+    "OrderType",
+    "DispatchReceipt",
+    "MemoryMappedRingBuffer",
     # Phase 112 Native OpenAPI Connectors & Data Models
     "BaseBrokerConnector",
     "KISBrokerConnector",
