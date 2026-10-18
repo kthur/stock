@@ -207,6 +207,22 @@ __all__ = [
     "ProtocolAdapter",
     "LocklessEventRingBuffer",
     "BridgeTelemetry",
+    # Ultra-Low Latency Kernel Bypass eBPF/XDP Router (Phase 120 F573)
+    "EBPFXDPOrderRouter",
+    "XDPOrderPacket",
+    "XDPDescriptor",
+    "SPSCDescriptorRingQueue",
+    "XDPUMEMRingBuffer",
+    "SyntheticMidpointCrossingEngine",
+    "AntiLatencyJitterEngine",
+    "CancelOnDisconnectWatchdog",
+    "OrderStateReconciler",
+    "EBPFBrokerSession",
+    "MultiBrokerSessionFailover",
+    "HardwareTimestampTelemetry",
+    "XDPAction",
+    "XDPDriverMode",
+    "XDPRoutingVenue",
 ]
 
 # Event-Driven Multi-Broker Bridge (Phase 119 F568)
@@ -240,3 +256,42 @@ except ImportError:
         LocklessEventRingBuffer,
         ProtocolAdapter,
     )
+
+# Ultra-Low Latency Kernel Bypass eBPF/XDP Router (Phase 120 F573)
+try:
+    from .ebpf_xdp_order_router import (
+        EBPFXDPOrderRouter,
+        XDPOrderPacket,
+        XDPDescriptor,
+        SPSCDescriptorRingQueue,
+        XDPUMEMRingBuffer,
+        SyntheticMidpointCrossingEngine,
+        AntiLatencyJitterEngine,
+        CancelOnDisconnectWatchdog,
+        OrderStateReconciler,
+        EBPFBrokerSession,
+        MultiBrokerSessionFailover,
+        HardwareTimestampTelemetry,
+        XDPAction,
+        XDPDriverMode,
+        XDPRoutingVenue,
+    )
+except ImportError:
+    from trading_system.src.broker.ebpf_xdp_order_router import (
+        EBPFXDPOrderRouter,
+        XDPOrderPacket,
+        XDPDescriptor,
+        SPSCDescriptorRingQueue,
+        XDPUMEMRingBuffer,
+        SyntheticMidpointCrossingEngine,
+        AntiLatencyJitterEngine,
+        CancelOnDisconnectWatchdog,
+        OrderStateReconciler,
+        EBPFBrokerSession,
+        MultiBrokerSessionFailover,
+        HardwareTimestampTelemetry,
+        XDPAction,
+        XDPDriverMode,
+        XDPRoutingVenue,
+    )
+

@@ -382,6 +382,11 @@ flowchart TB
 | `src/execution/adaptive_iceberg_pegged_router.py` | Microsecond Adaptive Iceberg & Pegged Order Execution Router: L3 실시간 오더북 호가, 훅스(Hawkes) 독성 기반 오프셋 조절, 표시 수량 가우시안 지터링 및 안티 핑거프린팅 스텔스 메커니즘 (F567) |
 | `src/broker/event_driven_multi_broker_bridge.py` | Sub-Microsecond Multi-Broker Event-Driven Bridge & Protocol Connector: 락프리 원형 디스패치 링 버퍼, 다중 브로커 세션 관리, 서브-밀리초 장애극복 및 인플라이트 상태 대사 (F568) |
 | `trading_system/scripts/benchmark_phase119_quant_performance.py` | Phase 119 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F565~F569 기여도 분석, 8대 KPI 엄격 검증 및 8개 정규 리포트 SHA-256 동기화 (F569) |
+| `src/ai/pino_fluid_price_discovery.py` | Physics-Informed Neural Operator (PINO) Macro-Micro Fluid Dynamics Price Discovery Engine: 유체역학 버거스/나비에-스톡스 PDE, 1D/2D FNO 스펙트럴 컨볼루션, 질량 보존 및 다중 호라이즌 유동성 충격파/점프 속도 예측 (F570) |
+| `src/ai/mfdfa_singularity_alpha_engine.py` | Multi-Fractal Detrended Fluctuation (MF-DFA) Singularity Spectrum & Long-Memory Alpha Generator: 일반화 허스트 표면 H(q), 르장드르 변환 횔더 특이 스펙트럼 f(α), 비선형 취약성 경보 및 9차원 롱메모리 알파 벡터 (F571) |
+| `src/risk/riemannian_manifold_portfolio_allocator.py` | Curvature-Aware Riemannian Manifold Portfolio Allocator & Fisher Information Metric Engine: 피셔-라오 정보 메트릭, 자연 리만 경사 하강, 그로모프 쌍곡선 위기 감지 및 측지선 릴랜드 버퍼 밴드 (F572) |
+| `src/broker/ebpf_xdp_order_router.py` | Ultra-Low Latency Hardware-Accelerated Kernel Bypass Order Router & eBPF/XDP Bridge: eBPF/XDP 40바이트 바이너리 패킹, UMEM 제로카피 링버퍼, 합성 미드포인트 크로싱 및 COD 워치독 (F573) |
+| `trading_system/scripts/benchmark_phase120_quant_performance.py` | Phase 120 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F570~F574 기여도 분석, 8대 KPI 엄격 검증 및 8개 정규 리포트 SHA-256 동기화 (F574) |
 
 ### Markets
 

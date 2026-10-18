@@ -187,6 +187,20 @@ __all__ = [
     "GATDriftPrediction",
     "CrossMarketFlowEdge",
     "GATForecasterOutput",
+    # Phase 120 Exports (F570 & F571)
+    "PINOFluidPriceDiscoveryEngine",
+    "PINOFluidConfig",
+    "PINOFluidForecastResult",
+    "FluidRegime",
+    "SpectralConv1dNumPy",
+    "SpectralConv2dNumPy",
+    "PINONetworkNumPy",
+    "MFDFASingularityAlphaEngine",
+    "MFDFAConfig",
+    "SingularitySpectrumResult",
+    "LongMemoryAlphaVector",
+    "FractalRegime",
+    "FragilityAlertLevel",
 ]
 
 # Phase 119 Temporal GAT Forecaster (F565)
@@ -209,4 +223,46 @@ except ImportError:
         )
     except ImportError:
         pass
+
+# Phase 120 PINO Fluid Price Discovery & MF-DFA Singularity Alpha (F570 & F571)
+try:
+    from src.ai.pino_fluid_price_discovery import (
+        PINOFluidPriceDiscoveryEngine,
+        PINOFluidConfig,
+        PINOFluidForecastResult,
+        FluidRegime,
+        SpectralConv1dNumPy,
+        SpectralConv2dNumPy,
+        PINONetworkNumPy,
+    )
+    from src.ai.mfdfa_singularity_alpha_engine import (
+        MFDFASingularityAlphaEngine,
+        MFDFAConfig,
+        SingularitySpectrumResult,
+        LongMemoryAlphaVector,
+        FractalRegime,
+        FragilityAlertLevel,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.pino_fluid_price_discovery import (
+            PINOFluidPriceDiscoveryEngine,
+            PINOFluidConfig,
+            PINOFluidForecastResult,
+            FluidRegime,
+            SpectralConv1dNumPy,
+            SpectralConv2dNumPy,
+            PINONetworkNumPy,
+        )
+        from trading_system.src.ai.mfdfa_singularity_alpha_engine import (
+            MFDFASingularityAlphaEngine,
+            MFDFAConfig,
+            SingularitySpectrumResult,
+            LongMemoryAlphaVector,
+            FractalRegime,
+            FragilityAlertLevel,
+        )
+    except ImportError:
+        pass
+
 

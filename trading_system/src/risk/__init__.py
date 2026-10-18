@@ -116,6 +116,19 @@ __all__ = [
     "QuantumAnnealingConfig",
     "QuantumPortfolioAllocationResult",
     "CombinatorialConstraints",
+    # Phase 120 Exports (F572)
+    "RiemannianManifoldPortfolioAllocator",
+    "RiemannianAllocatorConfig",
+    "RiemannianOptimizationResult",
+    "GeodesicLelandBand",
+    "HyperbolicityDiagnostics",
+    "CurvatureRegime",
+    "BypassAction",
+    "RiemannianProfile",
+    "get_market_profile",
+    "geodesic_distance",
+    "compute_gromov_hyperbolicity",
+    "apply_geodesic_leland_bands",
 ]
 
 # Phase 119 Quantum-Inspired Annealing Portfolio Combinatorial Optimizer (F566)
@@ -136,3 +149,39 @@ except ImportError:
         )
     except ImportError:
         pass
+
+# Phase 120 Curvature-Aware Riemannian Manifold Portfolio Allocator (F572)
+try:
+    from src.risk.riemannian_manifold_portfolio_allocator import (
+        RiemannianManifoldPortfolioAllocator,
+        RiemannianAllocatorConfig,
+        RiemannianOptimizationResult,
+        GeodesicLelandBand,
+        HyperbolicityDiagnostics,
+        CurvatureRegime,
+        BypassAction,
+        RiemannianProfile,
+        get_market_profile,
+        geodesic_distance,
+        compute_gromov_hyperbolicity,
+        apply_geodesic_leland_bands,
+    )
+except ImportError:
+    try:
+        from trading_system.src.risk.riemannian_manifold_portfolio_allocator import (
+            RiemannianManifoldPortfolioAllocator,
+            RiemannianAllocatorConfig,
+            RiemannianOptimizationResult,
+            GeodesicLelandBand,
+            HyperbolicityDiagnostics,
+            CurvatureRegime,
+            BypassAction,
+            RiemannianProfile,
+            get_market_profile,
+            geodesic_distance,
+            compute_gromov_hyperbolicity,
+            apply_geodesic_leland_bands,
+        )
+    except ImportError:
+        pass
+
