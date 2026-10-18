@@ -100,9 +100,11 @@ def test_generate_report_strategy_guide_accordion_sequence():
 
 
 def test_index_html_tabs_and_panels_sequence():
-    if not INDEX_HTML_PATH.exists():
-        pytest.skip("gh-pages/index.html not generated yet")
-    content = INDEX_HTML_PATH.read_text(encoding="utf-8")
+    strat_path = INDEX_HTML_PATH.parent / "strategies.html"
+    target_path = strat_path if strat_path.exists() else INDEX_HTML_PATH
+    if not target_path.exists():
+        pytest.skip("gh-pages/index.html or strategies.html not generated yet")
+    content = target_path.read_text(encoding="utf-8")
     
     # Check Row 2 tabs in index.html
     nav_match = re.search(r'<div class="row2-wrapper">.*?<nav class="tabs">(.*?)</nav>', content, re.DOTALL)

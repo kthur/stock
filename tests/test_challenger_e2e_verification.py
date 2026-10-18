@@ -165,11 +165,13 @@ def test_index_html_3_consolidated_cards_and_31_tabs():
     assert "Leland No-Trade Buffer Bands" in content, "Card 3 Leland buffer bands missing"
     
     # 4. 31 Canonical Strategy Tabs (1..31) in exact sequence
+    strat_path = ROOT / "gh-pages" / "strategies.html"
+    strat_content = strat_path.read_text(encoding="utf-8", errors="replace") if strat_path.exists() else content
     for idx, (strat, panel_id) in enumerate(STRATEGY_HTML_PANEL_IDS, 1):
-        assert panel_id in content, f"Strategy {idx} ({strat}) tab panel '{panel_id}' missing in index.html"
+        assert panel_id in strat_content, f"Strategy {idx} ({strat}) tab panel '{panel_id}' missing in strategies.html or index.html"
         
     # Check button order in individual strategies navigation
-    tab_buttons_block = re.search(r'<div class="row2-wrapper">[\s\S]*?<nav class="tabs">([\s\S]*?)</nav>', content)
+    tab_buttons_block = re.search(r'<div class="row2-wrapper">[\s\S]*?<nav class="tabs">([\s\S]*?)</nav>', strat_content)
     assert tab_buttons_block is not None, "Strategy tabs navigation block missing"
     tab_html = tab_buttons_block.group(1)
     

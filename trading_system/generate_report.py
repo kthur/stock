@@ -2146,7 +2146,34 @@ def build_history_section(result_dir: Path) -> str:
 
 generate_html = None  # Defined below as alias to build_html
 
-def build_html(
+
+try:
+    from trading_system.report_multipage import (
+        STRATEGY_CATALOG,
+        MARKET_FLAGS,
+        build_styles,
+        build_head,
+        build_sticky_nav,
+        build_strategy_catalog_html,
+        build_index_html,
+        build_strategies_html,
+        build_market_html,
+        build_all_pages,
+    )
+except (ImportError, ModuleNotFoundError):
+    from report_multipage import (
+        STRATEGY_CATALOG,
+        MARKET_FLAGS,
+        build_styles,
+        build_head,
+        build_sticky_nav,
+        build_strategy_catalog_html,
+        build_index_html,
+        build_strategies_html,
+        build_market_html,
+        build_all_pages,
+    )
+def _prepare_report_context(
     ensemble: EnsembleData,
     surge_date: str, surge_sections: list[SurgeSection],
     vcp_date: str, vcp_rows: list[VcpRow],
@@ -2520,6 +2547,178 @@ def build_html(
       </div>
     </div>"""
 
+
+    # ── Tab: Ensemble Summary for index.html (Top 5 picks per market if > 5 stocks) ──
+    ensemble_panels_summary = ""
+    summary_syms = set()
+    for mkt in active_markets_ordered:
+        mkt_data = next((em for em in ensemble.markets if em.market == mkt), None)
+        flag = MARKET_FLAGS.get(mkt, "")
+        rows_html_summary = ""
+        cards_html_summary = ""
+        if mkt_data and mkt_data.rows:
+            is_large_universe = len(mkt_data.rows) > 5
+            display_rows = mkt_data.rows[:5] if is_large_universe else mkt_data.rows
+            for row_idx, erow in enumerate(display_rows):
+                summary_syms.add(erow.symbol)
+                rc = ret_class(erow.expected_return)
+                ret_disp = f"▲ {erow.expected_return}" if erow.expected_return.startswith('+') else (f"▼ {erow.expected_return}" if erow.expected_return.startswith('-') else erow.expected_return)
+                symbol_link = make_stock_link(erow.symbol, mkt)
+                factors_dict = {
+                    "1. XGBoost 회귀": erow.reg,
+                    "2. Surge 분류기": erow.surge,
+                    "3. Lead-Lag": erow.lead_lag,
+                    "4. VCP 패턴 (Rule)": erow.vcp_rule,
+                    "5. VCP ML": erow.vcp_ml,
+                    "6. Strict LSTM": erow.lstm,
+                    "7. Stat-Arb": erow.stat_arb,
+                    "8. Sector Rotation": erow.sector_rotation,
+                    "9. RIM Valuation": erow.rim_valuation,
+                    "10. Event-Driven": erow.event_driven,
+                    "11. MQ Factor": erow.mq_factor,
+                    "12. Options IV Skew": erow.iv_skew,
+                    "13. Order Flow": erow.order_flow,
+                    "14. Short-Term Reversal": erow.short_term_reversal,
+                    "15. ARM Factor": erow.arm_factor,
+                    "16. CARD Factor": erow.card_factor,
+                    "17. LATR Factor": erow.latr_factor,
+                    "18. Inst & Foreign Sector": erow.inst_foreign_sector,
+                    "19. Supply Chain": erow.supply_chain,
+                    "20. NLP Sentiment": erow.sentiment,
+                    "21. Factor Neutralized": erow.factor_neutralized,
+                    "22. Vol Targeting": erow.vol_target,
+                    "23. Microstructure": erow.microstructure,
+                    "24. Accruals Quality": erow.accruals_quality,
+                    "25. Short Squeeze": erow.short_squeeze,
+                    "26. Value-Up Yield": erow.valueup_catalyst,
+                    "27. Trend Efficiency": erow.trend_efficiency,
+                    "28. Gamma Squeeze": erow.gamma_squeeze,
+                    "29. Insider Buying": erow.insider_buying,
+                    "30. Darkpool & HFT": erow.darkpool,
+                    "31. Tone Drift": erow.earnings_tone_drift,
+                    "32. Cross-Asset Spillover": erow.cross_asset_spillover,
+                    "33. Supply Chain GNN": erow.supply_chain_gnn,
+                    "34. Range Expansion": erow.range_expansion,
+                    "35. Dual Correction": erow.dual_correction,
+                    "36. Index Rebalance": erow.index_rebalance,
+                    "37. Overnight Gap": erow.overnight_gap,
+                }
+                import urllib.parse
+                factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
+                clean_name = html.escape(erow.name).replace("'", "\\\'").replace('"', '&quot;')
+                drawer_call = f"openStockDrawer('{erow.symbol}', '{clean_name}', '{mkt}', '{erow.score}', '{ret_disp}', '{factors_encoded}', {row_idx})"
+                rank_badge_html = f'<span class="rank-badge rank-1">1</span>' if erow.rank == 1 else (f'<span class="rank-badge rank-2">2</span>' if erow.rank == 2 else (f'<span class="rank-badge rank-3">3</span>' if erow.rank == 3 else f'#{erow.rank}'))
+                rows_html_summary += f'''
+            <tr class="clickable-row" data-symbol="{erow.symbol}" data-initial-rank="{erow.rank}" data-initial-order="{row_idx}" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{{{event.preventDefault();this.click()}}}}" title="클릭하여 37대 전략 상세 보기">
+              <td class="rank sticky-col sticky-rank"><button class="btn-watchlist" data-sym="{erow.symbol}" onclick="toggleWatchlist('{erow.symbol}', event)" title="관심종목 등록/해제">⭐</button>{rank_badge_html}</td>
+              <td class="symbol sticky-col sticky-symbol">{symbol_link}</td>
+              <td class="name sticky-col sticky-name">{html.escape(erow.name)}<span class="row-chevron" aria-hidden="true">›</span></td>
+              <td class="score">{format_metric_cell(erow.score, kind="score")}</td>
+              <td class="{rc}">{format_metric_cell(ret_disp, kind="pct")}</td>
+              <td class="col-strat col-cat-ai">{format_metric_cell(erow.reg, kind="score")}</td>
+              <td class="col-strat col-cat-ai">{format_metric_cell(erow.surge, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.lead_lag, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.vcp_rule, kind="score")}</td>
+              <td class="col-strat col-cat-ai">{format_metric_cell(erow.vcp_ml, kind="score")}</td>
+              <td class="col-strat col-cat-ai">{format_metric_cell(erow.lstm, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.stat_arb, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.sector_rotation, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.rim_valuation, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.event_driven, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.mq_factor, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.iv_skew, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.order_flow, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.short_term_reversal, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.arm_factor, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.card_factor, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.latr_factor, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.inst_foreign_sector, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.supply_chain, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.sentiment, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.factor_neutralized, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.vol_target, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.microstructure, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.accruals_quality, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.short_squeeze, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.valueup_catalyst, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.trend_efficiency, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.gamma_squeeze, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.insider_buying, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.darkpool, kind="score")}</td>
+              <td class="col-strat col-cat-val">{format_metric_cell(erow.earnings_tone_drift, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.cross_asset_spillover, kind="score")}</td>
+              <td class="col-strat col-cat-macro">{format_metric_cell(erow.supply_chain_gnn, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.range_expansion, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.dual_correction, kind="score")}</td>
+              <td class="col-strat col-cat-flow">{format_metric_cell(erow.index_rebalance, kind="score")}</td>
+              <td class="col-strat col-cat-mom">{format_metric_cell(erow.overnight_gap, kind="score")}</td>
+            </tr>'''
+
+            cta_button_html = f'''
+        <div class="market-cta-box" style="margin: 16px 0; padding: 14px 20px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; text-align: center;">
+          <span style="color: var(--text-secondary); margin-right: 12px;">{flag} {mkt} 전체 {len(mkt_data.rows)}개 종목 42컬럼 팩터 및 순위 분석:</span>
+          <a href="market_{mkt.lower()}.html" class="btn btn-primary" style="display:inline-block; padding: 8px 18px; background: var(--accent); color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.9rem;">
+            {flag} {mkt} 전용 대시보드 열기 &rarr;
+          </a>
+        </div>''' if is_large_universe else ""
+        else:
+            rows_html_summary = '<tr><td colspan="42" class="empty">데이터 없음</td></tr>'
+            cta_button_html = ""
+
+        ensemble_panels_summary += f'''
+    <div class="market-panel" data-market="{mkt}">
+      <h3 class="market-title">{flag} {mkt}</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th class="sticky-col sticky-rank" title="종목 순위">순위 ↕</th>
+            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
+            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 37대 전략 상세 분해)">종목명 ↕</th>
+            <th title="37대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
+            <th class="col-strat col-cat-ai" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
+            <th class="col-strat col-cat-ai" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
+            <th class="col-strat col-cat-mom" title="3. Lead-Lag 후행 반응 종목 시차 상관성">3. L-L ↕</th>
+            <th class="col-strat col-cat-mom" title="4. VCP 변동성 수축 패턴 규칙 검출">4. VCP-R ↕</th>
+            <th class="col-strat col-cat-ai" title="5. VCP 머신러닝 급등 예측">5. VCP-M ↕</th>
+            <th class="col-strat col-cat-ai" title="6. Strict Causal 시계열 LSTM 딥러닝">6. LSTM ↕</th>
+            <th class="col-strat col-cat-macro" title="7. Stat-Arb 공적분 잔차 평균회귀 Z-score">7. S-Arb ↕</th>
+            <th class="col-strat col-cat-mom" title="8. Sector Rotation 상대모멘텀 & 순환매">8. Sec-R ↕</th>
+            <th class="col-strat col-cat-val" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
+            <th class="col-strat col-cat-val" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
+            <th class="col-strat col-cat-mom" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
+            <th class="col-strat col-cat-macro" title="12. Options Put/Call Implied Volatility Skew 역발상 점수">12. IV-Sk ↕</th>
+            <th class="col-strat col-cat-flow" title="13. Order Flow Imbalance 외인/기관 순매수 수급 가속도">13. Flow ↕</th>
+            <th class="col-strat col-cat-mom" title="14. Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">14. Rev ↕</th>
+            <th class="col-strat col-cat-val" title="15. Analyst Revision Momentum EPS/목표가 상향 조정">15. ARM ↕</th>
+            <th class="col-strat col-cat-macro" title="16. Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">16. CARD ↕</th>
+            <th class="col-strat col-cat-macro" title="17. Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">17. LATR ↕</th>
+            <th class="col-strat col-cat-flow" title="18. Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">18. I&amp;F ↕</th>
+            <th class="col-strat col-cat-macro" title="19. Supply Chain Momentum 전방 공급망 전이">19. Supply ↕</th>
+            <th class="col-strat col-cat-macro" title="20. NLP Sentiment FinBERT 공시/뉴스 감성">20. NLP ↕</th>
+            <th class="col-strat col-cat-macro" title="21. Fama-French Multi-Factor Style Neutralized 순수 알파">21. Neutral ↕</th>
+            <th class="col-strat col-cat-macro" title="22. Dynamic Volatility Targeting 리스크 파리티">22. Vol-T ↕</th>
+            <th class="col-strat col-cat-flow" title="23. Microstructure Imbalance 호가/동시호가 갭">23. Micro ↕</th>
+            <th class="col-strat col-cat-val" title="24. Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">24. Accrual ↕</th>
+            <th class="col-strat col-cat-flow" title="25. Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">25. S-Sq ↕</th>
+            <th class="col-strat col-cat-val" title="26. Value-Up Catalyst 저PBR 및 총주주환원율">26. ValueUp ↕</th>
+            <th class="col-strat col-cat-mom" title="27. Kaufman Trend Efficiency 고순도 추세 필터">27. TrendEff ↕</th>
+            <th class="col-strat col-cat-flow" title="28. Gamma Squeeze 옵션 델타/감마 가속도">28. GammaSq ↕</th>
+            <th class="col-strat col-cat-flow" title="29. Insider Buying 임원/대주주 내부자 매수">29. Insider ↕</th>
+            <th class="col-strat col-cat-flow" title="30. High-Frequency Darkpool / Block Order Flow">30. Darkpool ↕</th>
+            <th class="col-strat col-cat-val" title="31. Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">31. ToneDrift ↕</th>
+            <th class="col-strat col-cat-macro" title="32. Cross-Asset Spillover 거시 탄력도 벡터 임펄스">32. CAS ↕</th>
+            <th class="col-strat col-cat-macro" title="33. Supply Chain GNN 2-hop 그래프 메시지 패싱">33. GNN ↕</th>
+            <th class="col-strat col-cat-mom" title="34. Range Expansion Breakout 변동성 압축 돌파">34. REB ↕</th>
+            <th class="col-strat col-cat-mom" title="35. Dual Correction 가격/기간 조정 눌림목">35. Dual ↕</th>
+            <th class="col-strat col-cat-flow" title="36. Index Rebalance 패시브 수급 선반영">36. Idx ↕</th>
+            <th class="col-strat col-cat-mom" title="37. Overnight Gap Reversal 갭 페이드 반전">37. Gap ↕</th>
+          </tr></thead>
+          <tbody>{rows_html_summary}</tbody>
+        </table>
+      </div>
+      {cta_button_html}
+    </div>'''
     def _render_weights_html(w_dict: dict) -> str:
         if not w_dict:
             return '<span style="color:var(--muted); padding:12px; display:block;">데이터 없음</span>'
@@ -3251,16 +3450,8 @@ def build_html(
     krx_pulse, krx_text, us_pulse, us_text = _get_initial_market_status()
 
     # ── Full HTML ──
-    return f"""<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>📈 Stock Prediction Dashboard | KRX &amp; SP500</title>
-<meta name="description" content="AI 기반 한국·미국 주식 3,379종목 37대 다변화 전략(XGBoost 회귀, Surge 분류기, Strict LSTM, VCP 패턴, Lead-Lag, Stat-Arb, RIM 등) 앙상블 대시보드">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
+    
+    style_content = """<style>
   :root {{
     --bg: #0b0f17;
     --surface: #131b26;
@@ -4366,11 +4557,17 @@ def build_html(
   ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
   ::-webkit-scrollbar-track {{ background: var(--bg); }}
   ::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 3px; }}
-</style>
-</head>
-<body>
+</style>"""
 
-<div class="header">
+    try:
+        _all_stocks_list = json.loads(all_stocks_universe_json) if all_stocks_universe_json else []
+    except Exception:
+        _all_stocks_list = []
+    all_stocks_summary_universe = [s for s in _all_stocks_list if isinstance(s, dict) and s.get("sym") in summary_syms]
+    all_stocks_summary_universe_json = _safe_json(all_stocks_summary_universe)
+
+    # ── Multi-Page Pre-Rendered Blocks ──
+    rendered_index_body = f"""<div class="header">
   <div class="header-top-row">
     <div>
       <h1>📈 Stock Prediction Dashboard <span class="badge badge-quant-edition">Institutional Quant v7.0</span></h1>
@@ -4970,7 +5167,9 @@ def build_html(
 <!-- ══════════════════════════════════════════════════════ -->
 <!-- Row 2: 개별 전략 상세 탭                               -->
 <!-- ══════════════════════════════════════════════════════ -->
-<div class="row2-wrapper">
+"""
+    rendered_index_body_summary = rendered_index_body.replace(ensemble_panels, ensemble_panels_summary)
+    rendered_row2_body = f"""<div class="row2-wrapper">
 <div class="strategy-tabs-label">📊 개별 전략 상세 (Individual Strategies)</div>
 
 <nav class="tabs">
@@ -5388,9 +5587,8 @@ def build_html(
   </div>
 
 </div><!-- end .content -->
-</div><!-- end .row2-wrapper -->
-
-<script>
+</div><!-- end .row2-wrapper -->"""
+    rendered_script_body = f"""<script>
 function toggleStratGuide() {{
   const body = document.getElementById('strat-guide-body');
   const icon = document.getElementById('strat-guide-icon');
@@ -6837,7 +7035,9 @@ function selectStrategyFromHub(stratId) {{
 }}
 </script>
 
-<!-- Stock Detail Drawer -->
+"""
+    rendered_script_body_summary = rendered_script_body.replace(all_stocks_universe_json, all_stocks_summary_universe_json)
+    rendered_drawer_body = f"""<!-- Stock Detail Drawer -->
 <div id="stock-drawer-overlay" onclick="closeStockDrawer()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(6px); z-index:1000; transition:opacity .3s;"></div>
 <div id="stock-drawer" style="position:fixed; top:0; right:-500px; width:480px; max-width:95vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:1001; padding:0 24px 24px 24px; overflow-y:auto; overscroll-behavior:contain; transition:right .3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow:var(--shadow-lg);">
   <div class="drawer-drag-handle" onclick="closeStockDrawer()"></div>
@@ -6903,7 +7103,8 @@ function selectStrategyFromHub(stratId) {{
   </div>
 </div>
 
-<!-- Strategy Hub & Mobile Bottom Nav Component Insertion -->
+"""
+    rendered_bottom_body = f"""<!-- Strategy Hub & Mobile Bottom Nav Component Insertion -->
 {strategy_hub_html}
 {mobile_bottom_nav_html}
 
@@ -6913,18 +7114,18 @@ function selectStrategyFromHub(stratId) {{
 <!-- Back to Top FAB -->
 <button id="btn-back-to-top" onclick="window.scrollTo({{top: 0, behavior: 'smooth'}})" title="맨 위로 이동">▲</button>
 
-</body>
-</html>
 """
+
+    return locals()
+
+
+def build_html(*args, **kwargs) -> str:
+    """Backward-compatible entry point returning index.html content."""
+    ctx = _prepare_report_context(*args, **kwargs)
+    return build_index_html(ctx, is_executive_summary=False)
 
 
 generate_html = build_html
-
-
-# ─────────────────────────────────────────────
-# Main
-# ─────────────────────────────────────────────
-
 def main(args_list: Optional[list[str]] = None):
     parser = argparse.ArgumentParser(description="Generate stock prediction HTML dashboard")
     parser.add_argument("--result-dir", default="trading_system/result", help="Directory with result txt files")
@@ -7208,31 +7409,39 @@ def main(args_list: Optional[list[str]] = None):
 
     history_html = build_history_section(result_dir)
 
-    html = build_html(
+    # Calling _prepare_report_context below
+
+
+    out_dir = out_path.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Prepare context once
+    ctx = _prepare_report_context(
         ensemble,
         surge_date, surge_sections,
         vcp_date, vcp_rows,
         lag_date, follower_rows, leader_rows,
-        vcp_ml_sections, reg_sections,
-        portfolio_data,
-        lstm_rows,
-        stat_arb_rows,
-        sector_rows,
-        rim_rows,
-        event_rows,
-        mq_rows,
-        iv_rows,
-        flow_rows,
-        reversal_rows,
-        arm_rows,
-        card_rows,
-        latr_rows,
-        ifs_rows,
-        supply_chain_rows,
-        sentiment_rows,
-        factor_neutralized_rows,
-        vol_target_rows,
-        microstructure_rows,
+        vcp_ml_sections=vcp_ml_sections,
+        reg_sections=reg_sections,
+        portfolio_data=portfolio_data,
+        lstm_rows=lstm_rows,
+        stat_arb_rows=stat_arb_rows,
+        sector_rows=sector_rows,
+        rim_rows=rim_rows,
+        event_rows=event_rows,
+        mq_rows=mq_rows,
+        iv_rows=iv_rows,
+        flow_rows=flow_rows,
+        reversal_rows=reversal_rows,
+        arm_rows=arm_rows,
+        card_rows=card_rows,
+        latr_rows=latr_rows,
+        ifs_rows=ifs_rows,
+        supply_chain_rows=supply_chain_rows,
+        sentiment_rows=sentiment_rows,
+        factor_neutralized_rows=factor_neutralized_rows,
+        vol_target_rows=vol_target_rows,
+        microstructure_rows=microstructure_rows,
         accruals_quality_rows=accruals_quality_rows,
         short_squeeze_rows=short_squeeze_rows,
         valueup_catalyst_rows=valueup_catalyst_rows,
@@ -7260,11 +7469,12 @@ def main(args_list: Optional[list[str]] = None):
         strategy_coverage_report_text=cov_text,
     )
 
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(html, encoding="utf-8")
-    size_kb = out_path.stat().st_size // 1024
-    print(f"[generate_report] Dashboard written to: {out_path.resolve()} ({size_kb} KB)")
+    # 2. Write all 7 static pages
+    gen_files = build_all_pages(ctx, out_dir, out_path=out_path)
+    print(f"[generate_report] Multi-Page Static Architecture deployed to: {out_dir.resolve()}")
+    for key, fpath in gen_files.items():
+        kb = fpath.stat().st_size // 1024
+        print(f"  - {fpath.name:24s}: {kb:4d} KB")
 
 
 if __name__ == "__main__":

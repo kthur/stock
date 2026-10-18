@@ -387,6 +387,9 @@ def test_generated_html_report_zero_nan_and_js_integrity():
         pytest.skip("gh-pages/index.html does not exist yet; run report generation first.")
 
     content = out_html_path.read_text(encoding="utf-8")
+    strat_html_path = out_html_path.parent / "strategies.html"
+    strat_content = strat_html_path.read_text(encoding="utf-8") if strat_html_path.exists() else ""
+    check_content = content + "\n" + strat_content
 
     # 1. Assert NO raw <td[^>]*>(nan|none|undefined|null)</td> strings
     raw_nan_pattern = re.compile(r"<td[^>]*>\s*(nan|none|undefined|null|-nan%|NaN)\s*</td>", re.IGNORECASE)
@@ -405,34 +408,34 @@ def test_generated_html_report_zero_nan_and_js_integrity():
     assert 'id="panel-regime"' in content
     assert 'id="panel-scenario"' in content
     assert 'id="panel-history"' in content
-    assert 'id="panel-regression"' in content
-    assert 'id="panel-surge"' in content
-    assert 'id="panel-leadlag"' in content
-    assert 'id="panel-vcp"' in content
-    assert 'id="panel-vcpml"' in content
-    assert 'id="panel-lstm"' in content
-    assert 'id="panel-stat-arb"' in content
-    assert 'id="panel-sector"' in content
-    assert 'id="panel-rim"' in content
-    assert 'id="panel-event"' in content
-    assert 'id="panel-mq"' in content
-    assert 'id="panel-iv"' in content
-    assert 'id="panel-flow"' in content
-    assert 'id="panel-reversal"' in content
-    assert 'id="panel-arm"' in content
-    assert 'id="panel-card"' in content
-    assert 'id="panel-latr"' in content
-    assert 'id="panel-ifs"' in content
-    assert 'id="panel-supplychain"' in content
-    assert 'id="panel-sentiment"' in content
-    assert 'id="panel-neutralized"' in content
-    assert 'id="panel-voltarget"' in content
-    assert 'id="panel-microstructure"' in content
-    assert 'id="panel-accruals"' in content
-    assert 'id="panel-shortsqueeze"' in content
-    assert 'id="panel-valueup"' in content
-    assert 'id="panel-trendeff"' in content
-    assert 'id="panel-gammasqueeze"' in content
-    assert 'id="panel-insider"' in content
-    assert 'id="panel-darkpool"' in content
-    assert 'id="panel-tonedrift"' in content
+    assert 'id="panel-regression"' in check_content
+    assert 'id="panel-surge"' in check_content
+    assert 'id="panel-leadlag"' in check_content
+    assert 'id="panel-vcp"' in check_content
+    assert 'id="panel-vcpml"' in check_content
+    assert 'id="panel-lstm"' in check_content
+    assert 'id="panel-stat-arb"' in check_content
+    assert 'id="panel-sector"' in check_content
+    assert 'id="panel-rim"' in check_content
+    assert 'id="panel-event"' in check_content
+    assert 'id="panel-mq"' in check_content
+    assert 'id="panel-iv"' in check_content
+    assert 'id="panel-flow"' in check_content
+    assert 'id="panel-reversal"' in check_content
+    assert 'id="panel-arm"' in check_content
+    assert 'id="panel-card"' in check_content
+    assert 'id="panel-latr"' in check_content
+    assert 'id="panel-ifs"' in check_content
+    assert 'id="panel-supplychain"' in check_content
+    assert 'id="panel-sentiment"' in check_content
+    assert 'id="panel-neutralized"' in check_content
+    assert 'id="panel-voltarget"' in check_content
+    assert 'id="panel-microstructure"' in check_content
+    assert 'id="panel-accruals"' in check_content
+    assert 'id="panel-shortsqueeze"' in check_content
+    assert 'id="panel-valueup"' in check_content
+    assert 'id="panel-trendeff"' in check_content
+    assert 'id="panel-gammasqueeze"' in check_content
+    assert 'id="panel-insider"' in check_content
+    assert 'id="panel-darkpool"' in check_content
+    assert 'id="panel-tonedrift"' in check_content

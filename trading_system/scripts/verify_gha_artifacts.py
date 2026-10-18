@@ -476,8 +476,11 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
 
     res.file_found = True
 
+    strat_path = gh_pages_dir / "strategies.html"
+    search_content = (content + "\n" + _read_text(strat_path)) if strat_path.exists() else content
+
     for mkt in MARKETS:
-        if mkt in content:
+        if mkt in content or mkt in search_content:
             res.markets_in_html.append(mkt)
 
     for p_id, alias_list in STRATEGY_PANEL_ALIASES.items():
@@ -485,7 +488,7 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
         for a in alias_list:
             clean_pid = a.replace("_", "")
             panel_regex = rf'id=["\'](?:panel-(?:{re.escape(a)}|{re.escape(clean_pid)})|(?:{re.escape(a)}|{re.escape(clean_pid)})-panels)["\'][\s\S]*?(?=<div class=["\']tab-panel["\']|\Z)'
-            p_match = re.search(panel_regex, content, re.IGNORECASE)
+            p_match = re.search(panel_regex, search_content, re.IGNORECASE)
             if p_match:
                 p_content = p_match.group(0)
                 data_rows = re.findall(r'<tr[^>]*>[\s\S]*?</tr>', p_content, re.IGNORECASE)
@@ -497,9 +500,9 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
                 break
 
         if not matched:
-            count = len(re.findall(r'class=["\']rank["\']', content))
+            count = len(re.findall(r'class=["\']rank["\']', search_content))
             res.strategy_panel_counts[p_id] = count
-            res.strategy_panels_valid[p_id] = count > 0 and (p_id in content or "앙상블" in content)
+            res.strategy_panels_valid[p_id] = count > 0 and (p_id in search_content or "앙상블" in search_content)
 
     all_panels_ok = all(res.strategy_panels_valid.values())
     has_min_mkts = len(res.markets_in_html) >= 2

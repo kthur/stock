@@ -358,7 +358,9 @@ def test_dom_card_3_portfolio_optimization_and_execution_oms():
 def test_dom_row_2_canonical_31_strategy_tabs_and_panels():
     """Verify Row 2 has exactly 31 strategy tabs in canonical order 1~31 and all 31 panels exist."""
     html_path = Path("gh-pages/index.html")
-    content = html_path.read_text(encoding="utf-8")
+    strat_path = Path("gh-pages/strategies.html")
+    target_path = strat_path if strat_path.exists() else html_path
+    content = target_path.read_text(encoding="utf-8")
 
     expected_canonical_tabs = [
         ("regression", "1. Regression"),
