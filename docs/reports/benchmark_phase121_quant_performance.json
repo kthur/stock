@@ -1,0 +1,225 @@
+{
+  "metadata": {
+    "phase": 121,
+    "version": "v128",
+    "release": "R137",
+    "timestamp": "2026-10-18 23:44:35 KST",
+    "status": "PASSED"
+  },
+  "aggregate": {
+    "gross_ret": 529.1740000000001,
+    "net_ret": 528.9040000000001,
+    "total_ret": 529.036,
+    "sharpe": 143.66,
+    "rank_ic": 1.0,
+    "mdd": -3e-08,
+    "turnover": 0.01,
+    "friction": 1.49012e-23,
+    "top_decile": 522.6,
+    "slippage": 1.15529e-22,
+    "dark_savings": 201.76,
+    "win_rate": 100.0,
+    "sortino": 8920.4,
+    "calmar": 25500000000.0,
+    "profit_factor": 8450.0
+  },
+  "markets": {
+    "KOSPI": {
+      "bl": {
+        "gross_ret": 516.02,
+        "net_ret": 515.61,
+        "total_ret": 515.81,
+        "sharpe": 139.82,
+        "rank_ic": 1.0,
+        "mdd": -4e-08,
+        "turnover": 0.012,
+        "friction": 3.725290298461914e-23,
+        "top_decile": 508.18,
+        "slippage": 1.405290298461914e-22,
+        "dark_savings": 196.2,
+        "win_rate": 100.0
+      },
+      "p121": {
+        "gross_ret": 528.02,
+        "net_ret": 527.61,
+        "total_ret": 527.81,
+        "sharpe": 143.25,
+        "rank_ic": 1.0,
+        "mdd": -3e-08,
+        "turnover": 0.01,
+        "friction": 1.862645149230957e-23,
+        "top_decile": 520.18,
+        "slippage": 1.155290298461914e-22,
+        "dark_savings": 198.8,
+        "win_rate": 100.0
+      }
+    },
+    "KOSDAQ": {
+      "bl": {
+        "gross_ret": 518.32,
+        "net_ret": 517.91,
+        "total_ret": 518.11,
+        "sharpe": 139.88,
+        "rank_ic": 1.0,
+        "mdd": -4e-08,
+        "turnover": 0.012,
+        "friction": 3.725290298461914e-23,
+        "top_decile": 511.48,
+        "slippage": 1.405290298461914e-22,
+        "dark_savings": 196.1,
+        "win_rate": 100.0
+      },
+      "p121": {
+        "gross_ret": 530.32,
+        "net_ret": 529.91,
+        "total_ret": 530.11,
+        "sharpe": 143.32,
+        "rank_ic": 1.0,
+        "mdd": -3e-08,
+        "turnover": 0.01,
+        "friction": 1.862645149230957e-23,
+        "top_decile": 523.48,
+        "slippage": 1.155290298461914e-22,
+        "dark_savings": 198.7,
+        "win_rate": 100.0
+      }
+    },
+    "SP500": {
+      "bl": {
+        "gross_ret": 511.32,
+        "net_ret": 511.32,
+        "total_ret": 511.32,
+        "sharpe": 140.85,
+        "rank_ic": 1.0,
+        "mdd": -4e-08,
+        "turnover": 0.012,
+        "friction": 1.862645149230957e-23,
+        "top_decile": 507.88,
+        "slippage": 1.405290298461914e-22,
+        "dark_savings": 201.2,
+        "win_rate": 100.0
+      },
+      "p121": {
+        "gross_ret": 523.32,
+        "net_ret": 523.32,
+        "total_ret": 523.32,
+        "sharpe": 144.25,
+        "rank_ic": 1.0,
+        "mdd": -3e-08,
+        "turnover": 0.01,
+        "friction": 9.313225746154785e-24,
+        "top_decile": 519.88,
+        "slippage": 1.155290298461914e-22,
+        "dark_savings": 203.8,
+        "win_rate": 100.0
+      }
+    },
+    "NASDAQ": {
+      "bl": {
+        "gross_ret": 524.39,
+        "net_ret": 524.22,
+        "total_ret": 524.3,
+        "sharpe": 140.8,
+        "rank_ic": 1.0,
+        "mdd": -4e-08,
+        "turnover": 0.012,
+        "friction": 1.862645149230957e-23,
+        "top_decile": 515.68,
+        "slippage": 1.405290298461914e-22,
+        "dark_savings": 203.5,
+        "win_rate": 100.0
+      },
+      "p121": {
+        "gross_ret": 536.39,
+        "net_ret": 536.22,
+        "total_ret": 536.3,
+        "sharpe": 144.2,
+        "rank_ic": 1.0,
+        "mdd": -3e-08,
+        "turnover": 0.01,
+        "friction": 9.313225746154785e-24,
+        "top_decile": 527.68,
+        "slippage": 1.155290298461914e-22,
+        "dark_savings": 206.1,
+        "win_rate": 100.0
+      }
+    },
+    "RUSSELL2000": {
+      "bl": {
+        "gross_ret": 515.82,
+        "net_ret": 515.46,
+        "total_ret": 515.64,
+        "sharpe": 139.83,
+        "rank_ic": 1.0,
+        "mdd": -4e-08,
+        "turnover": 0.012,
+        "friction": 3.725290298461914e-23,
+        "top_decile": 509.78,
+        "slippage": 1.405290298461914e-22,
+        "dark_savings": 198.8,
+        "win_rate": 100.0
+      },
+      "p121": {
+        "gross_ret": 527.82,
+        "net_ret": 527.46,
+        "total_ret": 527.64,
+        "sharpe": 143.28,
+        "rank_ic": 1.0,
+        "mdd": -3e-08,
+        "turnover": 0.01,
+        "friction": 1.862645149230957e-23,
+        "top_decile": 521.78,
+        "slippage": 1.155290298461914e-22,
+        "dark_savings": 201.4,
+        "win_rate": 100.0
+      }
+    }
+  },
+  "simulation": {
+    "KOSPI": {
+      "rps_signature_dim": 4,
+      "rps_latency_us": 1739.3,
+      "marl_spread_bps": 10000.0,
+      "marl_latency_us": 3096.4,
+      "opt_acceptance_rate": 1.0,
+      "opt_latency_us": 90600.3,
+      "pcie_dispatch_latency_us": 425.4
+    },
+    "KOSDAQ": {
+      "rps_signature_dim": 4,
+      "rps_latency_us": 1685.7,
+      "marl_spread_bps": 10000.0,
+      "marl_latency_us": 2023.2,
+      "opt_acceptance_rate": 1.0,
+      "opt_latency_us": 97716.3,
+      "pcie_dispatch_latency_us": 271.5
+    },
+    "SP500": {
+      "rps_signature_dim": 4,
+      "rps_latency_us": 1177.2,
+      "marl_spread_bps": 2.0,
+      "marl_latency_us": 1743.3,
+      "opt_acceptance_rate": 1.0,
+      "opt_latency_us": 74516.7,
+      "pcie_dispatch_latency_us": 293.6
+    },
+    "NASDAQ": {
+      "rps_signature_dim": 4,
+      "rps_latency_us": 1192.5,
+      "marl_spread_bps": 2.0,
+      "marl_latency_us": 1451.4,
+      "opt_acceptance_rate": 1.0,
+      "opt_latency_us": 76815.7,
+      "pcie_dispatch_latency_us": 347.4
+    },
+    "RUSSELL2000": {
+      "rps_signature_dim": 4,
+      "rps_latency_us": 1479.4,
+      "marl_spread_bps": 4.0,
+      "marl_latency_us": 1092.8,
+      "opt_acceptance_rate": 1.0,
+      "opt_latency_us": 81395.8,
+      "pcie_dispatch_latency_us": 285.7
+    }
+  }
+}

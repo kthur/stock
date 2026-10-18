@@ -129,6 +129,15 @@ __all__ = [
     "geodesic_distance",
     "compute_gromov_hyperbolicity",
     "apply_geodesic_leland_bands",
+    # Phase 121 Exports (F577)
+    "SymplecticManifoldHMCAllocator",
+    "SymplecticAllocatorConfig",
+    "SymplecticOptimizationResult",
+    "SymplecticProfile",
+    "AllocationMode",
+    "MetricType",
+    "get_symplectic_profile",
+    "run_symplectic_allocation",
 ]
 
 # Phase 119 Quantum-Inspired Annealing Portfolio Combinatorial Optimizer (F566)
@@ -184,4 +193,32 @@ except ImportError:
         )
     except ImportError:
         pass
+
+# Phase 121 Symplectic Manifold Hamiltonian Monte Carlo Allocator (F577)
+try:
+    from src.risk.symplectic_hamiltonian_allocator import (
+        SymplecticManifoldHMCAllocator,
+        SymplecticAllocatorConfig,
+        SymplecticOptimizationResult,
+        SymplecticProfile,
+        AllocationMode,
+        MetricType,
+        get_symplectic_profile,
+        run_symplectic_allocation,
+    )
+except ImportError:
+    try:
+        from trading_system.src.risk.symplectic_hamiltonian_allocator import (
+            SymplecticManifoldHMCAllocator,
+            SymplecticAllocatorConfig,
+            SymplecticOptimizationResult,
+            SymplecticProfile,
+            AllocationMode,
+            MetricType,
+            get_symplectic_profile,
+            run_symplectic_allocation,
+        )
+    except ImportError:
+        pass
+
 

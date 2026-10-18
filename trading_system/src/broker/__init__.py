@@ -295,3 +295,31 @@ except ImportError:
         XDPRoutingVenue,
     )
 
+# FPGA-Emulated PCIe DMA Trading Engine (Phase 121 F578)
+try:
+    from .pcie_dma_trading_engine import (
+        PCIeDMATradingEngine,
+        PCIeOrderMessage,
+        PCIeBAR0Registers,
+        PCIeDMARingBuffer,
+        PriorityClass,
+        EngineStatus,
+        BrokerID,
+        fnv1a_32,
+        PCIE_ORDER_STRUCT,
+        PCIE_ORDER_SIZE,
+    )
+except ImportError:
+    from trading_system.src.broker.pcie_dma_trading_engine import (
+        PCIeDMATradingEngine,
+        PCIeOrderMessage,
+        PCIeBAR0Registers,
+        PCIeDMARingBuffer,
+        PriorityClass,
+        EngineStatus,
+        BrokerID,
+        fnv1a_32,
+        PCIE_ORDER_STRUCT,
+        PCIE_ORDER_SIZE,
+    )
+

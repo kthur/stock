@@ -3,7 +3,7 @@
     "phase": 120,
     "version": "v127",
     "release": "R136",
-    "timestamp": "2026-10-18 19:37:01 KST",
+    "timestamp": "2026-10-18 20:42:22 KST",
     "status": "PASSED"
   },
   "aggregate": {
@@ -178,63 +178,63 @@
   "simulation": {
     "KOSPI": {
       "pino_horizons_evaluated": 4,
-      "pino_latency_us": 10049.1,
+      "pino_latency_us": 11096.3,
       "mfdfa_h2": 0.46924264588296627,
       "mfdfa_delta_alpha": 0.08541635582745932,
-      "mfdfa_latency_us": 8467.8,
+      "mfdfa_latency_us": 8684.1,
       "opt_active_weights": 6,
       "opt_expected_return": 0.10193248303218297,
-      "opt_latency_us": 10315.4,
+      "opt_latency_us": 9971.1,
       "xdp_venue": "0",
-      "xdp_dispatch_latency_us": 70.1
+      "xdp_dispatch_latency_us": 78.9
     },
     "KOSDAQ": {
       "pino_horizons_evaluated": 4,
-      "pino_latency_us": 6164.7,
+      "pino_latency_us": 6423.1,
       "mfdfa_h2": 0.4636312895273884,
       "mfdfa_delta_alpha": 0.06346306962356119,
-      "mfdfa_latency_us": 5720.9,
+      "mfdfa_latency_us": 7738.4,
       "opt_active_weights": 6,
       "opt_expected_return": 0.10193033306110325,
-      "opt_latency_us": 8531.3,
+      "opt_latency_us": 10759.8,
       "xdp_venue": "0",
-      "xdp_dispatch_latency_us": 47.5
+      "xdp_dispatch_latency_us": 62.6
     },
     "SP500": {
       "pino_horizons_evaluated": 4,
-      "pino_latency_us": 4239.7,
+      "pino_latency_us": 6752.4,
       "mfdfa_h2": 0.46924264588296627,
       "mfdfa_delta_alpha": 0.08541635582745932,
-      "mfdfa_latency_us": 3066.1,
+      "mfdfa_latency_us": 4279.0,
       "opt_active_weights": 6,
       "opt_expected_return": 0.10193194823197119,
-      "opt_latency_us": 6357.4,
+      "opt_latency_us": 8839.5,
       "xdp_venue": "0",
-      "xdp_dispatch_latency_us": 47.0
+      "xdp_dispatch_latency_us": 60.8
     },
     "NASDAQ": {
       "pino_horizons_evaluated": 4,
-      "pino_latency_us": 4144.7,
+      "pino_latency_us": 5726.9,
       "mfdfa_h2": 0.46924264588296627,
       "mfdfa_delta_alpha": 0.08541635582745932,
-      "mfdfa_latency_us": 3040.6,
+      "mfdfa_latency_us": 3450.2,
       "opt_active_weights": 6,
       "opt_expected_return": 0.10193408862500837,
-      "opt_latency_us": 7347.5,
+      "opt_latency_us": 6232.6,
       "xdp_venue": "0",
-      "xdp_dispatch_latency_us": 51.0
+      "xdp_dispatch_latency_us": 43.9
     },
     "RUSSELL2000": {
       "pino_horizons_evaluated": 4,
-      "pino_latency_us": 4197.3,
+      "pino_latency_us": 4961.5,
       "mfdfa_h2": 0.4636312895273884,
       "mfdfa_delta_alpha": 0.06346306962356119,
-      "mfdfa_latency_us": 3100.7,
+      "mfdfa_latency_us": 3907.6,
       "opt_active_weights": 6,
       "opt_expected_return": 0.1019297985236229,
-      "opt_latency_us": 9708.7,
+      "opt_latency_us": 7950.2,
       "xdp_venue": "0",
-      "xdp_dispatch_latency_us": 70.5
+      "xdp_dispatch_latency_us": 44.2
     }
   }
 }

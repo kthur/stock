@@ -1,6 +1,6 @@
 # Global Multi-Market Quantitative Benchmark Report (Phase 120 Quantitative Alpha Enhancement)
 
-**Generated**: 2026-10-18 19:37:01 KST  
+**Generated**: 2026-10-18 20:42:22 KST  
 **Benchmark Version**: Phase 120 Release R136 / v127 Production Master  
 **Markets Evaluated**: KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000  
 
@@ -37,9 +37,9 @@ Phase 120 incorporates four state-of-the-art quantitative algorithmic engines:
 
 | Market | PINO Horizons | PINO Latency | MFDFA H(2) | MFDFA Δα | MFDFA Latency | Riemannian Latency | eBPF/XDP Latency | Venue ID |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **KOSPI** | 4 | 10049.10 us | 0.469 | 0.085 | 8467.80 us | 10315.40 us | 70.10 us | `0` |
-| **KOSDAQ** | 4 | 6164.70 us | 0.464 | 0.063 | 5720.90 us | 8531.30 us | 47.50 us | `0` |
-| **SP500** | 4 | 4239.70 us | 0.469 | 0.085 | 3066.10 us | 6357.40 us | 47.00 us | `0` |
-| **NASDAQ** | 4 | 4144.70 us | 0.469 | 0.085 | 3040.60 us | 7347.50 us | 51.00 us | `0` |
-| **RUSSELL2000** | 4 | 4197.30 us | 0.464 | 0.063 | 3100.70 us | 9708.70 us | 70.50 us | `0` |
+| **KOSPI** | 4 | 11096.30 us | 0.469 | 0.085 | 8684.10 us | 9971.10 us | 78.90 us | `0` |
+| **KOSDAQ** | 4 | 6423.10 us | 0.464 | 0.063 | 7738.40 us | 10759.80 us | 62.60 us | `0` |
+| **SP500** | 4 | 6752.40 us | 0.469 | 0.085 | 4279.00 us | 8839.50 us | 60.80 us | `0` |
+| **NASDAQ** | 4 | 5726.90 us | 0.469 | 0.085 | 3450.20 us | 6232.60 us | 43.90 us | `0` |
+| **RUSSELL2000** | 4 | 4961.50 us | 0.464 | 0.063 | 3907.60 us | 7950.20 us | 44.20 us | `0` |
 

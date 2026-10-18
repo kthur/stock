@@ -387,6 +387,12 @@ flowchart TB
 | `src/risk/riemannian_manifold_portfolio_allocator.py` | Curvature-Aware Riemannian Manifold Portfolio Allocator & Fisher Information Metric Engine: 피셔-라오 정보 메트릭, 자연 리만 경사 하강, 그로모프 쌍곡선 위기 감지 및 측지선 릴랜드 버퍼 밴드 (F572) |
 | `src/broker/ebpf_xdp_order_router.py` | Ultra-Low Latency Hardware-Accelerated Kernel Bypass Order Router & eBPF/XDP Bridge: eBPF/XDP 40바이트 바이너리 패킹, UMEM 제로카피 링버퍼, 합성 미드포인트 크로싱 및 COD 워치독 (F573) |
 | `trading_system/scripts/benchmark_phase120_quant_performance.py` | Phase 120 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F570~F574 기여도 분석, 8대 KPI 엄격 검증 및 8개 정규 리포트 SHA-256 동기화 (F574) |
+| `src/ai/path_signature_alpha_engine.py` | Continuous Rough Path Signature Transform Microstructure Alpha Forecaster: 텐서 시그니처/로그-시그니처, 첸의 항등식, 비가환 레비 면적, 러프 볼래틸리티 및 10D 장기기억 알파 벡터 (F575) |
+| `src/ai/marl_liquidity_harvester.py` | Multi-Agent Reinforcement Learning Adaptive Liquidity Harvester: Dec-POMDP 3-에이전트 협력 마켓메이킹, 동적 아벨라네다-스토이코프 호가, 내부 재고 크로스 네팅 및 안티 프레더토리 셰이딩 (F576) |
+| `src/risk/symplectic_hamiltonian_allocator.py` | Symplectic Manifold Hamiltonian Monte Carlo Portfolio Allocator: 코탄젠트 위상공간, 리만 피셔-라오 정보 메트릭, 탄성 경계 반사 리프프로그 적분기 및 측지선 릴랜드 버퍼 (F577) |
+| `src/broker/pcie_dma_trading_engine.py` | FPGA-Emulated Sub-Nanosecond Direct PCI-e Memory-Mapped DMA Trading Engine: 32바이트 바이너리 패킹(<QIIQII), BAR0 MMIO CSRs, BAR1 제로카피 DMA 링버퍼, 4-클래스 우선순위 중재 및 COD 워치독 (F578) |
+| `trading_system/scripts/benchmark_phase121_quant_performance.py` | Phase 121 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F575~F579 기여도 분석, 8대 KPI 엄격 검증 및 정규 리포트 SHA-256 동기화 (F579) |
+
 
 ### Markets
 

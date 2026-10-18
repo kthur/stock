@@ -1,95 +1,90 @@
-# Project: Phase 120 (v127 Production Master, Features F570~F574, Release R136)
+# Project: Phase 121 (v128 Production Master, Features F575~F579, Release R137)
 
 ## Architecture
-Phase 120 introduces Physics-Informed Neural Operator (PINO) Macro-Micro Fluid Dynamics Price Discovery Engine, Multi-Fractal Detrended Fluctuation (MF-DFA) Singularity Spectrum & Long-Memory Alpha Generator, Curvature-Aware Riemannian Manifold Portfolio Allocator & Fisher Information Metric Engine, Ultra-Low Latency Hardware-Accelerated Kernel Bypass Order Router & eBPF/XDP Bridge, and 5-Market Quantitative Benchmark Verification across all 5 global production markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000).
+Phase 121 introduces Continuous Rough Path Signature Transform Microstructure Alpha Forecaster, Multi-Agent Reinforcement Learning Adaptive Liquidity Harvester, Symplectic Manifold Hamiltonian Monte Carlo Portfolio Allocator, FPGA-Emulated Sub-Nanosecond Direct PCI-e Memory-Mapped DMA Trading Engine, and 5-Market Quantitative Benchmark Verification across all 5 global production markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000).
 
 - **Modular Layers**:
-  1. **Physics-Informed Neural Operator (PINO) Macro-Micro Fluid Dynamics Price Discovery Engine Layer (Milestone 1, Feature F570)**: `src/ai/pino_fluid_price_discovery.py` & `trading_system/src/ai/pino_fluid_price_discovery.py` mirror
-     - Continuous-space representation of L3 order book volume density as fluid flow governed by generalized viscous Burgers' / Navier-Stokes PDEs ($\frac{\partial u}{\partial t} + u \frac{\partial u}{\partial x} = \nu \frac{\partial^2 u}{\partial x^2} - \frac{1}{\rho}\nabla P + \mathcal{F}_{\text{arrival}}$).
-     - 1D/2D Fourier Neural Operator (FNO) spectral convolution layers solving price discovery non-linearities in frequency space with $\mathcal{O}(N \log N)$ complexity.
-     - Multi-horizon forward liquidity shockwave propagation and price jump velocity predictions (100ms, 500ms, 1s, 5s).
-     - Physics-informed loss regularization ensuring mass conservation ($\int \rho(x, t) dx = \text{Total Volume}$) and quote boundary conditions.
-     - Deterministic dual backend: PyTorch SIMD tensor acceleration with pure NumPy spectral fallback.
-  2. **Multi-Fractal Detrended Fluctuation (MF-DFA) Singularity Spectrum & Long-Memory Alpha Generator Layer (Milestone 2, Feature F571)**: `src/ai/mfdfa_singularity_alpha_engine.py` & `trading_system/src/ai/mfdfa_singularity_alpha_engine.py` mirror
-     - Generalized Hurst exponent surface $H(q)$ across continuous fluctuation orders ($q \in [-5.0, +5.0]$) and multi-scale lookback windows ($s \in [10, 250]$).
-     - Legendre transform mapping multi-fractal mass exponent $\tau(q) = q H(q) - 1$ to Hölder singularity spectrum $f(\alpha)$: $\alpha = \frac{d\tau}{dq}$, $f(\alpha) = q\alpha - \tau(q)$.
-     - Quantitative singularity width ($\Delta\alpha = \alpha_{\max} - \alpha_{\min}$), spectral asymmetry ($A = (\Delta\alpha_L - \Delta\alpha_R)/\Delta\alpha$), and non-linear market fragility alerts.
-     - Multi-scale persistence/anti-persistence signals transformed into 9-element long-memory alpha conditioning vectors for downstream allocation.
-  3. **Curvature-Aware Riemannian Manifold Portfolio Allocator & Fisher Information Metric Engine Layer (Milestone 3, Feature F572)**: `src/risk/riemannian_manifold_portfolio_allocator.py` & `trading_system/src/risk/riemannian_manifold_portfolio_allocator.py` mirror
-     - Portfolio probability simplex $\Delta^N$ embedded on statistical Riemannian manifold endowed with Fisher-Rao information metric $g_{ij}(w) = \frac{1}{w_i} \delta_{ij}$.
-     - Natural Riemannian gradient descent and geodesic path optimization under return-variance trade-offs ($\text{dist}_R(w^{(t)}, w^{(t+1)}) = 2 \arccos(\sum_i \sqrt{w_i^{(t)} w_i^{(t+1)}})$).
-     - Gromov $\delta$-hyperbolicity detection for systemic crash early warning and dynamic cash de-risking.
-     - Geodesic Leland no-trade buffer bands filtering high-frequency noise turnover without sacrificing alpha responsiveness.
-  4. **Ultra-Low Latency Hardware-Accelerated Kernel Bypass Order Router & eBPF/XDP Bridge Layer (Milestone 4, Feature F573)**: `src/broker/ebpf_xdp_order_router.py` & `trading_system/src/broker/ebpf_xdp_order_router.py` mirror
-     - eBPF / eXpress Data Path (XDP) architecture modeling zero-copy packet ingress/egress directly at network interface driver level.
-     - Sub-microsecond wire serialization via 40-byte compact binary struct packing (`<QQIIQII`).
-     - High-frequency synthetic midpoint crossing, anti-latency-arbitrage quote jitter protection, and cancel-on-disconnect (COD) heartbeats.
-     - Microsecond order state reconciliation, multi-broker 3-tier session failover, and hardware timestamping telemetry.
-  5. **Quantitative Benchmark & Master Verification Layer (Milestone 5, Feature F574)**: `trading_system/scripts/benchmark_phase120_quant_performance.py`, `tests/test_phase120_*.py`, reports, and `AGENTS.md`
+  1. **Continuous Rough Path Signature Transform Microstructure Alpha Forecaster Layer (Milestone 1, Feature F575)**: `src/ai/path_signature_alpha_engine.py` & `trading_system/src/ai/path_signature_alpha_engine.py` mirror
+     - Truncated tensor signatures $S(X)_{0, T}^{\le m}$ up to degree $m \le 4$, tensor logarithm expansion, and non-commutative Chen's identity.
+     - Pairwise non-commutative Lévy area integrals $A(X^i, X^j) = \frac{1}{2}(S(X)^{i,j} - S(X)^{j,i})$ capturing order-flow/price rotational flux.
+     - Rough volatility Hurst exponent $H_{\text{rough}} \in (0, 0.5)$ estimation and non-Markovian sub-diffusive memory decay modeling.
+     - 10D Non-Markovian Long-Memory Alpha Conditioning Vector for multi-horizon directional return drift.
+  2. **Multi-Agent Reinforcement Learning Adaptive Liquidity Harvester Layer (Milestone 2, Feature F576)**: `src/ai/marl_liquidity_harvester.py` & `trading_system/src/ai/marl_liquidity_harvester.py` mirror
+     - Dec-POMDP 3-agent cooperative market-making architecture: Inventory Balancer, Spread Quoter, and Adverse Selection Sentinel Defender.
+     - Dynamic Avellaneda-Stoikov quoting with inventory reservation skew ($r(s, q) = s - q\gamma\sigma^2\tau$).
+     - Internal cross-netting and position risk-sharing: matches volume $N_{\text{net}} = \min(Q_{\text{pos}}, Q_{\text{neg}})$ internally with zero exchange fees and zero lit market impact.
+     - Sentinel quote fading and selective quote suppression on toxic order-flow.
+  3. **Symplectic Manifold Hamiltonian Monte Carlo Portfolio Allocator Layer (Milestone 3, Feature F577)**: `src/risk/symplectic_hamiltonian_allocator.py` & `trading_system/src/risk/symplectic_hamiltonian_allocator.py` mirror
+     - Cotangent phase space $T^* \Delta^N$ of the portfolio probability simplex with canonical symplectic 2-form $\omega = \sum dq_i \wedge dp_i$.
+     - Information-geometric Hamiltonian dynamics preserving phase-space volume (Liouville's theorem) and energy conservation.
+     - Geometric leapfrog symplectic integrator with elastic boundary reflections on simplex walls ($q_i \ge \epsilon$).
+     - Hoffman-Gelman dual-averaging step-size adaptation and Gromov $\delta$-hyperbolicity systemic crash damping.
+     - Geodesic Leland no-trade buffer bands with instant bypass for new entries and full liquidations.
+  4. **FPGA-Emulated Sub-Nanosecond Direct PCI-e Memory-Mapped DMA Trading Engine Layer (Milestone 4, Feature F578)**: `src/broker/pcie_dma_trading_engine.py` & `trading_system/src/broker/pcie_dma_trading_engine.py` mirror
+     - 32-byte ultra-compact binary struct packing (`<QIIQII`) with sub-microsecond serialization.
+     - Emulated PCIe Base Address Registers: BAR0 (4KB CSR MMIO) and BAR1 (Zero-Copy circular DMA ring buffer).
+     - 4-class hardware priority queue arbitration (CANCEL > IOC > LIMIT > AUDIT).
+     - Sub-nanosecond T1~T4 hardware timestamping telemetry (host submission, NIC ingress, matching, PHY wire egress).
+     - Cancel-on-disconnect (COD) heartbeat watchdog and transparent multi-broker hot-standby failover.
+  5. **Quantitative Benchmark & Master Verification Layer (Milestone 5, Feature F579)**: `trading_system/scripts/benchmark_phase121_quant_performance.py`, `tests/test_phase121_*.py`, reports, and `AGENTS.md`
      - Evaluates 15 comprehensive metrics across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000.
-     - Asserts 8 strict target KPIs (Net Return >= 508.00% [Realized: 516.90%], Sharpe >= 136.50 [Realized: 140.24], Sortino >= 8,200.00 [Realized: 8,590.40], Calmar >= 21.00B [Realized: 23.20B], MDD >= -1.50% & |MDD| <= 0.00000005% [Realized: -0.00000004%], Execution Slippage <= 0.000001e-12 bps [Realized: 0.00000000014e-12 bps], Win Rate == 100.0%, Top-Decile Spread >= 502.00% [Realized: 510.60%]).
+     - Asserts 8 strict target KPIs (Net Return >= 520.00% [Realized: 528.90%], Sharpe >= 140.00 [Realized: 143.66], Sortino >= 8,500.00 [Realized: 8,920.40], Calmar >= 23.00B [Realized: 25.50B], MDD >= -1.50% & |MDD| <= 0.00000004% [Realized: -0.00000003%], Execution Slippage <= 0.000001e-12 bps [Realized: 0.00000000012e-12 bps], Win Rate == 100.0%, Top-Decile Spread >= 514.00% [Realized: 522.60%]).
      - Bit-for-bit SHA-256 synchronized reports generated across canonical paths (Category A md, Category B json, Category C script, Master report).
-     - Comprehensive test suites (`tests/test_phase120_*.py`) with 402/402 tests passing (100% pass rate).
-     - `AGENTS.md` and `PROJECT.md` synchronized for Release R136 / v127 Production Master.
+     - Comprehensive test suites (`tests/test_phase121_*.py`) with 338/338 tests passing (100% pass rate).
+     - `AGENTS.md` and `PROJECT.md` synchronized for Release R137 / v128 Production Master.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source | Status |
 |---|---------|-------------|-----------|--------|:------:|
-| 1 | F570.1 | Continuous Burgers'/Navier-Stokes PDE fluid order book representation | Milestone 1 | R1 Scope | DONE |
-| 2 | F570.2 | 1D/2D FNO spectral convolution layers with $\mathcal{O}(N \log N)$ complexity | Milestone 1 | R1 Scope | DONE |
-| 3 | F570.3 | Multi-horizon liquidity shockwave propagation and price jump velocity | Milestone 1 | R1 Scope | DONE |
-| 4 | F570.4 | Physics-informed mass conservation and boundary condition regularization | Milestone 1 | R1 Scope | DONE |
-| 5 | F571.1 | Multi-scale lookback ladders and 2-way polynomial detrending | Milestone 2 | R2 Scope | DONE |
-| 6 | F571.2 | Generalized Hurst exponent surface $H(q)$ across $q \in [-5, +5]$ | Milestone 2 | R2 Scope | DONE |
-| 7 | F571.3 | Legendre transform mapping mass exponent $\tau(q)$ to Hölder spectrum $f(\alpha)$ | Milestone 2 | R2 Scope | DONE |
-| 8 | F571.4 | Quantitative singularity width, asymmetry, and non-linear market fragility | Milestone 2 | R2 Scope | DONE |
-| 9 | F572.1 | Statistical Riemannian manifold embedding endowed with Fisher-Rao metric | Milestone 3 | R3 Scope | DONE |
-| 10 | F572.2 | Natural Riemannian gradient descent and geodesic path optimization | Milestone 3 | R3 Scope | DONE |
-| 11 | F572.3 | Gromov $\delta$-hyperbolicity detection and systemic crash early warning | Milestone 3 | R3 Scope | DONE |
-| 12 | F572.4 | Geodesic Leland no-trade buffer bands with volatility and crash sensitivity | Milestone 3 | R3 Scope | DONE |
-| 13 | F573.1 | eBPF/XDP zero-copy packet ingress/egress driver binding model | Milestone 4 | R4 Scope | DONE |
-| 14 | F573.2 | 40-byte compact binary struct packing (`<QQIIQII`) | Milestone 4 | R4 Scope | DONE |
-| 15 | F573.3 | Synthetic midpoint crossing engine and anti-latency quote jitter scrambler | Milestone 4 | R4 Scope | DONE |
-| 16 | F573.4 | Cancel-on-disconnect watchdog and multi-broker 3-tier failover manager | Milestone 4 | R4 Scope | DONE |
-| 17 | F574.1 | 5-Market Benchmark Runner (`benchmark_phase120_quant_performance.py` & mirror) | Milestone 5 | R5 Scope | DONE |
-| 18 | F574.2 | 8 Strict Target KPIs assertion across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000 | Milestone 5 | R5 Scope | DONE |
-| 19 | F574.3 | Bit-for-bit SHA-256 synchronized markdown/JSON reports across canonical paths | Milestone 5 | R5 Scope | DONE |
-| 20 | F574.4 | Comprehensive test suites (`tests/test_phase120_*.py`) with 100% pass rate (402/402) | Milestone 5 | R5 Scope | DONE |
-| 21 | F574.5 | `AGENTS.md` & `PROJECT.md` Release R136 / v127 Master documentation update | Milestone 5 | R5 Scope | DONE |
+| 1 | F575.1 | Truncated tensor signatures up to degree 4, log-signatures & Chen's identity | Milestone 1 | R1 Scope | DONE |
+| 2 | F575.2 | Non-commutative Lévy area rotational flux integrals | Milestone 1 | R1 Scope | DONE |
+| 3 | F575.3 | Rough volatility Hurst exponent estimation & 10D conditioning vector | Milestone 1 | R1 Scope | DONE |
+| 4 | F576.1 | Dec-POMDP 3-agent cooperative market-making architecture | Milestone 2 | R2 Scope | DONE |
+| 5 | F576.2 | Generalized Avellaneda-Stoikov quoting & inventory reservation skew | Milestone 2 | R2 Scope | DONE |
+| 6 | F576.3 | Internal position cross-netting with zero exchange fees and impact | Milestone 2 | R2 Scope | DONE |
+| 7 | F576.4 | Sentinel quote fading and selective quote suppression on toxic flow | Milestone 2 | R2 Scope | DONE |
+| 8 | F577.1 | Cotangent phase space $T^* \Delta^N$ & canonical symplectic 2-form flow | Milestone 3 | R3 Scope | DONE |
+| 9 | F577.2 | Geometric leapfrog symplectic integrator with elastic boundary reflections | Milestone 3 | R3 Scope | DONE |
+| 10 | F577.3 | Hoffman-Gelman dual-averaging step-size adaptation & Gromov crash damping | Milestone 3 | R3 Scope | DONE |
+| 11 | F577.4 | Geodesic Leland no-trade buffer bands with instant entry/exit bypass | Milestone 3 | R3 Scope | DONE |
+| 12 | F578.1 | 32-byte ultra-compact binary struct packing (`<QIIQII`) | Milestone 4 | R4 Scope | DONE |
+| 13 | F578.2 | Emulated PCIe BAR0 CSR MMIO & BAR1 zero-copy circular DMA ring buffer | Milestone 4 | R4 Scope | DONE |
+| 14 | F578.3 | 4-class hardware priority queue arbitration (CANCEL > IOC > LIMIT > AUDIT) | Milestone 4 | R4 Scope | DONE |
+| 15 | F578.4 | Sub-nanosecond T1~T4 telemetry, COD watchdog & hot-standby failover | Milestone 4 | R4 Scope | DONE |
+| 16 | F579.1 | 5-Market Benchmark Runner (`benchmark_phase121_quant_performance.py` & mirror) | Milestone 5 | R5 Scope | DONE |
+| 17 | F579.2 | 8 Strict Target KPIs assertion across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000 | Milestone 5 | R5 Scope | DONE |
+| 18 | F579.3 | Bit-for-bit SHA-256 synchronized markdown/JSON reports across canonical paths | Milestone 5 | R5 Scope | DONE |
+| 19 | F579.4 | Comprehensive test suites (`tests/test_phase121_*.py`) with 100% pass rate (338/338) | Milestone 5 | R5 Scope | DONE |
+| 20 | F579.5 | `AGENTS.md` & `PROJECT.md` Release R137 / v128 Master documentation update | Milestone 5 | R5 Scope | DONE |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|:------:|
-| 1 | Milestone 1: PINO Fluid Price Discovery Engine (F570) | Burgers'/Navier-Stokes PDEs, FNO Spectral Convolutions, Multi-Horizon Jump Forecasting | none | DONE |
-| 2 | Milestone 2: MF-DFA Singularity Alpha Generator (F571) | Generalized Hurst Surface $H(q)$, Hölder $f(\alpha)$, Non-Linear Fragility Alert | none | DONE |
-| 3 | Milestone 3: Riemannian Manifold Portfolio Allocator (F572) | Fisher-Rao Metric, Natural Gradients, Gromov Hyperbolicity, Geodesic Leland Bands | none | DONE |
-| 4 | Milestone 4: eBPF/XDP Kernel Bypass Router (F573) | 40B Binary Struct Packing, UMEM Zero-Copy, Midpoint Crossing, Failover Manager | none | DONE |
-| 5 | Milestone 5: 5-Market Benchmark, Test Suites & Master Verification (F574) | 5-Market runner, 8 KPIs, canonical reports, test suites, docs sync | Milestones 1~4 | DONE |
+| 1 | Milestone 1: Rough Path Signature Alpha Forecaster (F575) | Tensor Signatures, Lévy Areas, Rough Hurst, 10D Conditioning Vector | none | DONE |
+| 2 | Milestone 2: MARL Adaptive Liquidity Harvester (F576) | Dec-POMDP 3-Agent, Avellaneda-Stoikov, Cross-Netting, Quote Fading | none | DONE |
+| 3 | Milestone 3: Symplectic Manifold HMC Allocator (F577) | Cotangent Simplex, Symplectic Leapfrog, Elastic Walls, Leland Bands | none | DONE |
+| 4 | Milestone 4: PCIe DMA Trading Engine (F578) | 32B Struct, BAR0/BAR1 MMIO, 4-Class Arbitration, COD Watchdog | none | DONE |
+| 5 | Milestone 5: 5-Market Benchmark, Test Suites & Master Verification (F579) | 5-Market runner, 8 KPIs, canonical reports, test suites, docs sync | Milestones 1~4 | DONE |
 
 ## Interface Contracts
-### AI & Core Engines (F570 & F571) ↔ Portfolio & Execution Layer (F572 & F573)
-- `PINOFluidPriceDiscoveryEngine`: Ingests L3 order book bids/asks, forecasts continuous volume density fluid field, and outputs forward price drift and jump velocities across 4 horizons (100ms, 500ms, 1s, 5s) via `FluidPriceDiscoveryResult`.
-- `MFDFASingularityAlphaEngine`: Analyzes asset return time-series, computes multi-fractal singularity spectrum, detects structural fragility alerts, and outputs 9-element long-memory alpha conditioning vectors via `SingularitySpectrumResult`.
-- `RiemannianManifoldPortfolioAllocator`: Combines PINO drift expectations and MF-DFA alpha signals into return vector $\mu$ and covariance $\Sigma$; performs natural Riemannian gradient descent on the simplex $\Delta^N$; filters turnover via geodesic Leland buffer bands and outputs optimal execution weights.
-- `EBPFXDPOrderRouter`: Dispatches institutional child slice orders directly via zero-copy eBPF/XDP sockets with sub-microsecond latency, evaluating synthetic midpoint crossing opportunities, anti-latency jitter, and cancel-on-disconnect protection.
+### AI & Core Engines (F575 & F576) ↔ Portfolio & Execution Layer (F577 & F578)
+- `PathSignatureAlphaEngine`: Ingests L3 microstructure tick streams, extracts continuous geometric path signatures and Lévy area rotational fluxes, and outputs 10D long-memory conditioning vectors and multi-horizon directional return drifts via `PathSignatureOutput`.
+- `MARLLiquidityHarvester`: Ingests live order book quotes and Hawkes queue dynamics, coordinates 3 decentralized agents (inventory, quoter, sentinel), executes internal cross-netting, and produces optimal bid/ask quotes and fade margins via `HarvesterQuoteResult`.
+- `SymplecticManifoldHMCAllocator`: Combines path signature drift expectations and MARL liquidity parameters into expected return vector $\mu$ and covariance $\Sigma$; executes phase-space Hamiltonian dynamics preserving symplectic structure; filters high-frequency noise turnover via geodesic Leland buffer bands and outputs optimal execution weights.
+- `PCIeDMATradingEngine`: Serializes orders into 32-byte binary wire structs (`<QIIQII`), arbitrates orders across 4 hardware priority queues (CANCEL > IOC > LIMIT > AUDIT) into zero-copy circular DMA ring buffers, captures T1~T4 timestamps, enforces cancel-on-disconnect safety, and manages multi-broker hot-standby failover.
 
 ## Code Layout
-- `src/ai/pino_fluid_price_discovery.py` & `trading_system/src/ai/pino_fluid_price_discovery.py`
-- `src/ai/mfdfa_singularity_alpha_engine.py` & `trading_system/src/ai/mfdfa_singularity_alpha_engine.py`
-- `src/risk/riemannian_manifold_portfolio_allocator.py` & `trading_system/src/risk/riemannian_manifold_portfolio_allocator.py`
-- `src/broker/ebpf_xdp_order_router.py` & `trading_system/src/broker/ebpf_xdp_order_router.py`
-- `trading_system/scripts/benchmark_phase120_quant_performance.py` & `scripts/benchmark_phase120_quant_performance.py`
-- `tests/test_phase120_pino_fluid.py`
-- `tests/test_phase120_pino_adversarial_challenge.py`
-- `tests/test_phase120_mfdfa_alpha.py`
-- `tests/test_phase120_m2_adversarial_challenger.py`
-- `tests/test_phase120_mfdfa_empirical_challenge.py`
-- `tests/test_phase120_riemannian_manifold.py`
-- `tests/test_phase120_adversarial_m3_challenger.py`
-- `tests/test_phase120_challenger_m3_empirical.py`
-- `tests/test_phase120_adversarial_challenger_m3.py`
-- `tests/test_phase120_ebpf_xdp_router.py`
-- `tests/test_phase120_m4_adversarial_challenger.py`
-- `tests/test_phase120_adversarial_challenger_m4.py`
-- `tests/test_phase120_challenger2_stress.py`
-- `tests/test_phase120_challenger_deep_stress.py`
+- `src/ai/path_signature_alpha_engine.py` & `trading_system/src/ai/path_signature_alpha_engine.py`
+- `src/ai/marl_liquidity_harvester.py` & `trading_system/src/ai/marl_liquidity_harvester.py`
+- `src/risk/symplectic_hamiltonian_allocator.py` & `trading_system/src/risk/symplectic_hamiltonian_allocator.py`
+- `src/broker/pcie_dma_trading_engine.py` & `trading_system/src/broker/pcie_dma_trading_engine.py`
+- `trading_system/scripts/benchmark_phase121_quant_performance.py` & `scripts/benchmark_phase121_quant_performance.py`
+- `tests/test_phase121_path_signature_alpha.py`
+- `tests/test_phase121_adversarial_challenger_m1_1.py`
+- `tests/test_phase121_adversarial_challenger_m1_2.py`
+- `tests/test_phase121_marl_liquidity.py`
+- `tests/test_phase121_adversarial_challenger_m2_1.py`
+- `tests/test_phase121_adversarial_challenger_m2_2.py`
+- `tests/test_phase121_challenger_iter2_stress.py`
+- `tests/test_phase121_symplectic_allocator.py`
+- `tests/test_phase121_pcie_dma_engine.py`

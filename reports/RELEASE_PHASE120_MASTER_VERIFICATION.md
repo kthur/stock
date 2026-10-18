@@ -1,6 +1,6 @@
 # Master Release Verification Report: Phase 120 (Release R136 / v127 Production Master)
 
-**Certified Date**: 2026-10-18 19:37:01 KST  
+**Certified Date**: 2026-10-18 20:42:22 KST  
 **System Status**: Certified Production Master (Release R136 / v127)  
 **Cryptographic Dual-Tree Parity**: 100% Bit-for-Bit Verified  
 
@@ -51,8 +51,8 @@
 - `src/broker/ebpf_xdp_order_router.py` == `trading_system/src/broker/ebpf_xdp_order_router.py` (MATCH)
 
 ## 5. Canonical Reports & Checksums
-- **Category A Markdown SHA-256**: `ab9573aa71543a111ca3caa0226615d347f21576b359c0dd00beb0af5bc658d2`
-- **Category B JSON SHA-256**: `d7dbd7bcacdd5824e4b14be6c56221e4d31c259d55f61ccbe6a183b5a4bca8a9`
+- **Category A Markdown SHA-256**: `7ce770d2954874bda51c8e89e094193b1931d13df758220d67545853786347ed`
+- **Category B JSON SHA-256**: `cbb21abf35c09fa9635338779d012ab31223fa3e2a7631d225634b2b1a926b73`
 - **Category C Script SHA-256**: `0aba2c295507bbead2700dc078556051b4880d904275e9fbc9ad44dd6506b088`
 
 ## 6. Release R136 / v127 Sign-off

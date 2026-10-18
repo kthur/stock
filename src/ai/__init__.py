@@ -201,6 +201,34 @@ __all__ = [
     "LongMemoryAlphaVector",
     "FractalRegime",
     "FragilityAlertLevel",
+    # Phase 121 Exports (F575)
+    "PathSignatureAlphaEngine",
+    "PathSignatureConfig",
+    "PathSignatureOutput",
+    "SignatureResult",
+    "RoughHurstResult",
+    "LevyAreaResult",
+    "RoughVolatilityRegime",
+    "RoughFragilityLevel",
+    "ContinuousRoughPathSignatureForecaster",
+    "RoughPathSignatureAlphaEngine",
+    # Phase 121 Exports (F576)
+    "MARLLiquidityHarvester",
+    "MARLHarvesterConfig",
+    "MARLLiquidityConfig",
+    "HarvesterQuoteResult",
+    "MARLHarvestingOutput",
+    "InternalNettingResult",
+    "NettingResult",
+    "AgentObservation",
+    "AgentAction",
+    "QuoteAction",
+    "AgentRole",
+    "ToxicityLevel",
+    "QuoteSide",
+    "MultiAgentReinforcementLearningHarvester",
+    "DecPOMDPLiquidityEngine",
+    "AdaptiveLiquidityHarvester",
 ]
 
 # Phase 119 Temporal GAT Forecaster (F565)
@@ -265,4 +293,76 @@ except ImportError:
     except ImportError:
         pass
 
+# Phase 121 Path Signature Alpha Engine (F575)
+try:
+    from src.ai.path_signature_alpha_engine import (
+        PathSignatureAlphaEngine,
+        PathSignatureConfig,
+        PathSignatureOutput,
+        SignatureResult,
+        RoughHurstResult,
+        LevyAreaResult,
+        RoughVolatilityRegime,
+        RoughFragilityLevel,
+        ContinuousRoughPathSignatureForecaster,
+        RoughPathSignatureAlphaEngine,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.path_signature_alpha_engine import (
+            PathSignatureAlphaEngine,
+            PathSignatureConfig,
+            PathSignatureOutput,
+            SignatureResult,
+            RoughHurstResult,
+            LevyAreaResult,
+            RoughVolatilityRegime,
+            RoughFragilityLevel,
+            ContinuousRoughPathSignatureForecaster,
+            RoughPathSignatureAlphaEngine,
+        )
+    except ImportError:
+        pass
 
+# Phase 121 MARL Liquidity Harvester (F576)
+try:
+    from src.ai.marl_liquidity_harvester import (
+        MARLLiquidityHarvester,
+        MARLHarvesterConfig,
+        MARLLiquidityConfig,
+        HarvesterQuoteResult,
+        MARLHarvestingOutput,
+        InternalNettingResult,
+        NettingResult,
+        AgentObservation,
+        AgentAction,
+        QuoteAction,
+        AgentRole,
+        ToxicityLevel,
+        QuoteSide,
+        MultiAgentReinforcementLearningHarvester,
+        DecPOMDPLiquidityEngine,
+        AdaptiveLiquidityHarvester,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.marl_liquidity_harvester import (
+            MARLLiquidityHarvester,
+            MARLHarvesterConfig,
+            MARLLiquidityConfig,
+            HarvesterQuoteResult,
+            MARLHarvestingOutput,
+            InternalNettingResult,
+            NettingResult,
+            AgentObservation,
+            AgentAction,
+            QuoteAction,
+            AgentRole,
+            ToxicityLevel,
+            QuoteSide,
+            MultiAgentReinforcementLearningHarvester,
+            DecPOMDPLiquidityEngine,
+            AdaptiveLiquidityHarvester,
+        )
+    except ImportError:
+        pass
