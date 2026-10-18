@@ -245,6 +245,37 @@ except ImportError:
     except ImportError:
         pass
 
+# Microsecond Adaptive Iceberg & Pegged Order Router (Phase 119 / Feature F567)
+try:
+    from .adaptive_iceberg_pegged_router import (
+        AdaptiveIcebergPeggedRouter,
+        IcebergPeggedConfig,
+        ParentIcebergOrder,
+        ChildSliceOrder,
+        PeggedOrderType,
+        OrderSide,
+        RouterOrderStatus,
+        SliceStatus,
+        ExecutionFill,
+        Level3Quote,
+    )
+except ImportError:
+    try:
+        from trading_system.src.execution.adaptive_iceberg_pegged_router import (
+            AdaptiveIcebergPeggedRouter,
+            IcebergPeggedConfig,
+            ParentIcebergOrder,
+            ChildSliceOrder,
+            PeggedOrderType,
+            OrderSide,
+            RouterOrderStatus,
+            SliceStatus,
+            ExecutionFill,
+            Level3Quote,
+        )
+    except ImportError:
+        pass
+
 __all__ = [
     "ExecutionOMSEngine",
     "OMSEngine",
@@ -342,6 +373,17 @@ __all__ = [
     "PreTradeImpactEstimate",
     "PostTradeISReport",
     "DynamicFeedbackAdjustment",
+    # Microsecond Adaptive Iceberg & Pegged Order Router (Phase 119 / Feature F567)
+    "AdaptiveIcebergPeggedRouter",
+    "IcebergPeggedConfig",
+    "ParentIcebergOrder",
+    "ChildSliceOrder",
+    "PeggedOrderType",
+    "OrderSide",
+    "RouterOrderStatus",
+    "SliceStatus",
+    "ExecutionFill",
+    "Level3Quote",
 ]
 
 

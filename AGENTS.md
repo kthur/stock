@@ -377,6 +377,11 @@ flowchart TB
 | `src/risk/cross_asset_graph_flow_allocator.py` | Cross-Asset Lead-Lag Graph Flow Liquidity Rebalancing Allocator: 6대 자산군 방향성 그래프 유동성 네트워크, 스펙트럼 갭, 중심성 지표 및 Leland 동적 버퍼 밴드 (F562) |
 | `src/broker/sub_nano_dma_broker_gateway.py` | Sub-Nanosecond Direct Memory Access (DMA) Smart Router & Broker Gateway: 커널 바이패스 공유 메모리 IPC, 36B 바이너리 패킹, 하트비트 장애극복 & 서킷브레이커 (F563) |
 | `trading_system/scripts/benchmark_phase118_quant_performance.py` | Phase 118 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F560~F564 기여도 분석, 8대 KPI 엄격 검증 및 정규 리포트 SHA-256 동기화 (F564) |
+| `src/ai/temporal_gat_lead_lag_forecaster.py` | Multi-Horizon Temporal Graph Attention Network (GAT) Sector Cross-Lead-Lag Flow Forecaster: 다중 헤드 시간 주의 집중, 방향성 교차 시장 임펄스 플로우 벡터 ($\alpha_{ij}(t)$), 인식론적 불확실성 및 다중 호라이즌 드리프트 예측 (F565) |
+| `src/risk/quantum_annealing_portfolio_optimizer.py` | Quantum-Inspired Annealing Portfolio Combinatorial Optimizer: QUBO/SQA 솔버, 횡방향 필드 이징 해밀토니안, 기수 제약(K_min <= K <= K_max) 및 이산 라운드 롯 사이징 (F566) |
+| `src/execution/adaptive_iceberg_pegged_router.py` | Microsecond Adaptive Iceberg & Pegged Order Execution Router: L3 실시간 오더북 호가, 훅스(Hawkes) 독성 기반 오프셋 조절, 표시 수량 가우시안 지터링 및 안티 핑거프린팅 스텔스 메커니즘 (F567) |
+| `src/broker/event_driven_multi_broker_bridge.py` | Sub-Microsecond Multi-Broker Event-Driven Bridge & Protocol Connector: 락프리 원형 디스패치 링 버퍼, 다중 브로커 세션 관리, 서브-밀리초 장애극복 및 인플라이트 상태 대사 (F568) |
+| `trading_system/scripts/benchmark_phase119_quant_performance.py` | Phase 119 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F565~F569 기여도 분석, 8대 KPI 엄격 검증 및 8개 정규 리포트 SHA-256 동기화 (F569) |
 
 ### Markets
 

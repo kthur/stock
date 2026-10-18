@@ -111,4 +111,28 @@ __all__ = [
     "GraphCentralityMetrics",
     "GraphRebalancingResult",
     "AssetClassType",
+    # Phase 119 Exports (F566)
+    "QuantumAnnealingPortfolioOptimizer",
+    "QuantumAnnealingConfig",
+    "QuantumPortfolioAllocationResult",
+    "CombinatorialConstraints",
 ]
+
+# Phase 119 Quantum-Inspired Annealing Portfolio Combinatorial Optimizer (F566)
+try:
+    from src.risk.quantum_annealing_portfolio_optimizer import (
+        QuantumAnnealingPortfolioOptimizer,
+        QuantumAnnealingConfig,
+        QuantumPortfolioAllocationResult,
+        CombinatorialConstraints,
+    )
+except ImportError:
+    try:
+        from trading_system.src.risk.quantum_annealing_portfolio_optimizer import (
+            QuantumAnnealingPortfolioOptimizer,
+            QuantumAnnealingConfig,
+            QuantumPortfolioAllocationResult,
+            CombinatorialConstraints,
+        )
+    except ImportError:
+        pass

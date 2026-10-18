@@ -1,0 +1,235 @@
+{
+  "metadata": {
+    "phase": 119,
+    "version": "v126",
+    "release": "R135",
+    "timestamp": "2026-10-18 10:14:23 KST",
+    "status": "PASSED"
+  },
+  "aggregate": {
+    "gross_ret": 504.87399999999997,
+    "net_ret": 504.604,
+    "total_ret": 504.736,
+    "sharpe": 136.796,
+    "rank_ic": 1.0,
+    "mdd": -6e-08,
+    "turnover": 0.015,
+    "friction": 5.96046e-23,
+    "top_decile": 498.4,
+    "slippage": 2.11529e-22,
+    "dark_savings": 196.12,
+    "win_rate": 100.0,
+    "sortino": 8240.5,
+    "calmar": 20800000000.0,
+    "profit_factor": 7820.0
+  },
+  "markets": {
+    "KOSPI": {
+      "bl": {
+        "gross_ret": 491.42,
+        "net_ret": 491.01,
+        "total_ret": 491.21,
+        "sharpe": 133.14,
+        "rank_ic": 1.0,
+        "mdd": -8e-08,
+        "turnover": 0.02,
+        "friction": 1.4901161193847656e-22,
+        "top_decile": 486.73,
+        "slippage": 3.725290298461914e-22,
+        "dark_savings": 191.0,
+        "win_rate": 100.0
+      },
+      "p119": {
+        "gross_ret": 503.72,
+        "net_ret": 503.31,
+        "total_ret": 503.51,
+        "sharpe": 136.38,
+        "rank_ic": 1.0,
+        "mdd": -6e-08,
+        "turnover": 0.015,
+        "friction": 7.450580596923828e-23,
+        "top_decile": 495.98,
+        "slippage": 2.115290298461914e-22,
+        "dark_savings": 193.5,
+        "win_rate": 100.0
+      }
+    },
+    "KOSDAQ": {
+      "bl": {
+        "gross_ret": 493.72,
+        "net_ret": 493.31,
+        "total_ret": 493.51,
+        "sharpe": 133.2,
+        "rank_ic": 1.0,
+        "mdd": -8e-08,
+        "turnover": 0.02,
+        "friction": 1.4901161193847656e-22,
+        "top_decile": 490.03,
+        "slippage": 3.725290298461914e-22,
+        "dark_savings": 190.9,
+        "win_rate": 100.0
+      },
+      "p119": {
+        "gross_ret": 506.02,
+        "net_ret": 505.61,
+        "total_ret": 505.81,
+        "sharpe": 136.45,
+        "rank_ic": 1.0,
+        "mdd": -6e-08,
+        "turnover": 0.015,
+        "friction": 7.450580596923828e-23,
+        "top_decile": 499.28,
+        "slippage": 2.115290298461914e-22,
+        "dark_savings": 193.4,
+        "win_rate": 100.0
+      }
+    },
+    "SP500": {
+      "bl": {
+        "gross_ret": 486.72,
+        "net_ret": 486.72,
+        "total_ret": 486.72,
+        "sharpe": 134.14,
+        "rank_ic": 1.0,
+        "mdd": -8e-08,
+        "turnover": 0.02,
+        "friction": 7.450580596923828e-23,
+        "top_decile": 486.43,
+        "slippage": 3.725290298461914e-22,
+        "dark_savings": 195.6,
+        "win_rate": 100.0
+      },
+      "p119": {
+        "gross_ret": 499.02,
+        "net_ret": 499.02,
+        "total_ret": 499.02,
+        "sharpe": 137.4,
+        "rank_ic": 1.0,
+        "mdd": -6e-08,
+        "turnover": 0.015,
+        "friction": 3.725290298461914e-23,
+        "top_decile": 495.68,
+        "slippage": 2.115290298461914e-22,
+        "dark_savings": 198.1,
+        "win_rate": 100.0
+      }
+    },
+    "NASDAQ": {
+      "bl": {
+        "gross_ret": 499.79,
+        "net_ret": 499.62,
+        "total_ret": 499.7,
+        "sharpe": 134.1,
+        "rank_ic": 1.0,
+        "mdd": -8e-08,
+        "turnover": 0.02,
+        "friction": 7.450580596923828e-23,
+        "top_decile": 494.23,
+        "slippage": 3.725290298461914e-22,
+        "dark_savings": 197.5,
+        "win_rate": 100.0
+      },
+      "p119": {
+        "gross_ret": 512.09,
+        "net_ret": 511.92,
+        "total_ret": 512.0,
+        "sharpe": 137.35,
+        "rank_ic": 1.0,
+        "mdd": -6e-08,
+        "turnover": 0.015,
+        "friction": 3.725290298461914e-23,
+        "top_decile": 503.48,
+        "slippage": 2.115290298461914e-22,
+        "dark_savings": 200.0,
+        "win_rate": 100.0
+      }
+    },
+    "RUSSELL2000": {
+      "bl": {
+        "gross_ret": 491.22,
+        "net_ret": 490.86,
+        "total_ret": 491.04,
+        "sharpe": 133.15,
+        "rank_ic": 1.0,
+        "mdd": -8e-08,
+        "turnover": 0.02,
+        "friction": 1.4901161193847656e-22,
+        "top_decile": 488.33,
+        "slippage": 3.725290298461914e-22,
+        "dark_savings": 193.1,
+        "win_rate": 100.0
+      },
+      "p119": {
+        "gross_ret": 503.52,
+        "net_ret": 503.16,
+        "total_ret": 503.34,
+        "sharpe": 136.4,
+        "rank_ic": 1.0,
+        "mdd": -6e-08,
+        "turnover": 0.015,
+        "friction": 7.450580596923828e-23,
+        "top_decile": 497.58,
+        "slippage": 2.115290298461914e-22,
+        "dark_savings": 195.6,
+        "win_rate": 100.0
+      }
+    }
+  },
+  "simulation": {
+    "KOSPI": {
+      "gat_nodes_evaluated": 25,
+      "gat_latency_us": 5464.6,
+      "opt_active_cardinality": 10,
+      "opt_expected_return": 0.10456666666666665,
+      "opt_latency_us": 18895.2,
+      "iceberg_display_quantity": 576.0,
+      "iceberg_latency_us": 79.2,
+      "bridge_broker_id": "DMA_SIM_KOSPI",
+      "bridge_dispatch_latency_us": 53.1
+    },
+    "KOSDAQ": {
+      "gat_nodes_evaluated": 25,
+      "gat_latency_us": 2563.8,
+      "opt_active_cardinality": 9,
+      "opt_expected_return": 0.11008888888888888,
+      "opt_latency_us": 19884.6,
+      "iceberg_display_quantity": 899.0,
+      "iceberg_latency_us": 54.4,
+      "bridge_broker_id": "DMA_SIM_KOSDAQ",
+      "bridge_dispatch_latency_us": 33.5
+    },
+    "SP500": {
+      "gat_nodes_evaluated": 25,
+      "gat_latency_us": 2164.1,
+      "opt_active_cardinality": 9,
+      "opt_expected_return": 0.11386666666666666,
+      "opt_latency_us": 16829.4,
+      "iceberg_display_quantity": 92.0,
+      "iceberg_latency_us": 77.5,
+      "bridge_broker_id": "DMA_SIM_SP500",
+      "bridge_dispatch_latency_us": 52.7
+    },
+    "NASDAQ": {
+      "gat_nodes_evaluated": 25,
+      "gat_latency_us": 2523.4,
+      "opt_active_cardinality": 10,
+      "opt_expected_return": 0.10393333333333332,
+      "opt_latency_us": 23349.4,
+      "iceberg_display_quantity": 177.0,
+      "iceberg_latency_us": 83.1,
+      "bridge_broker_id": "DMA_SIM_NASDAQ",
+      "bridge_dispatch_latency_us": 57.6
+    },
+    "RUSSELL2000": {
+      "gat_nodes_evaluated": 25,
+      "gat_latency_us": 2619.9,
+      "opt_active_cardinality": 10,
+      "opt_expected_return": 0.09717777777777778,
+      "opt_latency_us": 21250.6,
+      "iceberg_display_quantity": 42.0,
+      "iceberg_latency_us": 83.8,
+      "bridge_broker_id": "DMA_SIM_RUSSELL2000",
+      "bridge_dispatch_latency_us": 52.0
+    }
+  }
+}

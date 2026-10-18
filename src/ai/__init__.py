@@ -181,5 +181,32 @@ __all__ = [
     "JumpProcessType",
     "VolatilitySurface",
     "JumpDiffusionOutput",
+    # Phase 119 Exports (F565)
+    "TemporalGATLeadLagForecaster",
+    "TemporalGATConfig",
+    "GATDriftPrediction",
+    "CrossMarketFlowEdge",
+    "GATForecasterOutput",
 ]
+
+# Phase 119 Temporal GAT Forecaster (F565)
+try:
+    from src.ai.temporal_gat_lead_lag_forecaster import (
+        TemporalGATLeadLagForecaster,
+        TemporalGATConfig,
+        GATDriftPrediction,
+        CrossMarketFlowEdge,
+        GATForecasterOutput,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.temporal_gat_lead_lag_forecaster import (
+            TemporalGATLeadLagForecaster,
+            TemporalGATConfig,
+            GATDriftPrediction,
+            CrossMarketFlowEdge,
+            GATForecasterOutput,
+        )
+    except ImportError:
+        pass
 

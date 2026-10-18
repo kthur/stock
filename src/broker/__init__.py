@@ -194,4 +194,49 @@ __all__ = [
     "LOBMulticastPacket",
     "BinaryLOBPacket",
     "FIXMessage",
+    # Sub-Microsecond Multi-Broker Event-Driven Bridge (Phase 119 F568)
+    "EventDrivenMultiBrokerBridge",
+    "BridgeEvent",
+    "BridgeEventType",
+    "BrokerProtocolType",
+    "BridgeSessionState",
+    "BridgeOrderSide",
+    "BridgeOrderType",
+    "BrokerSessionConfig",
+    "BrokerSession",
+    "ProtocolAdapter",
+    "LocklessEventRingBuffer",
+    "BridgeTelemetry",
 ]
+
+# Event-Driven Multi-Broker Bridge (Phase 119 F568)
+try:
+    from .event_driven_multi_broker_bridge import (
+        BridgeEvent,
+        BridgeEventType,
+        BridgeOrderSide,
+        BridgeOrderType,
+        BridgeSessionState,
+        BridgeTelemetry,
+        BrokerProtocolType,
+        BrokerSession,
+        BrokerSessionConfig,
+        EventDrivenMultiBrokerBridge,
+        LocklessEventRingBuffer,
+        ProtocolAdapter,
+    )
+except ImportError:
+    from trading_system.src.broker.event_driven_multi_broker_bridge import (
+        BridgeEvent,
+        BridgeEventType,
+        BridgeOrderSide,
+        BridgeOrderType,
+        BridgeSessionState,
+        BridgeTelemetry,
+        BrokerProtocolType,
+        BrokerSession,
+        BrokerSessionConfig,
+        EventDrivenMultiBrokerBridge,
+        LocklessEventRingBuffer,
+        ProtocolAdapter,
+    )
