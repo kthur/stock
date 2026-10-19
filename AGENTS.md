@@ -392,6 +392,11 @@ flowchart TB
 | `src/risk/symplectic_hamiltonian_allocator.py` | Symplectic Manifold Hamiltonian Monte Carlo Portfolio Allocator: 코탄젠트 위상공간, 리만 피셔-라오 정보 메트릭, 탄성 경계 반사 리프프로그 적분기 및 측지선 릴랜드 버퍼 (F577) |
 | `src/broker/pcie_dma_trading_engine.py` | FPGA-Emulated Sub-Nanosecond Direct PCI-e Memory-Mapped DMA Trading Engine: 32바이트 바이너리 패킹(<QIIQII), BAR0 MMIO CSRs, BAR1 제로카피 DMA 링버퍼, 4-클래스 우선순위 중재 및 COD 워치독 (F578) |
 | `trading_system/scripts/benchmark_phase121_quant_performance.py` | Phase 121 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F575~F579 기여도 분석, 8대 KPI 엄격 검증 및 정규 리포트 SHA-256 동기화 (F579) |
+| `src/ai/diffusion_volatility_surface_forecaster.py` | Continuous-Time Score-Based Generative Diffusion Volatility Surface Forecaster: 연속시간 역시간 SDE, 오일러-마루야마 적분기, Merton 점프-확산, 3D SVI 내재변동성 곡면 및 10D 조건부 벡터 (F580) |
+| `src/ai/hawkes_cross_excitation_alpha_engine.py` | Multi-Asset Non-Markovian Hawkes Cross-Excitation & Queue Imbalance Alpha Engine: 다변량 점과정 상호 흥분 모델, 스펙트럼 반경 안정성 검증, L3 큐 불균형 및 마이크로프라이스 드리프트 (F581) |
+| `src/risk/hyperbolic_optimal_transport_allocator.py` | Hyperbolic Manifold Curvature-Adaptive Risk Budgeting & Dynamic Optimal Transport Allocator: 푸앵카레 볼 측지선 거리, 엔트로피 정규화 싱크혼-놉 최적수송, 레짐 곡률 변조 및 측지선 릴랜드 버퍼 (F582) |
+| `src/broker/kernel_bypass_routing_gateway.py` | Zero-Copy Kernel-Bypass DPDK/AF_XDP Sub-Microsecond Multi-Venue Routing Gateway: 32바이트 바이너리 패킹(<QIIQII), 4-클래스 하드웨어 우선순위 링버퍼, 서브나노초 T1~T4 타임스탬프 및 COD 워치독 (F583) |
+| `trading_system/scripts/benchmark_phase122_quant_performance.py` | Phase 122 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F580~F584 기여도 분석, 8대 KPI 엄격 검증 및 정규 리포트 SHA-256 동기화 (F584) |
 
 
 ### Markets

@@ -366,3 +366,52 @@ except ImportError:
         )
     except ImportError:
         pass
+
+# Phase 122 Score-Based Diffusion Volatility Surface Forecaster (F580)
+try:
+    from src.ai.diffusion_volatility_surface_forecaster import (
+        ScoreDiffusionVolatilityForecaster,
+        DiffusionVolatilitySurfaceForecaster,
+        DiffusionVolatilityEngine,
+        DiffusionVolatilityConfig,
+        VolatilitySurfaceOutput,
+        SDEType,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.diffusion_volatility_surface_forecaster import (
+            ScoreDiffusionVolatilityForecaster,
+            DiffusionVolatilitySurfaceForecaster,
+            DiffusionVolatilityEngine,
+            DiffusionVolatilityConfig,
+            VolatilitySurfaceOutput,
+            SDEType,
+        )
+    except ImportError:
+        pass
+
+# Phase 122 Hawkes Cross-Excitation & Queue Imbalance Alpha Engine (F581)
+try:
+    from src.ai.hawkes_cross_excitation_alpha_engine import (
+        HawkesCrossExcitationAlphaEngine,
+        HawkesCrossExcitationEngine,
+        HawkesQueueImbalanceEngine,
+        HawkesConfig,
+        HawkesAlphaOutput,
+        MarketNode,
+        FlowDirection,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.hawkes_cross_excitation_alpha_engine import (
+            HawkesCrossExcitationAlphaEngine,
+            HawkesCrossExcitationEngine,
+            HawkesQueueImbalanceEngine,
+            HawkesConfig,
+            HawkesAlphaOutput,
+            MarketNode,
+            FlowDirection,
+        )
+    except ImportError:
+        pass
+

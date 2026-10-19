@@ -138,6 +138,13 @@ __all__ = [
     "MetricType",
     "get_symplectic_profile",
     "run_symplectic_allocation",
+    # Phase 122 Exports (F582)
+    "HyperbolicOptimalTransportAllocator",
+    "HyperbolicWassersteinAllocator",
+    "PoincareOptimalTransportAllocator",
+    "HyperbolicAllocatorConfig",
+    "HyperbolicAllocationOutput",
+    "HyperbolicRegime",
 ]
 
 # Phase 119 Quantum-Inspired Annealing Portfolio Combinatorial Optimizer (F566)
@@ -220,5 +227,29 @@ except ImportError:
         )
     except ImportError:
         pass
+
+# Phase 122 Hyperbolic Manifold Optimal Transport Allocator (F582)
+try:
+    from src.risk.hyperbolic_optimal_transport_allocator import (
+        HyperbolicOptimalTransportAllocator,
+        HyperbolicWassersteinAllocator,
+        PoincareOptimalTransportAllocator,
+        HyperbolicAllocatorConfig,
+        HyperbolicAllocationOutput,
+        HyperbolicRegime,
+    )
+except ImportError:
+    try:
+        from trading_system.src.risk.hyperbolic_optimal_transport_allocator import (
+            HyperbolicOptimalTransportAllocator,
+            HyperbolicWassersteinAllocator,
+            PoincareOptimalTransportAllocator,
+            HyperbolicAllocatorConfig,
+            HyperbolicAllocationOutput,
+            HyperbolicRegime,
+        )
+    except ImportError:
+        pass
+
 
 

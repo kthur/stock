@@ -323,3 +323,33 @@ except ImportError:
         PCIE_ORDER_SIZE,
     )
 
+# Phase 122 Kernel-Bypass Routing Gateway (F583)
+try:
+    from .kernel_bypass_routing_gateway import (
+        KernelBypassRoutingGateway,
+        AFXDPKernelBypassGateway,
+        ZeroCopyDPDKRoutingGateway,
+        MultiVenueKernelBypassRouter,
+        KernelBypassOrderDescriptor,
+        GatewayExecutionTelemetry,
+        VenueCode,
+        HardwarePriority,
+        OrderSide,
+    )
+except ImportError:
+    try:
+        from trading_system.src.broker.kernel_bypass_routing_gateway import (
+            KernelBypassRoutingGateway,
+            AFXDPKernelBypassGateway,
+            ZeroCopyDPDKRoutingGateway,
+            MultiVenueKernelBypassRouter,
+            KernelBypassOrderDescriptor,
+            GatewayExecutionTelemetry,
+            VenueCode,
+            HardwarePriority,
+            OrderSide,
+        )
+    except ImportError:
+        pass
+
+
