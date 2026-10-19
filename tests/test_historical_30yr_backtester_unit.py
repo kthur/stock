@@ -5,15 +5,12 @@ tests/test_historical_30yr_backtester_unit.py — Unit & Integration Tests for H
 from __future__ import annotations
 
 import math
-import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Any, Dict, List
 
 import numpy as np
-import pandas as pd
 
 # Ensure repository root and trading_system are on sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -27,7 +24,6 @@ from src.backtest.historical_30yr_backtester import (
     Historical30YrBacktester,
     BacktestSimulationResult,
 )
-from src.backtest.historical_30yr_pipeline import HistoricalDataPipeline
 from scripts.verify_30year_backtest import Backtest30YearVerifier
 
 
@@ -219,6 +215,7 @@ class TestHistorical30YrBacktesterUnit(unittest.TestCase):
         temp_dir = tempfile.mkdtemp(prefix="test_bt_artifacts_")
         result = self.backtester.run_simulation()
         paths = self.backtester.export_artifacts(result, result_dir=temp_dir)
+        self.assertGreaterEqual(len(paths), 3)
 
         verifier = Backtest30YearVerifier(result_dir=temp_dir, strict=True)
         summary = verifier.verify_all()
@@ -228,6 +225,77 @@ class TestHistorical30YrBacktesterUnit(unittest.TestCase):
         self.assertEqual(summary.warning_checks, 0)
         self.assertGreaterEqual(summary.total_checks, 20)
 
+    def test_m2_alpha_weights_high_conviction(self) -> None:
+        """
+        F-R2.1: Verify REGIME_2D_WEIGHTS BULL_LOW_VOL and BULL_HIGH_VOL have
+        39% high-conviction weights and exact simplex sum = 1.000000.
+        """
+        from src.ai.ensemble_scorer import EnsembleScoringEngine
+        weights_low = EnsembleScoringEngine.REGIME_2D_WEIGHTS["BULL_LOW_VOL"]
+        weights_high = EnsembleScoringEngine.REGIME_2D_WEIGHTS["BULL_HIGH_VOL"]
+
+        high_conv_keys = [
+            "mq_factor", "sector_rotation", "earnings_tone_drift",
+            "lead_lag", "vcp_ml", "vcp_rule"
+        ]
+        sum_low_high_conv = sum(weights_low[k] for k in high_conv_keys)
+        sum_high_high_conv = sum(weights_high[k] for k in high_conv_keys)
+
+        self.assertAlmostEqual(sum_low_high_conv, 0.39, places=6)
+        self.assertAlmostEqual(sum_high_high_conv, 0.39, places=6)
+
+        self.assertAlmostEqual(sum(weights_low.values()), 1.0, places=6)
+        self.assertAlmostEqual(sum(weights_high.values()), 1.0, places=6)
+
+    def test_m2_dynamic_us_tech_expansion_tilt_and_kosdaq_cap(self) -> None:
+        """
+        F-R2.2 & F-R2.3: Verify US Tech Expansion Tilt and KOSDAQ cap (<= 0.08)
+        are applied during expansion bull regimes.
+        """
+        eval_date = self.backtester._aligned_dates[300]
+        # Equal positive alphas across all markets
+        alphas = {m: 1.0 for m in self.backtester.TARGET_MARKETS}
+        curr_w = {m: 0.0 for m in self.backtester.TARGET_MARKETS}
+
+        raw_tgt, exec_w, turnover, cost_bps = self.backtester.allocate_portfolio(
+            date=eval_date,
+            regime="BULL_LOW_VOL",
+            is_crisis=False,
+            current_weights=curr_w,
+            alphas=alphas,
+        )
+
+        # KOSDAQ cap check
+        self.assertLessEqual(exec_w["KOSDAQ"], 0.080001, f"KOSDAQ executed weight {exec_w['KOSDAQ']} exceeds 0.08")
+        self.assertLessEqual(raw_tgt["KOSDAQ"], 0.080001, f"KOSDAQ raw target weight {raw_tgt['KOSDAQ']} exceeds 0.08")
+
+        # If expansion is active, NASDAQ and SP500 must receive higher weights than KOSPI
+        if exec_w["NASDAQ"] > 0 and exec_w["KOSPI"] > 0:
+            self.assertGreater(exec_w["NASDAQ"], exec_w["KOSPI"], "NASDAQ weight should exceed KOSPI under US Tech Tilt")
+
+    def test_m2_asset_level_alpha_hurdle_rule(self) -> None:
+        """
+        F-R3.1: Asset-level alpha hurdle suppresses minor trades where alpha gain < 1.5 * cost,
+        while fresh entry and full liquidation bypass.
+        """
+        eval_date = self.backtester._aligned_dates[300]
+        # Current holdings: 15% SP500, 15% KOSPI
+        curr_w = {"SP500": 0.15, "KOSPI": 0.15, "NASDAQ": 0.0, "RUSSELL2000": 0.0, "KOSDAQ": 0.0}
+        # Low alpha for SP500 (small delta alpha -> suppressed increase), fresh entry for NASDAQ
+        alphas = {"SP500": 0.0001, "KOSPI": 0.0001, "NASDAQ": 2.0, "RUSSELL2000": 0.0, "KOSDAQ": 0.0}
+
+        raw_tgt, exec_w, turnover, cost_bps = self.backtester.allocate_portfolio(
+            date=eval_date,
+            regime="BULL_LOW_VOL",
+            is_crisis=False,
+            current_weights=curr_w,
+            alphas=alphas,
+        )
+
+        # Fresh entry on NASDAQ must execute (bypass)
+        self.assertGreater(exec_w["NASDAQ"], 0.0, "Fresh entry on NASDAQ must bypass hurdle")
+
 
 if __name__ == "__main__":
     unittest.main()
+

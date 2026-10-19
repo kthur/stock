@@ -93,3 +93,64 @@ def test_turnover_hysteresis_large_rebalance_trade():
     assert res["005930.KS"]["target_weight"] == 0.20
     assert res["005930.KS"]["delta_amount"] == 10000000.0
 
+
+def test_market_adaptive_threshold_resolution():
+    """
+    F-R3.3: Verify resolve_threshold accurately identifies US vs KRX assets
+    and assigns theta_US = 0.025 and theta_KRX = 0.045.
+    """
+    opt = TurnoverOptimizer()
+    # US symbols & markets
+    assert opt.resolve_threshold("SP500") == 0.025
+    assert opt.resolve_threshold("NASDAQ") == 0.025
+    assert opt.resolve_threshold("RUSSELL2000") == 0.025
+    assert opt.resolve_threshold("AAPL", currency="USD") == 0.025
+    assert opt.resolve_threshold("MSFT") == 0.025
+
+    # KRX symbols & markets
+    assert opt.resolve_threshold("KOSPI") == 0.045
+    assert opt.resolve_threshold("KOSDAQ") == 0.045
+    assert opt.resolve_threshold("005930") == 0.045
+    assert opt.resolve_threshold("005930.KS") == 0.045
+    assert opt.resolve_threshold("091990.KQ") == 0.045
+
+    # Market map override
+    market_map = {"CUSTOM_SYM": "US", "KR_SYM": "KRX"}
+    assert opt.resolve_threshold("CUSTOM_SYM", market_map=market_map) == 0.025
+    assert opt.resolve_threshold("KR_SYM", market_map=market_map) == 0.045
+
+    # Custom thresholds in init
+    custom_opt = TurnoverOptimizer(market_thresholds={"US": 0.03, "KRX": 0.06})
+    assert custom_opt.resolve_threshold("SP500") == 0.03
+    assert custom_opt.resolve_threshold("KOSPI") == 0.06
+
+
+def test_market_adaptive_hysteresis_dampens_krx_differently_than_us():
+    """
+    F-R3.3: A 3.5% position delta is greater than theta_US (0.025), so US asset rebalances.
+    The same 3.5% position delta is less than theta_KRX (0.045), so KRX asset is held (HOLD).
+    """
+    opt = TurnoverOptimizer()
+
+    current_holdings = {
+        "SP500": 0.20,
+        "KOSPI": 0.20,
+    }
+    target_allocations = {
+        "SP500": 0.235,  # delta = 3.5% > 2.5% -> Rebalance
+        "KOSPI": 0.235,  # delta = 3.5% < 4.5% -> HOLD
+    }
+
+    res = opt.optimize_allocations(
+        current_holdings=current_holdings,
+        target_allocations=target_allocations,
+        total_capital=100000000.0
+    )
+
+    assert res["KOSPI"]["action"] == "HOLD"
+    assert res["KOSPI"]["target_weight"] == 0.20
+
+    assert res["SP500"]["action"] in ("BUY", "SELL")
+    assert res["SP500"]["target_weight"] > 0.20
+
+

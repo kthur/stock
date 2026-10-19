@@ -112,7 +112,7 @@ def run_30year_backtest(
     output_dir: str | Path = "trading_system/result",
     capital: float = 100_000_000.0,
     target_vol: float = 0.12,
-    rebalance_days: int = 60,
+    rebalance_days: int = 24,
     verify: bool = False,
 ) -> int:
     """
@@ -199,7 +199,7 @@ def run_30year_backtest(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="30-Year Historical Backtest & Quantitative Benchmark Runner (1996–2026)"
+        description="30-Year Historical Backtest & Quantitative Benchmark Runner (1996-2026)"
     )
     parser.add_argument(
         "--start-date",
@@ -234,8 +234,8 @@ def main() -> int:
     parser.add_argument(
         "--rebalance-days",
         type=int,
-        default=60,
-        help="Rebalance frequency in trading days (default: 60)",
+        default=24,
+        help="Rebalance frequency in trading days (default: 24)",
     )
     parser.add_argument(
         "--verify",

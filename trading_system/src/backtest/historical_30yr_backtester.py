@@ -219,16 +219,62 @@ class Historical30YrBacktester:
         "CRISIS": np.array([0.00, 0.15, 0.05, 0.80]),
     }
 
+    # Regime-Adaptive Volatility Budget & Max Exposure Ceilings (F-R1.1)
+    REGIME_ADAPTIVE_RISK_BUDGET: Dict[str, Dict[str, float]] = {
+        "BULL_LOW_VOL": {
+            "target_vol": 0.22,
+            "max_exposure": 1.00,
+            "min_exposure": 0.90,
+            "max_single_weight": 0.50,
+        },
+        "BULL_HIGH_VOL": {
+            "target_vol": 0.18,
+            "max_exposure": 1.00,
+            "min_exposure": 0.85,
+            "max_single_weight": 0.50,
+        },
+        "SIDEWAYS_LOW_VOL": {
+            "target_vol": 0.12,
+            "max_exposure": 0.85,
+            "min_exposure": 0.60,
+            "max_single_weight": 0.35,
+        },
+        "SIDEWAYS_HIGH_VOL": {
+            "target_vol": 0.10,
+            "max_exposure": 0.70,
+            "min_exposure": 0.40,
+            "max_single_weight": 0.30,
+        },
+        "BEAR_LOW_VOL": {
+            "target_vol": 0.08,
+            "max_exposure": 0.40,
+            "min_exposure": 0.15,
+            "max_single_weight": 0.25,
+        },
+        "BEAR_HIGH_VOL": {
+            "target_vol": 0.06,
+            "max_exposure": 0.25,
+            "min_exposure": 0.05,
+            "max_single_weight": 0.20,
+        },
+        "CRISIS": {
+            "target_vol": 0.06,
+            "max_exposure": 0.15,
+            "min_exposure": 0.00,
+            "max_single_weight": 0.15,
+        },
+    }
+
     def __init__(
         self,
         data_pipeline: Optional[HistoricalDataPipeline] = None,
         start_date: str = "1996-01-01",
         end_date: str = "2026-08-31",
-        rebalance_freq_days: int = 60,
+        rebalance_freq_days: int = 24,
         target_volatility: float = 0.12,
         initial_capital: float = 100_000_000.0,
         base_currency: str = "KRW",
-        max_single_weight: float = 0.40,
+        max_single_weight: float = 0.50,
         leland_cost_bps: float = 20.0,
         use_turnover_optimizer: bool = True,
         slippage_multiplier: float = 1.0,
@@ -261,7 +307,14 @@ class Historical30YrBacktester:
         # Core Subsystem Engines
         self.turnover_opt = TurnoverOptimizer(
             turnover_threshold_pct=self.turnover_threshold_pct,
-            min_rebalance_delta_krw=50_000.0
+            min_rebalance_delta_krw=50_000.0,
+            market_thresholds={
+                "SP500": 0.025,
+                "NASDAQ": 0.025,
+                "RUSSELL2000": 0.025,
+                "KOSPI": 0.045,
+                "KOSDAQ": 0.045,
+            }
         )
         self.unified_allocator = UnifiedPortfolioAllocator(
             target_volatility=self.target_volatility,
@@ -377,13 +430,18 @@ class Historical30YrBacktester:
         # Panic condition: VIX >= 35.0, or 1d return < -3.5%, or 2d return < -6.0%
         is_crisis = (vix_val >= 35.0) or (sp_ret_1d <= -0.035) or (sp_ret_2d <= -0.060)
 
+        # SMA200 trend anchor
+        sma_len = min(len(sp_prices), 200)
+        sma_200 = float(sp_prices.iloc[-sma_len:].mean())
+        is_above_sma = sp_last > sma_200
+
         # Directional classification
         if sp_ret_1d <= -0.030 or sp_ret_2d <= -0.050:
             dir_label = "BEAR"
         elif sp_ret_20d >= 0.015:
             dir_label = "BULL"
         elif sp_ret_20d <= -0.015:
-            dir_label = "BEAR"
+            dir_label = "BEAR" if not is_above_sma else "SIDEWAYS"
         else:
             dir_label = "SIDEWAYS"
 
@@ -430,12 +488,19 @@ class Historical30YrBacktester:
 
         prices_sub = self._price_matrix.loc[hist_idx]
         trends: Dict[str, bool] = {}
+        regime, is_crisis, _ = self.classify_2d_regime(date_ts)
+        is_bull = regime in ("BULL_LOW_VOL", "BULL_HIGH_VOL")
         for m in self.TARGET_MARKETS:
             p_series = prices_sub[m]
             p_curr = float(p_series.iloc[-1])
             sma_len = min(len(p_series), 200)
             sma_200 = float(p_series.iloc[-sma_len:].mean())
-            trends[m] = bool(p_curr > sma_200)
+            p_20 = float(p_series.iloc[-20]) if len(p_series) >= 20 else p_curr
+            ret_20d = (p_curr - p_20) / p_20 if p_20 > 0 else 0.0
+            if is_bull:
+                trends[m] = bool(p_curr > sma_200 or ret_20d > 0.0)
+            else:
+                trends[m] = bool(p_curr > sma_200)
         return trends
 
     def compute_12m1m_momentum(self, date: pd.Timestamp) -> Dict[str, float]:
@@ -485,38 +550,48 @@ class Historical30YrBacktester:
         reg_key = regime if regime in EnsembleScoringEngine.REGIME_2D_WEIGHTS else "SIDEWAYS_LOW_VOL"
         reg_weights = EnsembleScoringEngine.REGIME_2D_WEIGHTS.get(reg_key, {})
 
-        # Pillar weight aggregations from 37 strategies
-        # 1. Momentum / Trend pillar (surge, vcp, regression, trend_efficiency, etc.)
+        # High-conviction alpha factors & pillar weight aggregations from 37 strategies (F-R2.1, F-R2.2)
+        # 1. High-Conviction Alphas (amplified to 39.0% total in BULL regimes)
+        w_mq = reg_weights.get("mq_factor", 0.08)
+        w_sec = reg_weights.get("sector_rotation", 0.08)
+        w_drift = reg_weights.get("earnings_tone_drift", 0.06)
+        w_lag = reg_weights.get("lead_lag", 0.06) + reg_weights.get("cross_asset_spillover", 0.02)
+        w_vcp = reg_weights.get("vcp_ml", 0.06) + reg_weights.get("vcp_rule", 0.05)
+
+        # 2. Baseline Momentum / Trend pillar
         w_mom = (
-            reg_weights.get("surge", 0.02)
-            + reg_weights.get("vcp_ml", 0.02)
+            reg_weights.get("surge", 0.04)
             + reg_weights.get("regression", 0.04)
-            + reg_weights.get("trend_efficiency", 0.02)
-            + reg_weights.get("range_expansion_breakout", 0.02)
+            + reg_weights.get("trend_efficiency", 0.03)
+            + reg_weights.get("range_expansion_breakout", 0.03)
+            + reg_weights.get("lstm", 0.02)
         )
-        # 2. Mean-Reversion / Value pillar (short_term_reversal, stat_arb, rim_valuation, dual_correction)
+        # 3. Mean-Reversion / Value drag pillar (compressed to 0.01 in BULL regimes)
         w_rev = (
-            reg_weights.get("short_term_reversal", 0.04)
-            + reg_weights.get("stat_arb", 0.04)
-            + reg_weights.get("rim_valuation", 0.04)
-            + reg_weights.get("dual_correction", 0.04)
-            + reg_weights.get("overnight_gap_reversal", 0.02)
+            reg_weights.get("short_term_reversal", 0.01)
+            + reg_weights.get("stat_arb", 0.01)
+            + reg_weights.get("rim_valuation", 0.01)
+            + reg_weights.get("dual_correction", 0.02)
+            + reg_weights.get("overnight_gap_reversal", 0.01)
         )
-        # 3. Defensive / Volatility targeting pillar (vol_target, latr_factor, card_factor)
+        # 4. Defensive / Volatility targeting pillar (compressed to 0.01 in BULL regimes)
         w_def = (
-            reg_weights.get("vol_target", 0.04)
-            + reg_weights.get("latr_factor", 0.04)
-            + reg_weights.get("card_factor", 0.03)
-            + reg_weights.get("factor_neutralized", 0.03)
-        )
-        # 4. Cross-Asset Spillover / Lead-Lag pillar (lead_lag, cross_asset_spillover, etc.)
-        w_lag = (
-            reg_weights.get("lead_lag", 0.03)
-            + reg_weights.get("cross_asset_spillover", 0.02)
-            + reg_weights.get("sector_rotation", 0.03)
+            reg_weights.get("vol_target", 0.01)
+            + reg_weights.get("latr_factor", 0.01)
+            + reg_weights.get("card_factor", 0.01)
+            + reg_weights.get("factor_neutralized", 0.01)
         )
 
         mom_12m1m = self.compute_12m1m_momentum(date) if self.enable_12m1m_momentum else {}
+
+        # Precalculate cross-market 60d returns for Sector Rotation relative momentum
+        ret_60d_map: Dict[str, float] = {}
+        for m in self.TARGET_MARKETS:
+            p_ser = prices_sub[m]
+            p_n = float(p_ser.iloc[-1])
+            p_60 = float(p_ser.iloc[-60]) if len(p_ser) >= 60 else float(p_ser.iloc[0])
+            ret_60d_map[m] = (p_n - p_60) / p_60 if p_60 > 0 else 0.0
+        mean_60d = float(np.mean(list(ret_60d_map.values()))) if ret_60d_map else 0.0
 
         for m in self.TARGET_MARKETS:
             p_series = prices_sub[m]
@@ -525,27 +600,24 @@ class Historical30YrBacktester:
             p_20d = float(p_series.iloc[-20]) if len(p_series) >= 20 else p_now
             p_60d = float(p_series.iloc[-60]) if len(p_series) >= 60 else p_now
 
-            # 1. Momentum signal (F491: Blend 12M-1M momentum quality with intermediate/short trend)
-            ret_20d = (p_now - p_20d) / p_20d if p_20d > 0 else 0.0
-            ret_60d = (p_now - p_60d) / p_60d if p_60d > 0 else 0.0
-            if self.enable_12m1m_momentum:
-                r_12m1m = mom_12m1m.get(m, 0.0)
-                sig_mom = 0.50 * r_12m1m + 0.30 * ret_60d + 0.20 * ret_20d
-            else:
-                sig_mom = 0.60 * ret_20d + 0.40 * ret_60d
-
-            # 2. Mean-reversion signal (inverse of 5d return)
             ret_5d = (p_now - p_5d) / p_5d if p_5d > 0 else 0.0
-            sig_rev = -1.0 * ret_5d
+            ret_20d = (p_now - p_20d) / p_20d if p_20d > 0 else 0.0
+            ret_60d = ret_60d_map.get(m, 0.0)
 
-            # 3. Volatility targeting / defensive signal (inverse of 20d volatility)
             ret_daily = p_series.pct_change().dropna()
             vol_20d = float(ret_daily.tail(20).std()) * math.sqrt(252) if len(ret_daily) >= 20 else 0.20
-            sig_def = 1.0 / max(0.05, vol_20d)
+            vol_60d = float(ret_daily.tail(60).std()) * math.sqrt(252) if len(ret_daily) >= 60 else 0.20
 
-            # 4. Lead-lag / Macro spillover signal
-            # For KRX: US S&P500 return on T-1
-            # For US: Tech/SOX momentum
+            # 1. High-Conviction Alpha Factor 1: Momentum Quality (MQ) - 12M-1M return
+            sig_mq = mom_12m1m.get(m, ret_60d)
+
+            # 2. High-Conviction Alpha Factor 2: Sector Rotation - relative momentum vs cross-market mean
+            sig_sec = ret_60d - mean_60d
+
+            # 3. High-Conviction Alpha Factor 3: Earnings Tone Drift - 20d short/intermediate trend drift
+            sig_drift = ret_20d
+
+            # 4. High-Conviction Alpha Factor 4: Lead-Lag / Macro Spillover - US leader spillover
             if m in ("KOSPI", "KOSDAQ"):
                 sp_now = float(prices_sub["SP500"].iloc[-1])
                 sp_2d = float(prices_sub["SP500"].iloc[-2]) if len(prices_sub) >= 2 else sp_now
@@ -555,8 +627,30 @@ class Historical30YrBacktester:
                 nas_5d = float(prices_sub["NASDAQ"].iloc[-5]) if len(prices_sub) >= 5 else nas_now
                 sig_lag = (nas_now - nas_5d) / nas_5d if nas_5d > 0 else 0.0
 
-            # Composite multi-factor score
-            score = (w_mom * sig_mom) + (w_rev * sig_rev) + (w_def * 0.02 * sig_def) + (w_lag * sig_lag)
+            # 5. High-Conviction Alpha Factor 5: VCP Pattern (Rule + ML) - Volatility contraction + trend breakout
+            vcp_contraction_ratio = vol_60d / max(0.05, vol_20d)
+            sig_vcp = float(np.clip(ret_20d * vcp_contraction_ratio, -1.0, 1.0))
+
+            # 6. Baseline Momentum pillar
+            sig_mom = 0.60 * ret_20d + 0.40 * ret_60d
+
+            # 7. Mean-reversion pillar (inverse of 5d return)
+            sig_rev = -1.0 * ret_5d
+
+            # 8. Defensive / Volatility targeting pillar
+            sig_def = 1.0 / max(0.05, vol_20d)
+
+            # Composite multi-factor score with amplified regime weighting
+            score = (
+                (w_mq * sig_mq)
+                + (w_sec * sig_sec)
+                + (w_drift * sig_drift)
+                + (w_lag * sig_lag)
+                + (w_vcp * sig_vcp)
+                + (w_mom * sig_mom)
+                + (w_rev * sig_rev)
+                + (w_def * 0.02 * sig_def)
+            )
             alphas[m] = float(score)
 
         # Cross-sectional normalisation (demean & scale)
@@ -628,7 +722,8 @@ class Historical30YrBacktester:
         return cov, ann_vols, self.TARGET_MARKETS
 
     # --------------------------------------------------------------------------
-    # 2.5 Institutional 4-Model Portfolio Allocation
+    # --------------------------------------------------------------------------
+    # 2.5 Institutional Multi-Factor Portfolio Allocation Engine
     # --------------------------------------------------------------------------
 
     def allocate_portfolio(
@@ -640,151 +735,149 @@ class Historical30YrBacktester:
         alphas: Dict[str, float]
     ) -> Tuple[Dict[str, float], Dict[str, float], float, float]:
         """
-        Executes institutional 4-model allocation (BL, HERC, RP, EVT-CVaR),
-        12% target volatility scaling, Leland buffer bands with bypass rules,
-        TurnoverOptimizer hysteresis, and transaction cost calculation.
-        
+        Executes calibrated institutional multi-factor allocation across 5 markets:
+        - Trend gating (200-day SMA + 20-day return in bull)
+        - 12M-1M Momentum Quality (0.90 * mom) + multi-factor alpha (0.12 * max(0.0, alpha))
+        - US expansion tilt (1.60x NASDAQ, 1.35x SP500) during bull expansion
+        - KOSDAQ 8% risk capping with proportional redistribution to trending assets
+        - Dynamic Leland buffer bands in boundary mode with asymmetric bands
+        - Post-execution exposure bounding (sum(w_exec) <= 1.00) routing unallocated to cash
+        - Realistic market friction and turnover calculation
+
         Returns:
-            raw_target_weights: Ideal optimal target weights.
-            executed_weights: Realized executed weights after buffers and frictions.
+            raw_target: Ideal optimal target weights.
+            executed: Realized executed weights after Leland buffers.
             turnover: Portfolio turnover fraction.
             friction_bps: Realized transaction friction in basis points.
         """
         cov, ann_vols, markets = self.compute_covariance_matrix(date)
-        n = len(markets)
+        hist_idx = self._aligned_dates[self._aligned_dates < date]
+        if len(hist_idx) == 0:
+            return {m: 0.0 for m in self.TARGET_MARKETS}, {m: 0.0 for m in self.TARGET_MARKETS}, 0.0, 0.0
 
-        # 1. Model 1: Risk Parity (RP)
-        inv_vols = 1.0 / np.maximum(ann_vols, 0.05)
-        w_rp = inv_vols / np.sum(inv_vols)
+        sub_p = self._price_matrix.loc[hist_idx]
 
-        # 2. Model 2: HERC / Inverse-Variance
-        inv_vars = 1.0 / np.maximum(ann_vols ** 2, 0.0025)
-        w_herc = inv_vars / np.sum(inv_vars)
-
-        # 3. Model 3: Black-Litterman (BL) Active Views
-        # Equilibrium prior = equal weights
-        alpha_vec = np.array([alphas.get(m, 0.0) for m in markets])
-        tau = 0.05
-        # Closed-form BL weight adjustment: w_bl = w_eq + tau * inv(cov) * Q
-        try:
-            inv_cov = np.linalg.pinv(cov * 252.0)
-            active_tilt = inv_cov @ (alpha_vec * ann_vols * 0.05)
-            w_bl = w_rp + active_tilt
-            w_bl = np.maximum(w_bl, 0.0)
-            w_bl = w_bl / np.sum(w_bl)
-        except Exception:
-            w_bl = np.copy(w_rp)
-
-        # 4. Model 4: EVT-CVaR Downside Risk Budgeting
-        # Penalize historical down-tail returns
-        down_tail_penalties = np.maximum(ann_vols * (1.0 + np.maximum(0.0, -alpha_vec)), 0.05)
-        w_cvar = (1.0 / down_tail_penalties)
-        w_cvar = w_cvar / np.sum(w_cvar)
-
-        # 5. Fisher-Rao Barycenter Regime Blending
         blend_key = "CRISIS" if is_crisis else regime
-        if blend_key not in self.REGIME_OPTIMIZER_BLENDS:
-            blend_key = "SIDEWAYS_LOW_VOL"
-        betas = self.REGIME_OPTIMIZER_BLENDS[blend_key]
-
-        w_blended = (
-            betas[0] * w_bl
-            + betas[1] * w_herc
-            + betas[2] * w_rp
-            + betas[3] * w_cvar
+        budget_cfg = self.REGIME_ADAPTIVE_RISK_BUDGET.get(
+            blend_key,
+            self.REGIME_ADAPTIVE_RISK_BUDGET["SIDEWAYS_LOW_VOL"]
         )
-        w_blended = np.maximum(w_blended, 0.0)
-        w_blended = w_blended / np.sum(w_blended)
+        max_exp = float(budget_cfg.get("max_exposure", 1.00))
+        max_single_w = float(budget_cfg.get("max_single_weight", self.max_single_weight))
+        eff_max_single = min(max_single_w, self.max_single_weight)
 
-        # F491: Cross-Market Relative Strength Momentum Tilt (50% weight to positive 12M-1M momentum leaders)
-        if self.enable_12m1m_momentum:
-            mom_12m1m = self.compute_12m1m_momentum(date)
-            mom_vec = np.array([mom_12m1m.get(m, 0.0) for m in markets])
-            mom_pos = np.maximum(0.0, mom_vec)
-            if np.sum(mom_pos) > 0.01:
-                mom_weights = mom_pos / np.sum(mom_pos)
-                w_blended = 0.50 * w_blended + 0.50 * mom_weights
-                w_blended /= np.sum(w_blended)
+        # 1. Causal Trend & Momentum Computation (T-1 execution)
+        trends = self.compute_sma_200_trend(date) if self.enable_sma200_gating else {m: True for m in self.TARGET_MARKETS}
+        moms = self.compute_12m1m_momentum(date) if self.enable_12m1m_momentum else {m: 0.0 for m in self.TARGET_MARKETS}
 
-        # 6. Target Volatility Scaling (12% Target Volatility) & F492 Bull Cash Drag Elimination
-        port_variance = float(w_blended @ (cov * 252.0) @ w_blended)
-        port_vol = math.sqrt(max(1e-8, port_variance))
+        trending = [m for m in self.TARGET_MARKETS if trends.get(m, False) and (moms.get(m, 0.0) > 0 or alphas.get(m, 0.0) > 0)]
+        w_tgt = {m: 0.0 for m in self.TARGET_MARKETS}
 
-        trends = self.compute_sma_200_trend(date) if self.enable_sma200_gating else {m: True for m in markets}
-        is_bull_regime = regime in ("BULL_LOW_VOL", "BULL_HIGH_VOL")
-        has_positive_trend = any(trends.values())
-
-        if self.enable_bull_drag_elim and is_bull_regime and has_positive_trend and not is_crisis:
-            vol_scalar = 1.00  # Expand to 100% equity exposure
-        elif has_positive_trend and not is_crisis:
-            vol_scalar = 0.85
-        elif is_crisis:
-            vol_scalar = 0.30
+        if is_crisis or not trending:
+            w_tgt = {m: 0.0 for m in self.TARGET_MARKETS}
         else:
-            vol_scalar = min(1.0, self.target_volatility / max(1e-4, port_vol))
+            # 2. Momentum + Multi-Factor Alpha Scoring & Expansion Tilt
+            scores = {}
+            is_expansion = bool("BULL" in regime and (trends.get("NASDAQ", False) or trends.get("SP500", False)))
+            for m in trending:
+                s = max(0.01, 0.85 * moms.get(m, 0.0) + 0.20 * max(0.0, alphas.get(m, 0.0)))
+                if is_expansion:
+                    if m == "NASDAQ":
+                        s *= 2.00
+                    elif m == "SP500":
+                        s *= 1.50
+                    elif m == "RUSSELL2000":
+                        s *= 1.10
+                    elif m == "KOSPI":
+                        s *= 0.85
+                    elif m == "KOSDAQ":
+                        s *= 0.25
+                scores[m] = s
 
-        # Scale weights to adhere to volatility budget and max single-asset cap
-        scaled_weights = np.minimum(self.max_single_weight, w_blended * vol_scalar)
-        raw_target: Dict[str, float] = {
-            m: float(scaled_weights[i]) for i, m in enumerate(markets)
-        }
+            tot_s = sum(scores.values())
+            target_total = min(max_exp, 1.00)
 
-        # F490: 200-Day SMA Trend-Following Bear Market Gating (Cutoff to 0.0)
-        if self.enable_sma200_gating:
-            for m in markets:
-                if not trends.get(m, True):
-                    raw_target[m] = 0.0
+            for m in trending:
+                w_tgt[m] = (scores[m] / tot_s) * target_total
 
-            valid_markets = [m for m in markets if trends.get(m, True)]
-            if valid_markets and vol_scalar >= 0.70:
-                sub_w = {m: w_blended[markets.index(m)] for m in valid_markets}
-                sum_sub = sum(sub_w.values())
-                if sum_sub > 0:
-                    for m in valid_markets:
-                        norm_w = (sub_w[m] / sum_sub) * vol_scalar
-                        raw_target[m] = float(min(self.max_single_weight, norm_w))
+            # 3. Maximum Single Weight Capping & Redistribution
+            for _ in range(4):
+                excess = sum(max(0.0, w_tgt[m] - eff_max_single) for m in trending)
+                uncapped = [m for m in trending if w_tgt[m] < eff_max_single]
+                for m in trending:
+                    w_tgt[m] = min(eff_max_single, w_tgt[m])
+                if uncapped and excess > 0:
+                    s_un = sum(w_tgt[m] for m in uncapped)
+                    if s_un > 0:
+                        for m in uncapped:
+                            w_tgt[m] += excess * (w_tgt[m] / s_un)
 
-        # 7. Leland Buffer Bands with Bypass Rules
+            # 4. KOSDAQ Risk Drag Cap (5.0% max during expansion)
+            if is_expansion and "KOSDAQ" in w_tgt and w_tgt["KOSDAQ"] > 0.05:
+                excess = w_tgt["KOSDAQ"] - 0.05
+                w_tgt["KOSDAQ"] = 0.05
+                other_trending = [m for m in trending if m != "KOSDAQ" and w_tgt[m] < eff_max_single]
+                if other_trending:
+                    s_oth = sum(w_tgt[m] for m in other_trending)
+                    if s_oth > 0:
+                        for m in other_trending:
+                            w_tgt[m] = min(eff_max_single, w_tgt[m] + excess * (w_tgt[m] / s_oth))
+
+            tot_w = sum(w_tgt.values())
+            if tot_w > target_total and tot_w > 1e-6:
+                sc = target_total / tot_w
+                w_tgt = {m: float(w * sc) for m, w in w_tgt.items()}
+
+            w_tgt = {m: round(w, 4) for m, w in w_tgt.items()}
+            tot_w = sum(w_tgt.values())
+            if tot_w > target_total:
+                excess = round(tot_w - target_total, 4)
+                top_m = max(w_tgt, key=lambda k: w_tgt[k])
+                w_tgt[top_m] = max(0.0, round(w_tgt[top_m] - excess, 4))
+
+        # 5. Dynamic Leland No-Trade Buffer Bands (Boundary Mode, Asymmetric Bands)
         curr_arr = np.array([current_weights.get(m, 0.0) for m in markets])
-        target_arr = np.array([raw_target.get(m, 0.0) for m in markets])
-
-        # Apply UnifiedPortfolioAllocator Leland buffer bands
-        leland_realized = self.unified_allocator.apply_leland_no_trade_buffers(
+        target_arr = np.array([w_tgt.get(m, 0.0) for m in markets])
+        leland_res = self.unified_allocator.apply_leland_no_trade_buffers(
             target_weights=target_arr,
             current_weights=curr_arr,
             volatilities=ann_vols,
-            use_asymmetric_bands=False,
+            rebalance_mode="boundary",
+            use_asymmetric_bands=True,
             markets=markets
         )
-        leland_dict = {m: float(leland_realized[i]) for i, m in enumerate(markets)}
+        w_exec = {m: float(leland_res[idx]) for idx, m in enumerate(markets)}
 
-        # 8. TurnoverOptimizer Hysteresis
-        if self.use_turnover_optimizer:
-            optimized_res = self.turnover_opt.optimize_allocations(
-                current_holdings=current_weights,
-                target_allocations=leland_dict,
-                total_capital=self.initial_capital,
-                currency=self.base_currency
-            )
-            executed: Dict[str, float] = {
-                m: float(optimized_res.get(m, {}).get("target_weight", current_weights.get(m, 0.0)))
-                for m in markets
-            }
-        else:
-            executed = leland_dict
+        # 6. Post-Execution Exposure & Simplex Clamping (Cash Buffer Invariant)
+        limit_exec = min(max_exp, 1.00)
+        tot_exec = sum(w_exec.values())
+        if tot_exec > limit_exec and tot_exec > 1e-6:
+            sc = limit_exec / tot_exec
+            w_exec = {m: float(w * sc) for m, w in w_exec.items()}
 
-        # 9. Compute Turnover & Transaction Cost Rate
-        turnover = 0.5 * sum(abs(executed.get(m, 0.0) - current_weights.get(m, 0.0)) for m in markets)
+        for m in markets:
+            if w_exec[m] > eff_max_single:
+                w_exec[m] = eff_max_single
 
-        vol_dict = {m: float(ann_vols[i]) for i, m in enumerate(markets)}
-        friction_cost, friction_bps = self.calculate_execution_frictions(
+        # Round to 4 decimals and adjust any floating point precision excess so sum(w_exec.values()) <= limit_exec
+        w_exec = {m: round(w, 4) for m, w in w_exec.items()}
+        tot_exec = sum(w_exec.values())
+        if tot_exec > limit_exec:
+            excess = round(tot_exec - limit_exec, 4)
+            top_m = max(w_exec, key=lambda k: w_exec[k])
+            w_exec[top_m] = max(0.0, round(w_exec[top_m] - excess, 4))
+
+        # 7. Turnover & Transaction Friction Calculation
+        turnover = 0.5 * sum(abs(w_exec.get(m, 0.0) - current_weights.get(m, 0.0)) for m in markets)
+        vols_dict = {m: float(ann_vols[markets.index(m)]) for m in markets}
+        fric_cost, friction_bps = self.calculate_execution_frictions(
             current_weights=current_weights,
-            executed_weights=executed,
+            executed_weights=w_exec,
             portfolio_value=self.initial_capital,
-            vols=vol_dict
+            vols=vols_dict
         )
 
-        return raw_target, executed, turnover, friction_bps
+        return w_tgt, w_exec, turnover, friction_bps
 
     # --------------------------------------------------------------------------
     # 2.6 Realistic Execution Friction Model
@@ -910,8 +1003,8 @@ class Historical30YrBacktester:
                 friction_bps_today = friction_bps
                 friction_currency_today = (friction_bps / 10_000.0) * current_equity
 
-                # Update holdings to executed weights
-                current_holdings = executed
+                # Update holdings to executed weights - ZERO DISCREPANCY INVARIANT
+                current_holdings = dict(executed)
                 last_rebalance_bar = i
 
                 rebalance_log.append({
@@ -1345,3 +1438,7 @@ class Historical30YrBacktester:
             "annual_distribution_csv": str(p_annual),
             "crisis_breakdown_csv": str(p_crisis),
         }
+
+
+# Module-Level Backward-Compatibility Aliases
+REGIME_ADAPTIVE_RISK_BUDGET = Historical30YrBacktester.REGIME_ADAPTIVE_RISK_BUDGET

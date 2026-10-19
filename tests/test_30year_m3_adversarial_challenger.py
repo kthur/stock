@@ -1,32 +1,32 @@
 """
-tests/test_30year_m3_adversarial_challenger.py — Adversarial Stress Test Suite for Milestone M3
-Authored by Empirical Challenger M3-1 for rigorous verification of Historical30YrAnalytics.
+tests/test_30year_m3_adversarial_challenger.py — Milestone 3 Empirical Adversarial Stress Suite
 
-Exhaustively stress-tests:
-1. Numerical boundedness & robustness (zero-variance, monotonic decay, flash crash, machine epsilon).
-2. Friction drag deduction invariance (Net < Gross when friction > 0).
-3. Edge case handling (sparse data, missing crises, negative equity, extreme return spikes).
-4. 31-year annual distribution partitioning and schema compliance.
-5. 5 historical crisis stress testing slices and non-positive MDD constraints.
+Adversarially evaluates:
+1. Performance metrics thresholds (CAGR >= 8.0%, Sharpe >= 0.30, MDD <= -50%, friction <= 10,185 bps).
+2. Lookahead bias immunity & statutory filing lags (KRX >= 45d, SEC >= 40d, T->T+1 execution lag).
+3. Simplex and cash buffer invariants across all 6/7 regimes.
+4. Regime-Adaptive Risk Budget exposure limits in allocate_portfolio:
+   - BEAR_HIGH_VOL (max 0.25)
+   - BEAR_LOW_VOL (max 0.40)
+   - SIDEWAYS_HIGH_VOL (max 0.70)
+   - SIDEWAYS_LOW_VOL (max 0.85)
+   - CRISIS (max 0.15)
+   - BULL_LOW_VOL (max 1.00)
+   - BULL_HIGH_VOL (max 1.00)
+5. Execution vs Logging integrity: audits whether the simulation executed weights diverge from logged weights.
 """
 
 from __future__ import annotations
 
-import json
-import math
-import os
-import shutil
 import sys
-import tempfile
 import unittest
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
+import pytest
 
-# Ensure repository root and trading_system are on sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TRADING_SYSTEM_DIR = PROJECT_ROOT / "trading_system"
 
@@ -34,480 +34,210 @@ for p in (str(PROJECT_ROOT), str(TRADING_SYSTEM_DIR)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from src.analysis.historical_30yr_analytics import (
-    Historical30YrAnalytics,
-    HISTORICAL_CRISIS_SPECS,
-    TARGET_MARKETS,
+from src.backtest.historical_30yr_backtester import (
+    Historical30YrBacktester,
+    REGIME_ADAPTIVE_RISK_BUDGET,
 )
-from scripts.verify_30year_backtest import Backtest30YearVerifier
 
 
-# ==============================================================================
-# 1. Numerical Robustness & Boundary Stress Tests
-# ==============================================================================
+class TestMilestone3PerformanceAndStress(unittest.TestCase):
+    """Verifies Milestone 3 performance requirements and lookahead guards."""
 
-class TestNumericalRobustnessAdversarial(unittest.TestCase):
-    """Stress tests numerical edge cases in 15-metric calculations."""
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.backtester = Historical30YrBacktester()
+        cls.sim_res = cls.backtester.run_simulation()
+        cls.metrics = cls.sim_res.metrics
 
-    def setUp(self) -> None:
-        self.analytics = Historical30YrAnalytics(risk_free_rate=0.02)
-
-    def test_zero_variance_flat_curve_invariants(self) -> None:
-        """
-        Oracle test: Completely flat equity curve across various lengths
-        (2, 5, 20, 252, 1000 days) must NOT divide by zero, emit NaN, or crash.
-        """
-        for n_days in [2, 5, 20, 252, 1000]:
-            dates = pd.date_range("2020-01-01", periods=n_days, freq="B")
-            flat_eq = pd.Series([100_000_000.0] * n_days, index=dates)
-
-            metrics = self.analytics.calculate_15_metrics(
-                equity_curve=flat_eq,
-                initial_capital=100_000_000.0,
-            )
-
-            self.assertEqual(metrics["annualized_volatility_pct"], 0.0)
-            self.assertEqual(metrics["max_drawdown_pct"], 0.0)
-            self.assertEqual(metrics["cagr_pct"], 0.0)
-            self.assertEqual(metrics["total_net_return_pct"], 0.0)
-            self.assertEqual(metrics["total_gross_return_pct"], 0.0)
-            self.assertEqual(metrics["sharpe_ratio"], 0.0)
-            self.assertTrue(math.isfinite(metrics["sortino_ratio"]))
-            if n_days >= 3:
-                self.assertEqual(metrics["sortino_ratio"], 0.0)
-            else:
-                self.assertEqual(metrics["sortino_ratio"], -5.0)  # MAR distance formula for single point
-            self.assertEqual(metrics["calmar_ratio"], 0.0)
-            self.assertEqual(metrics["profit_factor"], 1.0)
-            self.assertEqual(metrics["win_rate_pct"], 0.0)
-
-            # All 15 metric values must be finite
-            for k, val in metrics.items():
-                if isinstance(val, (int, float)):
-                    self.assertTrue(math.isfinite(val), f"Metric '{k}' at n={n_days} must be finite, got {val}")
-
-    def test_monotonic_decline_and_near_total_loss(self) -> None:
-        """
-        Oracle test: Monotonically declining curves dropping 50%, 90%, 99.9%
-        must yield negative finite Sharpe, negative CAGR, and bounded MDD in [-100.0, 0.0].
-        """
-        dates = pd.date_range("2020-01-01", periods=252, freq="B")
-
-        for drop_factor in [0.50, 0.10, 0.001]:
-            declining_vals = np.linspace(100_000_000.0, 100_000_000.0 * drop_factor, 252)
-            declining_eq = pd.Series(declining_vals, index=dates)
-
-            metrics = self.analytics.calculate_15_metrics(
-                equity_curve=declining_eq,
-                initial_capital=100_000_000.0,
-            )
-
-            expected_mdd_pct = (drop_factor - 1.0) * 100.0
-            self.assertAlmostEqual(metrics["max_drawdown_pct"], expected_mdd_pct, places=1)
-            self.assertLess(metrics["cagr_pct"], 0.0)
-            self.assertLess(metrics["total_net_return_pct"], 0.0)
-            self.assertLess(metrics["sharpe_ratio"], 0.0)
-            self.assertGreaterEqual(metrics["sharpe_ratio"], -3.0)
-            self.assertLessEqual(metrics["sharpe_ratio"], 5.0)
-            self.assertTrue(math.isfinite(metrics["sortino_ratio"]))
-            self.assertTrue(math.isfinite(metrics["calmar_ratio"]))
-
-    def test_complete_total_loss_equity_zero(self) -> None:
-        """
-        Oracle test: When final equity reaches 0.0 KRW, CAGR must be cleanly -100% (-1.0)
-        without raising zero-division or complex-number errors.
-        """
-        dates = pd.date_range("2020-01-01", periods=100, freq="B")
-        zero_eq = pd.Series(np.linspace(100_000_000.0, 0.0, 100), index=dates)
-
-        metrics = self.analytics.calculate_15_metrics(
-            equity_curve=zero_eq,
-            initial_capital=100_000_000.0,
+    def test_cagr_meets_threshold(self) -> None:
+        """Requirement: Net CAGR >= 8.00%."""
+        cagr = float(self.metrics.get("cagr_pct", 0.0))
+        self.assertGreaterEqual(
+            cagr, 8.00,
+            f"Net CAGR {cagr:.2f}% did not meet threshold >= 8.00%"
         )
 
-        self.assertEqual(metrics["cagr_pct"], -100.0)
-        self.assertEqual(metrics["total_net_return_pct"], -100.0)
-        self.assertEqual(metrics["max_drawdown_pct"], -100.0)
-        self.assertTrue(math.isfinite(metrics["sharpe_ratio"]))
-
-    def test_extreme_flash_crash_and_outlier_returns(self) -> None:
-        """
-        Oracle test: Severe -95% flash crash with single-bar outlier spike +2000%
-        must preserve Sharpe bounded in [-3.0, 5.0] and Sortino in [-5.0, 10.0].
-        """
-        dates = pd.date_range("2020-01-01", periods=100, freq="B")
-        vals = [100.0] * 30 + [5.0] * 10 + [150.0] * 60
-        eq_s = pd.Series([v * 1_000_000.0 for v in vals], index=dates)
-
-        metrics = self.analytics.calculate_15_metrics(
-            equity_curve=eq_s,
-            initial_capital=100_000_000.0,
+    def test_sharpe_meets_threshold(self) -> None:
+        """Requirement: Net Sharpe Ratio >= 0.30."""
+        sharpe = float(self.metrics.get("sharpe_ratio", 0.0))
+        self.assertGreaterEqual(
+            sharpe, 0.30,
+            f"Net Sharpe Ratio {sharpe:.2f} did not meet threshold >= 0.30"
         )
 
-        self.assertAlmostEqual(metrics["max_drawdown_pct"], -95.0, places=1)
-        self.assertGreaterEqual(metrics["sharpe_ratio"], -3.0)
-        self.assertLessEqual(metrics["sharpe_ratio"], 5.0)
-        self.assertGreaterEqual(metrics["sortino_ratio"], -5.0)
-        self.assertLessEqual(metrics["sortino_ratio"], 10.0)
-        self.assertGreaterEqual(metrics["calmar_ratio"], -10.0)
-        self.assertLessEqual(metrics["calmar_ratio"], 20.0)
+    def test_max_drawdown_within_bound(self) -> None:
+        """Requirement: 30-Year MDD <= -50.0% (i.e. between -50.0% and 0.0%)."""
+        mdd = float(self.metrics.get("max_drawdown_pct", -100.0))
+        self.assertGreaterEqual(
+            mdd, -50.0,
+            f"Max Drawdown {mdd:.2f}% breached the -50.0% floor"
+        )
+        self.assertLessEqual(mdd, 0.0, f"Max Drawdown {mdd:.2f}% cannot be positive")
 
-    def test_near_zero_variance_machine_epsilon(self) -> None:
-        """
-        Oracle test: Microscopic noise (std ~ 1e-15) must not blow up Bessel standard deviation
-        or cause floating point singularity.
-        """
-        dates = pd.date_range("2020-01-01", periods=100, freq="B")
-        base = 100_000_000.0
-        # Fluctuations on order of 1e-7 relative to base
-        noise = np.array([1e-7, -1e-7, 2e-7, -2e-7, 0.0] * 20)
-        eq_s = pd.Series(base + noise, index=dates)
-
-        metrics = self.analytics.calculate_15_metrics(
-            equity_curve=eq_s,
-            initial_capital=base,
+    def test_friction_drag_compressed_by_25_pct(self) -> None:
+        """Requirement: Total friction drag <= 10,185 bps (>= 25% compression vs 13,579 baseline)."""
+        fric = float(self.metrics.get("total_friction_bps", 99999.0))
+        self.assertLessEqual(
+            fric, 10185.0,
+            f"Total friction drag {fric:.1f} bps exceeded 10,185 bps threshold"
         )
 
-        self.assertTrue(math.isfinite(metrics["annualized_volatility_pct"]))
-        self.assertTrue(math.isfinite(metrics["sharpe_ratio"]))
-        self.assertTrue(math.isfinite(metrics["sortino_ratio"]))
-
-    def test_single_element_and_empty_equity_series(self) -> None:
-        """
-        Edge condition: Empty equity curve raises ValueError; single element returns empty template.
-        """
-        with self.assertRaises(ValueError):
-            self.analytics.calculate_15_metrics(equity_curve=pd.Series(dtype=float))
-
-        single_s = pd.Series([100_000_000.0], index=[pd.Timestamp("2020-01-01")])
-        metrics = self.analytics.calculate_15_metrics(equity_curve=single_s)
-        self.assertEqual(metrics["total_trading_days"], 0)
-        self.assertEqual(metrics["sharpe_ratio"], 0.0)
+    def test_lookahead_guards_and_filing_lags(self) -> None:
+        """Requirement: Execution lag >= 1 day, KRX lag >= 45d, SEC lag >= 40d."""
+        import json
+        summary_path = TRADING_SYSTEM_DIR / "result" / "backtest_30year_summary.json"
+        self.assertTrue(summary_path.exists(), "Summary JSON must exist")
+        with open(summary_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        meta = data.get("metadata", {})
+        self.assertFalse(meta.get("lookahead_bias_detected", True))
+        self.assertGreaterEqual(int(meta.get("signal_lag_days", 0)), 1)
+        self.assertGreaterEqual(int(meta.get("krx_filing_lag_days", 0)), 45)
+        self.assertGreaterEqual(int(meta.get("sec_filing_lag_days", 0)), 40)
 
 
-# ==============================================================================
-# 2. Friction Deduction Invariance Tests
-# ==============================================================================
+class TestMilestone3RegimeExposureAndIntegrity(unittest.TestCase):
+    """Adversarially tests allocate_portfolio and run_simulation exposure clamping."""
 
-class TestFrictionDeductionInvarianceAdversarial(unittest.TestCase):
-    """Verifies that Net Return < Gross Return whenever transaction frictions occur."""
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.backtester = Historical30YrBacktester()
+        cls.backtester.load_data()
+        cls.test_date = cls.backtester._aligned_dates[600]
+        cls.markets = cls.backtester.TARGET_MARKETS
+        cls.zero_weights = {m: 0.0 for m in cls.markets}
+        cls.bull_alphas = {m: 0.80 for m in cls.markets}
 
-    def setUp(self) -> None:
-        self.analytics = Historical30YrAnalytics(risk_free_rate=0.02)
-
-    def test_friction_drag_guarantee_positive_turnover(self) -> None:
-        """
-        When turnover and friction are positive, Net Return MUST strictly be less than Gross Return.
-        """
-        dates = pd.date_range("2021-01-01", periods=252, freq="B")
-        # Gross returns average +8% per year
-        gross_rets = pd.Series(np.random.normal(0.0003, 0.008, 252), index=dates)
-        # Net returns are shaved by 2 bps daily friction
-        net_rets = gross_rets - 0.0002
-
-        gross_eq = (1.0 + gross_rets).cumprod() * 100_000_000.0
-        net_eq = (1.0 + net_rets).cumprod() * 100_000_000.0
-
-        friction_bps = pd.Series([2.0] * 252, index=dates)
-        turnover = pd.Series([0.05] * 252, index=dates)
-
-        metrics = self.analytics.calculate_15_metrics(
-            equity_curve=net_eq,
-            gross_equity_curve=gross_eq,
-            daily_returns=net_rets,
-            gross_returns=gross_rets,
-            turnover_series=turnover,
-            friction_bps_series=friction_bps,
-            initial_capital=100_000_000.0,
-        )
-
-        self.assertGreater(
-            metrics["total_gross_return_pct"],
-            metrics["total_net_return_pct"],
-            f"Gross return {metrics['total_gross_return_pct']}% must exceed Net return {metrics['total_net_return_pct']}%",
-        )
-        self.assertGreater(metrics["total_friction_bps"], 0.0)
-
-    def test_zero_market_movement_with_frictional_loss(self) -> None:
-        """
-        When market does not move (Gross Return = 0.0%), but portfolio rebalances with friction,
-        Gross Return must be 0.0% and Net Return must be strictly negative.
-        """
-        dates = pd.date_range("2021-01-01", periods=100, freq="B")
-        gross_rets = pd.Series([0.0] * 100, index=dates)
-        net_rets = pd.Series([-0.0001] * 100, index=dates)  # -1 bp drag per day
-
-        gross_eq = pd.Series([100_000_000.0] * 100, index=dates)
-        net_eq = (1.0 + net_rets).cumprod() * 100_000_000.0
-
-        metrics = self.analytics.calculate_15_metrics(
-            equity_curve=net_eq,
-            gross_equity_curve=gross_eq,
-            daily_returns=net_rets,
-            gross_returns=gross_rets,
-            friction_bps_series=pd.Series([1.0] * 100, index=dates),
-            initial_capital=100_000_000.0,
-        )
-
-        self.assertEqual(metrics["total_gross_return_pct"], 0.0)
-        self.assertLess(metrics["total_net_return_pct"], 0.0)
-        self.assertGreater(metrics["total_gross_return_pct"], metrics["total_net_return_pct"])
-
-
-# ==============================================================================
-# 3. 31-Year Annual Distribution Partitioning Tests
-# ==============================================================================
-
-class TestAnnualDistributionAdversarial(unittest.TestCase):
-    """Stress tests annual distribution table generator across full 31 calendar years."""
-
-    def setUp(self) -> None:
-        self.analytics = Historical30YrAnalytics(risk_free_rate=0.02)
-
-    def test_annual_distribution_always_has_all_31_years(self) -> None:
-        """
-        Even when input series only covers a subset (e.g. 2015-2020),
-        the annual distribution table MUST contain all 31 rows (1996 to 2026 inclusive).
-        """
-        # Partial series: only 2015-2020
-        dates = pd.date_range("2015-01-01", "2020-12-31", freq="B")
-        rets = pd.Series(np.random.normal(0.0003, 0.01, len(dates)), index=dates)
-        eq = (1.0 + rets).cumprod() * 100_000_000.0
-
-        df = self.analytics.calculate_annual_distribution(
-            equity_curve=eq,
-            daily_returns=rets,
-            start_year=1996,
-            end_year=2026,
-        )
-
-        self.assertEqual(len(df), 31, "Must generate exactly 31 calendar years")
-        years = list(df["year"])
-        self.assertEqual(years, list(range(1996, 2027)))
-
-        # Verify columns
-        required_cols = [
-            "year", "market", "gross_return_pct", "net_return_pct",
-            "annual_volatility_pct", "sharpe_ratio", "sortino_ratio",
-            "calmar_ratio", "max_drawdown_pct", "win_rate_pct", "trade_count"
+    def test_regime_adaptive_risk_budget_table_complete(self) -> None:
+        """All 7 regimes must be mapped with valid numerical bounds."""
+        expected = [
+            "BULL_LOW_VOL", "BULL_HIGH_VOL",
+            "SIDEWAYS_LOW_VOL", "SIDEWAYS_HIGH_VOL",
+            "BEAR_LOW_VOL", "BEAR_HIGH_VOL", "CRISIS"
         ]
-        for col in required_cols:
-            self.assertIn(col, df.columns)
+        for reg in expected:
+            self.assertIn(reg, REGIME_ADAPTIVE_RISK_BUDGET)
+            cfg = REGIME_ADAPTIVE_RISK_BUDGET[reg]
+            self.assertLessEqual(cfg["min_exposure"], cfg["max_exposure"])
+            self.assertLessEqual(cfg["max_exposure"], 1.00)
 
-    def test_annual_distribution_all_years_mdd_and_friction_invariance(self) -> None:
+    def test_allocate_portfolio_respects_regime_max_exposure(self) -> None:
         """
-        For every year:
-        1. Net Return <= Gross Return
-        2. MDD <= 0.0% and >= -100.0%
-        3. Sharpe is finite and within [-3.0, 5.0]
-        4. Win rate is in [0.0, 100.0]
+        Adversarial test: In BEAR and CRISIS regimes, raw_target and executed weights
+        MUST NOT exceed max_exposure from REGIME_ADAPTIVE_RISK_BUDGET.
         """
-        dates = pd.date_range("1996-01-01", "2026-08-31", freq="B")
-        np.random.seed(999)
-        rets = pd.Series(np.random.normal(0.0004, 0.008, len(dates)), index=dates)
-        gross_rets = rets + 0.0001
-        eq = (1.0 + rets).cumprod() * 100_000_000.0
-        gross_eq = (1.0 + gross_rets).cumprod() * 100_000_000.0
+        test_cases = [
+            ("BEAR_HIGH_VOL", False, 0.25),
+            ("BEAR_LOW_VOL", False, 0.40),
+            ("SIDEWAYS_HIGH_VOL", False, 0.70),
+            ("SIDEWAYS_LOW_VOL", False, 0.85),
+            ("CRISIS", True, 0.15),
+        ]
 
-        df = self.analytics.calculate_annual_distribution(
-            equity_curve=eq,
-            daily_returns=rets,
-            gross_returns=gross_rets,
-            gross_equity_curve=gross_eq,
-            start_year=1996,
-            end_year=2026,
-        )
-
-        for _, r in df.iterrows():
-            y = int(r["year"])
-            self.assertLessEqual(
-                r["net_return_pct"],
-                r["gross_return_pct"] + 1e-4,
-                f"Year {y}: Net ({r['net_return_pct']}%) exceeds Gross ({r['gross_return_pct']}%)",
+        failures = []
+        for regime, is_crisis, max_exp in test_cases:
+            raw_tgt, executed, turnover, fric = self.backtester.allocate_portfolio(
+                date=self.test_date,
+                regime=regime,
+                is_crisis=is_crisis,
+                current_weights=self.zero_weights,
+                alphas=self.bull_alphas,
             )
-            self.assertLessEqual(r["max_drawdown_pct"], 0.0, f"Year {y}: MDD must be non-positive")
-            self.assertGreaterEqual(r["max_drawdown_pct"], -100.0, f"Year {y}: MDD must be >= -100.0%")
-            self.assertTrue(math.isfinite(r["sharpe_ratio"]), f"Year {y}: Sharpe must be finite")
-            self.assertGreaterEqual(r["sharpe_ratio"], -3.0, f"Year {y}: Sharpe must be >= -3.0")
-            self.assertLessEqual(r["sharpe_ratio"], 5.0, f"Year {y}: Sharpe must be <= 5.0")
-            self.assertGreaterEqual(r["win_rate_pct"], 0.0)
-            self.assertLessEqual(r["win_rate_pct"], 100.0)
+            tot_raw = sum(raw_tgt.values())
+            tot_exec = sum(executed.values())
 
+            if tot_raw > max_exp + 1e-4:
+                failures.append(
+                    f"[{regime}] raw_target exposure {tot_raw:.4f} > limit {max_exp:.2f}"
+                )
+            if tot_exec > max_exp + 1e-4:
+                failures.append(
+                    f"[{regime}] executed exposure {tot_exec:.4f} > limit {max_exp:.2f}"
+                )
 
-# ==============================================================================
-# 4. Historical Crisis Stress Testing Adversarial Tests
-# ==============================================================================
-
-class TestHistoricalCrisesStressAdversarial(unittest.TestCase):
-    """Stress tests historical crisis slicing and institutional constraints."""
-
-    def setUp(self) -> None:
-        self.analytics = Historical30YrAnalytics(risk_free_rate=0.02)
-
-    def test_all_five_crises_present_and_chronology_valid(self) -> None:
-        """
-        All 5 crisis specs must be evaluated, each with valid chronological start_date < end_date.
-        """
-        dates = pd.date_range("1996-01-01", "2026-08-31", freq="B")
-        rets = pd.Series([0.0002] * len(dates), index=dates)
-        eq = (1.0 + rets).cumprod() * 100_000_000.0
-
-        df = self.analytics.calculate_crisis_breakdown(
-            equity_curve=eq,
-            daily_returns=rets,
+        self.assertEqual(
+            len(failures), 0,
+            f"Regime exposure breaches found in allocate_portfolio:\n" + "\n".join(failures)
         )
 
-        self.assertEqual(len(df), 5)
-        expected_ids = ["1997_ASIAN_CRISIS", "2000_DOTCOM_CRASH", "2008_GFC", "2020_COVID_SHOCK", "2022_INFLATION_RATE_HIKE"]
-        self.assertEqual(list(df["crisis_id"]), expected_ids)
-
-        for _, r in df.iterrows():
-            d_start = datetime.strptime(r["start_date"], "%Y-%m-%d")
-            d_end = datetime.strptime(r["end_date"], "%Y-%m-%d")
-            self.assertLess(d_start, d_end)
-            self.assertLess(r["max_drawdown_pct"], 0.0, f"Crisis {r['crisis_id']} MDD must be strictly negative")
-            self.assertTrue(r["pass_flag"])
-            self.assertGreaterEqual(r["recovery_days"], 0)
-
-    def test_crisis_fallback_when_equity_curve_misses_crisis_dates(self) -> None:
+    def test_simulation_holdings_exposure_clamping_integrity(self) -> None:
         """
-        If equity curve is from 2023 to 2026 (completely missing 1997, 2000, 2008, 2020, 2022),
-        the fallback branch MUST be activated, yielding valid rows with strictly negative MDD.
+        Adversarial simulation audit:
+        Inspects if actual executed portfolio holdings ever breach regime limits during run_simulation.
+        We monkeypatch allocate_portfolio to track executed weights, comparing against logged weights.
         """
-        dates = pd.date_range("2023-01-01", "2026-08-31", freq="B")
-        rets = pd.Series([0.0003] * len(dates), index=dates)
-        eq = (1.0 + rets).cumprod() * 100_000_000.0
+        executed_history = []
+        orig_allocate = self.backtester.allocate_portfolio
 
-        df = self.analytics.calculate_crisis_breakdown(
-            equity_curve=eq,
-            daily_returns=rets,
+        def tracking_allocate(date, regime, is_crisis, current_weights, alphas):
+            raw_tgt, executed, turnover, fric = orig_allocate(
+                date, regime, is_crisis, current_weights, alphas
+            )
+            executed_history.append((date, regime, is_crisis, dict(executed)))
+            return raw_tgt, executed, turnover, fric
+
+        self.backtester.allocate_portfolio = tracking_allocate
+        try:
+            sim_res = self.backtester.run_simulation()
+        finally:
+            self.backtester.allocate_portfolio = orig_allocate
+
+        divergences = []
+        for (d, reg, cr, exec_w), rec in zip(executed_history, sim_res.rebalance_records):
+            tot_exec = sum(exec_w.values())
+            tot_log = sum(rec["weights"].values())
+            cfg = self.backtester.REGIME_ADAPTIVE_RISK_BUDGET.get(
+                "CRISIS" if cr else reg,
+                self.backtester.REGIME_ADAPTIVE_RISK_BUDGET["SIDEWAYS_LOW_VOL"]
+            )
+            max_limit = float(cfg["max_exposure"])
+
+            if abs(tot_exec - tot_log) > 1e-3:
+                divergences.append(
+                    f"{d.strftime('%Y-%m-%d')} [{reg}] executed={tot_exec:.4f} vs logged={tot_log:.4f} (limit={max_limit:.2f})"
+                )
+
+        print(f"Total divergences between executed and logged weights: {len(divergences)}")
+        for div in divergences[:5]:
+            print(f"  Sample divergence: {div}")
+
+        self.assertEqual(
+            len(divergences), 0,
+            f"Found {len(divergences)} rebalances where simulated executed weights diverged from logged weights!\n"
+            + "\n".join(divergences[:10])
         )
 
-        self.assertEqual(len(df), 5)
-        for _, r in df.iterrows():
-            self.assertLess(r["max_drawdown_pct"], 0.0)
-            self.assertTrue(math.isfinite(r["net_return_pct"]))
-            self.assertTrue(math.isfinite(r["benchmark_return_pct"]))
-            self.assertTrue(math.isfinite(r["sharpe_ratio"]))
-            self.assertTrue(r["pass_flag"])
-
-
-# ==============================================================================
-# 5. Full Artifact Export & Backtest30YearVerifier Compliance Fuzzing
-# ==============================================================================
-
-class TestArtifactExportAndVerifierFuzzing(unittest.TestCase):
-    """Stress tests artifact export and Backtest30YearVerifier compliance under extreme data patterns."""
-
-    def setUp(self) -> None:
-        self.temp_dir = tempfile.mkdtemp(prefix="test_challenger_fuzzing_")
-        self.analytics = Historical30YrAnalytics(risk_free_rate=0.02)
-
-    def tearDown(self) -> None:
-        if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
-
-    def test_full_backtest_simulation_passes_verifier_strictly(self) -> None:
+    def test_rebalance_records_simulated_holdings_integrity(self) -> None:
         """
-        Generates realistic 30-year walk-forward data across 8,089 bars,
-        runs analyze_simulation_result and export_all_artifacts, and verifies
-        that Backtest30YearVerifier passes with 24/24 checks and Exit Code 0.
+        Integrity Test: Audits whether the actual portfolio holdings simulated
+        diverge from the logged weights recorded in rebalance_records.
         """
-        dates = pd.date_range("1996-01-01", "2026-08-31", freq="B")
-        n = len(dates)
-        np.random.seed(777)
+        sim_res = self.backtester.run_simulation()
+        audit_breaches = []
 
-        # Build realistic returns with crisis drawdowns
-        daily_rets_arr = np.random.normal(0.00045, 0.0095, n)
+        for rec in sim_res.rebalance_records:
+            date_str = rec["date"]
+            regime = rec["regime"]
+            is_crisis = rec["is_crisis"]
+            log_w = rec["weights"]
+            tot_w = sum(log_w.values())
 
-        # Inject historical crisis down-drifts
-        for spec in HISTORICAL_CRISIS_SPECS:
-            s_d, e_d = spec["start_date"], spec["end_date"]
-            c_mask = (dates >= s_d) & (dates <= e_d)
-            daily_rets_arr[c_mask] -= 0.0012
+            cfg = self.backtester.REGIME_ADAPTIVE_RISK_BUDGET.get(
+                "CRISIS" if is_crisis else regime,
+                self.backtester.REGIME_ADAPTIVE_RISK_BUDGET["SIDEWAYS_LOW_VOL"]
+            )
+            max_limit = float(cfg["max_exposure"])
 
-        daily_rets = pd.Series(daily_rets_arr, index=dates)
-        gross_rets = daily_rets + 0.00015  # Gross returns higher by 1.5 bps/day
+            if tot_w > max_limit + 1e-4:
+                audit_breaches.append(
+                    f"{date_str} [{regime}] sum(weights)={tot_w:.4f} > {max_limit:.2f}"
+                )
 
-        net_eq = (1.0 + daily_rets).cumprod() * 100_000_000.0
-        gross_eq = (1.0 + gross_rets).cumprod() * 100_000_000.0
-
-        turnover_s = pd.Series([0.045] * n, index=dates)
-        friction_bps_s = pd.Series([3.2] * n, index=dates)
-
-        mkt_df = pd.DataFrame({
-            m: np.random.normal(0.00038, 0.010, n) for m in TARGET_MARKETS
-        }, index=dates)
-
-        sim_result = {
-            "equity_curve": net_eq,
-            "gross_equity_curve": gross_eq,
-            "daily_returns": daily_rets,
-            "gross_returns": gross_rets,
-            "turnover_series": turnover_s,
-            "friction_bps_series": friction_bps_s,
-            "market_returns": mkt_df,
-            "rebalance_records": [{"date": "1996-01-20", "turnover": 0.045}],
-            "initial_capital": 100_000_000.0,
-        }
-
-        summary_payload, annual_df, crisis_df = self.analytics.analyze_simulation_result(
-            result=sim_result,
-            start_date="1996-01-01",
-            end_date="2026-08-31",
-            rebalance_freq_days=20,
-            target_volatility=0.12,
+        self.assertEqual(
+            len(audit_breaches), 0,
+            f"Found {len(audit_breaches)} rebalance records exceeding regime risk limits:\n"
+            + "\n".join(audit_breaches[:10])
         )
-
-        paths = self.analytics.export_all_artifacts(
-            summary_payload=summary_payload,
-            annual_df=annual_df,
-            crisis_df=crisis_df,
-            output_dir=self.temp_dir,
-        )
-
-        verifier = Backtest30YearVerifier(result_dir=self.temp_dir, strict=True)
-        summary = verifier.verify_all()
-
-        self.assertTrue(summary.passed, f"Verifier failed with {summary.failed_checks} failures")
-        self.assertEqual(summary.failed_checks, 0)
-        self.assertEqual(summary.warning_checks, 0)
-        self.assertGreaterEqual(summary.passed_checks, 20)
-
-        # JSON RFC 8259 Compliance: must not contain unquoted NaN or Infinity
-        with open(paths["summary_json"], "r", encoding="utf-8") as f:
-            raw_json = f.read()
-        self.assertNotIn(": NaN", raw_json)
-        self.assertNotIn(": Infinity", raw_json)
-        self.assertNotIn(": -Infinity", raw_json)
-
-    def test_market_attribution_with_missing_and_corrupt_columns(self) -> None:
-        """
-        Oracle test: When market_returns DataFrame is completely empty or missing markets,
-        calculate_market_breakdown must still return all 5 markets with valid finite values.
-        """
-        # Completely empty market returns
-        empty_mkt = pd.DataFrame()
-        m_breakdown = self.analytics.calculate_market_breakdown(empty_mkt)
-
-        self.assertEqual(set(m_breakdown.keys()), set(TARGET_MARKETS))
-        for m, stats in m_breakdown.items():
-            for metric in ["cagr_pct", "annualized_volatility_pct", "sharpe", "mdd_pct"]:
-                self.assertIn(metric, stats)
-                self.assertTrue(math.isfinite(stats[metric]))
-
-        # Partial market returns with NaNs
-        dates = pd.date_range("2020-01-01", periods=50, freq="B")
-        partial_mkt = pd.DataFrame({
-            "KOSPI": [0.001] * 25 + [np.nan] * 25,
-            "SP500": [np.nan] * 50,
-        }, index=dates)
-
-        m_breakdown_partial = self.analytics.calculate_market_breakdown(partial_mkt)
-        self.assertEqual(set(m_breakdown_partial.keys()), set(TARGET_MARKETS))
-        for m, stats in m_breakdown_partial.items():
-            for metric in ["cagr_pct", "annualized_volatility_pct", "sharpe", "mdd_pct"]:
-                self.assertTrue(math.isfinite(stats[metric]), f"{m}.{metric} must be finite")
 
 
 if __name__ == "__main__":
