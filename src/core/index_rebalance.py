@@ -1,0 +1,198 @@
+"""
+index_rebalance.py — Structural Index Rebalance Pre-Positioning Alpha Engine (Strategy 32)
+
+Predicts quarterly/semi-annual index constituent changes (KOSPI 200, KOSDAQ 150, MSCI Korea/World, S&P 500)
+and models passive ETF tracking flows (AUM_tracking * delta_w) 15-30 days prior to rebalance effective dates.
+"""
+
+from __future__ import annotations
+
+import logging
+import datetime
+import numpy as np
+import pandas as pd
+from typing import Dict, List, Any, Optional
+
+from .base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+logger = logging.getLogger(__name__)
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="index_rebalance",
+        display_name="Index Rebalance Structural Flow",
+        score_column="index_rebalance_score",
+        category="event",
+        output_file="index_rebalance_predictions.txt",
+        is_standalone=False,
+        default_regime_weights={
+            "BULL_LOW_VOL": 0.02,
+            "BULL_HIGH_VOL": 0.02,
+            "SIDEWAYS_LOW_VOL": 0.03,
+            "SIDEWAYS_HIGH_VOL": 0.03,
+            "BEAR_LOW_VOL": 0.02,
+            "BEAR_HIGH_VOL": 0.02,
+            "CRISIS": 0.01,
+        },
+    )
+)
+class IndexRebalanceEngine(BaseStrategyEngine):
+    """
+    Predictive engine for capturing passive index rebalance structural alpha.
+    """
+
+    def __init__(self, tracking_aum_krw: float = 40_000_000_000_000.0): # ~40 Trillion KRW tracking KOSPI200/MSCI
+        self.tracking_aum_krw = tracking_aum_krw
+
+    def is_near_rebalance_window(self, current_date: Optional[datetime.date] = None) -> Dict[str, Any]:
+        """
+        Checks if current date is within the 45-day pre-positioning window of major index reviews:
+          - KOSPI 200 / KOSDAQ 150: June & December (Effective 2nd Friday)
+          - MSCI Quarterly: February, May, August, November (Effective last business day)
+        """
+        today = current_date or datetime.date.today()
+        month = today.month
+
+        # Major rebalance months:
+        # - S&P 500 / NASDAQ 100 / Russell / FTSE: March (3), June (6), September (9), December (12)
+        # - KOSPI 200 / KOSDAQ 150: June (6), December (12)
+        # - MSCI Reviews: February (2), May (5), August (8), November (11)
+        is_rebal_season = month in [2, 3, 5, 6, 8, 9, 11, 12]
+        is_pre_window = month in [1, 2, 4, 5, 7, 8, 10, 11]
+
+        if month in [5, 6, 11, 12]:
+            target_index = "KOSPI200"
+        elif month in [3, 9]:
+            target_index = "SP500_NASDAQ"
+        else:
+            target_index = "MSCI"
+
+        days_to_rebal = 20 if is_rebal_season else (40 if is_pre_window else 90)
+
+        return {
+            "in_window": is_rebal_season or is_pre_window,
+            "target_index": target_index,
+            "days_to_rebalance": days_to_rebal,
+            "phase": "PRE_POSITIONING" if is_pre_window else ("REBALANCE_MONTH" if is_rebal_season else "OFF_SEASON")
+        }
+
+    def calculate_scores(
+        self,
+        symbols: Optional[List[str]] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """Universal calculate_scores method compatible with all test suites and pipeline runners."""
+        if prices_dict is None and isinstance(symbols, dict):
+            prices_dict = symbols
+            symbols = None
+        if symbols is not None and prices_dict is not None:
+            prices_dict = {s: prices_dict[s] for s in symbols if s in prices_dict}
+        return self.compute_scores(prices_dict=prices_dict, **kwargs)
+
+    def compute_scores(
+        self,
+        prices_dict: Any = None,
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[Any] = None,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """
+        Computes structural index rebalance momentum score for all universe symbols.
+        """
+        universe = kwargs.get("universe", kwargs.get("universe_df", None))
+        if universe is None or not isinstance(universe, pd.DataFrame) or universe.empty:
+            if isinstance(fundamentals_dict, pd.DataFrame):
+                universe = fundamentals_dict
+            elif isinstance(prices_dict, pd.DataFrame):
+                universe = prices_dict
+            elif isinstance(prices_dict, dict) and prices_dict:
+                universe = pd.DataFrame([{"symbol": str(s), "name": str(s), "market": "GLOBAL"} for s in prices_dict.keys()])
+            elif "symbols" in kwargs and kwargs["symbols"]:
+                universe = pd.DataFrame([{"symbol": str(s), "name": str(s), "market": "GLOBAL"} for s in kwargs["symbols"]])
+            else:
+                return pd.DataFrame(columns=["symbol", "name", "market", "index_rebalance_score", "predicted_flow_krw"])
+
+        df_uni = universe.copy()
+        if "symbol" not in df_uni.columns:
+            return pd.DataFrame(columns=["symbol", "name", "market", "index_rebalance_score", "predicted_flow_krw"])
+
+        results = []
+        as_of = kwargs.get("as_of_date", kwargs.get("date", kwargs.get("current_date", None)))
+        if as_of is not None and hasattr(as_of, "date") and not isinstance(as_of, datetime.date):
+            as_of = as_of.date()
+        rebal_info = self.is_near_rebalance_window(as_of)
+        is_active_window = rebal_info["in_window"]
+
+        # Market Cap & Liquidity Ranking
+        mcap_col = next((c for c in ["market_cap", "marcap", "mcap", "cap"] if c in df_uni.columns), None)
+        adv_col = next((c for c in ["trading_value", "adv", "adv_20d", "trading_amount", "volume"] if c in df_uni.columns), None)
+
+        if mcap_col and mcap_col in df_uni.columns:
+            mcap_series = pd.to_numeric(df_uni[mcap_col], errors="coerce").fillna(0.0)
+            mcap_rank_pct = mcap_series.rank(pct=True, ascending=False)
+        else:
+            mcap_rank_pct = pd.Series(0.5, index=df_uni.index)
+
+        if adv_col and adv_col in df_uni.columns:
+            adv_series = pd.to_numeric(df_uni[adv_col], errors="coerce").fillna(0.0)
+            adv_rank_pct = adv_series.rank(pct=True, ascending=False)
+        else:
+            adv_rank_pct = pd.Series(0.5, index=df_uni.index)
+
+        n_uni = max(len(df_uni), 1)
+        min_rank_threshold = 0.02 if n_uni >= 50 else 0.0
+        max_rank_threshold = max(0.15, 1.0 / n_uni)
+        max_adv_threshold = max(0.20, 1.0 / n_uni)
+
+        for idx, row in df_uni.iterrows():
+            sym = str(row["symbol"]).strip()
+            name = str(row.get("name", sym))
+            mkt = str(row.get("market", "KOSPI"))
+
+            m_val = mcap_rank_pct.loc[idx]
+            a_val = adv_rank_pct.loc[idx]
+            m_rank = float(m_val) if (pd.notna(m_val) and np.isfinite(float(m_val))) else 0.50
+            a_rank = float(a_val) if (pd.notna(a_val) and np.isfinite(float(a_val))) else 0.50
+
+            # High probability candidate for inclusion: Top 5-15% market cap + Top 10% liquidity in non-mega caps (adapted for universe size)
+            is_inclusion_candidate = (min_rank_threshold <= m_rank <= max_rank_threshold) and (a_rank <= max_adv_threshold)
+            # Exclusion candidate: Lower 30% of current index constituents
+            is_exclusion_candidate = (m_rank > 0.60) and (a_rank > 0.50)
+
+            if is_active_window:
+                if is_inclusion_candidate:
+                    # Imminent inclusion flow boost
+                    raw_score = 0.75 + 0.20 * (1.0 - m_rank)
+                    predicted_flow = float(self.tracking_aum_krw * 0.005) # ~0.5% weight = 200B KRW
+                elif is_exclusion_candidate:
+                    # Exclusion passive outflow penalty
+                    raw_score = 0.25 - 0.15 * (m_rank - 0.60)
+                    predicted_flow = float(-self.tracking_aum_krw * 0.003)
+                else:
+                    raw_score = 0.50
+                    predicted_flow = 0.0
+            else:
+                raw_score = 0.50
+                predicted_flow = 0.0
+
+            safe_score = round(float(np.clip(raw_score, 0.0, 1.0)), 4) if np.isfinite(raw_score) else 0.50
+            safe_flow = round(float(predicted_flow), 2) if np.isfinite(predicted_flow) else 0.0
+
+            results.append({
+                "symbol": sym,
+                "name": name,
+                "market": mkt,
+                "index_rebalance_score": safe_score,
+                "predicted_flow_krw": safe_flow,
+                "rebalance_phase": rebal_info["phase"]
+            })
+
+        res_df = pd.DataFrame(results)
+        if not res_df.empty:
+            res_df = res_df.sort_values(by="index_rebalance_score", ascending=False).reset_index(drop=True)
+        return res_df
+
+    identify_rebalance_candidates = compute_scores

@@ -32,14 +32,25 @@ STATE_FILE = _PROJECT_ROOT / "kill_switch_state.json"
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
+def _candidate_files() -> list[Path]:
+    here = Path(__file__).resolve()
+    paths = [
+        KILL_SWITCH_FILE,
+        WORKSPACE_KILL_SWITCH_FILE,
+        _PROJECT_ROOT / "trading_system" / "KILL_SWITCH",
+    ]
+    if len(here.parents) > 3:
+        paths.append(here.parents[3] / "KILL_SWITCH")
+    return list({p.resolve() for p in paths})
+
+
 def _file_engaged() -> bool:
-    if KILL_SWITCH_FILE.exists():
-        return True
-    try:
-        if WORKSPACE_KILL_SWITCH_FILE.exists():
-            return True
-    except Exception:
-        pass
+    for kf in _candidate_files():
+        try:
+            if kf.exists():
+                return True
+        except Exception:
+            pass
     return False
 
 
@@ -62,7 +73,7 @@ def engage(reason: str = "") -> None:
 
 def disengage() -> None:
     """킬 스위치를 해제한다 (KILL_SWITCH 파일 삭제)."""
-    for kf in (KILL_SWITCH_FILE, WORKSPACE_KILL_SWITCH_FILE):
+    for kf in _candidate_files():
         try:
             kf.unlink(missing_ok=True)
         except OSError as e:

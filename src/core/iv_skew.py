@@ -1,0 +1,218 @@
+"""
+src/core/iv_skew.py
+Options-Implied Volatility (IV) Skew Engine.
+Fetches options chains for optionable tickers (SP500 / US equities) and calculates Put-Call IV Skew.
+High Put/Call IV Skew signals extreme market hedging fear -> Contrarian bullish score.
+"""
+import logging
+from typing import Dict, List, Optional, Any
+import numpy as np
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="iv_skew",
+        display_name="Options IV Skew",
+        score_column="iv_skew_score",
+        category="factor",
+        output_file="iv_skew_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.05, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.03, "BULL_HIGH_VOL": 0.04, "BULL_LOW_VOL": 0.03
+        },
+    )
+)
+class IVSkewEngine(BaseStrategyEngine):
+    """
+    Options-Implied Volatility (IV) Skew Strategy Engine.
+    Evaluates options market sentiment via Put IV vs Call IV ratios.
+    """
+
+    def __init__(self, atm_threshold: float = 0.08, config: Optional[Any] = None):
+        self.atm_threshold = atm_threshold
+        self.config = config
+
+    _iv_cache: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def compute_skew_for_ticker(self, ticker: str) -> float:
+        """
+        Attempts to calculate Put-Call IV Skew for a given US ticker via yfinance.
+        Returns score in [0.0, 1.0].
+        """
+        import time
+        from datetime import datetime
+        cache_key = (ticker, datetime.now().strftime('%Y-%m-%d'))
+        if cache_key in self._iv_cache:
+            entry = self._iv_cache[cache_key]
+            if time.time() - entry['timestamp'] < 86400:
+                return float(entry['score'])
+
+        try:
+            import yfinance as yf
+            t = yf.Ticker(ticker)
+            expirations = t.options
+            if not expirations:
+                return np.nan
+
+            # Get current stock price to filter near-the-money (ATM) options
+            hist = t.history(period='5d')
+            if hist.empty:
+                return np.nan
+            underlying_price = float(hist['Close'].iloc[-1])
+
+            # Pick nearest expiration date
+            exp = expirations[0]
+            chain = t.option_chain(exp)
+            calls, puts = chain.calls, chain.puts
+
+            if calls.empty or puts.empty:
+                return np.nan
+
+            # Filter ATM options (strike within ±atm_threshold of underlying price)
+            atm_calls = calls[abs(calls['strike'] - underlying_price) / underlying_price <= self.atm_threshold]
+            atm_puts = puts[abs(puts['strike'] - underlying_price) / underlying_price <= self.atm_threshold]
+
+            eff_calls = atm_calls if not atm_calls.empty else calls
+            eff_puts = atm_puts if not atm_puts.empty else puts
+
+            call_iv = eff_calls['impliedVolatility'].median()
+            put_iv = eff_puts['impliedVolatility'].median()
+
+            if call_iv <= 0 or np.isnan(call_iv) or put_iv <= 0 or np.isnan(put_iv):
+                return np.nan
+
+            skew_ratio = put_iv / call_iv
+
+            score = 0.5 + (skew_ratio - 1.1) * 0.5
+            final_score = float(np.clip(score, 0.0, 1.0))
+            self._iv_cache[cache_key] = {'score': final_score, 'timestamp': time.time()}
+            return final_score
+        except Exception as e:
+            logger.debug(f"IV Skew calculation failed for {ticker}: {e}")
+            return np.nan
+
+    def compute_iv_skew_scores(
+        self,
+        symbols: List[str],
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> pd.DataFrame:
+        """
+        Computes IV Skew scores for a list of symbols in parallel using ThreadPoolExecutor.
+        Returns DataFrame with ['symbol', 'iv_skew_score'].
+        """
+        if not symbols:
+            return pd.DataFrame(columns=['symbol', 'iv_skew_score'])
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        results = {}
+
+        def _evaluate_one(sym: str):
+            score = np.nan
+            is_us_ticker = not sym.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')) and '.' not in sym
+
+            # 1. Live options chain lookup takes priority for US tickers if explicitly enabled
+            if is_us_ticker:
+                try:
+                    import os
+                    if os.getenv("ENABLE_LIVE_OPTIONS_FETCH", "false").lower() == "true":
+                        live_score = self.compute_skew_for_ticker(sym)
+                        if pd.notna(live_score):
+                            return sym, live_score
+                except Exception:
+                    pass
+
+            # 2. Fast in-memory realized price volatility & return skewness fallback (0 network calls)
+            if prices_dict and sym in prices_dict:
+                df = prices_dict[sym]
+                if df is not None and len(df) >= 3:
+                    try:
+                        c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+                        if not c_col:
+                            return sym, np.nan
+                        c = df[c_col]
+                        if isinstance(c, pd.DataFrame):
+                            c = c.iloc[:, 0]
+                        c = c.dropna()
+                        if len(c) >= 3:
+                            ret = c.pct_change().dropna()
+                            ret_window = ret.tail(20)
+                            if len(ret_window) >= 2 and float(abs(ret_window).sum()) > 1e-6:
+                                down_diff = np.minimum(ret_window.values, 0.0)
+                                up_diff = np.maximum(ret_window.values, 0.0)
+                                down_vol = float(np.sqrt(np.mean(down_diff ** 2)))
+                                up_vol = float(np.sqrt(np.mean(up_diff ** 2)))
+                                if down_vol < 1e-6 and up_vol < 1e-6:
+                                    skew_ratio = 1.0
+                                else:
+                                    down_eff = max(down_vol, 1e-6)
+                                    up_eff = max(up_vol, 1e-6)
+                                    skew_ratio = float(np.clip(down_eff / up_eff, 0.1, 10.0))
+                                ret_skew = float(ret_window.skew()) if len(ret_window) >= 3 else 0.0
+                                if np.isnan(ret_skew):
+                                    ret_skew = 0.0
+                                # Multi-tier Fear Capitulation Turnaround Booster (Extreme panic hedging followed by decisive reversal)
+                                last_ret = float(ret.iloc[-1])
+                                ret_3d = float(c.iloc[-1] / c.iloc[-min(len(c), 4)]) - 1.0 if len(c) >= 4 else last_ret
+                                if skew_ratio >= 1.6 and last_ret > 0.01 and ret_3d > 0.0:
+                                    turnaround_bonus = 0.28  # Super Fear Capitulation Rebound
+                                elif skew_ratio >= 1.3 and last_ret > 0.0:
+                                    turnaround_bonus = 0.15
+                                else:
+                                    turnaround_bonus = 0.0
+
+                                raw_score = 0.5 + (skew_ratio - 1.0) * 0.35 - ret_skew * 0.15 + turnaround_bonus
+                                score = 0.5 + (raw_score - 0.5) * 0.55
+                                score = float(np.clip(score, 0.05, 0.98))
+                                score = score if np.isfinite(score) else np.nan
+                            else:
+                                score = np.nan
+                    except Exception:
+                        score = np.nan
+
+            return sym, score
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(_evaluate_one, sym): sym for sym in symbols}
+            for future in as_completed(futures):
+                try:
+                    sym, score = future.result()
+                    results[sym] = score
+                except Exception as e:
+                    logger.debug(f"IV Skew task error: {e}")
+
+        res_list = [{'symbol': sym, 'iv_skew_score': float(results[sym]) if (sym in results and pd.notna(results[sym]) and np.isfinite(results[sym])) else np.nan} for sym in symbols]
+        df_out = pd.DataFrame(res_list)
+        df_out['iv_skew_score'] = pd.to_numeric(df_out['iv_skew_score'], errors='coerce')
+
+        # Multi-Tier Cross-Sectional IV Skew Booster (Top 5% receives 1.15x, Top 15% receives 1.10x)
+        valid_mask = df_out['iv_skew_score'].notna()
+        if valid_mask.sum() > 1:
+            valid_s = df_out.loc[valid_mask, 'iv_skew_score']
+            ranks = valid_s.rank(pct=True, ascending=True)
+            enhanced = np.where(ranks >= 0.95, (valid_s * 1.15).clip(0.05, 0.98),
+                       np.where(ranks >= 0.85, (valid_s * 1.10).clip(0.05, 0.98), valid_s))
+            df_out.loc[valid_mask, 'iv_skew_score'] = pd.to_numeric(pd.Series(enhanced, index=valid_s.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
+
+        return df_out
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            symbols = list(prices_dict.keys()) if isinstance(prices_dict, dict) else []
+            return self.compute_iv_skew_scores(symbols, prices_dict=prices_dict if isinstance(prices_dict, dict) else None)
+        except Exception as e:
+            logger.warning(f"[IVSkewEngine] compute_scores failed: {e}")
+            return pd.DataFrame(columns=["symbol", "iv_skew_score"])
+

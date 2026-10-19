@@ -84,3 +84,12 @@ Phase 122 introduces Continuous-Time Score-Based Generative Diffusion Volatility
 - `tests/test_phase122_hawkes_alpha.py`
 - `tests/test_phase122_hyperbolic_allocator.py`
 - `tests/test_phase122_kernel_bypass_gateway.py`
+
+## Production Operational Tracks (Tracks 1 ~ 4)
+| Track | Name | Scope & Deliverables | Verification Status |
+|-------|------|----------------------|:-------------------:|
+| **Track 1** | Production Integration & Dual-Tree Parity | Complete code sync between `trading_system/src/` and `src/`, 8-regime dynamic risk budgeting, target volatility scaling, Leland no-trade buffers, and STT alpha hurdle enforcement | **DONE** (6/6 tests PASS) |
+| **Track 2** | Advanced Quant Architecture (Phase 122) | Score-based diffusion vol forecaster (F580), Hawkes cross-excitation alpha (F581), hyperbolic optimal transport (F582), zero-copy kernel-bypass gateway (F583), 5-market benchmark | **DONE** (36/36 tests PASS) |
+| **Track 3** | Autonomous Real-Time Paper Trading Daemon | 8 OMS Safety Gates, Gatheral 3/2-power impact & Fast LOB orderbook slippage, `trade_logs.db` SQLite execution journal, `SlippageFeedbackEngine`, invariant `Net Equity <= Gross Equity` verified | **DONE** (4/4 tests PASS) |
+| **Track 4** | Web Dashboard 30-Year Benchmark & Visualization | 30-year compounding console (CAGR 8.19%, Net Return +1,149.55%, MDD -35.43%, 8,089 days), 5 historical crises defense matrix (1997, 2000, 2008, 2020, 2022), 1996~2026 annual returns, live paper OMS monitor | **DONE** (2/2 tests PASS) |
+

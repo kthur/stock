@@ -276,6 +276,35 @@ except ImportError:
     except ImportError:
         pass
 
+# Paper Trading Execution Daemon (Phase 106 / Feature F501)
+try:
+    from .paper_trading_daemon import (
+        PaperOrderAction,
+        PaperExecutionStatus,
+        PaperExecutionRecord,
+        PortfolioSnapshot,
+        PaperTradingDaemon,
+        AutonomousPaperTradingDaemon,
+        PaperTradingExecutionDaemon,
+        ShadowExecutionDaemon,
+        Phase106PaperTradingDaemon,
+    )
+except ImportError:
+    try:
+        from trading_system.src.execution.paper_trading_daemon import (
+            PaperOrderAction,
+            PaperExecutionStatus,
+            PaperExecutionRecord,
+            PortfolioSnapshot,
+            PaperTradingDaemon,
+            AutonomousPaperTradingDaemon,
+            PaperTradingExecutionDaemon,
+            ShadowExecutionDaemon,
+            Phase106PaperTradingDaemon,
+        )
+    except ImportError:
+        pass
+
 __all__ = [
     "ExecutionOMSEngine",
     "OMSEngine",
@@ -295,6 +324,16 @@ __all__ = [
     "engage",
     "disengage",
     "get_kill_switch_state",
+    # Paper Trading Execution Daemon (Phase 106 / Feature F501)
+    "PaperOrderAction",
+    "PaperExecutionStatus",
+    "PaperExecutionRecord",
+    "PortfolioSnapshot",
+    "PaperTradingDaemon",
+    "AutonomousPaperTradingDaemon",
+    "PaperTradingExecutionDaemon",
+    "ShadowExecutionDaemon",
+    "Phase106PaperTradingDaemon",
     # Live Trading Daemon (Phase 112 / Feature F531)
     "LiveTradingDaemon",
     "AsyncioTradingDaemon",

@@ -8,7 +8,7 @@ import logging
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, Any, List
 
 import numpy as np
 
@@ -188,6 +188,35 @@ class SlippageFeedbackEngine:
                                 slippages.append(slip_bps)
                                 if mkt in mkt_slippage:
                                     mkt_slippage[mkt].append(slip_bps)
+
+                if "paper_executions" in tables:
+                    import math
+                    cursor.execute("""
+                        SELECT market, action, target_price, executed_price, slippage_bps
+                        FROM paper_executions
+                        WHERE executed_price IS NOT NULL AND target_price > 0
+                    """)
+                    rows = cursor.fetchall()
+                    for mkt, act, p_target, p_exec, s_rec in rows:
+                        try:
+                            pt = float(p_target) if (p_target is not None and math.isfinite(float(p_target))) else 0.0
+                            pe = float(p_exec) if (p_exec is not None and math.isfinite(float(p_exec))) else 0.0
+                            s_bps = float(s_rec) if (s_rec is not None and math.isfinite(float(s_rec))) else None
+                        except (ValueError, TypeError):
+                            continue
+                        if s_bps is not None and math.isfinite(s_bps):
+                            slip_bps = s_bps
+                        elif pt > 0 and pe > 0:
+                            act_str = str(act).strip().upper()
+                            sign = 1.0 if (act_str.startswith("BUY") or act_str in ["LONG", "BUY_HEDGE"]) else -1.0
+                            slip_bps = sign * ((pe - pt) / pt) * 10000.0
+                        else:
+                            continue
+                        if math.isfinite(slip_bps):
+                            slippages.append(slip_bps)
+                            mkt_u = str(mkt).upper().strip()
+                            if mkt_u in mkt_slippage:
+                                mkt_slippage[mkt_u].append(slip_bps)
             finally:
                 conn.close()
 
@@ -289,6 +318,81 @@ class SlippageFeedbackEngine:
 
     def analyze_realized_slippage(self) -> SlippageMetrics:
         return self.calculate_realized_slippage()
+
+    def record_execution(
+        self,
+        symbol: str,
+        market: str,
+        side: str,
+        order_qty: int,
+        filled_qty: int,
+        target_price: float,
+        executed_price: float,
+        realized_slippage_bps: Optional[float] = None,
+        realized_impact_bps: Optional[float] = None,
+        adv_20d: Optional[float] = None,
+        volatility: Optional[float] = None,
+        notes: str = "",
+    ) -> None:
+        """Records an execution event directly into SQLite for feedback calibration."""
+        from datetime import datetime
+        db_path = Path(self.db_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        try:
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA busy_timeout = 30000;")
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS trade_logs (
+                    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT NOT NULL,
+                    market TEXT NOT NULL,
+                    side TEXT NOT NULL,
+                    order_qty INTEGER NOT NULL,
+                    filled_qty INTEGER NOT NULL,
+                    expected_price REAL NOT NULL,
+                    fill_price REAL NOT NULL,
+                    slippage_bps REAL,
+                    market_impact_bps REAL,
+                    adv_20d REAL,
+                    volatility REAL,
+                    timestamp TIMESTAMP NOT NULL,
+                    notes TEXT
+                );
+            """)
+            s_bps = realized_slippage_bps
+            if s_bps is None and target_price > 0:
+                side_str = str(side).upper().strip()
+                sign = 1.0 if (side_str.startswith("BUY") or side_str in ["LONG", "BUY_HEDGE"]) else -1.0
+                s_bps = sign * ((executed_price - target_price) / target_price) * 10000.0
+
+            cursor.execute("""
+                INSERT INTO trade_logs (
+                    symbol, market, side, order_qty, filled_qty,
+                    expected_price, fill_price, slippage_bps,
+                    market_impact_bps, adv_20d, volatility, timestamp, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                str(symbol), str(market), str(side), int(order_qty), int(filled_qty),
+                float(target_price), float(executed_price), float(s_bps or 0.0),
+                float(realized_impact_bps or 0.0), float(adv_20d or 0.0),
+                float(volatility or 0.0), datetime.now().isoformat(), str(notes)
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Returns high-level summary of realized execution metrics and active market count."""
+        metrics = self.calculate_realized_slippage()
+        return {
+            "total_executions": metrics.total_trades,
+            "avg_slippage_bps": metrics.avg_slippage_bps,
+            "cost_scaling_factor": metrics.cost_scaling_factor,
+            "markets": [m for m, v in metrics.market_slippage_map.items() if v > 0],
+            "market_slippage_map": metrics.market_slippage_map,
+        }
 
 
 RealizedSlippageFeedback = SlippageFeedbackEngine

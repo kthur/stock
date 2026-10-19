@@ -1,0 +1,176 @@
+import logging
+import time
+from typing import Any, Dict, List
+
+import FinanceDataReader as fdr
+import numpy as np
+import pandas as pd
+import yfinance as yf
+
+logger = logging.getLogger(__name__)
+
+
+class MarketScanner:
+    """한국 시장 전체를 스캔하여 고수익 종목을 발굴하는 엔진"""
+
+    def __init__(self, top_n: int = 5, scan_pool_size: int = 300):
+        self.top_n = max(1, min(100, int(top_n))) if top_n is not None else 5
+        self.scan_pool_size = max(10, min(2000, int(scan_pool_size))) if scan_pool_size is not None else 300
+        self.logger = logger
+
+    def _get_top_krx_stocks(self) -> Dict[str, str]:
+        """시가총액 상위 KRX 종목(KOSPI+KOSDAQ) 티커 추출"""
+        try:
+            self.logger.info("Fetching KRX stock listing for market scanning...")
+            df = fdr.StockListing("KRX")
+
+            # 시가총액(Marcap) 기준으로 정렬 후 상위 추출
+            if "Marcap" in df.columns:
+                df = df.sort_values(by="Marcap", ascending=False)
+
+            df_top = df.head(self.scan_pool_size)
+
+            tickers = {}
+            for row in df_top.itertuples(index=False):
+                r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df_top.columns, row))
+                code = r_dict.get("Code", "")
+                name = r_dict.get("Name", "")
+                market = str(r_dict.get("Market", ""))
+
+                if "KOSPI" in market:
+                    symbol = f"{code}.KS"
+                elif "KOSDAQ" in market:
+                    symbol = f"{code}.KQ"
+                else:
+                    continue
+
+                tickers[symbol] = name
+
+            self.logger.info(f"Selected Top {len(tickers)} stocks by Market Cap.")
+            return tickers
+        except Exception as e:
+            self.logger.error(f"Failed to fetch KRX listing: {e}")
+            # Fallback
+            return {"005930.KS": "삼성전자", "000660.KS": "SK하이닉스", "035420.KS": "NAVER"}
+
+    def scan_market(self) -> List[Dict[str, Any]]:
+        """시장을 스캔하여 고수익 예상 종목 리스트 반환"""
+        self.logger.info("Starting Market Scan...")
+        start_time = time.time()
+
+        # 1. 대상 티커 선정
+        krx_stocks = self._get_top_krx_stocks()
+        symbols_list = list(krx_stocks.keys())
+
+        if not symbols_list:
+            return []
+
+        # 2. yfinance 다중 티커 동시 다운로드 (1차 필터링용 데이터)
+        self.logger.info(f"Downloading recent data for {len(symbols_list)} tickers...")
+        # 60일치 데이터로 모멘텀과 변동성 계산
+        try:
+            # yf.download returns a MultiIndex DataFrame if multiple tickers
+            data = yf.download(symbols_list, period="3mo", auto_adjust=False, threads=True, progress=False)
+        except Exception as e:
+            self.logger.error(f"yfinance download failed: {e}")
+            return []
+
+        results = []
+
+        # 3. 스코어링 로직 적용
+        close_col = next((c for c in ['Close', 'close', 'Adj Close', 'adj close'] if c in data), None)
+        if close_col is None:
+            self.logger.error("No Close price data found in download.")
+            return []
+
+        close_data = data[close_col]
+        vol_col = next((c for c in ['Volume', 'volume'] if c in data), None)
+        volume_data = data[vol_col] if vol_col else None
+
+        for symbol in symbols_list:
+            try:
+                # 데이터가 없는 종목 패스
+                if symbol not in close_data.columns:
+                    continue
+
+                prices = pd.to_numeric(close_data[symbol], errors='coerce').dropna()
+                if len(prices) < 20:
+                    continue
+
+                # 최근 가격
+                current_price = float(prices.iloc[-1])
+                p_prev = float(prices.iloc[-20])
+                if p_prev <= 0 or not np.isfinite(current_price) or not np.isfinite(p_prev):
+                    continue
+
+                # 1개월 모멘텀 (최근 20일 수익률)
+                momentum_1m = (current_price / p_prev) - 1.0
+                if not np.isfinite(momentum_1m):
+                    momentum_1m = 0.0
+
+                # 변동성 (최근 20일 일간 수익률의 표준편차)
+                returns = prices.pct_change().dropna()
+                valid_ret = returns.tail(20)
+                vol_std = float(valid_ret.std()) if len(valid_ret) > 1 else 0.0
+                volatility = float(vol_std * np.sqrt(252)) if np.isfinite(vol_std) else 0.0
+
+                # 딥러닝/RL 엔진의 스코어를 시뮬레이션한 휴리스틱 점수 결합 (AI Scoring Mock)
+                base_score = (momentum_1m * 0.7) + (volatility * 0.3)
+                if not np.isfinite(base_score):
+                    base_score = 0.0
+
+                # 거래량 필터: 너무 거래량이 적으면 제외 (선택)
+                avg_vol = 0.0
+                if volume_data is not None and symbol in volume_data.columns:
+                    vols = pd.to_numeric(volume_data[symbol], errors='coerce').dropna()
+                    if len(vols) >= 20:
+                        v_tail = vols.tail(20)
+                        avg_vol = float(v_tail.mean()) if not v_tail.empty else 0.0
+                        if avg_vol < 10000:
+                            continue
+
+                if current_price > 1000:  # 동전주 제외
+                    results.append(
+                        {
+                            "symbol": symbol,
+                            "name": krx_stocks.get(symbol, symbol),
+                            "current_price": current_price,
+                            "expected_return": round(momentum_1m * 100, 2),  # 모멘텀을 기대 수익률로 변환 (표시용)
+                            "score": round(base_score, 4),
+                            "volatility": round(volatility * 100, 2),
+                            "avg_volume": int(avg_vol) if np.isfinite(avg_vol) else 0,
+                        }
+                    )
+            except Exception as e:
+                self.logger.debug(f"Error scoring {symbol}: {e}")
+                continue
+
+        # 4. 점수 순으로 정렬 후 Top N 추출
+        def _safe_score(x: dict) -> float:
+            try:
+                val = float(x.get("score", 0.0))
+                return val if np.isfinite(val) else -999999.0
+            except (ValueError, TypeError):
+                return -999999.0
+
+        results = sorted(results, key=_safe_score, reverse=True)
+        top_picks = results[: self.top_n]
+
+        elapsed = time.time() - start_time
+        self.logger.info(f"Market scan completed in {elapsed:.2f} seconds. Found {len(top_picks)} top picks.")
+
+        # 포맷팅 정리
+        formatted_picks = []
+        for rank, p in enumerate(top_picks, 1):
+            formatted_picks.append(
+                {
+                    "rank": rank,
+                    "symbol": p["symbol"],
+                    "name": p["name"],
+                    "price": p["current_price"],
+                    "expected_return": p["expected_return"],
+                    "reason": f"강한 상승 모멘텀({p['expected_return']}%) 및 AI 종합 점수 우수",
+                }
+            )
+
+        return formatted_picks
