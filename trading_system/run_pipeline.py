@@ -4090,9 +4090,18 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     unified_alloc_df = pd.DataFrame()
     try:
         from src.risk.unified_portfolio_allocator import UnifiedPortfolioAllocator
+        _curr_regime_str = str(current_2d_regime if 'current_2d_regime' in locals() else "BULL_LOW_VOL").upper()
+        _budget_cfg = UnifiedPortfolioAllocator.REGIME_ADAPTIVE_RISK_BUDGET.get(
+            _curr_regime_str,
+            UnifiedPortfolioAllocator.REGIME_ADAPTIVE_RISK_BUDGET.get("SIDEWAYS_LOW_VOL", {})
+        )
+        _target_vol = float(_budget_cfg.get("target_vol", 0.12))
+        _max_alloc = float(_budget_cfg.get("max_exposure", max_alloc if 'max_alloc' in locals() else 0.90))
+        logger.info(f"[PORTFOLIO OPTIMIZATION] Initializing UnifiedPortfolioAllocator with 30-year optimized budget for {_curr_regime_str}: target_vol={_target_vol:.1%}, max_exposure={_max_alloc:.1%}")
+
         unified_allocator = UnifiedPortfolioAllocator(
-            target_volatility=0.12,
-            default_max_total_allocation=max_alloc if 'max_alloc' in locals() else 0.90,
+            target_volatility=_target_vol,
+            default_max_total_allocation=_max_alloc,
             target_horizon=20
         )
         curr_holdings_dict: Dict[str, Any] = {}

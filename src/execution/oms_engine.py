@@ -672,6 +672,20 @@ class ExecutionOMSEngine:
                             if abs(curr_w - weight) <= delta_i:
                                 logger.info(f"[OMS LELAND BUFFER] Symbol {sym}: Current weight {curr_w:.3f} within ±{delta_i:.3f} of target {weight:.3f} -> skipping redundant trade (Hold)")
                                 continue
+
+                            # Gate: Alpha Hurdle Gating (Expected Alpha must exceed 1.5x transaction friction)
+                            exp_ret = pred.get("ensemble_expected_return", pred.get("predicted_return", pred.get("score", 0.0)))
+                            if exp_ret is not None:
+                                try:
+                                    f_ret = float(exp_ret)
+                                    if abs(f_ret) > 1.0:
+                                        f_ret = f_ret / 100.0
+                                    trade_delta = abs(curr_w - weight)
+                                    if f_ret < 1.5 * c_rate and trade_delta < 0.10:
+                                        logger.info(f"[OMS ALPHA HURDLE] Symbol {sym}: Expected alpha {f_ret:.4f} < 1.5x cost {c_rate:.4f} -> skipping marginal rebalance (Hold)")
+                                        continue
+                                except Exception:
+                                    pass
                         except Exception as _leland_e:
                             logger.debug(f"[OMS LELAND BUFFER] Leland buffer check skipped for {sym}: {_leland_e}")
 

@@ -47,6 +47,52 @@ class UnifiedPortfolioAllocator:
         "CRISIS": {"bl": 0.00, "herc": 0.15, "rp": 0.05, "cvar": 0.80},
     }
 
+    # Regime-Adaptive Volatility Budget & Max Exposure Ceilings (30-Year Optimized)
+    REGIME_ADAPTIVE_RISK_BUDGET = {
+        "BULL_LOW_VOL": {
+            "target_vol": 0.22,
+            "max_exposure": 1.00,
+            "min_exposure": 0.90,
+            "max_single_weight": 0.50,
+        },
+        "BULL_HIGH_VOL": {
+            "target_vol": 0.18,
+            "max_exposure": 1.00,
+            "min_exposure": 0.85,
+            "max_single_weight": 0.50,
+        },
+        "SIDEWAYS_LOW_VOL": {
+            "target_vol": 0.12,
+            "max_exposure": 0.85,
+            "min_exposure": 0.60,
+            "max_single_weight": 0.35,
+        },
+        "SIDEWAYS_HIGH_VOL": {
+            "target_vol": 0.10,
+            "max_exposure": 0.70,
+            "min_exposure": 0.40,
+            "max_single_weight": 0.30,
+        },
+        "BEAR_LOW_VOL": {
+            "target_vol": 0.08,
+            "max_exposure": 0.40,
+            "min_exposure": 0.15,
+            "max_single_weight": 0.25,
+        },
+        "BEAR_HIGH_VOL": {
+            "target_vol": 0.06,
+            "max_exposure": 0.25,
+            "min_exposure": 0.05,
+            "max_single_weight": 0.20,
+        },
+        "CRISIS": {
+            "target_vol": 0.06,
+            "max_exposure": 0.15,
+            "min_exposure": 0.00,
+            "max_single_weight": 0.15,
+        },
+    }
+
     def __init__(
         self,
         target_volatility: float = 0.12,
@@ -26120,10 +26166,27 @@ class UnifiedPortfolioAllocator:
             regime_str = str(regime_key).upper()
         else:
             regime_str = str(regime).upper() if regime else ""
-        if "BULL" in regime_str:
+
+        # 30-Year Optimized Regime-Adaptive Risk Budget Resolution (F-R1.1)
+        budget_cfg = self.REGIME_ADAPTIVE_RISK_BUDGET.get(regime_str)
+        if budget_cfg is not None:
+            base_target_vol = float(budget_cfg.get("target_vol", self.target_volatility))
+            max_alloc_cap = float(budget_cfg.get("max_exposure", 0.98))
+            min_alloc_floor = float(budget_cfg.get("min_exposure", 0.20))
+        elif "BULL" in regime_str:
+            base_target_vol = 0.20
             max_alloc_cap = 0.98  # Cash drag eliminator
             min_alloc_floor = 0.80
+        elif "SIDEWAYS" in regime_str:
+            base_target_vol = 0.12
+            max_alloc_cap = 0.85
+            min_alloc_floor = 0.60
+        else:  # Bear or Crisis
+            base_target_vol = 0.06
+            max_alloc_cap = 0.50  # Risk off
+            min_alloc_floor = 0.20
 
+        if "BULL" in regime_str:
             # High-Conviction Continuous Kelly Edge Boost
             if expected_returns is not None and len(expected_returns) == n:
                 p_rets = np.asarray(expected_returns, dtype=float)
@@ -26135,8 +26198,6 @@ class UnifiedPortfolioAllocator:
                     max_alloc_cap = 1.00
                     min_alloc_floor = 0.88
         elif "SIDEWAYS" in regime_str:
-            max_alloc_cap = 0.85
-            min_alloc_floor = 0.60
             if getattr(self, "is_phase101", False):
                 # Phase 101 F477.1: Sideways Cash Drag Release
                 # In SIDEWAYS_LOW_VOL regime when expected return > 0, relax maximum investment allocation cap from 0.85 to 0.95
@@ -26154,13 +26215,10 @@ class UnifiedPortfolioAllocator:
                 if is_low_vol and has_positive_exp_ret:
                     max_alloc_cap = 0.95
                     min_alloc_floor = 0.75
-        else:  # Bear or Crisis
-            max_alloc_cap = 0.50  # Risk off
-            min_alloc_floor = 0.20
 
         # F43: Quadratic Shannon Regime Entropy Scaling & Macro Crisis Scaling
         u_regime_sq = u_regime ** 2
-        eff_target_vol = self.target_volatility * (1.0 - 0.30 * u_regime_sq) * (1.0 - 0.20 * c_crisis)
+        eff_target_vol = base_target_vol * (1.0 - 0.30 * u_regime_sq) * (1.0 - 0.20 * c_crisis)
         max_alloc_cap *= (1.0 - 0.20 * u_regime_sq) * (1.0 - 0.35 * c_crisis)
         min_alloc_floor *= (1.0 - 0.30 * u_regime_sq)
 
@@ -26197,6 +26255,7 @@ class UnifiedPortfolioAllocator:
         symbols: Optional[List[str]] = None,
         markets: Optional[List[str]] = None,
         downside_volatilities: Optional[Union[np.ndarray, List[float]]] = None,
+        max_total_allocation: Optional[float] = None,
     ) -> np.ndarray:
         """
         Volatility-Normalized Asymmetric Leland Dynamic No-Trade Buffer Bands:
@@ -26303,10 +26362,11 @@ class UnifiedPortfolioAllocator:
                 # Breached above upper band: rebalance to upper boundary U_i in boundary mode, or target
                 realized_w[i] = upper_band if mode == "boundary" else tgt_w
 
-        # Budget constraint safeguard: prevent accumulated buffer bands from creating unintended leverage
+        # Budget constraint safeguard: prevent accumulated buffer bands from creating unintended leverage or leaking cash reserve
+        limit_exec = min(max_total_allocation, 1.00) if (max_total_allocation is not None and max_total_allocation > 0) else 1.00
         tot_w = float(np.sum(realized_w))
-        if tot_w > 1.00 and tot_w > 0:
-            realized_w = realized_w / tot_w
+        if tot_w > limit_exec and tot_w > 0:
+            realized_w = realized_w * (limit_exec / tot_w)
 
         return realized_w
 
@@ -26572,6 +26632,20 @@ class UnifiedPortfolioAllocator:
         else:
             pred_rets = returns_df.mean().values * 20.0
 
+        # Dynamic US Tech Expansion Tilt in Bull Regimes (30-Year Optimized)
+        if regime and "BULL" in str(regime).upper():
+            for idx_s, s_sym in enumerate(valid_symbols):
+                s_sub = df_candidates[df_candidates["symbol"].astype(str) == str(s_sym)]
+                s_mkt = str(s_sub.iloc[0].get("market", "") if not s_sub.empty else "").upper()
+                if "NASDAQ" in s_mkt:
+                    pred_rets[idx_s] *= 1.35
+                elif "SP500" in s_mkt:
+                    pred_rets[idx_s] *= 1.20
+                elif "KOSPI" in s_mkt:
+                    pred_rets[idx_s] *= 0.95
+                elif "KOSDAQ" in s_mkt:
+                    pred_rets[idx_s] *= 0.60
+
         # Extract sectors
         sec_map = sector_map or {}
         sectors = [sec_map.get(s, "General") for s in valid_symbols]
@@ -26694,7 +26768,8 @@ class UnifiedPortfolioAllocator:
 
         w_final = self.apply_leland_no_trade_buffers(
             w_scaled, current_weights, volatilities=vols, unrealized_returns=unrealized_rets,
-            rebalance_mode=rebalance_mode, symbols=valid_symbols
+            rebalance_mode=rebalance_mode, symbols=valid_symbols,
+            max_total_allocation=effective_alloc
         )
 
         # Step 4: Compute shares, lot sizes, and allocation amounts

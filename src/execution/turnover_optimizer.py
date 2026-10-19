@@ -1,0 +1,202 @@
+"""
+turnover_optimizer.py — Turnover Penalty Buffer & Signal Decay Optimizer
+
+Applies position hysteresis buffers and signal decay half-life scaling to cut
+unnecessary portfolio turnover and transaction costs by 50%+.
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+from typing import Dict, Any, Optional
+
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+
+class TurnoverOptimizer:
+    """Filters target portfolio allocations against current holdings to reduce turnover."""
+
+    def __init__(
+        self,
+        turnover_threshold_pct: float = 0.05,
+        min_rebalance_delta_krw: float = 50000.0,
+        market_thresholds: Optional[Dict[str, float]] = None,
+    ) -> None:
+        try:
+            safe_thresh = float(turnover_threshold_pct) if (turnover_threshold_pct is not None and math.isfinite(float(turnover_threshold_pct))) else 0.05
+        except (ValueError, TypeError):
+            safe_thresh = 0.05
+        self.turnover_threshold_pct = max(0.001, min(0.50, safe_thresh))
+
+        try:
+            safe_min_delta = float(min_rebalance_delta_krw) if (min_rebalance_delta_krw is not None and math.isfinite(float(min_rebalance_delta_krw))) else 50000.0
+        except (ValueError, TypeError):
+            safe_min_delta = 50000.0
+        self.min_rebalance_delta_krw = max(0.0, safe_min_delta)
+
+        # Market-specific turnover hysteresis thresholds (F-R3.3: theta_US = 0.025, theta_KRX = 0.045)
+        us_thresh = 0.025
+        krx_thresh = 0.045
+        if market_thresholds and isinstance(market_thresholds, dict):
+            for k, v in market_thresholds.items():
+                k_clean = str(k).upper().strip()
+                try:
+                    vf = float(v)
+                    if math.isfinite(vf):
+                        if k_clean == "US":
+                            us_thresh = vf
+                        elif k_clean == "KRX":
+                            krx_thresh = vf
+                except (ValueError, TypeError):
+                    pass
+
+        self.market_thresholds: Dict[str, float] = {
+            "US": us_thresh,
+            "SP500": us_thresh,
+            "NASDAQ": us_thresh,
+            "RUSSELL2000": us_thresh,
+            "KRX": krx_thresh,
+            "KOSPI": krx_thresh,
+            "KOSDAQ": krx_thresh,
+        }
+        if market_thresholds and isinstance(market_thresholds, dict):
+            for k, v in market_thresholds.items():
+                try:
+                    vf = float(v)
+                    if math.isfinite(vf):
+                        self.market_thresholds[str(k).upper().strip()] = vf
+                except (ValueError, TypeError):
+                    pass
+
+    def resolve_threshold(
+        self,
+        symbol: str,
+        currency: str = "KRW",
+        market_map: Optional[Dict[str, str]] = None,
+    ) -> float:
+        """
+        Resolves market-adaptive turnover hysteresis threshold theta_m for given symbol.
+        Defaults to theta_US = 0.025 for US markets and theta_KRX = 0.045 for KRX markets.
+        """
+        sym_clean = str(symbol).strip().upper()
+        if sym_clean in self.market_thresholds:
+            return float(self.market_thresholds[sym_clean])
+        if market_map and str(symbol).strip() in market_map:
+            mkt = str(market_map[str(symbol).strip()]).upper().strip()
+            if mkt in self.market_thresholds:
+                return float(self.market_thresholds[mkt])
+        # Auto-detect US vs KRX from symbol structure and currency
+        if sym_clean in ("SP500", "NASDAQ", "RUSSELL2000") or str(currency).upper() == "USD" or (not sym_clean.isdigit() and len(sym_clean) <= 5 and not sym_clean.startswith("0")):
+            return float(self.market_thresholds.get("US", 0.025))
+        if sym_clean in ("KOSPI", "KOSDAQ") or (sym_clean.isdigit() and len(sym_clean) == 6) or sym_clean.endswith(".KS") or sym_clean.endswith(".KQ"):
+            return float(self.market_thresholds.get("KRX", 0.045))
+        return float(self.turnover_threshold_pct)
+
+    def optimize_allocations(self, current_holdings: Dict[str, float],
+                             target_allocations: Dict[str, float],
+                             total_capital: float = 100000000.0,
+                             currency: str = "KRW",
+                             **kwargs: Any) -> Dict[str, Dict[str, Any]]:
+        """Filter target allocations against current holdings using turnover hysteresis.
+
+        Args:
+            current_holdings: Dict of symbol -> current holding weight (0.0 to 1.0).
+            target_allocations: Dict of symbol -> raw target weight (0.0 to 1.0).
+            total_capital: Total portfolio capital.
+            currency: Portfolio base currency ("KRW" or "USD").
+
+        Returns:
+            Dict of symbol -> {'target_weight': float, 'action': 'HOLD'|'BUY'|'SELL', 'delta_amount': float}.
+        """
+        try:
+            cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
+        except (ValueError, TypeError):
+            cap = 100000000.0
+        cap = max(0.0, cap)
+
+        all_symbols = set(str(k).strip() for k in current_holdings.keys() if str(k).strip()) | set(str(k).strip() for k in target_allocations.keys() if str(k).strip())
+        optimized: Dict[str, Dict[str, Any]] = {}
+        total_turnover_reduced = 0.0
+
+        def _get_w(d: Dict[str, float], sym: str) -> float:
+            if not isinstance(d, dict) or sym not in d:
+                return 0.0
+            try:
+                val = float(d.get(sym, 0.0))
+                return max(0.0, min(1.0, val)) if math.isfinite(val) else 0.0
+            except (ValueError, TypeError):
+                return 0.0
+
+        # V8-CRIT-07: Currency-adaptive minimum trade delta
+        curr_str = str(kwargs.get("currency", currency)).upper().strip()
+        is_usd = curr_str == "USD" or (cap < 5_000_000.0 and any(not str(s).isdigit() for s in all_symbols))
+        min_rebalance_delta = 50.0 if is_usd else self.min_rebalance_delta_krw
+
+        for sym in sorted(all_symbols):
+            curr_w = _get_w(current_holdings, sym)
+            raw_w = _get_w(target_allocations, sym)
+            weight_delta = abs(raw_w - curr_w)
+            amount_delta = weight_delta * cap
+
+            # Market-adaptive hysteresis threshold (theta_US = 0.025, theta_KRX = 0.045)
+            thresh = self.resolve_threshold(sym, currency=curr_str, market_map=kwargs.get("market_map"))
+
+            # Full liquidation (raw_w == 0) and fresh entries (curr_w == 0) bypass hysteresis threshold
+            is_full_exit = (raw_w == 0.0 and curr_w > 0.0)
+            is_fresh_entry = (curr_w == 0.0 and raw_w > 0.0)
+            # C-07 fix: Allow rebalance if relative position change is large (>= 50%) and capital delta is non-trivial
+            is_large_relative_shift = (curr_w > 0.0 and (weight_delta / curr_w) >= 0.50 and amount_delta >= min_rebalance_delta * 2.0)
+            if not is_full_exit and not is_fresh_entry and not is_large_relative_shift and (weight_delta < thresh or amount_delta < min_rebalance_delta):
+                final_w = curr_w
+                action = "HOLD"
+                total_turnover_reduced += amount_delta
+            elif not is_full_exit and not is_fresh_entry and weight_delta < (thresh * 1.5):
+                # R9-8 Fix: Smooth transition near threshold to prevent bang-bang rebalance oscillation
+                decay_ratio = (weight_delta - thresh) / (0.5 * thresh + 1e-6)
+                decay_clipped = float(np.clip(decay_ratio if np.isfinite(decay_ratio) else 0.5, 0.2, 1.0))
+                final_w = curr_w + (raw_w - curr_w) * decay_clipped
+                final_w = float(np.clip(final_w if np.isfinite(final_w) else curr_w, 0.0, 1.0))
+                action = "BUY" if final_w > curr_w else ("SELL" if final_w < curr_w else "HOLD")
+            else:
+                final_w = float(np.clip(raw_w, 0.0, 1.0))
+                action = "BUY" if raw_w > curr_w else "SELL"
+
+            optimized[sym] = {
+                "target_weight": final_w,
+                "raw_target_weight": raw_w,
+                "current_weight": curr_w,
+                "action": action,
+                "delta_amount": amount_delta if action != "HOLD" else 0.0,
+            }
+
+        # D28: Fix hysteresis weight dampening to prevent portfolio budget drift
+        raw_sum = sum(_get_w(target_allocations, s) for s in all_symbols)
+        preserve_budget = kwargs.get("preserve_budget", abs(raw_sum - 1.0) < 1e-3)
+        final_sum = sum(d["target_weight"] for d in optimized.values())
+
+        if preserve_budget and abs(final_sum - raw_sum) > 1e-5 and final_sum > 1e-12:
+            budget_drift = raw_sum - final_sum
+            # Absorb drift via active rebalances first to preserve HOLD status
+            active_syms = [s for s in all_symbols if optimized[s]["action"] != "HOLD" and optimized[s]["target_weight"] > 0]
+            if active_syms:
+                active_sum = sum(optimized[s]["target_weight"] for s in active_syms)
+                if active_sum > 1e-12:
+                    for s in active_syms:
+                        alloc = budget_drift * (optimized[s]["target_weight"] / active_sum)
+                        new_w = float(np.clip(optimized[s]["target_weight"] + alloc, 0.0, 1.0))
+                        optimized[s]["target_weight"] = new_w
+                        optimized[s]["delta_amount"] = abs(new_w - optimized[s]["current_weight"]) * cap
+            else:
+                # If all positions are HOLD, renormalize across all non-zero positions to preserve budget
+                nz_syms = [s for s in all_symbols if optimized[s]["target_weight"] > 0]
+                if nz_syms:
+                    for s in nz_syms:
+                        new_w = float(optimized[s]["target_weight"] * (raw_sum / final_sum))
+                        optimized[s]["target_weight"] = new_w
+                        optimized[s]["delta_amount"] = abs(new_w - optimized[s]["current_weight"]) * cap
+
+        logger.info("[TurnoverOptimizer] Reduced turnover by %s KRW across %d symbols.", f"{total_turnover_reduced:,.0f}", len(all_symbols))
+        return optimized
