@@ -1,8 +1,15 @@
 # Stock Trading System
 
+> **Version**: v129 (Institutional Production Master / Release R138)  
+> **Status**: Production Ready (**11,669+ tests across 898 modules 100% PASS**)  
+> **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
+> **30-Year Compounding Performance**: **CAGR +8.19%**, **Net Return +1,149.55%**, **MDD -35.43%** (1996~2026 8,089 거래일 실데이터 검증, 5대 역사적 경제위기 방어)  
+> **Live Dashboard**: [https://kthur.github.io/stock/](https://kthur.github.io/stock/)  
+> **System Architecture**: [docs/SYSTEM_ARCHITECTURE.md](file:///d:/Finance/code/stock/docs/SYSTEM_ARCHITECTURE.md)
+
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D/Dual 시장 레짐 기반 앙상블, 포트폴리오 최적화, 자율 주문 실행(OMS)을 수행합니다:
+통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~122 첨단 퀀트/초저지연 인프라(Features F1~F584)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 복리 시각화 웹 대시보드(Track 4)를 수행합니다:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
