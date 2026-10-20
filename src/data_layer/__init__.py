@@ -27,6 +27,20 @@ try:
         ITCHFeedPacketProcessor,
         ITCHMessage,
     )
+    try:
+        from src.data_layer.streaming_ingest_engine import (
+            StreamingIngestEngine,
+            StreamTickEvent,
+            StreamEventType,
+            IngestTelemetry,
+        )
+        from src.data_layer.tiered_storage_manager import (
+            TieredStorageManager,
+            PriceRecord,
+            StorageTier,
+        )
+    except ImportError:
+        pass
 except ImportError:
     from trading_system.src.data_layer.global_market import GlobalMarketClient
     from trading_system.src.data_layer.market_data_handler import MarketDataHandler
@@ -47,6 +61,20 @@ except ImportError:
         ITCHFeedPacketProcessor,
         ITCHMessage,
     )
+    try:
+        from trading_system.src.data_layer.streaming_ingest_engine import (
+            StreamingIngestEngine,
+            StreamTickEvent,
+            StreamEventType,
+            IngestTelemetry,
+        )
+        from trading_system.src.data_layer.tiered_storage_manager import (
+            TieredStorageManager,
+            PriceRecord,
+            StorageTier,
+        )
+    except ImportError:
+        pass
 
 PointInTimeUniverse = PointInTimeUniverseManager
 
@@ -71,4 +99,9 @@ __all__ = [
     "HardwareTimestampTracker",
     "ITCHFeedPacketProcessor",
     "ITCHMessage",
+    "StreamingIngestEngine",
+    "StreamTickEvent",
+    "StreamEventType",
+    "TieredStorageManager",
+    "StorageTier",
 ]

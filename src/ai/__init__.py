@@ -415,3 +415,34 @@ except ImportError:
     except ImportError:
         pass
 
+# Phase 123 Modular Ensemble Decoupler & Strategy Weight Registry (F585)
+try:
+    from src.ai.ensemble_weight_registry import (
+        EnsembleWeightRegistry,
+        StrategyWeightProfile,
+        StrategyCategory,
+        MarketRegimeType,
+        CANONICAL_37_STRATEGIES,
+        DEFAULT_WEIGHT_REGISTRY,
+    )
+    from src.ai.modular_ensemble_decoupler import (
+        ModularEnsembleDecoupler,
+        DecoupledEnsembleOutput,
+    )
+except ImportError:
+    try:
+        from trading_system.src.ai.ensemble_weight_registry import (
+            EnsembleWeightRegistry,
+            StrategyWeightProfile,
+            StrategyCategory,
+            MarketRegimeType,
+            CANONICAL_37_STRATEGIES,
+            DEFAULT_WEIGHT_REGISTRY,
+        )
+        from trading_system.src.ai.modular_ensemble_decoupler import (
+            ModularEnsembleDecoupler,
+            DecoupledEnsembleOutput,
+        )
+    except ImportError:
+        pass
+

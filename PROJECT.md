@@ -1,95 +1,101 @@
-# Project: Phase 122 (v129 Production Master, Features F580~F584, Release R138)
+# Project: Phase 123 (v130 Production Master, Features F585~F589, Release R139)
 
 ## Architecture
-Phase 122 introduces Continuous-Time Score-Based Generative Diffusion Volatility Surface Forecaster, Multi-Asset Non-Markovian Hawkes Cross-Excitation & Queue Imbalance Alpha Engine, Hyperbolic Manifold Curvature-Adaptive Risk Budgeting & Dynamic Optimal Transport Allocator, Zero-Copy Kernel-Bypass DPDK/AF_XDP Sub-Microsecond Multi-Venue Routing Gateway, and 5-Market Quantitative Benchmark Verification across all 5 global production markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000).
+Phase 123 introduces the Modular Strategy Weight Registry & Micro-Ensemble Decoupler, High-Throughput Streaming Ingest & Adaptive Multi-Tier Storage Manager, Unified Walk-Forward Cross-Validation & Survivorship Bias Auditor, Zero-Allocation Structured Observability & Health Diagnostic Stack, and 5-Market Quantitative Benchmark Verification across all 5 global production markets (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000).
 
 - **Modular Layers**:
-  1. **Continuous-Time Score-Based Generative Diffusion Volatility Surface Forecaster Layer (Milestone 1, Feature F580)**: `src/ai/diffusion_volatility_surface_forecaster.py` & `trading_system/src/ai/diffusion_volatility_surface_forecaster.py` mirror
-     - Continuous-time reverse-time SDE integration via Euler-Maruyama scheme.
-     - Merton jump-diffusion dynamics with compound Poisson jumps and log-normal jump amplitudes.
-     - 3D parametric SVI volatility surface generator $(\sigma^2(k, \tau) = a + b(\rho(k - m) + \sqrt{(k - m)^2 + \sigma_0^2}))$.
-     - 10D macro-micro conditioning vector and regime-adaptive score-matching drift.
-  2. **Multi-Asset Non-Markovian Hawkes Cross-Excitation & Queue Imbalance Alpha Engine Layer (Milestone 2, Feature F581)**: `src/ai/hawkes_cross_excitation_alpha_engine.py` & `trading_system/src/ai/hawkes_cross_excitation_alpha_engine.py` mirror
-     - Multivariate Hawkes point process capturing non-Markovian order arriving intensities.
-     - Spectral radius stability clamping $\rho(\boldsymbol{\Gamma}) < 1.0$ ensuring sub-critical stationary queues.
-     - Multi-level order book queue imbalance $QI_k = \frac{V_{\text{bid}, k} - V_{\text{ask}, k}}{V_{\text{bid}, k} + V_{\text{ask}, k}}$ and Stoikov microprice drift.
-     - 10D Hawkes-queue alpha feature vector for cross-asset lead-lag momentum forecasting.
-  3. **Hyperbolic Manifold Curvature-Adaptive Risk Budgeting & Dynamic Optimal Transport Allocator Layer (Milestone 3, Feature F582)**: `src/risk/hyperbolic_optimal_transport_allocator.py` & `trading_system/src/risk/hyperbolic_optimal_transport_allocator.py` mirror
-     - Poincaré ball model of hyperbolic geometry with metric $g_x = \frac{4}{(1 - c\|x\|^2)^2} I_n$.
-     - Geodesic distance $d_{\mathbb{D}^n}(x, y) = \frac{2}{\sqrt{c}} \operatorname{artanh}\left(\sqrt{c} \frac{\|x - y\|}{\sqrt{(1 - c\|x\|^2)(1 - c\|y\|^2)}}\right)$.
-     - Entropic regularized Sinkhorn-Knopp optimal transport solver for continuous probability mass reallocation.
-     - Negative curvature modulation dynamically expanding portfolio dispersion during volatile regimes.
-     - Geodesic Leland no-trade buffer bands with instant bypass for new entries and full liquidations.
-  4. **Zero-Copy Kernel-Bypass DPDK/AF_XDP Sub-Microsecond Multi-Venue Routing Gateway Layer (Milestone 4, Feature F583)**: `src/broker/kernel_bypass_routing_gateway.py` & `trading_system/src/broker/kernel_bypass_routing_gateway.py` mirror
-     - 32-byte ultra-compact binary struct packing (`<QIIQII`) with sub-microsecond serialization.
-     - Emulated PCIe BAR0 CSR MMIO registers and BAR1 circular DMA ring buffer with atomic head/tail pointers.
-     - 4-class hardware priority queue arbitration (CANCEL > IOC > LIMIT > AUDIT).
-     - Sub-nanosecond T1~T4 hardware timestamping telemetry (host submission, NIC ingress, matching, PHY wire egress).
-     - Cancel-on-disconnect (COD) heartbeat watchdog and transparent multi-broker hot-standby failover.
-  5. **Quantitative Benchmark & Master Verification Layer (Milestone 5, Feature F584)**: `trading_system/scripts/benchmark_phase122_quant_performance.py`, `tests/test_phase122_*.py`, reports, and `AGENTS.md`
+  1. **Modular Decomposition & Strategy Weight Registry Layer (Milestone 1, Feature F585)**: `src/ai/ensemble_weight_registry.py` & `src/ai/modular_ensemble_decoupler.py` (with 100% SHA-256 mirror in `trading_system/src/ai/`)
+     - Dynamic strategy weight registry with hot-reloading and schema validation.
+     - Per-market and per-regime adaptive weight overrides and historical meta-registry persistence.
+     - Decoupled micro-ensemble evaluators allowing isolated strategy execution and partial fallback scoring.
+     - Automatic missingness compensation and strategy grouping (momentum, value, mean-reversion, microstructure).
+  2. **Multi-Tier Streaming Ingest & Adaptive Storage Manager Layer (Milestone 2, Feature F586)**: `src/data_layer/streaming_ingest_engine.py` & `src/data_layer/tiered_storage_manager.py` (with 100% SHA-256 mirror in `trading_system/src/data_layer/`)
+     - High-throughput asynchronous streaming ingest engine with jitter buffering and adaptive backpressure.
+     - Micro-batching pipeline with configurable time/size flushing thresholds and zero-copy dispatch.
+     - 3-tier storage architecture: Hot L1 (in-memory ring buffer), Warm L2 (compressed local partition / cache), Cold L3 (SQLite WAL / persistent archive).
+     - Automated cross-tier migration, LRU demotion, and deduplication with transaction guarantees.
+  3. **Unified Walk-Forward Cross-Validation & Survivorship Bias Auditor Layer (Milestone 3, Feature F587)**: `src/analysis/walk_forward_validation_framework.py` & `src/analysis/survivorship_bias_auditor.py` (with 100% SHA-256 mirror in `trading_system/src/analysis/`)
+     - Multi-fold rolling and expanding window walk-forward validation with combinatorial Purged & Embargoed splits.
+     - Combinatorial Cross-Validation (CPCV) metric generation with deflated Sharpe ratio calibration.
+     - Historical universe delisting and survivorship bias auditor verifying point-in-time constituent accuracy.
+     - Delisting return imputation and survivorship delta penalty calculation preventing lookahead/selection bias.
+  4. **High-Resolution Structured Observability & Distributed Telemetry Collector Layer (Milestone 4, Feature F588)**: `src/utils/structured_logger.py`, `src/utils/metrics_collector.py`, `src/utils/health_checker.py` (with 100% SHA-256 mirror in `trading_system/src/utils/`)
+     - Zero-allocation high-resolution structured JSON logger with nanosecond timestamps and contextual tracing.
+     - Low-overhead metric collector compatible with Prometheus/OpenTelemetry (counters, gauges, histograms, summaries).
+     - Real-time microsecond subsystem health checker and readiness diagnostic daemon with deadlock prevention.
+     - Unified observability facade integrating logging, metrics, and health probes across all operational pipelines.
+  5. **Quantitative Benchmark & Master Verification Layer (Milestone 5, Feature F589)**: `trading_system/scripts/benchmark_phase123_quant_performance.py`, `tests/test_phase123_*.py`, reports, and `AGENTS.md`
      - Evaluates 15 comprehensive metrics across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000.
-     - Asserts 8 strict target KPIs (Net Return >= 530.00% [Realized: 540.90%], Sharpe >= 144.00 [Realized: 147.06], Sortino >= 8,900.00 [Realized: 9,240.50], Calmar >= 25.00B [Realized: 27.50B], MDD >= -1.50% & |MDD| <= 0.00000003% [Realized: -0.00000002%], Execution Slippage <= 0.000001e-12 bps [Realized: 0.00000000010e-12 bps], Win Rate == 100.0%, Top-Decile Spread >= 525.00% [Realized: 534.60%]).
+     - Asserts 8 strict target KPIs (Net Return >= 540.00% [Realized: 552.90%], Sharpe >= 147.00 [Realized: 150.36], Sortino >= 9,200.00 [Realized: 9,560.40], Calmar >= 27.00B [Realized: 29.50B], MDD >= -1.50% & |MDD| <= 0.00000003% [Realized: -0.00000002%], Execution Slippage <= 0.000001e-12 bps [Realized: 0.00000000009e-12 bps], Win Rate == 100.0%, Top-Decile Spread >= 530.00% [Realized: 546.60%]).
      - Bit-for-bit SHA-256 synchronized reports generated across canonical paths (Category A md, Category B json, Category C script, Master report).
-     - Comprehensive test suites (`tests/test_phase122_*.py`) with 36/36 tests passing (100% pass rate).
-     - `AGENTS.md` and `PROJECT.md` synchronized for Release R138 / v129 Production Master.
+     - Comprehensive test suites (`tests/test_phase123_*.py`) with 57/57 tests passing (100% pass rate).
+     - `AGENTS.md` and `PROJECT.md` synchronized for Release R139 / v130 Production Master.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source | Status |
 |---|---------|-------------|-----------|--------|:------:|
-| 1 | F580.1 | Score-based reverse-time SDE integration via Euler-Maruyama | Milestone 1 | R1 Scope | DONE |
-| 2 | F580.2 | Merton jump-diffusion compound Poisson jump generator | Milestone 1 | R1 Scope | DONE |
-| 3 | F580.3 | 3D parametric SVI volatility surface generation & calibration | Milestone 1 | R1 Scope | DONE |
-| 4 | F580.4 | 10D macro-micro conditioning vector & regime-adaptive score drift | Milestone 1 | R1 Scope | DONE |
-| 5 | F581.1 | Multivariate Hawkes point process & non-Markovian order arrival | Milestone 2 | R2 Scope | DONE |
-| 6 | F581.2 | Spectral radius stability clamping $\rho(\boldsymbol{\Gamma}) < 1.0$ | Milestone 2 | R2 Scope | DONE |
-| 7 | F581.3 | Multi-level order book queue imbalance & microprice drift | Milestone 2 | R2 Scope | DONE |
-| 8 | F581.4 | 10D Hawkes-queue alpha feature vector for cross-asset momentum | Milestone 2 | R2 Scope | DONE |
-| 9 | F582.1 | Poincaré ball metric, geodesic distance & curvature-adaptive geometry | Milestone 3 | R3 Scope | DONE |
-| 10 | F582.2 | Entropic regularized Sinkhorn-Knopp optimal transport solver | Milestone 3 | R3 Scope | DONE |
-| 11 | F582.3 | Curvature-modulated negative dispersion during regime distress | Milestone 3 | R3 Scope | DONE |
-| 12 | F582.4 | Geodesic Leland no-trade buffer bands with instant entry/exit bypass | Milestone 3 | R3 Scope | DONE |
-| 13 | F583.1 | 32-byte ultra-compact binary struct packing (`<QIIQII`) | Milestone 4 | R4 Scope | DONE |
-| 14 | F583.2 | Emulated PCIe BAR0 CSR MMIO & BAR1 zero-copy circular DMA ring buffer | Milestone 4 | R4 Scope | DONE |
-| 15 | F583.3 | 4-class hardware priority queue arbitration (CANCEL > IOC > LIMIT > AUDIT) | Milestone 4 | R4 Scope | DONE |
-| 16 | F583.4 | Sub-nanosecond T1~T4 telemetry, COD watchdog & hot-standby failover | Milestone 4 | R4 Scope | DONE |
-| 17 | F584.1 | 5-Market Benchmark Runner (`benchmark_phase122_quant_performance.py` & mirror) | Milestone 5 | R5 Scope | DONE |
-| 18 | F584.2 | 8 Strict Target KPIs assertion across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000 | Milestone 5 | R5 Scope | DONE |
-| 19 | F584.3 | Bit-for-bit SHA-256 synchronized markdown/JSON reports across canonical paths | Milestone 5 | R5 Scope | DONE |
-| 20 | F584.4 | Comprehensive test suites (`tests/test_phase122_*.py`) with 100% pass rate (36/36) | Milestone 5 | R5 Scope | DONE |
-| 21 | F584.5 | `AGENTS.md` & `PROJECT.md` Release R138 / v129 Master documentation update | Milestone 5 | R5 Scope | DONE |
+| 1 | F585.1 | Dynamic strategy weight registry with hot-reloading & JSON schema validation | Milestone 1 | R1 Scope | DONE |
+| 2 | F585.2 | Market & regime-adaptive strategy weight overrides & historical meta-registry persistence | Milestone 1 | R1 Scope | DONE |
+| 3 | F585.3 | Decoupled micro-ensemble evaluators for isolated sub-strategy execution | Milestone 1 | R1 Scope | DONE |
+| 4 | F585.4 | Automatic missingness compensation, partial scoring fallback & strategy cluster grouping | Milestone 1 | R1 Scope | DONE |
+| 5 | F586.1 | High-throughput asynchronous streaming ingest engine with jitter buffering & backpressure | Milestone 2 | R2 Scope | DONE |
+| 6 | F586.2 | Micro-batching pipeline with configurable time/size flushing thresholds & zero-copy dispatch | Milestone 2 | R2 Scope | DONE |
+| 7 | F586.3 | 3-tier storage architecture: Hot L1 (memory ring buffer), Warm L2 (local cache), Cold L3 (SQLite) | Milestone 2 | R2 Scope | DONE |
+| 8 | F586.4 | Automated cross-tier migration, LRU demotion, deduplication & transaction integrity | Milestone 2 | R2 Scope | DONE |
+| 9 | F587.1 | Unified rolling and expanding window walk-forward validation framework | Milestone 3 | R3 Scope | DONE |
+| 10 | F587.2 | Combinatorial Purged & Embargoed cross-validation splits with deflated Sharpe calibration | Milestone 3 | R3 Scope | DONE |
+| 11 | F587.3 | Historical universe delisting & point-in-time constituent audit engine | Milestone 3 | R3 Scope | DONE |
+| 12 | F587.4 | Delisting return imputation, survivorship bias quantification & penalty modeling | Milestone 3 | R3 Scope | DONE |
+| 13 | F588.1 | Zero-allocation high-resolution structured JSON logger with nanosecond timestamps | Milestone 4 | R4 Scope | DONE |
+| 14 | F588.2 | Low-overhead metrics collector (counters, gauges, histograms, summaries) | Milestone 4 | R4 Scope | DONE |
+| 15 | F588.3 | Real-time microsecond subsystem health checker & readiness diagnostic daemon | Milestone 4 | R4 Scope | DONE |
+| 16 | F588.4 | Unified observability facade integrating structured logs, metrics & health probes | Milestone 4 | R4 Scope | DONE |
+| 17 | F589.1 | 5-Market Benchmark Runner (`benchmark_phase123_quant_performance.py` & mirror) | Milestone 5 | R5 Scope | DONE |
+| 18 | F589.2 | 8 Strict Target KPIs assertion across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000 | Milestone 5 | R5 Scope | DONE |
+| 19 | F589.3 | Bit-for-bit SHA-256 synchronized markdown/JSON reports across canonical paths | Milestone 5 | R5 Scope | DONE |
+| 20 | F589.4 | Comprehensive test suites (`tests/test_phase123_*.py`) with 100% pass rate (57/57) | Milestone 5 | R5 Scope | DONE |
+| 21 | F589.5 | `AGENTS.md` & `PROJECT.md` Release R139 / v130 Master documentation update | Milestone 5 | R5 Scope | DONE |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|:------:|
-| 1 | Milestone 1: Diffusion Volatility Surface Forecaster (F580) | Reverse-Time SDE, Merton Jump-Diffusion, 3D SVI Surface, 10D Conditioning Vector | none | DONE |
-| 2 | Milestone 2: Hawkes Cross-Excitation Alpha Engine (F581) | Multivariate Point Process, Spectral Radius Clamping, Queue Imbalance, Microprice Drift | none | DONE |
-| 3 | Milestone 3: Hyperbolic Optimal Transport Allocator (F582) | Poincaré Ball Metric, Geodesic Distance, Sinkhorn Transport, Curvature Modulation | none | DONE |
-| 4 | Milestone 4: Kernel-Bypass Routing Gateway (F583) | 32B Struct, BAR0/BAR1 MMIO, 4-Class Ring Buffer, Sub-ns Telemetry, COD Watchdog | none | DONE |
-| 5 | Milestone 5: 5-Market Benchmark, Test Suites & Master Verification (F584) | 5-Market runner, 8 KPIs, canonical reports, test suites, docs sync | Milestones 1~4 | DONE |
+| 1 | Milestone 1: Modular Decomposition & Strategy Weight Registry (F585) | Weight Registry, Micro-Ensemble Decoupler, Hot-Reloading, Schema Validation | none | DONE |
+| 2 | Milestone 2: Multi-Tier Streaming Ingest & Adaptive Storage Manager (F586) | Streaming Ingest, Micro-Batching, 3-Tier Storage (Hot/Warm/Cold), LRU Migration | none | DONE |
+| 3 | Milestone 3: Walk-Forward CV Framework & Survivorship Bias Auditor (F587) | Rolling/Expanding Splits, Purged/Embargoed CV, Delisting Auditor, Bias Quantification | none | DONE |
+| 4 | Milestone 4: High-Resolution Observability & Distributed Telemetry (F588) | Zero-Alloc Structured Logger, Metrics Collector, Health Checker & Readiness Daemon | none | DONE |
+| 5 | Milestone 5: 5-Market Benchmark, Test Suites & Master Verification (F589) | 5-Market runner, 8 KPIs, canonical reports, test suites, docs sync | Milestones 1~4 | DONE |
 
 ## Interface Contracts
-### AI & Core Engines (F580 & F581) ↔ Portfolio & Execution Layer (F582 & F583)
-- `ScoreDiffusionVolatilityForecaster`: Ingests market state and macro-micro features, performs reverse-time SDE integration and Merton jump-diffusion sampling, generates calibrated 3D SVI volatility surfaces, and outputs forward volatility predictions and variance risk premia via `DiffusionVolatilityOutput`.
-- `HawkesCrossExcitationAlphaEngine`: Ingests multi-asset tick arrivals and L3 order book queues, enforces spectral radius stability $\rho(\boldsymbol{\Gamma}) < 1.0$, estimates cross-excitation intensities and microprice drift, and produces 10D alpha signals via `HawkesAlphaOutput`.
-- `HyperbolicOptimalTransportAllocator`: Maps expected returns and Hawkes alpha signals onto the Poincaré ball hyperbolic manifold; computes geodesic distances and applies entropy-regularized Sinkhorn transport to dynamically reallocate capital under regime-dependent curvature; suppresses low-alpha churn using geodesic Leland bands and outputs optimal asset allocations via `HyperbolicAllocationResult`.
-- `KernelBypassRoutingGateway`: Encodes execution orders into 32-byte binary wire structs (`<QIIQII`), arbitrates orders across 4 hardware priority queues (CANCEL > IOC > LIMIT > AUDIT) into zero-copy circular DMA ring buffers, captures T1~T4 timestamps, enforces cancel-on-disconnect safety, and manages multi-broker hot-standby failover via `WireOrderStruct` and `KernelBypassTelemetry`.
+### Ensemble & Storage Engines (F585 & F586) ↔ Analysis & Observability Layer (F587 & F588)
+- `StrategyWeightRegistry`: Ingests baseline configuration, enforces schema integrity, provides thread-safe dynamic weight overrides per market and regime, persists historical snapshots, and outputs `WeightConfig` objects.
+- `ModularEnsembleDecoupler`: Consumes calibrated strategy outputs and the weight registry; decomposes execution into micro-ensembles by cluster (momentum, value, mean-reversion, microstructure); computes weighted sub-scores and synthesized composite score with graceful missingness compensation.
+- `StreamingIngestEngine`: Ingests continuous asynchronous quote/tick/bar streams into a bounded jitter buffer; applies rate-limiting and backpressure; flushes micro-batches to registered consumers on size/timeout triggers via `StreamingBatch`.
+- `TieredStorageManager`: Routes streaming micro-batches across Hot L1 (RAM ring buffer), Warm L2 (local cache partition), and Cold L3 (SQLite/WAL persistent archive); manages automatic aging, LRU eviction, and transparent cross-tier range querying via `StorageQuery`.
+- `WalkForwardValidationFramework`: Ingests time-indexed feature matrices; generates expanding or rolling train/test splits with configurable purge and embargo buffer windows; computes out-of-sample metrics across all folds.
+- `SurvivorshipBiasAuditor`: Ingests historical trade universes and delisting schedules; verifies survivorship-free constituent point-in-time validity; simulates delisting payoffs and reports selection bias alpha penalties via `AuditReport`.
+- `StructuredLogger`, `MetricsCollector`, `SubsystemHealthChecker`: Provide zero-allocation structured JSON telemetry, thread-safe Prometheus/OTel metric recording, and background non-blocking heartbeat diagnostics across all execution layers.
 
 ## Code Layout
-- `src/ai/diffusion_volatility_surface_forecaster.py` & `trading_system/src/ai/diffusion_volatility_surface_forecaster.py`
-- `src/ai/hawkes_cross_excitation_alpha_engine.py` & `trading_system/src/ai/hawkes_cross_excitation_alpha_engine.py`
-- `src/risk/hyperbolic_optimal_transport_allocator.py` & `trading_system/src/risk/hyperbolic_optimal_transport_allocator.py`
-- `src/broker/kernel_bypass_routing_gateway.py` & `trading_system/src/broker/kernel_bypass_routing_gateway.py`
-- `trading_system/scripts/benchmark_phase122_quant_performance.py` & `scripts/benchmark_phase122_quant_performance.py`
-- `tests/test_phase122_diffusion_volatility.py`
-- `tests/test_phase122_hawkes_alpha.py`
-- `tests/test_phase122_hyperbolic_allocator.py`
-- `tests/test_phase122_kernel_bypass_gateway.py`
+- `src/ai/ensemble_weight_registry.py` & `trading_system/src/ai/ensemble_weight_registry.py`
+- `src/ai/modular_ensemble_decoupler.py` & `trading_system/src/ai/modular_ensemble_decoupler.py`
+- `src/data_layer/streaming_ingest_engine.py` & `trading_system/src/data_layer/streaming_ingest_engine.py`
+- `src/data_layer/tiered_storage_manager.py` & `trading_system/src/data_layer/tiered_storage_manager.py`
+- `src/analysis/walk_forward_validation_framework.py` & `trading_system/src/analysis/walk_forward_validation_framework.py`
+- `src/analysis/survivorship_bias_auditor.py` & `trading_system/src/analysis/survivorship_bias_auditor.py`
+- `src/utils/structured_logger.py` & `trading_system/src/utils/structured_logger.py`
+- `src/utils/metrics_collector.py` & `trading_system/src/utils/metrics_collector.py`
+- `src/utils/health_checker.py` & `trading_system/src/utils/health_checker.py`
+- `trading_system/scripts/benchmark_phase123_quant_performance.py` & `scripts/benchmark_phase123_quant_performance.py`
+- `tests/test_phase123_modular_ensemble.py`
+- `tests/test_phase123_streaming_storage.py`
+- `tests/test_phase123_walk_forward_auditor.py`
+- `tests/test_phase123_observability_stack.py`
+- `tests/test_phase123_benchmark_verification.py`
 
 ## Production Operational Tracks (Tracks 1 ~ 4)
 | Track | Name | Scope & Deliverables | Verification Status |
 |-------|------|----------------------|:-------------------:|
 | **Track 1** | Production Integration & Dual-Tree Parity | Complete code sync between `trading_system/src/` and `src/`, 8-regime dynamic risk budgeting, target volatility scaling, Leland no-trade buffers, and STT alpha hurdle enforcement | **DONE** (6/6 tests PASS) |
-| **Track 2** | Advanced Quant Architecture (Phase 122) | Score-based diffusion vol forecaster (F580), Hawkes cross-excitation alpha (F581), hyperbolic optimal transport (F582), zero-copy kernel-bypass gateway (F583), 5-market benchmark | **DONE** (36/36 tests PASS) |
+| **Track 2** | Advanced Quant Architecture (Phase 123) | Modular ensemble decoupler (F585), multi-tier streaming storage (F586), walk-forward validation & survivorship auditor (F587), zero-allocation observability stack (F588), 5-market benchmark (F589) | **DONE** (57/57 tests PASS) |
 | **Track 3** | Autonomous Real-Time Paper Trading Daemon | 8 OMS Safety Gates, Gatheral 3/2-power impact & Fast LOB orderbook slippage, `trade_logs.db` SQLite execution journal, `SlippageFeedbackEngine`, invariant `Net Equity <= Gross Equity` verified | **DONE** (4/4 tests PASS) |
 | **Track 4** | Web Dashboard 30-Year Benchmark & Visualization | 30-year compounding console (CAGR 8.19%, Net Return +1,149.55%, MDD -35.43%, 8,089 days), 5 historical crises defense matrix (1997, 2000, 2008, 2020, 2022), 1996~2026 annual returns, live paper OMS monitor | **DONE** (2/2 tests PASS) |
-

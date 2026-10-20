@@ -1,7 +1,7 @@
 # Stock Trading System
 
-> **Version**: v129 (Institutional Production Master / Release R138)  
-> **Status**: Production Ready (**11,669+ tests across 898 modules 100% PASS**)  
+> **Version**: v130 (Institutional Production Master / Release R139)  
+> **Status**: Production Ready (**11,726+ tests across 903 modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
 > **30-Year Compounding Performance**: **CAGR +8.19%**, **Net Return +1,149.55%**, **MDD -35.43%** (1996~2026 8,089 거래일 실데이터 검증, 5대 역사적 경제위기 방어)  
 > **Live Dashboard**: [https://kthur.github.io/stock/](https://kthur.github.io/stock/)  
@@ -9,7 +9,7 @@
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~122 첨단 퀀트/초저지연 인프라(Features F1~F584)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 복리 시각화 웹 대시보드(Track 4)를 수행합니다:
+통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~123 첨단 퀀트/초저지연 인프라(Features F1~F589)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 복리 시각화 웹 대시보드(Track 4)를 수행합니다:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -404,6 +404,16 @@ flowchart TB
 | `src/risk/hyperbolic_optimal_transport_allocator.py` | Hyperbolic Manifold Curvature-Adaptive Risk Budgeting & Dynamic Optimal Transport Allocator: 푸앵카레 볼 측지선 거리, 엔트로피 정규화 싱크혼-놉 최적수송, 레짐 곡률 변조 및 측지선 릴랜드 버퍼 (F582) |
 | `src/broker/kernel_bypass_routing_gateway.py` | Zero-Copy Kernel-Bypass DPDK/AF_XDP Sub-Microsecond Multi-Venue Routing Gateway: 32바이트 바이너리 패킹(<QIIQII), 4-클래스 하드웨어 우선순위 링버퍼, 서브나노초 T1~T4 타임스탬프 및 COD 워치독 (F583) |
 | `trading_system/scripts/benchmark_phase122_quant_performance.py` | Phase 122 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F580~F584 기여도 분석, 8대 KPI 엄격 검증 및 정규 리포트 SHA-256 동기화 (F584) |
+| `src/ai/ensemble_weight_registry.py` | Dynamic Strategy Weight Registry & Historical Meta-Registry Engine: 37대 전략 동적 가중치 등록, 메타 레지스트리 영속화 및 검증 (F585) |
+| `src/ai/modular_ensemble_decoupler.py` | Decoupled Micro-Ensemble & Strategy Orchestration Engine: 마이크로 앙상블 모듈화, 격리 서브-앙상블 계산 및 폴백 오케스트레이션 (F585) |
+| `src/data_layer/streaming_ingest_engine.py` | High-Throughput Streaming Ingest & Micro-Batching Engine: 비동기 틱/바 스트리밍 큐, 지터 버퍼링, 배압 제어 및 서브-밀리초 플러시 (F586) |
+| `src/data_layer/tiered_storage_manager.py` | Adaptive Multi-Tier Storage Manager: Hot L1(메모리 링버퍼), Warm L2(로컬 디스크/압축 Parquet), Cold L3(SQLite/아카이브) 자동 승격/강등 (F586) |
+| `src/analysis/walk_forward_validation_framework.py` | Unified Walk-Forward Cross-Validation Framework: 롤링/확장 윈도우 앵커드 앤 롤링 분할, Purged & Embargoed 교차검증 (F587) |
+| `src/analysis/survivorship_bias_auditor.py` | Historical Universe Delisting & Survivorship Bias Auditor: 상장폐지/피흡수 합병 유니버스 시점 정확도 감사 및 편향 보정 (F587) |
+| `src/utils/structured_logger.py` | High-Resolution Zero-Allocation JSON Structured Logger: 나노초 정밀도 타임스탬프, 구조화 컨텍스트 및 비동기 논블로킹 로깅 (F588) |
+| `src/utils/metrics_collector.py` | Prometheus/OpenTelemetry Compatible Low-Overhead Metrics Collector: 카운터, 게이지, 히스토그램, 요약 지표 저지연 집계 (F588) |
+| `src/utils/health_checker.py` | Real-Time Microsecond Subsystem Health & Readiness Diagnostic Daemon: 컴포넌트 헬스 프로브, 데드락 방지 및 즉각 장애 격리 (F588) |
+| `trading_system/scripts/benchmark_phase123_quant_performance.py` | Phase 123 Quant Benchmark Engine: 5대 시장 15대 종합 지표 및 F585~F589 기여도 분석, 8대 KPI 엄격 검증 및 정규 리포트 SHA-256 동기화 (F589) |
 
 
 ### Markets
@@ -847,7 +857,7 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 ### Production Operational Tracks (Tracks 1 ~ 4)
 
 - **Track 1 (Production Integration & Dual-Tree Parity)**: `trading_system/src/` 및 `src/` 전역 코드 듀얼 트리 동기화, 8대 레짐 적응형 리스크 예산 테이블, 연 12% 목표 변동성 스케일링, Leland 동적 불감대 버퍼 밴드 및 STT 순알파 허들 게이팅. 6/6 단위/통합 테스트 전수 무결점 PASS (`tests/test_track1_production_integration.py`).
-- **Track 2 (Advanced Quant Architecture - Phase 122)**: 스코어 기반 연속시간 생성 확산 변동성 표면 예측기(F580), 다중 자산 비마르코프 Hawkes 교차 가진 & 호가 불균형 알파 엔진(F581), 쌍곡 다양체 곡률 적응형 리스크 예산 및 최적 수송 배분기(F582), 제로카피 커널 바이패스 DPDK/AF_XDP 서브-마이크로초 멀티 베뉴 게이트웨이(F583), 5대 글로벌 시장 벤치마크(F584). 36/36 테스트 전수 통과 (`tests/test_phase122_*.py`).
+- **Track 2 (Advanced Quant Architecture - Phase 123)**: 모듈형 앙상블 디커플러 및 가중치 레지스트리(F585), 고성능 스트리밍 인제스트 및 다계층 적응형 스토리지(F586), 통합 전진 검증 및 생존 편향 감사기(F587), 초고해상도 구조화 관측성 및 실시간 헬스 체크 데몬(F588), 5대 글로벌 시장 벤치마크(F589). 57/57 테스트 전수 통과 (`tests/test_phase123_*.py`).
 - **Track 3 (Autonomous Real-Time Paper Trading Daemon & Slippage Feedback Loop)**: `PaperTradingDaemon` 데몬 실시간 체결 파이프라인. 8대 주문 안전 게이트 (Crisis gating, Kill Switch, Leland buffer, Price limit, STT hurdle, Adverse gap, ADV cap, Gate 8 inverse hedge) 전수 적용. Gatheral 3/2승 시장충격 및 Fast LOB 오더북 체결 시뮬레이션, 수학적 불변식 $Net\ Equity \le Gross\ Equity$ 엄격 보존. SQLite `trade_logs.db` (`paper_executions`, `paper_portfolio_snapshots`, `trade_logs`) 감사 로깅 및 `SlippageFeedbackEngine` 실시간 슬리피지 피드백 루프 지원. CLI 실행기 (`trading_system/scripts/run_paper_trading_daemon.py`). 4/4 단위/통합 테스트 통과 (`tests/test_track3_paper_trading_integration.py`).
 - **Track 4 (Web Dashboard 30-Year Benchmark & Multi-Regime Interactive Visualization)**: `trading_system/generate_report.py` (`build_30year_benchmark_dashboard_html()`) 웹 대시보드 리포트 생성기 연동. 30년 역사적 복리 성과 콘솔 (CAGR +8.19%, 누적 순수익률 +1,149.55%, MDD -35.43%, 8,089 거래일 무결점 실증, ~40% Leland 거래비용 압축), 5대 역사적 거시위기 방어 매트릭스 (1997 외환위기 IMF +29.49% [알파 +26.56%p], 2000 닷컴 버블 -5.36% [알파 +46.04%p], 2008 금융위기 -27.39% [알파 +14.87%p], 2020 코로나 쇼크 -5.58% [알파 +1.15%p], 2022 금리인상 베어마켓 -11.81% [알파 +14.01%p]), 1996~2026 연도별 실질 성과 카드, `trade_logs.db` 연동 실시간 Paper Trading 라이브 OMS 모니터 위젯 지원. `gh-pages/index.html` (499 KB) 및 `trading_system/gh-pages/` 듀얼 트리 배포 완료. 2/2 단위/통합 테스트 통과 (`tests/test_track4_dashboard_visualization.py`).
 
