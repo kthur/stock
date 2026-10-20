@@ -1,0 +1,13 @@
+{
+  "status": "QUARANTINED",
+  "verified": false,
+  "artifacts": [
+    "trading_system/result/backtest_30year_summary.json",
+    "trading_system/result/backtest_30year_annual_distribution.csv",
+    "trading_system/result/backtest_30year_crisis_breakdown.csv",
+    "trading_system/result/backtest_30year_stock_universe_summary.json",
+    "trading_system/result/backtest_30year_stock_universe_annual.csv",
+    "trading_system/result/backtest_30year_stock_universe_crisis.csv"
+  ],
+  "reason": "Same-day return leakage, synthetic pre-2006 history, hardcoded crisis benchmarks, and unverified annual fallbacks."
+}

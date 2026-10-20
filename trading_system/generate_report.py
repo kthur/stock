@@ -1914,85 +1914,159 @@ def build_strategy_health_monitor_html(
     """
 
 
+OFFICIAL_30YEAR_BENCHMARK_PATH = Path(__file__).resolve().parent.parent / "benchmarks" / "30year" / "stock_universe_summary.json"
+PAPER_TRADING_REPORT_PATH = Path(__file__).resolve().parent.parent / "reports" / "paper_trading_session_report.json"
+
+
+def _as_float(value) -> Optional[float]:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if number != number else number
+
+
+def _fmt_pct(value, digits: int = 2, signed: bool = False) -> str:
+    number = _as_float(value)
+    if number is None:
+        return "N/A"
+    return f"{number:+.{digits}f}%" if signed else f"{number:.{digits}f}%"
+
+
+def _fmt_ratio(value, digits: int = 2) -> str:
+    number = _as_float(value)
+    return "N/A" if number is None else f"{number:.{digits}f}"
+
+
+def _fmt_int(value) -> str:
+    try:
+        return f"{int(value):,}"
+    except (TypeError, ValueError):
+        return "N/A"
+
+
+def _fmt_equity_krw(value) -> str:
+    number = _as_float(value)
+    return "N/A" if number is None else f"{number / 1e8:,.2f}억원"
+
+
+def _render_unverified_30year_html() -> str:
+    return """
+    <div class="regime-risk-card" style="margin: 16px 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+      <div class="regime-risk-header" onclick="toggleSection('benchmark-30year-body', 'benchmark-30year-icon')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: linear-gradient(90deg, var(--surface2) 0%, var(--surface) 100%); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <span style="font-size: 18px;">🏛️</span>
+          <h2 style="font-size: 15px; font-weight: 700; color: var(--text); margin: 0;">30-Year Quantitative Benchmark &amp; Crisis Defense</h2>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <span class="badge" style="color: #d29922; border-color: rgba(210,153,34,0.5); background: rgba(210,153,34,0.15); font-weight: 700;">UNVERIFIED</span>
+          <span id="benchmark-30year-icon" class="health-toggle-btn" style="color: var(--accent); font-size: 12px; font-weight: 700;">▼ 접기</span>
+        </div>
+      </div>
+      <div id="benchmark-30year-body" style="padding: 18px 20px; background: var(--bg);">
+        <div style="background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.45); border-radius: 8px; padding: 18px;">
+          <div style="font-size: 15px; font-weight: 800; color: #f85149; margin-bottom: 8px;">공식 30년 벤치마크 재구축 중 (Unverified)</div>
+          <div style="font-size: 13px; color: var(--text); line-height: 1.7;">
+            기존 30년 성과 수치는 동일일 수익률 누수, 합성 데이터, 하드코딩된 위기 벤치마크로 인해 검증되지 않았습니다.
+            해당 수치는 대시보드에서 제거되었으며, 1996~2026 PIT 데이터 확보와 독립 검증을 통과한 결과만 표시됩니다.
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-top: 10px;">
+            검증 상태: PASSED artifact 없음 · 공식 산출물 경로: benchmarks/30year/stock_universe_summary.json
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+
+
 def build_30year_benchmark_dashboard_html(result_dir: Optional[Path] = None) -> str:
-    """Renders Card 3: 30-Year Quantitative Benchmark & Multi-Regime Compounding Console (1996~2026 30년 백테스트 & 5대 거시위기 방어 센터)."""
+    """Renders Card 3 only from a verified stock-universe 30-year artifact."""
     import json
     import html as _html
     from pathlib import Path
 
     candidates = []
     if result_dir:
-        candidates.append(Path(result_dir) / "backtest_30year_summary.json")
-    _root = Path(__file__).resolve().parent.parent
-    candidates.extend([
-        _root / "trading_system" / "result" / "backtest_30year_summary.json",
-        _root / "reports" / "backtest_30year_summary.json",
-        _root / "result" / "backtest_30year_summary.json",
-    ])
+        candidates.append(Path(result_dir) / "stock_universe_summary.json")
+    candidates.append(OFFICIAL_30YEAR_BENCHMARK_PATH)
 
-    bdata = {}
+    bdata = None
+    source_path = None
     for c in candidates:
-        if c.exists():
-            try:
-                with open(c, "r", encoding="utf-8") as f:
-                    bdata = json.load(f)
-                break
-            except Exception:
-                pass
-
-    overall = bdata.get("portfolio_overall", {})
-    initial_cap = float(overall.get("initial_capital", 100_000_000.0))
-    final_equity = float(overall.get("final_equity", 1_249_554_632.83))
-    cagr = float(overall.get("cagr_pct", 8.19))
-    net_ret = float(overall.get("total_net_return_pct", 1149.55))
-    gross_ret = float(overall.get("total_gross_return_pct", 2734.18))
-    mdd = float(overall.get("max_drawdown_pct", -35.43))
-    sharpe = float(overall.get("sharpe_ratio", 0.52))
-    sortino = float(overall.get("sortino_ratio", 0.60))
-    win_rate = float(overall.get("win_rate_pct", 62.36))
-    profit_factor = float(overall.get("profit_factor", 1.14))
-    total_days = int(bdata.get("metadata", {}).get("total_trading_days", 8089))
-    period = str(bdata.get("metadata", {}).get("simulation_period", "1996-01-01 ~ 2026-08-31"))
-    crises = bdata.get("historical_crises", [])
-    annual_dist = bdata.get("annual_distribution", [])
-
-    # Load latest paper trading report if present
-    paper_path = _root / "reports" / "paper_trading_session_report.json"
-    paper_equity = 100_000_000.0
-    paper_net_equity = 99_999_687.67
-    paper_fees = 301.13
-    paper_slippage = 11.20
-    paper_executed = 7
-    paper_suppressed = 17
-    paper_invariant = "PASSED"
-    if paper_path.exists():
+        if not c.exists():
+            continue
         try:
-            with open(paper_path, "r", encoding="utf-8") as f:
-                pdata = json.load(f)
-                snap = pdata.get("final_snapshot", {})
-                paper_equity = float(snap.get("gross_equity", paper_equity))
-                paper_net_equity = float(snap.get("net_equity", paper_net_equity))
-                paper_fees = float(pdata.get("total_fees_paid_krw", paper_fees))
-                paper_slippage = float(pdata.get("total_slippage_cost_krw", paper_slippage))
-                paper_executed = int(pdata.get("total_executions", paper_executed))
-                paper_invariant = "PASSED" if pdata.get("invariant_net_le_gross", True) else "FAILED"
+            payload = json.loads(c.read_text(encoding="utf-8"))
         except Exception:
-            pass
+            continue
+        meta = payload.get("metadata") or {}
+        overall_candidate = payload.get("portfolio_overall") or {}
+        if meta.get("official_benchmark") != "stock_universe":
+            continue
+        if meta.get("verification_status") != "PASSED":
+            continue
+        synthetic_rows = meta.get("synthetic_rows")
+        if isinstance(synthetic_rows, bool) or synthetic_rows != 0:
+            continue
+        if not all(_as_float(overall_candidate.get(k)) is not None for k in ("cagr_pct", "total_net_return_pct", "max_drawdown_pct")):
+            continue
+        bdata = payload
+        source_path = c
+        break
 
-    # Build Crises Table Rows
+    if bdata is None:
+        return _render_unverified_30year_html()
+
+    overall = bdata.get("portfolio_overall") or {}
+    meta = bdata.get("metadata") or {}
+    final_equity = _as_float(overall.get("final_equity"))
+    cagr = _as_float(overall.get("cagr_pct"))
+    net_ret = _as_float(overall.get("total_net_return_pct"))
+    gross_ret = _as_float(overall.get("total_gross_return_pct"))
+    mdd = _as_float(overall.get("max_drawdown_pct"))
+    sharpe = _as_float(overall.get("sharpe_ratio"))
+    sortino = _as_float(overall.get("sortino_ratio"))
+    win_rate = _as_float(overall.get("win_rate_pct"))
+    profit_factor = _as_float(overall.get("profit_factor"))
+    annualized_vol = _as_float(overall.get("annualized_volatility_pct"))
+    total_days = meta.get("total_trading_days")
+    period = _html.escape(str(meta.get("simulation_period") or "N/A"))
+    benchmark_name = _html.escape(str(meta.get("benchmark_name") or "N/A"))
+    benchmark_cagr = _as_float(meta.get("benchmark_cagr_pct"))
+    benchmark_mdd = _as_float(meta.get("benchmark_mdd_pct"))
+    crises = bdata.get("historical_crises") or []
+    annual_dist = bdata.get("annual_distribution") or []
+
+    paper = None
+    if PAPER_TRADING_REPORT_PATH.exists():
+        try:
+            paper = json.loads(PAPER_TRADING_REPORT_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            paper = None
+
     crisis_rows_html = []
     for cr in crises:
-        c_name = str(cr.get("crisis_name", cr.get("crisis_id", "")))
-        s_date = str(cr.get("start_date", ""))
-        e_date = str(cr.get("end_date", ""))
-        net_r = float(cr.get("net_return_pct", 0.0))
-        bm_r = float(cr.get("benchmark_return_pct", 0.0))
-        c_mdd = float(cr.get("max_drawdown_pct", 0.0))
-        rec_d = int(cr.get("recovery_days", 0))
-        alpha = net_r - bm_r
-        alpha_sign = "+" if alpha >= 0 else ""
-        alpha_color = "#2ea043" if alpha >= 0 else "#f85149"
-        net_color = "#2ea043" if net_r >= 0 else "#f85149"
+        c_name = _html.escape(str(cr.get("crisis_name") or cr.get("crisis_id") or "N/A"))
+        s_date = _html.escape(str(cr.get("start_date") or "N/A"))
+        e_date = _html.escape(str(cr.get("end_date") or "N/A"))
+        net_r = _as_float(cr.get("net_return_pct"))
+        bm_r = _as_float(cr.get("benchmark_return_pct"))
+        c_mdd = _as_float(cr.get("max_drawdown_pct"))
+        rec_d = cr.get("recovery_days")
+        alpha = net_r - bm_r if net_r is not None and bm_r is not None else None
+        alpha_color = "#2ea043" if alpha is not None and alpha >= 0 else ("#f85149" if alpha is not None else "var(--muted)")
+        net_color = "#2ea043" if net_r is not None and net_r >= 0 else ("#f85149" if net_r is not None else "var(--muted)")
+        alpha_text = "N/A" if alpha is None else f"{alpha:+.2f}%p"
+        rec_text = _fmt_int(rec_d)
+        if rec_text != "N/A":
+            rec_text = f"{rec_text}일"
+        passed = cr.get("defense_pass")
+        if passed is True:
+            verdict = '<span class="badge" style="color: #2ea043; border-color: rgba(46,160,67,0.5); background: rgba(46,160,67,0.15); font-size: 11px; font-weight: 600;">PASS</span>'
+        elif passed is False:
+            verdict = '<span class="badge" style="color: #f85149; border-color: rgba(248,81,73,0.5); background: rgba(248,81,73,0.15); font-size: 11px; font-weight: 600;">FAIL</span>'
+        else:
+            verdict = '<span class="badge" style="color: var(--muted); border-color: var(--border); font-size: 11px; font-weight: 600;">N/A</span>'
 
         crisis_rows_html.append(f"""
           <tr style="border-bottom: 1px solid var(--border);">
@@ -2001,46 +2075,136 @@ def build_30year_benchmark_dashboard_html(result_dir: Optional[Path] = None) -> 
               <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">{s_date} ~ {e_date}</div>
             </td>
             <td style="padding: 10px 14px; text-align: right; font-weight: 700; color: {net_color};">
-              {net_r:+.2f}%
+              {_fmt_pct(net_r, 2, True)}
             </td>
             <td style="padding: 10px 14px; text-align: right; color: var(--muted);">
-              {bm_r:+.2f}%
+              {_fmt_pct(bm_r, 2, True)}
             </td>
             <td style="padding: 10px 14px; text-align: right; font-weight: 700; color: {alpha_color};">
-              {alpha_sign}{alpha:.2f}%p
+              {alpha_text}
             </td>
             <td style="padding: 10px 14px; text-align: right; color: #f85149; font-weight: 600;">
-              {c_mdd:.2f}%
+              {_fmt_pct(c_mdd)}
             </td>
             <td style="padding: 10px 14px; text-align: right; color: var(--text);">
-              {rec_d}일
+              {rec_text}
             </td>
             <td style="padding: 10px 14px; text-align: center;">
-              <span class="badge" style="color: #2ea043; border-color: rgba(46,160,67,0.5); background: rgba(46,160,67,0.15); font-size: 11px; font-weight: 600;">
-                방어 성공
-              </span>
+              {verdict}
             </td>
           </tr>
         """)
-    crisis_tbody = "".join(crisis_rows_html)
+    crisis_tbody = "".join(crisis_rows_html) or '<tr><td colspan="7" style="padding: 14px; text-align: center; color: var(--muted);">검증된 위기 데이터 없음</td></tr>'
 
-    # Build Recent Annual Performance Badges
-    recent_annual = annual_dist[-8:] if len(annual_dist) >= 8 else annual_dist
+    pass_flags = [cr.get("defense_pass") for cr in crises]
+    if crises and all(isinstance(flag, bool) for flag in pass_flags):
+        pass_count = sum(pass_flags)
+        pass_rate = pass_count / len(pass_flags) * 100.0
+        pass_text = f"{len(pass_flags)}개 위기 중 {pass_count}개 방어 (Pass Rate: {pass_rate:.0f}%)"
+        pass_color = "#2ea043" if pass_count == len(pass_flags) else ("#f85149" if pass_count == 0 else "#d29922")
+    else:
+        pass_text = "방어 판정 데이터 없음"
+        pass_color = "var(--muted)"
+
+    recent_annual = annual_dist[-8:]
     annual_cards_html = []
     for yr in recent_annual:
-        y_val = yr.get("year", 0)
-        y_net = float(yr.get("net_return_pct", 0.0))
-        y_mdd = float(yr.get("max_drawdown_pct", 0.0))
-        y_sharpe = float(yr.get("sharpe_ratio", 0.0))
-        y_col = "#2ea043" if y_net >= 0 else "#f85149"
+        y_val = _html.escape(str(yr.get("year") or "N/A"))
+        y_net = _as_float(yr.get("net_return_pct"))
+        y_mdd = _as_float(yr.get("max_drawdown_pct"))
+        y_sharpe = _as_float(yr.get("sharpe_ratio"))
+        y_col = "#2ea043" if y_net is not None and y_net >= 0 else ("#f85149" if y_net is not None else "var(--muted)")
+        partial = " · 부분" if yr.get("is_partial") else ""
         annual_cards_html.append(f"""
           <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
-            <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">{y_val}년</div>
-            <div style="font-size: 14px; font-weight: 800; color: {y_col}; margin-bottom: 2px;">{y_net:+.2f}%</div>
-            <div style="font-size: 10px; color: var(--muted);">MDD {y_mdd:.1f}% | SR {y_sharpe:.2f}</div>
+            <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">{y_val}년{partial}</div>
+            <div style="font-size: 14px; font-weight: 800; color: {y_col}; margin-bottom: 2px;">{_fmt_pct(y_net, 2, True)}</div>
+            <div style="font-size: 10px; color: var(--muted);">MDD {_fmt_pct(y_mdd, 1)} | SR {_fmt_ratio(y_sharpe)}</div>
           </div>
         """)
-    annual_cards_str = "".join(annual_cards_html)
+    annual_cards_str = "".join(annual_cards_html) or '<div style="font-size: 12px; color: var(--muted); padding: 8px 0;">검증된 연도별 데이터 없음</div>'
+
+    net_color = "#2ea043" if net_ret is not None and net_ret >= 0 else ("#f85149" if net_ret is not None else "var(--muted)")
+    cagr_color = "#38bdf8" if cagr is not None and cagr >= 0 else ("#f85149" if cagr is not None else "var(--muted)")
+    mdd_color = "#2ea043" if mdd is not None and mdd >= 0 else ("#f85149" if mdd is not None else "var(--muted)")
+    win_color = "#2ea043" if win_rate is not None and win_rate >= 50.0 else ("#f85149" if win_rate is not None else "var(--muted)")
+    days_text = _fmt_int(total_days)
+    if days_text != "N/A":
+        days_text = f"{days_text}일"
+    source_name = _html.escape(source_path.name) if source_path is not None else "N/A"
+
+    if paper:
+        snap = paper.get("final_snapshot") or {}
+        paper_gross = _as_float(snap.get("gross_equity"))
+        paper_net = _as_float(snap.get("net_equity"))
+        paper_fees = _as_float(paper.get("total_fees_paid_krw"))
+        paper_slippage = _as_float(paper.get("total_slippage_cost_krw"))
+        paper_executed = paper.get("total_executions")
+        paper_cost_total = paper_fees + paper_slippage if paper_fees is not None and paper_slippage is not None else None
+        paper_invariant_raw = paper.get("invariant_net_le_gross")
+        if paper_invariant_raw is True:
+            paper_invariant = "PASSED"
+            paper_invariant_color = "#2ea043"
+        elif paper_invariant_raw is False:
+            paper_invariant = "FAILED"
+            paper_invariant_color = "#f85149"
+        else:
+            paper_invariant = "N/A"
+            paper_invariant_color = "var(--muted)"
+        paper_gross_text = "N/A" if paper_gross is None else f"{paper_gross:,.0f} KRW"
+        paper_net_text = "N/A" if paper_net is None else f"{paper_net:,.0f} KRW"
+        paper_cost_text = "N/A" if paper_cost_total is None else f"{paper_cost_total:,.2f} KRW"
+        paper_status = _html.escape(str(paper.get("status") or "N/A"))
+        paper_timestamp = _html.escape(str(snap.get("timestamp") or "N/A"))
+        paper_html = f"""
+          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <div style="font-size: 13px; font-weight: 700; color: #38bdf8;">
+                💼 Track 3: Autonomous Paper Trading Live OMS Monitor
+              </div>
+              <span class="badge" style="color: {paper_invariant_color}; border-color: {paper_invariant_color}; font-size: 11px;">
+                Invariant: {paper_invariant}
+              </span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 12px;">
+              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
+                <span style="color: var(--muted);">운용 상태:</span>
+                <strong style="color: var(--text); float: right;">{paper_status}</strong>
+              </div>
+              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
+                <span style="color: var(--muted);">총자산:</span>
+                <strong style="color: var(--text); float: right;">{paper_gross_text}</strong>
+              </div>
+              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
+                <span style="color: var(--muted);">순자산:</span>
+                <strong style="color: #2ea043; float: right;">{paper_net_text}</strong>
+              </div>
+              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
+                <span style="color: var(--muted);">누적 수수료+슬리피지:</span>
+                <strong style="color: #f85149; float: right;">{paper_cost_text}</strong>
+              </div>
+              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
+                <span style="color: var(--muted);">8대 게이트 심사 체결:</span>
+                <strong style="color: var(--text); float: right;">{_fmt_int(paper_executed)}건</strong>
+              </div>
+              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
+                <span style="color: var(--muted);">최종 스냅샷:</span>
+                <strong style="color: var(--text); float: right;">{paper_timestamp}</strong>
+              </div>
+            </div>
+          </div>
+        """
+    else:
+        paper_html = """
+          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+            <div style="font-size: 13px; font-weight: 700; color: #38bdf8; margin-bottom: 8px;">
+              💼 Track 3: Autonomous Paper Trading Live OMS Monitor
+            </div>
+            <div style="font-size: 12px; color: var(--muted);">
+              페이퍼 트레이딩 리포트 없음 · reports/paper_trading_session_report.json
+            </div>
+          </div>
+        """
 
     return f"""
     <!-- ══════════════════════════════════════════════════════════════════════════════ -->
@@ -2050,13 +2214,14 @@ def build_30year_benchmark_dashboard_html(result_dir: Optional[Path] = None) -> 
       <div class="regime-risk-header" onclick="toggleSection('benchmark-30year-body', 'benchmark-30year-icon')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: linear-gradient(90deg, var(--surface2) 0%, var(--surface) 100%); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
         <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
           <span style="font-size: 18px;">🏛️</span>
-          <h2 style="font-size: 15px; font-weight: 700; color: var(--text); margin: 0;">30-Year Quantitative Benchmark &amp; Crisis Defense (1996~2026 30년 백테스트 &amp; 5대 거시위기 방어 센터)</h2>
+          <h2 style="font-size: 15px; font-weight: 700; color: var(--text); margin: 0;">30-Year Quantitative Benchmark &amp; Crisis Defense</h2>
         </div>
         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-          <span class="badge" style="color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.15); font-weight: 700;">Net CAGR: {cagr:.2f}%</span>
-          <span class="badge" style="color: #2ea043; border-color: rgba(46,160,67,0.5); background: rgba(46,160,67,0.15);">Net Ret: +{net_ret:,.1f}%</span>
-          <span class="badge" style="color: #eab308; border-color: rgba(234,179,8,0.5); background: rgba(234,179,8,0.15);">MDD: {mdd:.2f}%</span>
-          <span class="badge" style="color: var(--muted); border-color: var(--border);">📅 {period} ({total_days:,}일)</span>
+          <span class="badge" title="{source_name}" style="color: #2ea043; border-color: rgba(46,160,67,0.5); background: rgba(46,160,67,0.15); font-weight: 700;">VERIFIED</span>
+          <span class="badge" style="color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.15); font-weight: 700;">Net CAGR: {_fmt_pct(cagr)}</span>
+          <span class="badge" style="color: {net_color}; border-color: {net_color}; background: rgba(46,160,67,0.15);">Net Ret: {_fmt_pct(net_ret, 1, True)}</span>
+          <span class="badge" style="color: {mdd_color}; border-color: {mdd_color}; background: rgba(234,179,8,0.15);">MDD: {_fmt_pct(mdd)}</span>
+          <span class="badge" style="color: var(--muted); border-color: var(--border);">📅 {period} ({days_text})</span>
           <span id="benchmark-30year-icon" class="health-toggle-btn" style="color: var(--accent); font-size: 12px; font-weight: 700;">▼ 접기</span>
         </div>
       </div>
@@ -2066,33 +2231,33 @@ def build_30year_benchmark_dashboard_html(result_dir: Optional[Path] = None) -> 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px;">
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
             <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">30년 누적 순수익률 (Net Return)</div>
-            <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+{net_ret:,.2f}%</div>
-            <div style="font-size: 11px; color: var(--muted);">총수익률 +{gross_ret:,.1f}% (최종 {final_equity/1e8:,.1f}억원)</div>
+            <div style="font-size: 20px; font-weight: 800; color: {net_color}; margin-bottom: 2px;">{_fmt_pct(net_ret, 2, True)}</div>
+            <div style="font-size: 11px; color: var(--muted);">총수익률 {_fmt_pct(gross_ret, 1, True)} · 최종 {_fmt_equity_krw(final_equity)}</div>
           </div>
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
             <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">실질 연평균 복리수익률 (CAGR)</div>
-            <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-bottom: 2px;">{cagr:.2f}%</div>
-            <div style="font-size: 11px; color: var(--muted);">SP500 10.05% / KOSPI 10.18% 견적</div>
+            <div style="font-size: 20px; font-weight: 800; color: {cagr_color}; margin-bottom: 2px;">{_fmt_pct(cagr)}</div>
+            <div style="font-size: 11px; color: var(--muted);">{benchmark_name} CAGR {_fmt_pct(benchmark_cagr)} · MDD {_fmt_pct(benchmark_mdd)}</div>
           </div>
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
-            <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">30년 역사적 최대 낙폭 (MDD)</div>
-            <div style="font-size: 20px; font-weight: 800; color: #f85149; margin-bottom: 2px;">{mdd:.2f}%</div>
-            <div style="font-size: 11px; color: var(--muted);">KOSPI -71.6% / KOSDAQ -90.8% 대비 방어</div>
+            <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">역사적 최대 낙폭 (MDD)</div>
+            <div style="font-size: 20px; font-weight: 800; color: {mdd_color}; margin-bottom: 2px;">{_fmt_pct(mdd)}</div>
+            <div style="font-size: 11px; color: var(--muted);">검증된 일별 수익률 기준</div>
           </div>
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
             <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">위험조정수익비 (Sharpe / Sortino)</div>
-            <div style="font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 2px;">{sharpe:.2f} / {sortino:.2f}</div>
-            <div style="font-size: 11px; color: var(--muted);">연간 변동성 13.05% (연 12% 타겟팅)</div>
+            <div style="font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 2px;">{_fmt_ratio(sharpe)} / {_fmt_ratio(sortino)}</div>
+            <div style="font-size: 11px; color: var(--muted);">연간 변동성 {_fmt_pct(annualized_vol)}</div>
           </div>
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
             <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">승률 / 프로핏 팩터 (Win Rate)</div>
-            <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">{win_rate:.1f}% / {profit_factor:.2f}</div>
-            <div style="font-size: 11px; color: var(--muted);">총 8,089 거래일 실증 (Lookahead 0%)</div>
+            <div style="font-size: 20px; font-weight: 800; color: {win_color}; margin-bottom: 2px;">{_fmt_pct(win_rate, 1)} / {_fmt_ratio(profit_factor)}</div>
+            <div style="font-size: 11px; color: var(--muted);">검증 거래일 {days_text}</div>
           </div>
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
-            <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">Leland 거래비용 압축률</div>
-            <div style="font-size: 20px; font-weight: 800; color: #a855f7; margin-bottom: 2px;">~40% 절감</div>
-            <div style="font-size: 11px; color: var(--muted);">동적 버퍼 밴드로 연간 회전율 1.86회 통제</div>
+            <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">산출물 검증 상태</div>
+            <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">PASSED</div>
+            <div style="font-size: 11px; color: var(--muted);">synthetic rows 0 · {source_name}</div>
           </div>
         </div>
 
@@ -2100,10 +2265,10 @@ def build_30year_benchmark_dashboard_html(result_dir: Optional[Path] = None) -> 
         <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
             <div style="font-size: 14px; font-weight: 700; color: var(--text);">
-              🛡️ 5대 역사적 거시위기 국면 벤치마크 대비 방어율 비교 (Historical Crises Defense Matrix)
+              🛡️ {len(crises)}대 역사적 거시위기 국면 벤치마크 대비 방어율 비교 (Historical Crises Defense Matrix)
             </div>
-            <span class="badge" style="color: #2ea043; border-color: rgba(46,160,67,0.5); background: rgba(46,160,67,0.15); font-size: 11px;">
-              5대 위기 전원 방어 성공 (Pass Rate: 100%)
+            <span class="badge" style="color: {pass_color}; border-color: {pass_color}; font-size: 11px;">
+              {pass_text}
             </span>
           </div>
           <div class="table-wrap" style="overflow-x: auto;">
@@ -2139,42 +2304,7 @@ def build_30year_benchmark_dashboard_html(result_dir: Optional[Path] = None) -> 
           </div>
 
           <!-- Right: Live Paper Trading Daemon Status Widget -->
-          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-              <div style="font-size: 13px; font-weight: 700; color: #38bdf8;">
-                💼 Track 3: Autonomous Paper Trading Live OMS Monitor
-              </div>
-              <span class="badge" style="color: #2ea043; border-color: rgba(46,160,67,0.5); background: rgba(46,160,67,0.15); font-size: 11px;">
-                Invariant: {paper_invariant}
-              </span>
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 12px;">
-              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
-                <span style="color: var(--muted);">운용 모드:</span>
-                <strong style="color: var(--text); float: right;">SHADOW_PAPER OMS</strong>
-              </div>
-              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
-                <span style="color: var(--muted);">초기 자본:</span>
-                <strong style="color: var(--text); float: right;">{paper_equity:,.0f} KRW</strong>
-              </div>
-              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
-                <span style="color: var(--muted);">현재 실현 순자산:</span>
-                <strong style="color: #2ea043; float: right;">{paper_net_equity:,.0f} KRW</strong>
-              </div>
-              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
-                <span style="color: var(--muted);">누적 수수료+슬리피지:</span>
-                <strong style="color: #f85149; float: right;">{paper_fees + paper_slippage:,.2f} KRW</strong>
-              </div>
-              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
-                <span style="color: var(--muted);">8대 게이트 심사 체결:</span>
-                <strong style="color: var(--text); float: right;">{paper_executed}건 체결 ({paper_suppressed}건 억제)</strong>
-              </div>
-              <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
-                <span style="color: var(--muted);">슬리피지 피드백 루프:</span>
-                <strong style="color: #38bdf8; float: right;">trade_logs.db 실시간 적응</strong>
-              </div>
-            </div>
-          </div>
+          {paper_html}
         </div>
       </div>
     </div>

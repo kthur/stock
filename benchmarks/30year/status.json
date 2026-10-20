@@ -1,0 +1,10 @@
+{
+  "official_benchmark": "stock_universe",
+  "status": "REBUILDING",
+  "verified": false,
+  "verification_status": "NOT_VERIFIED",
+  "synthetic_rows": null,
+  "artifact": "benchmarks/30year/stock_universe_summary.json",
+  "updated_at": "2026-10-21",
+  "reason": "Legacy 30-year figures are quarantined pending PIT data reconstruction and independent verification."
+}
