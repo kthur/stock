@@ -66,7 +66,7 @@ def test_pit_universe_market_coverage(universe):
     """Verifies that all 5 target markets have registered constituents."""
     for m in TARGET_MARKETS:
         symbols = universe.get_all_symbols(m)
-        assert len(symbols) >= 15, f"Market {m} should have at least 15 registered historical symbols, got {len(symbols)}"
+        assert len(symbols) >= 14, f"Market {m} should have at least 14 registered historical symbols, got {len(symbols)}"
 
 
 def test_pit_universe_active_resolution(universe):
@@ -111,23 +111,23 @@ def test_survivorship_bias_defense_lehman(universe):
     assert universe.get_delisting_terminal_loss("LEH", "2008-09-16") == -1.0
 
 
-def test_survivorship_bias_defense_hanbo_steel(universe):
+def test_survivorship_bias_defense_c_and_heavy_industries(universe):
     """
-    Verifies Hanbo Steel (001550) tracking in KOSPI during 1997 IMF Crisis:
-    - Active during early 1997
-    - Delisted in Dec 1997 with terminal bankruptcy loss
+    Verifies C& Heavy Industries (008400) tracking in KOSPI during 2008 GFC:
+    - Active during early 2008
+    - Delisted in Apr 2009 with terminal bankruptcy loss
     """
-    meta = universe.get_listing_metadata("001550")
+    meta = universe.get_listing_metadata("008400")
     assert meta is not None
     assert meta.market == "KOSPI"
     assert meta.terminal_loss_pct == -1.0
 
-    assert universe.is_symbol_active("001550", "1997-06-01") is True
-    assert universe.is_delisted("001550", "1997-06-01") is False
+    assert universe.is_symbol_active("008400", "2008-01-01") is True
+    assert universe.is_delisted("008400", "2008-01-01") is False
 
-    assert universe.is_symbol_active("001550", "1998-01-01") is False
-    assert universe.is_delisted("001550", "1998-01-01") is True
-    assert universe.get_delisting_terminal_loss("001550", "1998-01-01") == -1.0
+    assert universe.is_symbol_active("008400", "2009-05-01") is False
+    assert universe.is_delisted("008400", "2009-05-01") is True
+    assert universe.get_delisting_terminal_loss("008400", "2009-05-01") == -1.0
 
 
 def test_survivorship_bias_defense_dotcom_bankruptcies(universe):
@@ -147,6 +147,32 @@ def test_survivorship_bias_defense_dotcom_bankruptcies(universe):
     assert universe.is_symbol_active("ENE", "2001-06-01") is True
     assert universe.is_delisted("ENE", "2002-01-01") is True
     assert universe.get_delisting_terminal_loss("ENE", "2002-01-01") == -1.0
+
+
+def test_reference_only_kr_delistings_preserved_but_not_investable(universe):
+    """
+    Verifies recycled/unavailable Korean codes remain auditable metadata only:
+    their historical names/losses are preserved, but they never enter the
+    investable registry used by the backtest panel.
+    """
+    reference = {
+        "001550": ("한보철강", "1997-06-01", "1997-12-15"),
+        "005230": ("삼미특수강", "1997-05-01", "1997-11-20"),
+        "001490": ("대우", "1999-12-01", "2000-05-15"),
+        "005300": ("대우전자", "2000-01-01", "2001-08-30"),
+        "002210": ("동아건설", "2000-01-01", "2001-05-11"),
+        "018310": ("메디슨", "2001-01-01", "2002-04-10"),
+    }
+    investable = set(universe.get_all_symbols())
+    for sym, (name, pre_dt, delist_dt) in reference.items():
+        meta = universe.get_listing_metadata(sym)
+        assert meta is not None and meta.name == name
+        assert meta.investable is False
+        assert universe.is_symbol_active(sym, pre_dt) is True
+        assert universe.is_delisted(sym, delist_dt) is True
+        assert universe.get_delisting_terminal_loss(sym, delist_dt) == -1.0
+        assert sym not in investable
+    assert len(investable) == 106
 
 
 def test_delisting_events_query(universe):

@@ -758,8 +758,8 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
                                 if ratio < 0.70 or ratio > 1.40:
                                     logger.warning(f"[DataQualityGate] Split / corporate action discontinuity detected for {s} (ratio={ratio:.2f}). Invalidate old cache.")
                                     cached_df = None
-                        except Exception:
-                            pass
+                        except Exception as _split_e:
+                            logger.debug(f"[DataQualityGate] Split check skipped for {s}: {_split_e}")
 
             if cached_df is not None and not cached_df.empty:
                 merged_df = pd.concat([cached_df, network_result])
@@ -2004,8 +2004,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 with sqlite3.connect(price_db.db_path) as _c_conn:
                     _c_rows = _c_conn.execute("SELECT symbol FROM stock_prices GROUP BY symbol HAVING COUNT(*) >= 30").fetchall()
                     cached_valid_syms = {str(r[0]) for r in _c_rows}
-            except Exception:
-                pass
+            except Exception as _db_e:
+                logger.warning(f"[Pipeline] Failed to query cached valid symbols: {_db_e}")
         debug_symbols = []
         for mkt, grp in universe.groupby('market'):
             active_m = [s for s in grp['symbol'].tolist() if s in all_symbols]
@@ -4112,8 +4112,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 curr_holdings_dict = _temp_oms.get_current_holdings_details_from_db()
             else:
                 curr_holdings_dict = _temp_oms.get_current_holdings_from_db()
-        except Exception:
-            pass
+        except Exception as _oms_e:
+            logger.warning(f"[Pipeline] Failed to load current holdings from ExecutionOMSEngine: {_oms_e}")
 
         unified_alloc_df = unified_allocator.allocate(
             predictions_df=ensemble_df_merged,

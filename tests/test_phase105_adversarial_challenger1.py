@@ -440,6 +440,34 @@ class TestPhase105VerifierCausalityAndBiasGuards(BaseAdversarialFixture):
         failed_ids = [c["check_id"] for c in summary["checks"] if not c["passed"]]
         self.assertIn("GUARD-NO-LOOKAHEAD", failed_ids)
 
+    def test_pnl_basis_begin_of_day_passes(self) -> None:
+        """A begin-of-day holdings attestation must satisfy GUARD-PNL-ALIGNMENT."""
+        summary_path = self.work_dir / "backtest_30year_stock_universe_summary.json"
+        with open(summary_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["metadata"]["pnl_basis"] = "begin_of_day_holdings"
+        data["metadata"]["signal_execution"] = "close_of_signal_day"
+        with open(summary_path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        _, summary = self.run_verifier(strict=True)
+        pnl_checks = [c for c in summary["checks"] if c["check_id"] == "GUARD-PNL-ALIGNMENT"]
+        self.assertEqual(len(pnl_checks), 1)
+        self.assertTrue(pnl_checks[0]["passed"])
+
+    def test_pnl_basis_signal_day_holdings_fails(self) -> None:
+        """A signal-day holdings attestation must fail GUARD-PNL-ALIGNMENT."""
+        summary_path = self.work_dir / "backtest_30year_stock_universe_summary.json"
+        with open(summary_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["metadata"]["pnl_basis"] = "signal_day_close_holdings"
+        data["metadata"]["signal_execution"] = "close_of_signal_day"
+        with open(summary_path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        passed, summary = self.run_verifier(strict=True)
+        self.assertFalse(passed)
+        failed_ids = [c["check_id"] for c in summary["checks"] if not c["passed"]]
+        self.assertIn("GUARD-PNL-ALIGNMENT", failed_ids)
+
     def test_insufficient_regulatory_filing_lag_fails(self) -> None:
         """Setting KRX filing lag < 45d or SEC filing lag < 40d must fail GUARD-FILING-LAG."""
         summary_path = self.work_dir / "backtest_30year_stock_universe_summary.json"

@@ -4,7 +4,8 @@ import sys
 
 # PyTorch WinError 1114 DLL Loading Crash bypass
 if "torch" not in sys.modules:
-    should_bypass = os.getenv("BYPASS_TORCH", "").lower() in ("true", "1")
+    is_pytest = "pytest" in sys.modules or any("pytest" in a for a in sys.argv)
+    should_bypass = os.getenv("BYPASS_TORCH", "").lower() in ("true", "1") or is_pytest
     if os.getenv("BYPASS_TORCH", "").lower() == "false":
         should_bypass = False
     elif not should_bypass:

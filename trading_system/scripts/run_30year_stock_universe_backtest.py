@@ -32,6 +32,7 @@ from src.backtest.historical_stock_universe_backtester import (
     HistoricalStockUniverseBacktester,
     BacktestSimulationResult,
 )
+from src.backtest.historical_stock_universe_pipeline import HistoricalStockUniversePipeline
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,6 +40,30 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("RunStockUniverse30YearBacktest")
+
+
+def _mark_summary_verified(out_dir: Path, verification_summary: Dict[str, Any]) -> None:
+    """Promotes summary metadata to PASSED only after independent verification."""
+    summary_path = out_dir / "backtest_30year_stock_universe_summary.json"
+    if not summary_path.is_file():
+        return
+    with open(summary_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+    meta = payload.setdefault("metadata", {})
+    synthetic_rows = int(meta.get("synthetic_rows", 0))
+    if synthetic_rows != 0:
+        logger.warning(
+            "Verification passed but summary contains synthetic_rows=%d; keeping NOT_VERIFIED.",
+            synthetic_rows,
+        )
+        return
+    meta["verification_status"] = "PASSED"
+    meta["verified_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S KST")
+    meta["verification_checks"] = int(verification_summary.get("total_checks", 0))
+    tmp_path = summary_path.with_suffix(".json.tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    tmp_path.replace(summary_path)
 
 
 # ==============================================================================
@@ -56,7 +81,7 @@ def print_stock_universe_executive_summary_table(
     print("\n" + "=" * 95)
     print("      30-YEAR STOCK UNIVERSE QUANTITATIVE BENCHMARK & BACKTEST REPORT (1996-2026)")
     print("      Execution Horizon: " + str(meta.get("simulation_period", "1996-01-01 ~ 2026-08-31")))
-    print("      Markets: KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000 | Multi-Factor Strategies: 37")
+    print("      Markets: KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000 | 37-Strategy Catalog | 5-Factor Live Model")
     print("=" * 95)
 
     print(f"\n{'PORTFOLIO OVERALL PERFORMANCE':^95}")
@@ -84,7 +109,7 @@ def print_stock_universe_executive_summary_table(
 
     print(f"\n{'HISTORICAL CRISIS STRESS DEFENSE BREAKDOWN':^95}")
     print("-" * 95)
-    print(f"  {'Crisis Name':<38} | {'Net Return':>12} | {'Benchmark':>10} | {'Max DD':>9} | {'Status':>8}")
+    print(f"  {'Crisis Name':<38} | {'Net Return':>12} | {'EW Universe':>10} | {'Max DD':>9} | {'Status':>8}")
     print("-" * 95)
     for c in crises:
         c_name = c.get("crisis_name", c.get("crisis_id", "Crisis"))[:38]
@@ -93,6 +118,7 @@ def print_stock_universe_executive_summary_table(
         mdd = f"{c.get('max_drawdown_pct', 0.0):.2f}%"
         st = str(c.get("status", "PASS"))
         print(f"  {c_name:<38} | {p_ret:>12} | {b_ret:>10} | {mdd:>9} | {st:>8}")
+    print("  Note: EW Universe = equal-weight active 106-symbol universe, not a national index.")
     print("=" * 95 + "\n")
 
 
@@ -113,6 +139,9 @@ def run_30year_stock_universe_backtest(
     turnover_threshold: float = 0.03,
     verify: bool = False,
     strict: bool = True,
+    symbols_per_market: int = 1000,
+    cache_dir: Optional[str | Path] = None,
+    strict_pit: bool = False,
 ) -> int:
     """
     Executes the 30-year stock universe backtest, exports the 4 official artifacts,
@@ -133,11 +162,19 @@ def run_30year_stock_universe_backtest(
     logger.info("  Turnover Band:   %.1f%%", turnover_threshold * 100.0)
     logger.info("  Output Dir:      %s", out_dir)
     logger.info("  Auto Verify:     %s (Strict: %s)", verify, strict)
+    logger.info("  Symbols/Market:  %s", symbols_per_market)
+    logger.info("  Cache Dir:       %s", cache_dir or "(default)")
+    logger.info("  Strict PIT:      %s", strict_pit)
     logger.info("======================================================================")
 
     # 1. Initialize Simulation Engine
     logger.info("Step 1/4: Initializing HistoricalStockUniverseBacktester...")
+    pipeline = HistoricalStockUniversePipeline(
+        cache_dir=cache_dir,
+        strict_pit=strict_pit,
+    )
     backtester = HistoricalStockUniverseBacktester(
+        pipeline=pipeline,
         start_date=start_date,
         end_date=end_date,
         max_stock_weight=max_stock_weight,
@@ -149,6 +186,8 @@ def run_30year_stock_universe_backtest(
         turnover_threshold_pct=turnover_threshold,
         enable_sma200_gating=True,
         enable_bull_drag_elim=True,
+        symbols_per_market=symbols_per_market,
+        strict_pit=strict_pit,
     )
 
     # 2. Execute Walk-Forward Simulation
@@ -183,6 +222,7 @@ def run_30year_stock_universe_backtest(
                          verification_summary.get("failed_checks", 0))
             return 1
         logger.info("Independent verification PASSED 100%! All integrity checks satisfied.")
+        _mark_summary_verified(Path(out_dir), verification_summary)
 
     logger.info("30-Year Stock Universe Backtest Runner completed successfully (Exit Code 0).")
     return 0
@@ -253,6 +293,24 @@ def main() -> int:
         help="Turnover hysteresis band threshold (default: 0.03)",
     )
     parser.add_argument(
+        "--symbols-per-market",
+        type=int,
+        default=1000,
+        help="Maximum symbols per market (default: 1000 = all registry symbols)",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        type=str,
+        default=None,
+        help="Override parquet cache directory (default: pipeline default)",
+    )
+    parser.add_argument(
+        "--strict-pit",
+        action="store_true",
+        default=False,
+        help="Disable all synthetic price/fundamental fallbacks; require real PIT caches",
+    )
+    parser.add_argument(
         "--verify",
         action="store_true",
         default=False,
@@ -286,6 +344,9 @@ def main() -> int:
         turnover_threshold=args.turnover_threshold,
         verify=args.verify,
         strict=args.strict,
+        symbols_per_market=args.symbols_per_market,
+        cache_dir=args.cache_dir,
+        strict_pit=args.strict_pit,
     )
     return exit_code
 

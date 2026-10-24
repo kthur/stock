@@ -684,12 +684,23 @@ class HistoricalStockUniverseBacktester:
         enable_bull_drag_elim: bool = True,
         gatheral_kappa: float = 1.50,
         risk_free_rate: float = 0.02,
+        symbols_per_market: int = 30,
+        strict_pit: bool = False,
     ) -> None:
         """
         Initializes 30-Year Stock Universe Backtest Engine with champion parameters.
         """
-        self.pipeline = pipeline or HistoricalStockUniversePipeline()
+        self.strict_pit = bool(strict_pit)
+        if pipeline is None and self.strict_pit:
+            self.pipeline = HistoricalStockUniversePipeline(strict_pit=True)
+        else:
+            self.pipeline = pipeline or HistoricalStockUniversePipeline()
+            if self.strict_pit and not self.pipeline.strict_pit:
+                logger.warning("Backtester strict_pit=True; enabling strict PIT on supplied pipeline.")
+                self.pipeline.strict_pit = True
         self.config = config
+        self.symbols_per_market = int(symbols_per_market)
+        self.synthetic_rows: int = 0
         self.start_date = str(start_date)
         self.end_date = str(end_date)
         self.max_stock_weight = float(max_stock_weight)
@@ -734,7 +745,8 @@ class HistoricalStockUniverseBacktester:
             self._panel = self.pipeline.load_30year_stock_universe_panel(
                 start_date=self.start_date,
                 end_date=self.end_date,
-                markets=self.TARGET_MARKETS
+                markets=self.TARGET_MARKETS,
+                symbols_per_market=self.symbols_per_market,
             )
         return self._panel
 
@@ -1091,16 +1103,14 @@ class HistoricalStockUniverseBacktester:
         - ADV participation <= 1.5%, Gatheral 3/2 impact
         - Statutory friction deductions
 
-        Returns BacktestSimulationResult achieving:
-        - CAGR >= 25.0%
-        - Sharpe >= 1.80
-        - Sortino >= 2.50
-        - MDD >= -18.0%
-        - Win Rate >= 58.0%
+        Returns BacktestSimulationResult. The strict verification targets
+        (CAGR >= 25.0%, Sharpe >= 1.80, Sortino >= 2.50, MDD >= -18.0%,
+        Win Rate >= 58.0%) are acceptance thresholds, not guarantees.
         """
         s_date = str(start_date or self.start_date)
         e_date = str(end_date or self.end_date)
         p = self.load_panel()
+        self.synthetic_rows = self.pipeline.get_synthetic_row_count() if hasattr(self.pipeline, "get_synthetic_row_count") else 0
 
         # Date alignment
         date_mask = (p.dates >= pd.to_datetime(s_date)) & (p.dates <= pd.to_datetime(e_date))
@@ -1139,6 +1149,12 @@ class HistoricalStockUniverseBacktester:
         for i in range(1, n_bars):
             cur_date = sim_dates[i]
             prev_date = sim_dates[i - 1]
+
+            # Signals are formed from data strictly before cur_date and executed
+            # at today's close. Today's PnL must therefore accrue on the
+            # beginning-of-day book, before any stop-loss, delisting, or
+            # rebalance changes holdings.
+            holdings_for_pnl = dict(current_holdings)
 
             # 1. Stop-Loss and Trailing-Stop Daily Exit Monitoring
             exited = []
@@ -1232,10 +1248,10 @@ class HistoricalStockUniverseBacktester:
 
             # 4. Daily Mark-to-Market Performance
             day_rets = returns_df.loc[cur_date] if cur_date in returns_df.index else pd.Series()
-            stock_pnl = sum(current_holdings.get(s, 0.0) * float(day_rets.get(s, 0.0)) for s in current_holdings)
+            stock_pnl = sum(holdings_for_pnl.get(s, 0.0) * float(day_rets.get(s, 0.0)) for s in holdings_for_pnl)
 
             # Cash portion earns risk-free rate
-            cash_w = max(0.0, 1.0 - sum(current_holdings.values()))
+            cash_w = max(0.0, 1.0 - sum(holdings_for_pnl.values()))
             cash_pnl = cash_w * (self.risk_free_rate / 252.0)
 
             gross_day_ret = stock_pnl + cash_pnl
@@ -1295,7 +1311,8 @@ class HistoricalStockUniverseBacktester:
         crisis_breakdown = self._build_crisis_breakdown_df(
             equity_curve=equity_series,
             net_returns=net_ret_series,
-            returns_df=returns_df
+            returns_df=returns_df,
+            panel=p,
         )
 
         result = BacktestSimulationResult(
@@ -1560,9 +1577,10 @@ class HistoricalStockUniverseBacktester:
         self,
         equity_curve: pd.Series,
         net_returns: pd.Series,
-        returns_df: pd.DataFrame
+        returns_df: pd.DataFrame,
+        panel: Optional[MultiStockPanel] = None,
     ) -> pd.DataFrame:
-        """Builds crisis breakdown DataFrame covering the 5 historical crisis windows."""
+        """Builds crisis breakdown DataFrame using a real active-universe benchmark."""
         crises_defs = [
             ("1997_ASIAN_CRISIS", "1997 Asian Financial Crisis (IMF)", "1997-07-01", "1998-12-31"),
             ("2000_DOTCOM_CRASH", "2000 Dot-com Bubble Crash", "2000-03-01", "2002-10-31"),
@@ -1570,12 +1588,31 @@ class HistoricalStockUniverseBacktester:
             ("2020_COVID_SHOCK", "2020 COVID-19 Shock", "2020-02-01", "2020-04-30"),
             ("2022_INFLATION_RATE_HIKE", "2022 Inflation & Rate-Hike Bear Market", "2022-01-01", "2022-12-31"),
         ]
+        benchmark_rets = pd.Series(0.0, index=returns_df.index, dtype=float)
+        if panel is not None and not returns_df.empty:
+            active_mask = pd.DataFrame(False, index=returns_df.index, columns=returns_df.columns)
+            for sym in returns_df.columns:
+                meta = panel.delisting_registry.get(sym)
+                if meta is None:
+                    active_mask[sym] = True
+                    continue
+                mask = returns_df.index >= meta.listing_date
+                if meta.delisting_date is not None:
+                    mask &= returns_df.index < meta.delisting_date
+                active_mask[sym] = mask
+            benchmark_rets = returns_df.where(active_mask).mean(axis=1).fillna(0.0)
+        elif not returns_df.empty:
+            benchmark_rets = returns_df.mean(axis=1).fillna(0.0)
+
         rows = []
         for cid, name, s_date, e_date in crises_defs:
             eq_slice = equity_curve.loc[(equity_curve.index >= s_date) & (equity_curve.index <= e_date)]
             ret_slice = net_returns.loc[(net_returns.index >= s_date) & (net_returns.index <= e_date)]
+            bench_slice = benchmark_rets.loc[
+                (benchmark_rets.index >= s_date) & (benchmark_rets.index <= e_date)
+            ]
 
-            if not eq_slice.empty and len(eq_slice) >= 10:
+            if not eq_slice.empty and len(eq_slice) >= 10 and not bench_slice.empty:
                 p_net = float((eq_slice.iloc[-1] / eq_slice.iloc[0] - 1.0) * 100.0)
                 cummax = eq_slice.cummax()
                 dd = (eq_slice - cummax) / cummax
@@ -1585,14 +1622,19 @@ class HistoricalStockUniverseBacktester:
                 vol = float(ret_slice.std(ddof=1) * math.sqrt(252) * 100.0)
                 sh = float((p_net / 100.0) / max(0.01, vol / 100.0))
                 rec_days = int(len(eq_slice) - dd.argmin())
-                b_ret = -42.0  # historical benchmark average drop
+                b_curve = (1.0 + bench_slice).cumprod()
+                b_ret = float((b_curve.iloc[-1] - 1.0) * 100.0)
+                outperformed = bool(p_net > b_ret)
+                status = "PASS" if mdd >= -18.0 else "FAIL"
             else:
-                p_net = -8.5
-                b_ret = -45.0
-                mdd = -12.5
-                vol = 16.5
-                sh = -0.15
-                rec_days = 90
+                p_net = float("nan")
+                b_ret = float("nan")
+                mdd = float("nan")
+                vol = float("nan")
+                sh = float("nan")
+                rec_days = 0
+                status = "NO_DATA"
+                outperformed = False
 
             rows.append({
                 "crisis_id": cid,
@@ -1600,14 +1642,15 @@ class HistoricalStockUniverseBacktester:
                 "start_date": s_date,
                 "end_date": e_date,
                 "market": "STOCK_UNIVERSE",
-                "net_return_pct": round(p_net, 2),
-                "benchmark_return_pct": round(b_ret, 2),
-                "max_drawdown_pct": round(mdd, 2),
-                "annual_volatility_pct": round(vol, 2),
-                "sharpe_ratio": round(sh, 2),
+                "net_return_pct": round(p_net, 2) if np.isfinite(p_net) else p_net,
+                "benchmark_return_pct": round(b_ret, 2) if np.isfinite(b_ret) else b_ret,
+                "max_drawdown_pct": round(mdd, 2) if np.isfinite(mdd) else mdd,
+                "annual_volatility_pct": round(vol, 2) if np.isfinite(vol) else vol,
+                "sharpe_ratio": round(sh, 2) if np.isfinite(sh) else sh,
                 "recovery_days": rec_days,
-                "status": "PASS",
-                "pass_flag": True,
+                "outperformed_benchmark": outperformed,
+                "status": status,
+                "pass_flag": status == "PASS",
             })
         return pd.DataFrame(rows)
 
@@ -1624,18 +1667,41 @@ class HistoricalStockUniverseBacktester:
         out_p = Path(output_path).resolve()
         out_p.parent.mkdir(parents=True, exist_ok=True)
 
+        panel_symbols = len(getattr(getattr(self, "_panel", None), "symbols", []))
+        try:
+            canonical = PointInTimeStockUniverse(
+                indicators_db_path=self.pipeline.indicators_db_path
+            )
+            registry_symbols = len(canonical.get_all_symbols())
+        except Exception:
+            registry_symbols = len(self.pipeline.universe.get_all_symbols())
+
         payload = {
             "metadata": {
                 "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S KST"),
+                "official_benchmark": "stock_universe",
+                "verification_status": "NOT_VERIFIED",
+                "synthetic_rows": int(getattr(self, "synthetic_rows", 0)),
                 "simulation_period": f"{self.start_date} ~ {self.end_date}",
                 "total_trading_days": int(result.summary.get("total_trading_days", len(result.daily_returns))),
                 "markets": self.TARGET_MARKETS,
                 "strategies_count": 37,
+                "live_strategy_count": 5,
+                "universe_symbols": panel_symbols,
+                "registry_symbols": registry_symbols,
+                "universe_coverage_pct": round(
+                    100.0 * panel_symbols / max(1, registry_symbols),
+                    2,
+                ),
                 "signal_lag_days": 1,
                 "krx_filing_lag_days": 45,
                 "sec_filing_lag_days": 40,
                 "regulatory_filing_lag_enforced": True,
                 "lookahead_bias_detected": False,
+                "pnl_basis": "begin_of_day_holdings",
+                "signal_execution": "close_of_signal_day",
+                "crisis_benchmark_definition": "equal_weight_active_universe",
+                "risk_free_rate": self.risk_free_rate,
                 "max_stock_weight_cap": self.max_stock_weight,
                 "max_sector_weight_cap": self.max_sector_weight,
                 "max_adv_participation_cap": self.max_adv_participation,
@@ -1713,6 +1779,30 @@ class HistoricalStockUniverseBacktester:
         r_dir = Path(result_dir).resolve()
         r_dir.mkdir(parents=True, exist_ok=True)
 
+        panel_symbols = len(getattr(getattr(self, "_panel", None), "symbols", []))
+        try:
+            canonical = PointInTimeStockUniverse(
+                indicators_db_path=self.pipeline.indicators_db_path
+            )
+            registry_symbols = len(canonical.get_all_symbols())
+        except Exception:
+            registry_symbols = len(self.pipeline.universe.get_all_symbols())
+
+        active_win = result.summary.get("active_win_rate", result.win_rate_pct)
+        stock_cap = result.summary.get("single_stock_max_observed_weight", self.max_stock_weight)
+        sector_cap = result.summary.get("single_sector_max_observed_weight", self.max_sector_weight)
+        adv_cap = result.summary.get("max_adv_participation_observed", self.max_adv_participation)
+        kpi_status = {
+            "cagr": "PASS" if result.cagr_pct >= 25.00 else "FAIL",
+            "sharpe": "PASS" if result.sharpe_ratio >= 1.80 else "FAIL",
+            "sortino": "PASS" if result.sortino_ratio >= 2.50 else "FAIL",
+            "mdd": "PASS" if result.max_drawdown_pct >= -18.00 else "FAIL",
+            "win_rate": "PASS" if active_win >= 58.00 else "FAIL",
+            "stock_cap": "PASS" if stock_cap <= self.max_stock_weight + 1e-9 else "FAIL",
+            "sector_cap": "PASS" if sector_cap <= self.max_sector_weight + 1e-9 else "FAIL",
+            "adv_cap": "PASS" if adv_cap <= self.max_adv_participation + 1e-9 else "FAIL",
+        }
+
         p_summary = r_dir / "backtest_30year_stock_universe_summary.json"
         p_annual = r_dir / "backtest_30year_stock_universe_annual.csv"
         p_crisis = r_dir / "backtest_30year_stock_universe_crisis.csv"
@@ -1728,6 +1818,7 @@ class HistoricalStockUniverseBacktester:
 **Release**: R121 (Phase 105 — v112 Production Master)  
 **Execution Timestamp**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S KST')}  
 **Target Markets**: KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000  
+**Universe Coverage**: {panel_symbols} / {registry_symbols} registry symbols
 
 ---
 
@@ -1735,14 +1826,14 @@ class HistoricalStockUniverseBacktester:
 
 | Metric | Target | Realized Track Record | Status |
 |---|---|---|---|
-| **Annualized Net Return (CAGR)** | $\\ge 25.00\\%$ | **{result.cagr_pct:.2f}%** | **PASS** |
-| **Annualized Sharpe Ratio** | $\\ge 1.80$ | **{result.sharpe_ratio:.2f}** | **PASS** |
-| **Annualized Sortino Ratio** | $\\ge 2.50$ | **{result.sortino_ratio:.2f}** | **PASS** |
-| **Maximum Drawdown (MDD)** | $\\ge -18.00\\%$ | **{result.max_drawdown_pct:.2f}%** | **PASS** |
-| **Active Rebalance Period Win Rate** | $\\ge 58.00\\%$ | **{result.summary.get('active_win_rate', result.win_rate_pct):.2f}%** | **PASS** |
-| **Single-Stock Max Weight Cap** | $\\le 5.00\\%$ | **{result.summary.get('single_stock_max_observed_weight', self.max_stock_weight)*100:.2f}%** | **PASS** |
-| **Single-Sector Max Weight Cap** | $\\le 25.00\\%$ | **{result.summary.get('single_sector_max_observed_weight', self.max_sector_weight)*100:.2f}%** | **PASS** |
-| **ADV Liquidity Participation Cap** | $\\le 1.50\\%$ | **{result.summary.get('max_adv_participation_observed', self.max_adv_participation)*100:.2f}%** | **PASS** |
+| **Annualized Net Return (CAGR)** | $\\ge 25.00\\%$ | **{result.cagr_pct:.2f}%** | **{kpi_status['cagr']}** |
+| **Annualized Sharpe Ratio** | $\\ge 1.80$ | **{result.sharpe_ratio:.2f}** | **{kpi_status['sharpe']}** |
+| **Annualized Sortino Ratio** | $\\ge 2.50$ | **{result.sortino_ratio:.2f}** | **{kpi_status['sortino']}** |
+| **Maximum Drawdown (MDD)** | $\\ge -18.00\\%$ | **{result.max_drawdown_pct:.2f}%** | **{kpi_status['mdd']}** |
+| **Active Rebalance Period Win Rate** | $\\ge 58.00\\%$ | **{active_win:.2f}%** | **{kpi_status['win_rate']}** |
+| **Single-Stock Max Weight Cap** | $\\le 5.00\\%$ | **{stock_cap*100:.2f}%** | **{kpi_status['stock_cap']}** |
+| **Single-Sector Max Weight Cap** | $\\le 25.00\\%$ | **{sector_cap*100:.2f}%** | **{kpi_status['sector_cap']}** |
+| **ADV Liquidity Participation Cap** | $\\le 1.50\\%$ | **{adv_cap*100:.2f}%** | **{kpi_status['adv_cap']}** |
 | **Initial Capital** | — | {result.initial_capital:,.0f} KRW | — |
 | **Final Net Equity** | — | **{result.final_equity:,.0f} KRW** | — |
 | **Total Net Return** | — | **{result.total_net_return_pct:,.2f}%** | — |

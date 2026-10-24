@@ -13,8 +13,11 @@ Core Subsystems:
      * Russell 2000 (^RUT)
    - Tracks listing dates, delisting dates, active status by date t.
    - Enforces bankruptcy/delisting terminal loss realization (e.g. -1.0 for historical bankruptcies
-     such as 1997 Hanbo/Sammi/Daewoo, 2000 Enron/WorldCom/Pets.com, 2008 Lehman/WaMu).
+     such as 2000 Enron/WorldCom/Pets.com, 2008 Lehman/WaMu/C& Heavy Industries).
    - Eliminates survivorship bias by retaining historical constituents up to their exit date.
+   - Keeps 106 investable symbols; recycled Korean codes whose delisted series are
+     unavailable remain as metadata-only reference records (`investable=False`) for
+     audits, but are excluded from the backtest panel.
 
 2. HistoricalStockUniversePipeline (F495.3 & F495.4):
    - Vectorized, high-performance feature store for 30-year multi-stock walk-forward simulation (1996~2026).
@@ -237,6 +240,7 @@ class StockListingMetadata:
     terminal_loss_pct: float = 0.0          # -1.0 for bankruptcy (-100%), 0.0 for merger
     industry: str = ""
     currency: str = "USD"                   # USD or KRW
+    investable: bool = True                 # False = historical reference only, no backtest data
 
     def is_active_at(self, date: Union[str, pd.Timestamp]) -> bool:
         ts = pd.to_datetime(date)
@@ -264,6 +268,7 @@ class StockListingMetadata:
             "terminal_loss_pct": self.terminal_loss_pct,
             "industry": self.industry,
             "currency": self.currency,
+            "investable": self.investable,
         }
 
 
@@ -302,6 +307,10 @@ class PointInTimeStockUniverse:
             metadata.market = norm_mkt
 
             self._registry[sym] = metadata
+            if not metadata.investable:
+                if norm_mkt in self._market_index and sym in self._market_index[norm_mkt]:
+                    self._market_index[norm_mkt].remove(sym)
+                return
             if norm_mkt not in self._market_index:
                 self._market_index[norm_mkt] = []
             if sym not in self._market_index[norm_mkt]:
@@ -328,12 +337,14 @@ class PointInTimeStockUniverse:
             if norm_mkt:
                 candidate_symbols = self._market_index.get(norm_mkt, [])
             else:
-                candidate_symbols = list(self._registry.keys())
+                candidate_symbols = [
+                    sym for m in TARGET_MARKETS for sym in self._market_index.get(m, [])
+                ]
 
             active = []
             for sym in candidate_symbols:
                 meta = self._registry.get(sym)
-                if meta and meta.is_active_at(ts):
+                if meta and meta.investable and meta.is_active_at(ts):
                     active.append(sym)
             return sorted(active)
 
@@ -392,19 +403,31 @@ class PointInTimeStockUniverse:
             return sorted(results, key=lambda x: str(x["delisting_date"]))
 
     def get_all_symbols(self, market: Optional[str] = None) -> List[str]:
-        """Returns all registered symbols across history for a market."""
+        """Returns all investable symbols across history for a market.
+
+        Reference-only delistings (investable=False) are intentionally omitted:
+        they preserve metadata for survivorship audits but have no usable price
+        history and must never enter the backtest panel.
+        """
         norm_mkt = normalize_market(market) if market else None
         with self._lock:
             if norm_mkt:
                 return sorted(self._market_index.get(norm_mkt, []))
-            return sorted(list(self._registry.keys()))
+            return sorted({
+                sym for m in TARGET_MARKETS for sym in self._market_index.get(m, [])
+            })
 
     def get_delisted_symbols(self, market: Optional[str] = None) -> List[str]:
-        """Returns symbols that have a delisting date registered."""
+        """Returns investable symbols that have a delisting date registered.
+
+        Use get_delistings() to include reference-only historical metadata.
+        """
         norm_mkt = normalize_market(market) if market else None
         with self._lock:
             delisted = []
             for meta in self._registry.values():
+                if not meta.investable:
+                    continue
                 if norm_mkt and meta.market != norm_mkt:
                     continue
                 if meta.delisting_date is not None:
@@ -595,16 +618,13 @@ class PointInTimeStockUniverse:
             ("009150", "삼성전기", "Technology", "1979-02-27", None, None, 0.0),
             ("010130", "고려아연", "Materials", "1990-07-28", None, None, 0.0),
             ("000810", "삼성화재", "Financials", "1975-06-23", None, None, 0.0),
-            ("034730", "SK", "Industrials", "1998-04-18", None, None, 0.0),
+            ("034730", "SK", "Industrials", "2009-11-11", None, None, 0.0),
             ("018260", "삼성에스디에스", "Technology", "2014-11-14", None, None, 0.0),
-            # Historical KOSPI Bankruptcies (1997 IMF Crisis & 2008 GFC)
-            ("001550", "한보철강", "Materials", "1989-10-10", "1997-12-15", "BANKRUPTCY", -1.0),
-            ("005230", "삼미특수강", "Materials", "1987-05-15", "1997-11-20", "BANKRUPTCY", -1.0),
-            ("001490", "대우", "Industrials", "1975-10-07", "2000-05-15", "BANKRUPTCY", -1.0),
-            ("005300", "대우전자", "Technology", "1973-10-23", "2001-08-30", "BANKRUPTCY", -1.0),
-            ("002210", "동아건설", "Industrials", "1971-06-15", "2001-05-11", "BANKRUPTCY", -1.0),
+            # Historical KOSPI Bankruptcy (2008 GFC)
+            # 1997-2001 bankruptcies are registered as reference-only metadata
+            # below (investable=False): their Naver codes were recycled or have
+            # no retrievable delisted price history.
             ("008400", "C&중공업", "Industrials", "1990-01-01", "2009-04-20", "BANKRUPTCY", -1.0),
-            ("001720", "풍림산업", "Industrials", "1978-08-01", "2013-04-30", "BANKRUPTCY", -1.0),
         ]
         for sym, name, sec, l_dt, d_dt, d_rs, loss in kospi_symbols:
             self.register_symbol(StockListingMetadata(
@@ -634,12 +654,10 @@ class PointInTimeStockUniverse:
             ("005290", "동진쎄미켐", "Materials", "1999-12-21", None, None, 0.0),
             ("039030", "이오테크닉스", "Technology", "2002-08-27", None, None, 0.0),
             ("095660", "네오위즈", "Communication", "2007-04-26", None, None, 0.0),
-            # Historical KOSDAQ Bankruptcies (2000 Tech Crash / Venture Scandals)
-            ("018310", "메디슨", "Healthcare", "1996-07-01", "2002-04-10", "BANKRUPTCY", -1.0),
-            ("032500", "한솔텔레콤", "Communication", "1997-08-01", "2004-03-12", "BANKRUPTCY", -1.0),
-            ("035610", "새롬기술", "Technology", "1999-08-01", "2005-06-30", "RESTRUCTURING_CRASH", -0.95),
-            ("042940", "씨엔씨엔터프라이즈", "Technology", "2000-01-15", "2003-08-20", "BANKRUPTCY", -1.0),
-            ("038530", "골드뱅크", "Financials", "1999-10-12", "2009-09-15", "BANKRUPTCY", -1.0),
+            # Historical KOSDAQ names with recycled codes are registered as
+            # reference-only metadata below (investable=False); Naver now resolves
+            # those codes to unrelated listed companies, so their price histories
+            # cannot be represented without lookahead/survivorship contamination.
         ]
         for sym, name, sec, l_dt, d_dt, d_rs, loss in kosdaq_symbols:
             self.register_symbol(StockListingMetadata(
@@ -647,6 +665,36 @@ class PointInTimeStockUniverse:
                 listing_date=pd.to_datetime(l_dt),
                 delisting_date=pd.to_datetime(d_dt) if d_dt else None,
                 delisting_reason=d_rs, terminal_loss_pct=loss, currency="KRW"
+            ))
+
+        # ------------------------------------------------------------------
+        # Reference-only Korean delistings (metadata retained, NOT investable)
+        # ------------------------------------------------------------------
+        # These historical codes were recycled by Naver/KRX or have no
+        # retrievable delisted price history. They remain registered so that
+        # delisting-era metadata and survivorship-bias audits are preserved,
+        # but they are excluded from _market_index/get_all_symbols and thus
+        # can never enter the backtest panel without real price data.
+        reference_only_kr = [
+            ("001550", "한보철강", "KOSPI", "Materials", "1989-10-10", "1997-12-15", "BANKRUPTCY", -1.0),
+            ("005230", "삼미특수강", "KOSPI", "Materials", "1987-05-15", "1997-11-20", "BANKRUPTCY", -1.0),
+            ("001490", "대우", "KOSPI", "Industrials", "1975-10-07", "2000-05-15", "BANKRUPTCY", -1.0),
+            ("005300", "대우전자", "KOSPI", "Technology", "1973-10-23", "2001-08-30", "BANKRUPTCY", -1.0),
+            ("002210", "동아건설", "KOSPI", "Industrials", "1971-06-15", "2001-05-11", "BANKRUPTCY", -1.0),
+            ("001720", "풍림산업", "KOSPI", "Industrials", "1978-08-01", "2013-04-30", "BANKRUPTCY", -1.0),
+            ("018310", "메디슨", "KOSDAQ", "Healthcare", "1996-07-01", "2002-04-10", "BANKRUPTCY", -1.0),
+            ("032500", "한솔텔레콤", "KOSDAQ", "Communication", "1997-08-01", "2004-03-12", "BANKRUPTCY", -1.0),
+            ("035610", "새롬기술", "KOSDAQ", "Technology", "1999-08-01", "2005-06-30", "RESTRUCTURING_CRASH", -0.95),
+            ("042940", "씨엔씨엔터프라이즈", "KOSDAQ", "Technology", "2000-01-15", "2003-08-20", "BANKRUPTCY", -1.0),
+            ("038530", "골드뱅크", "KOSDAQ", "Financials", "1999-10-12", "2009-09-15", "BANKRUPTCY", -1.0),
+        ]
+        for sym, name, mkt, sec, l_dt, d_dt, d_rs, loss in reference_only_kr:
+            self.register_symbol(StockListingMetadata(
+                symbol=sym, name=name, market=mkt, sector=sec,
+                listing_date=pd.to_datetime(l_dt),
+                delisting_date=pd.to_datetime(d_dt),
+                delisting_reason=d_rs, terminal_loss_pct=loss, currency="KRW",
+                industry="Reference-only delisted history", investable=False,
             ))
 
 
@@ -750,7 +798,7 @@ class MultiStockPanel:
             df = self.price_tensor.get(sym)
             if df is not None and not df.empty and "close" in df.columns:
                 close_dict[sym] = df["close"]
-        close_df = pd.DataFrame(close_dict, index=self.dates).ffill().bfill()
+        close_df = pd.DataFrame(close_dict, index=self.dates).ffill()
         for sym in self.symbols:
             meta = self.delisting_registry.get(sym)
             if meta is not None and sym in close_df.columns:
@@ -783,12 +831,14 @@ class HistoricalStockUniversePipeline:
         indicators_db_path: Optional[Union[str, Path]] = None,
         cache_dir: Optional[Union[str, Path]] = None,
         universe: Optional[PointInTimeStockUniverse] = None,
-        use_cache: bool = True
+        use_cache: bool = True,
+        strict_pit: bool = False,
     ) -> None:
         self.stock_price_db_path = Path(stock_price_db_path or _DEFAULT_STOCK_PRICES_DB)
         self.indicators_db_path = Path(indicators_db_path or _DEFAULT_INDICATORS_DB)
         self.cache_dir = Path(cache_dir or _DEFAULT_CACHE_DIR)
         self.use_cache = bool(use_cache)
+        self.strict_pit = bool(strict_pit)
 
         if self.use_cache:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -800,11 +850,13 @@ class HistoricalStockUniversePipeline:
 
         self._in_memory_price_cache: Dict[str, pd.DataFrame] = {}
         self._in_memory_fund_cache: Dict[str, pd.DataFrame] = {}
+        self._synthetic_price_rows: int = 0
+        self._synthetic_fundamental_rows: int = 0
         self._lock = threading.RLock()
 
         logger.info(
-            "HistoricalStockUniversePipeline initialized. Cache: %s (enabled=%s)",
-            self.cache_dir, self.use_cache
+            "HistoricalStockUniversePipeline initialized. Cache: %s (enabled=%s, strict_pit=%s)",
+            self.cache_dir, self.use_cache, self.strict_pit
         )
 
     # --------------------------------------------------------------------------
@@ -904,7 +956,7 @@ class HistoricalStockUniversePipeline:
             else:
                 adv_dict[sym] = pd.Series(1e7, index=df.index)
 
-        adv_df = pd.DataFrame(adv_dict, index=master_dates).ffill().bfill().fillna(1e6).clip(lower=100.0)
+        adv_df = pd.DataFrame(adv_dict, index=master_dates).ffill().fillna(1e6).clip(lower=100.0)
         for sym in selected_symbols:
             meta = delisting_reg.get(sym)
             if meta is not None and sym in adv_df.columns:
@@ -939,7 +991,7 @@ class HistoricalStockUniversePipeline:
         Validates the 4 strict causality and integrity requirements:
         1. Causal Pricing: No future bars >= test_date leak into decision bar T-1.
         2. Dynamic Filing Lag: No fundamentals with date_available > test_date leak into bar T-1.
-        3. Survivorship Bias Defense: Delisted stocks (e.g. Lehman LEH, Hanbo 001550) are tracked.
+        3. Survivorship Bias Defense: Delisted stocks (e.g. Lehman LEH, C& Heavy Industries 008400) are tracked.
         4. Rolling ADV: 20-day ADV is strictly lagged and rolling.
         """
         ts = pd.to_datetime(test_date)
@@ -1097,16 +1149,41 @@ class HistoricalStockUniversePipeline:
             if self.use_cache and parquet_path.exists():
                 try:
                     df = pd.read_parquet(parquet_path)
-                    # Verify that cached parquet completely encloses the requested active date span
-                    covers_start = (df.index.min() <= stock_start + pd.Timedelta(days=4))
+                    # Verify that cached parquet completely encloses the requested active date span.
+                    # In strict PIT mode a real cache may legitimately end before the registry
+                    # delisting date (e.g. a halted security's last traded bar). Accept the
+                    # available real history instead of falling through to synthetic synthesis.
+                    start_tolerance_days = 90 if self.strict_pit else 4
+                    covers_start = (df.index.min() <= stock_start + pd.Timedelta(days=start_tolerance_days))
                     covers_end = (df.index.max() >= stock_end - pd.Timedelta(days=4))
+                    if self.strict_pit:
+                        covers_end = True
                     if covers_start and covers_end:
                         df_slice = df[(df.index >= req_start_dt) & (df.index <= req_end_dt)]
                         if not df_slice.empty:
+                            if self.strict_pit:
+                                fund_df = self._load_stock_fundamentals(symbol, meta)
+                                df_slice = align_fundamentals_causally(
+                                    df_slice, fund_df, is_krx=is_krx_market(meta.market)
+                                )
+                                df_slice = self._compute_vectorized_features(df_slice, meta)
                             self._in_memory_price_cache[cache_key] = df_slice
                             return df_slice.copy()
+                    if self.strict_pit:
+                        raise FileNotFoundError(
+                            f"Strict PIT cache does not cover listing start for {symbol}: "
+                            f"cache={df.index.min()}..{df.index.max()}, required_start={stock_start}"
+                        )
+                except FileNotFoundError:
+                    raise
                 except Exception as e:
                     logger.debug("Parquet read failed for %s: %s", symbol, e)
+
+            if self.strict_pit:
+                raise FileNotFoundError(
+                    f"Strict PIT mode requires a real parquet cache for {symbol}; "
+                    f"missing or unusable: {parquet_path}"
+                )
 
             # Build full historical span when caching is enabled to ensure parquet is never slice-poisoned
             if self.use_cache:
@@ -1215,6 +1292,7 @@ class HistoricalStockUniversePipeline:
 
         # Generate deterministic synthetic history
         synth_df = self._generate_synthetic_stock_history(symbol, meta, cal_dates)
+        self._synthetic_price_rows += int(len(synth_df))
 
         if db_df.empty:
             return synth_df
@@ -1353,6 +1431,14 @@ class HistoricalStockUniversePipeline:
 
             # Check SQLite MarketIndicatorStorage
             fund_df = self._query_fundamentals_db(symbol)
+            if self.strict_pit:
+                is_krx = is_krx_market(meta.market)
+                if not fund_df.empty:
+                    fund_df["date"] = pd.to_datetime(fund_df["date"])
+                    fund_df = apply_statutory_filing_lag(fund_df, is_krx=is_krx)
+                self._in_memory_fund_cache[symbol] = fund_df
+                return fund_df.copy()
+
             if fund_df.empty or len(fund_df) < 5:
                 # Deterministic quarterly fundamentals synthesis (1996~2026, 120 quarters)
                 fund_df = self._generate_synthetic_fundamentals(symbol, meta)
@@ -1451,7 +1537,13 @@ class HistoricalStockUniversePipeline:
                 "total_debt": float(debt),
                 "cash_equivalents": float(cash),
             })
-        return pd.DataFrame(records)
+        out_df = pd.DataFrame(records)
+        self._synthetic_fundamental_rows += int(len(out_df))
+        return out_df
+
+    def get_synthetic_row_count(self) -> int:
+        """Returns the number of synthetic price/fundamental rows generated so far."""
+        return int(self._synthetic_price_rows + self._synthetic_fundamental_rows)
 
     def _compute_vectorized_features(
         self,
@@ -1478,50 +1570,50 @@ class HistoricalStockUniversePipeline:
         # 20-day rolling Average Daily Volume (ADV) in currency & share volume
         # Strictly lagged by 1 bar to guarantee zero lookahead bias
         daily_turnover = out["close"] * out["volume"]
-        raw_adv = daily_turnover.rolling(20, min_periods=5).mean().shift(1).bfill().fillna(1e6)
+        raw_adv = daily_turnover.rolling(20, min_periods=5).mean().shift(1).ffill().fillna(1e6)
         out["adv_20d"] = np.maximum(100.0, raw_adv)
-        raw_adv_shares = out["volume"].rolling(20, min_periods=5).mean().shift(1).bfill().fillna(1e4)
+        raw_adv_shares = out["volume"].rolling(20, min_periods=5).mean().shift(1).ffill().fillna(1e4)
         out["adv_shares_20d"] = np.maximum(10.0, raw_adv_shares)
 
         # Fundamental Financial Ratios (from causally merged fundamental statements)
         if "eps" in out.columns and "bps" in out.columns:
-            # P/E Ratio: close / eps
-            eps_val = pd.to_numeric(out["eps"], errors="coerce").fillna(1.0)
-            eps_pos = np.where(eps_val > 0.01, eps_val, 1.0)
-            out["pe_ratio"] = np.clip(out["close"] / eps_pos, 2.0, 150.0).fillna(15.0)
+            # P/E Ratio: close / eps; missing fundamentals remain neutral (never fabricate 1.0)
+            eps_val = pd.to_numeric(out["eps"], errors="coerce")
+            pe = out["close"] / eps_val.where(eps_val > 0.01)
+            out["pe_ratio"] = pe.clip(2.0, 150.0).fillna(15.0)
 
-            # P/B Ratio: close / bps
-            bps_val = pd.to_numeric(out["bps"], errors="coerce").fillna(1.0)
-            bps_pos = np.where(bps_val > 0.01, bps_val, 1.0)
-            out["pb_ratio"] = np.clip(out["close"] / bps_pos, 0.2, 50.0).fillna(1.8)
+            # P/B Ratio: close / bps; missing fundamentals remain neutral (never fabricate 1.0)
+            bps_val = pd.to_numeric(out["bps"], errors="coerce")
+            pb = out["close"] / bps_val.where(bps_val > 0.01)
+            out["pb_ratio"] = pb.clip(0.2, 50.0).fillna(1.8)
 
             # ROE: net_income / book_value
             if "net_income" in out.columns and "book_value" in out.columns:
-                bv = pd.to_numeric(out["book_value"], errors="coerce").bfill().fillna(1e8).replace(0, 1.0)
-                ni = pd.to_numeric(out["net_income"], errors="coerce").bfill().fillna(1.2e7)
+                bv = pd.to_numeric(out["book_value"], errors="coerce").ffill().fillna(1e8).replace(0, 1.0)
+                ni = pd.to_numeric(out["net_income"], errors="coerce").ffill().fillna(1.2e7)
                 out["roe"] = np.clip(ni / bv, -0.50, 0.60).fillna(0.12)
             else:
                 out["roe"] = 0.12
 
             # Operating Margin: operating_income / revenue
             if "operating_income" in out.columns and "revenue" in out.columns:
-                rev = pd.to_numeric(out["revenue"], errors="coerce").bfill().fillna(1e8).replace(0, 1.0)
-                op = pd.to_numeric(out["operating_income"], errors="coerce").bfill().fillna(1e7)
+                rev = pd.to_numeric(out["revenue"], errors="coerce").ffill().fillna(1e8).replace(0, 1.0)
+                op = pd.to_numeric(out["operating_income"], errors="coerce").ffill().fillna(1e7)
                 out["operating_margin"] = np.clip(op / rev, -0.40, 0.50).fillna(0.10)
             else:
                 out["operating_margin"] = 0.10
 
             # Market Cap: close * shares_outstanding
             if "shares_outstanding" in out.columns:
-                shares = pd.to_numeric(out["shares_outstanding"], errors="coerce").bfill().fillna(5e7)
+                shares = pd.to_numeric(out["shares_outstanding"], errors="coerce").ffill().fillna(5e7)
                 out["market_cap"] = (out["close"] * shares).fillna(out["close"] * 5e7)
             else:
                 out["market_cap"] = out["close"] * 5e7
 
             # Debt to Equity
             if "total_debt" in out.columns and "book_value" in out.columns:
-                bv = pd.to_numeric(out["book_value"], errors="coerce").bfill().fillna(1e8).replace(0, 1.0)
-                debt = pd.to_numeric(out["total_debt"], errors="coerce").bfill().fillna(4e7)
+                bv = pd.to_numeric(out["book_value"], errors="coerce").ffill().fillna(1e8).replace(0, 1.0)
+                debt = pd.to_numeric(out["total_debt"], errors="coerce").ffill().fillna(4e7)
                 out["debt_to_equity"] = np.clip(debt / bv, 0.0, 10.0).fillna(0.50)
             else:
                 out["debt_to_equity"] = 0.50

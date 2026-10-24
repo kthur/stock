@@ -3,7 +3,7 @@
 > **Version**: v129 (Institutional Production Master / Release R138)  
 > **Status**: Production Ready (**11,669+ tests across 898 modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **CAGR +8.19%**, **Net Return +1,149.55%**, **MDD -35.43%** (1996~2026 8,089 거래일 실데이터 검증, 5대 역사적 경제위기 방어)  
+> **30-Year Compounding Performance**: **Unverified — official benchmark rebuild in progress.** Legacy figures are quarantined; the dashboard shows performance numbers only after a non-synthetic artifact passes verification.
 > **Live Web Dashboard**: **[https://kthur.github.io/stock/](https://kthur.github.io/stock/)**
 
 ---
@@ -17,7 +17,7 @@
 - **포트폴리오 최적화 & 다양체 수송**: 8대 시장 레짐 적응형 4대 모델 앙상블(`UnifiedPortfolioAllocator`: Black-Litterman, HERC, Risk Parity, EVT-CVaR), 푸앵카레 볼 쌍곡 다양체 곡률 적응형 최적 수송 배분기(`HyperbolicOptimalTransportAllocator`, F582), Gatheral & Almgren-Chriss 3/2승 비선형 시장충격 페널티, 연속 비례 Leland 불감대 밴드.
 - **초저지연 기관 DMA 및 자율 실행 (OMS)**: Zero-Copy DPDK/AF_XDP 커널 바이패스 라우팅 게이트웨이(F583, 32바이트 구조체, PCIe BAR0/BAR1 DMA 링버퍼), 마이크로초 L3 오더북 매칭(`FastLOBEngine`), FIX 4.4 DMA 엔진, 다중 브로커 핫스탠바이 스마트 오더 라우터(`SmartOrderRouter`), 강화학습(RL) 주문 슬라이싱 에이전트.
 - **자율 페이퍼 트레이딩 & 실시간 슬리피지 피드백 (Track 3)**: 8대 주문 안전 게이트(Gate 8 합성 인버스 ETF 헤지 오버레이), `trade_logs.db` 실체결 저널, $Net\ Equity \le Gross\ Equity$ 불변식 보존, `SlippageFeedbackEngine` 실시간 비용 모델 파라미터 적응.
-- **30년 복리 실질 백테스터 & 대시보드 시각화 (Track 4)**: 1996~2026 8,089 거래일 전수 실데이터 검증, 5대 글로벌 거시위기 방어 매트릭스(1997 외환위기, 2000 닷컴버블, 2008 금융위기, 2020 코로나, 2022 인플레이션 베어마켓), 실시간 페이퍼 트레이딩 OMS 모니터를 갖춘 GitHub Pages 웹 대시보드.
+- **30년 복리 벤치마크 재구축 & 대시보드 시각화 (Track 4)**: 공식 30년 산출물은 현재 검증 재구축 중입니다. 로컬 가격 데이터가 2006년 이후에 시작하고 1996~2005 구간은 합성 데이터이므로, 검증된 비합성 산출물이 생성되기 전까지 대시보드는 성과 수치를 표시하지 않습니다. 실시간 페이퍼 트레이딩 OMS 모니터는 GitHub Pages에서 제공됩니다.
 
 ---
 
@@ -119,10 +119,10 @@ flowchart TB
         SlippageFB --> TradeLogs
     end
 
-    subgraph Layer7 ["7. 30년 복리 시뮬레이션 & 시각화 센터 (Track 4 Dashboard & 30Y Compounding)"]
-        Backtest30Y["30-Year Net Real Return Backtester\n(1996~2026, 8,089 거래일, CAGR 8.19%, MDD -35.43%)"]
-        CrisesMatrix["5대 거시위기 방어 매트릭스\n(1997 IMF, 2000 닷컴, 2008 금융위기, 2020 코로나, 2022 베어마켓)"]
-        Dashboard["GitHub Pages 라이브 웹 대시보드\n(30년 복리 콘솔, 5대 위기 매트릭스, 실시간 Paper OMS 모니터, 37-Alpha 레이더)"]
+    subgraph Layer7 ["7. 30년 벤치마크 검증 & 시각화 센터 (Track 4 Dashboard & 30Y Benchmark Verification)"]
+        Backtest30Y["30-Year Net Real Return Backtester\n(verification pending — no official artifact)"]
+        CrisesMatrix["5대 거시위기 방어 매트릭스\n(검증된 산출물 필드만 표시)"]
+        Dashboard["GitHub Pages 라이브 웹 대시보드\n(30년 벤치마크 상태 카드, 실시간 Paper OMS 모니터, 37-Alpha 레이더)"]
         Backtest30Y --> Dashboard
         CrisesMatrix --> Dashboard
         TradeLogs --> Dashboard
@@ -212,22 +212,17 @@ flowchart TB
 - **영속적 감사 저널 (`trade_logs.db`)**: `paper_executions`, `paper_portfolio_snapshots`, `trade_logs` 3대 SQLite WAL 테이블 실시간 로깅.
 
 ### 🔹 Track 4: 30-Year Compounding Benchmark & Multi-Regime Visualization
-- **30년(1996~2026) 실데이터 복리 시뮬레이션 (8,089 거래일)**:
-  - **연평균 복리수익률 (CAGR)**: **+8.19%**
-  - **30년 누적 순수익률**: **+1,149.55%**
-  - **최대 낙폭 (MDD)**: **-35.43%** (벤치마크 지수 대비 -30%p 이상 방어)
-  - **거래비용 압축률**: Leland 버퍼 밴드를 통해 불필요한 턴오버 40% 이상 제거
-- **5대 역사적 거시위기 방어 매트릭스**:
-  1. *1997 외환위기 (IMF)*: 시스템 **+29.49%** (시장 대비 알파 **+26.56%p**)
-  2. *2000 닷컴 버블 붕괴*: 시스템 **-5.36%** (시장 대비 알파 **+46.04%p**)
-  3. *2008 글로벌 금융위기 (서브프라임)*: 시스템 **-27.39%** (시장 대비 알파 **+14.87%p**)
-  4. *2020 코로나 팬데믹 쇼크*: 시스템 **-5.58%** (시장 대비 알파 **+1.15%p**)
-  5. *2022 글로벌 금리인상 베어마켓*: 시스템 **-11.81%** (시장 대비 알파 **+14.01%p**)
+- **공식 30년 벤치마크 상태: UNVERIFIED / REBUILDING**:
+  - 기존 1996~2026 성과 수치는 검증되지 않은 레거시 산출물로 분류되어 `benchmarks/archive/unverified/`에 격리되었습니다.
+  - 로컬 가격 데이터는 canonical universe 기준 2006년 이후에 시작하며, 1996~2005 구간은 합성 데이터이므로 공식 30년 실데이터 산출물로 사용할 수 없습니다.
+  - 대시보드는 `benchmarks/30year/stock_universe_summary.json`의 `metadata.official_benchmark`, `metadata.verification_status`, `metadata.synthetic_rows == 0` 및 필수 수치 필드를 모두 통과한 경우에만 성과를 렌더링합니다.
+- **대시보드 표시 원칙**:
+  - 검증된 산출물이 없으면 성과 수치 대신 “공식 30년 벤치마크 재구축 중 (Unverified)” 상태를 표시합니다.
+  - 5대 역사적 위기 방어 매트릭스와 연도별 성과표는 검증된 산출물의 필드가 존재할 때만 표시됩니다.
 - **GitHub Pages 통합 라이브 웹 대시보드 (`gh-pages/index.html`)**:
-  - 30-Year Compounding Console (8,089일 실데이터 시계열 차트)
-  - 5대 위기 방어 매트릭스 카드 & 1996~2026 연도별 실질 성과표
-  - `trade_logs.db` 연동 실시간 Paper Trading OMS 모니터
-  - 3대 통합 메가 카드, 37-Alpha 레이더 차트, 컬럼 프리셋 필터
+  - 30-Year Benchmark Status Card (검증 상태 및 재구축 안내)
+  - 실시간 Paper Trading OMS 모니터 및 37-Alpha 레이더 차트
+  - 3대 통합 메가 카드 및 컬럼 프리셋 필터
 
 ---
 
@@ -277,10 +272,10 @@ copy trading_system\.env.example trading_system\.env
 .venv\Scripts\python trading_system/scripts/run_paper_trading_daemon.py --status
 ```
 
-### 4. 30년 복리 벤치마크 및 웹 대시보드 리포트 생성 (`generate_report.py`)
+### 4. 30년 벤치마크 검증 및 웹 대시보드 리포트 생성 (`generate_report.py`)
 
 ```powershell
-# 30년 복리 콘솔, 5대 위기 방어 매트릭스, 페이퍼 트레이딩 실체결 저널을 포함한 종합 HTML 대시보드 빌드
+# 30년 벤치마크 상태 카드, 페이퍼 트레이딩 실체결 저널을 포함한 종합 HTML 대시보드 빌드
 .venv\Scripts\python trading_system/generate_report.py
 ```
 
@@ -316,7 +311,7 @@ copy trading_system\.env.example trading_system\.env
 | `trading_system/result/pipeline_result.csv` | CSV | 5대 시장 전 종목 원본 예측 데이터 (기계 판독용) |
 | `trading_system/result/trade_logs.db` | SQLite WAL | **페이퍼 트레이딩 실체결 저널, 포트폴리오 스냅샷, 슬리피지 피드백 감사 로그** |
 | `trading_system/result/*_predictions.txt` | 텍스트 | 전략 2~37별 개별 세부 예측 리포트 (KST 기준) |
-| `gh-pages/index.html` (및 `trading_system/gh-pages/`) | HTML / JS (499 KB) | **30년 복리 콘솔, 5대 위기 매트릭스, 실시간 Paper OMS, 37-Alpha 레이더 라이브 웹 대시보드** |
+| `gh-pages/index.html` (및 `trading_system/gh-pages/`) | HTML / JS (499 KB) | **30년 벤치마크 검증 상태 카드, 실시간 Paper OMS, 37-Alpha 레이더 라이브 웹 대시보드** |
 | `docs/reports/benchmark_phase122_report.md` | 마크다운 | Phase 122 5대 시장 정량 벤치마크 마스터 리포트 |
 | `docs/SYSTEM_ARCHITECTURE.md` | 마크다운 | **전체 시스템 7계층 엔지니어링 및 퀀트 금융 종합 아키텍처 명세서** |
 

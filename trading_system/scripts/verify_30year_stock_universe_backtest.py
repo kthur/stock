@@ -457,6 +457,9 @@ class StockUniverse30YearVerifier:
         chronology_ok = True
         mdd_neg_ok = True
         status_pass_ok = True
+        benchmark_ok = True
+        benchmark_values: List[float] = []
+        has_simulated_crisis = False
         for _, row in crisis_df.iterrows():
             s_date = str(row.get("start_date", ""))
             e_date = str(row.get("end_date", ""))
@@ -469,6 +472,16 @@ class StockUniverse30YearVerifier:
 
             status = str(row.get("status", "")).upper()
             pass_flag = row.get("pass_flag", True)
+            if status == "NO_DATA":
+                continue
+
+            has_simulated_crisis = True
+            bench = _safe_float(row.get("benchmark_return_pct"))
+            if bench is None or not math.isfinite(bench):
+                benchmark_ok = False
+            else:
+                benchmark_values.append(bench)
+
             if str(pass_flag).lower() not in ("true", "1") and status != "PASS":
                 status_pass_ok = False
 
@@ -494,6 +507,22 @@ class StockUniverse30YearVerifier:
             description="Crisis defense status flags confirmed PASS",
             passed=status_pass_ok,
             details="All crisis records indicate pass_flag=True/status=PASS",
+        )
+
+        if benchmark_values:
+            varied = len({round(v, 4) for v in benchmark_values}) > 1
+            not_legacy = not all(round(v, 4) == -42.0 for v in benchmark_values)
+            benchmark_ok = benchmark_ok and varied and not_legacy
+        elif has_simulated_crisis:
+            benchmark_ok = False
+        else:
+            benchmark_ok = True
+        self._add_check(
+            check_id="CRISIS-BENCHMARK-REAL",
+            category=cat,
+            description="Crisis benchmark returns are finite, varied, and not the legacy -42.0 placeholder",
+            passed=benchmark_ok,
+            details=f"Benchmark values: {[round(v, 2) for v in benchmark_values]}",
         )
 
     # --------------------------------------------------------------------------
@@ -669,6 +698,22 @@ class StockUniverse30YearVerifier:
             details="Lookahead bias flag: False (Verified)",
         )
 
+        # 2.1 PnL alignment attestation (new artifacts only; legacy lacks the field)
+        pnl_basis = meta.get("pnl_basis")
+        if pnl_basis is not None:
+            signal_execution = meta.get("signal_execution")
+            pnl_ok = (
+                pnl_basis == "begin_of_day_holdings"
+                and signal_execution == "close_of_signal_day"
+            )
+            self._add_check(
+                check_id="GUARD-PNL-ALIGNMENT",
+                category=cat,
+                description="PnL uses beginning-of-day holdings with close execution",
+                passed=pnl_ok,
+                details=f"PnL basis: {pnl_basis}, execution: {signal_execution}",
+            )
+
         # 3. Dynamic regulatory filing lag
         krx_lag = meta.get("krx_filing_lag_days", 45)
         sec_lag = meta.get("sec_filing_lag_days", 40)
@@ -690,7 +735,28 @@ class StockUniverse30YearVerifier:
             category=cat,
             description="Point-in-Time universe and survivorship bias defense active",
             passed=(markets_count >= 5 and strategies_count == 37),
-            details=f"Markets tracked: {markets_count}, Strategies: {strategies_count}",
+            details=(
+                f"Markets tracked: {markets_count}, Strategy catalog: {strategies_count}, "
+                f"Live factors: {meta.get('live_strategy_count', 'n/a')}"
+            ),
+        )
+
+        universe_symbols = meta.get("universe_symbols")
+        registry_symbols = meta.get("registry_symbols")
+        coverage_ok = (
+            isinstance(universe_symbols, int)
+            and not isinstance(universe_symbols, bool)
+            and isinstance(registry_symbols, int)
+            and not isinstance(registry_symbols, bool)
+            and universe_symbols > 0
+            and universe_symbols == registry_symbols
+        )
+        self._add_check(
+            check_id="GUARD-UNIVERSE-COVERAGE",
+            category=cat,
+            description="Backtest universe covers every registry symbol (100% PIT coverage)",
+            passed=coverage_ok,
+            details=f"Universe: {universe_symbols} / Registry: {registry_symbols}",
         )
 
     # --------------------------------------------------------------------------

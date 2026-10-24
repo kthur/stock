@@ -1,14 +1,14 @@
 {
   "metadata": {
     "mode": "paper",
-    "timestamp": "2026-10-20T23:02:02.024980+09:00",
+    "timestamp": "2026-10-24T23:07:08.164258+09:00",
     "initial_capital_krw": 100000000.0,
     "regime": "BULL_LOW_VOL",
     "crisis_level": "NORMAL",
     "iterations_completed": 1
   },
   "final_snapshot": {
-    "timestamp": "2026-10-20 23:02:02",
+    "timestamp": "2026-10-24 23:07:08",
     "gross_equity": 100000000.0,
     "net_equity": 99999687.67,
     "cash_balance": 97977287.67,
@@ -80,10 +80,10 @@
   "cycles": [
     {
       "iteration": 1,
-      "timestamp": "2026-10-20T23:02:01.939414+09:00",
+      "timestamp": "2026-10-24T23:07:08.107000+09:00",
       "summary": {
         "status": "SUCCESS",
-        "timestamp": "2026-10-20 23:02:01",
+        "timestamp": "2026-10-24 23:07:08",
         "targets_count": 24,
         "deltas_count": 24,
         "approved_count": 7,
@@ -149,7 +149,7 @@
         "executions": [
           {
             "execution_id": null,
-            "order_id": "ORD_BUY_ABT_20261020230201947",
+            "order_id": "ORD_BUY_ABT_20261024230708112",
             "symbol": "ABT",
             "market": "SP500",
             "action": "BUY",
@@ -165,14 +165,14 @@
             "gross_pnl": 0.0,
             "net_pnl": 0.0,
             "status": "DRY_RUN",
-            "executed_at": "2026-10-20 23:02:01",
+            "executed_at": "2026-10-24 23:07:08",
             "gate_passed": "ALL_8_GATES",
             "execution_mode": "DRY_RUN",
             "notes": "LOB spread 10.0bps, Gatheral 3/2 impact 0.01bps"
           },
           {
             "execution_id": null,
-            "order_id": "ORD_BUY_CAG_20261020230201947",
+            "order_id": "ORD_BUY_CAG_20261024230708112",
             "symbol": "CAG",
             "market": "SP500",
             "action": "BUY",
@@ -188,14 +188,14 @@
             "gross_pnl": 0.0,
             "net_pnl": 0.0,
             "status": "DRY_RUN",
-            "executed_at": "2026-10-20 23:02:01",
+            "executed_at": "2026-10-24 23:07:08",
             "gate_passed": "ALL_8_GATES",
             "execution_mode": "DRY_RUN",
             "notes": "LOB spread 10.0bps, Gatheral 3/2 impact 0.00bps"
           },
           {
             "execution_id": null,
-            "order_id": "ORD_BUY_APD_20261020230201947",
+            "order_id": "ORD_BUY_APD_20261024230708112",
             "symbol": "APD",
             "market": "SP500",
             "action": "BUY",
@@ -211,14 +211,14 @@
             "gross_pnl": 0.0,
             "net_pnl": 0.0,
             "status": "DRY_RUN",
-            "executed_at": "2026-10-20 23:02:01",
+            "executed_at": "2026-10-24 23:07:08",
             "gate_passed": "ALL_8_GATES",
             "execution_mode": "DRY_RUN",
             "notes": "LOB spread 10.0bps, Gatheral 3/2 impact 0.00bps"
           },
           {
             "execution_id": null,
-            "order_id": "ORD_BUY_MMM_20261020230201947",
+            "order_id": "ORD_BUY_MMM_20261024230708112",
             "symbol": "MMM",
             "market": "SP500",
             "action": "BUY",
@@ -234,14 +234,14 @@
             "gross_pnl": 0.0,
             "net_pnl": 0.0,
             "status": "DRY_RUN",
-            "executed_at": "2026-10-20 23:02:01",
+            "executed_at": "2026-10-24 23:07:08",
             "gate_passed": "ALL_8_GATES",
             "execution_mode": "DRY_RUN",
             "notes": "LOB spread 10.0bps, Gatheral 3/2 impact 0.00bps"
           },
           {
             "execution_id": null,
-            "order_id": "ORD_BUY_AFL_20261020230201947",
+            "order_id": "ORD_BUY_AFL_20261024230708112",
             "symbol": "AFL",
             "market": "SP500",
             "action": "BUY",
@@ -257,14 +257,14 @@
             "gross_pnl": 0.0,
             "net_pnl": 0.0,
             "status": "DRY_RUN",
-            "executed_at": "2026-10-20 23:02:01",
+            "executed_at": "2026-10-24 23:07:08",
             "gate_passed": "ALL_8_GATES",
             "execution_mode": "DRY_RUN",
             "notes": "LOB spread 10.0bps, Gatheral 3/2 impact 0.00bps"
           },
           {
             "execution_id": null,
-            "order_id": "ORD_BUY_196490_20261020230201947",
+            "order_id": "ORD_BUY_196490_20261024230708112",
             "symbol": "196490",
             "market": "KOSDAQ",
             "action": "BUY",
@@ -280,14 +280,14 @@
             "gross_pnl": 0.0,
             "net_pnl": 0.0,
             "status": "DRY_RUN",
-            "executed_at": "2026-10-20 23:02:01",
+            "executed_at": "2026-10-24 23:07:08",
             "gate_passed": "ALL_8_GATES",
             "execution_mode": "DRY_RUN",
             "notes": "LOB spread 5.0bps, Gatheral 3/2 impact 0.21bps"
           },
           {
             "execution_id": null,
-            "order_id": "ORD_BUY_AES_20261020230201947",
+            "order_id": "ORD_BUY_AES_20261024230708112",
             "symbol": "AES",
             "market": "SP500",
             "action": "BUY",
@@ -303,7 +303,7 @@
             "gross_pnl": 0.0,
             "net_pnl": 0.0,
             "status": "DRY_RUN",
-            "executed_at": "2026-10-20 23:02:01",
+            "executed_at": "2026-10-24 23:07:08",
             "gate_passed": "ALL_8_GATES",
             "execution_mode": "DRY_RUN",
             "notes": "LOB spread 10.0bps, Gatheral 3/2 impact 0.00bps"

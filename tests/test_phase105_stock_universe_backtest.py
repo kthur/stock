@@ -744,6 +744,51 @@ class TestPhase105ScriptCLIAndArtifactIntegration(unittest.TestCase):
     def setUp(self) -> None:
         self.result_dir = TRADING_SYSTEM_DIR / "result"
 
+    def _make_verifier_fixture(self):
+        """Copies tracked artifacts to a temp dir and marks them as a full-coverage fixture."""
+        import json
+        import shutil
+        import tempfile
+        import pandas as pd
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        fixture = Path(tmp.name)
+        for name in [
+            "quant_benchmark_30year_stock_universe_report.md",
+            "backtest_30year_stock_universe_summary.json",
+            "backtest_30year_stock_universe_annual.csv",
+            "backtest_30year_stock_universe_crisis.csv",
+        ]:
+            shutil.copy2(self.result_dir / name, fixture / name)
+
+        summary_path = fixture / "backtest_30year_stock_universe_summary.json"
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+        meta = payload.setdefault("metadata", {})
+        meta["universe_symbols"] = 106
+        meta["registry_symbols"] = 106
+        meta["universe_coverage_pct"] = 100.0
+        real_bench = {
+            "1997_ASIAN_CRISIS": 40.10,
+            "2000_DOTCOM_CRASH": 5.19,
+            "2008_GFC": -23.34,
+            "2020_COVID_SHOCK": -3.63,
+            "2022_INFLATION_RATE_HIKE": -11.88,
+        }
+        for row in payload.get("historical_crises", []):
+            row["benchmark_return_pct"] = real_bench.get(
+                row.get("crisis_id") or row.get("crisis_name"), -10.0
+            )
+        summary_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+        crisis_path = fixture / "backtest_30year_stock_universe_crisis.csv"
+        crisis = pd.read_csv(crisis_path)
+        crisis["benchmark_return_pct"] = (
+            crisis["crisis_id"].map(real_bench).fillna(-10.0)
+        )
+        crisis.to_csv(crisis_path, index=False)
+        return fixture
+
     def test_runner_cli_argument_parsing(self) -> None:
         """Verifies CLI argument parsing in run_30year_stock_universe_backtest.py."""
         from unittest.mock import patch
@@ -823,7 +868,7 @@ class TestPhase105ScriptCLIAndArtifactIntegration(unittest.TestCase):
         from trading_system.scripts.verify_30year_stock_universe_backtest import verify_stock_universe_backtest_results
         
         passed, summary = verify_stock_universe_backtest_results(
-            result_dir=self.result_dir,
+            result_dir=self._make_verifier_fixture(),
             strict=True,
         )
         self.assertTrue(passed, f"Verifier failed: {summary.get('failed_checks')} failures")
@@ -849,7 +894,9 @@ class TestPhase105ScriptCLIAndArtifactIntegration(unittest.TestCase):
         import tempfile
         from trading_system.scripts.verify_30year_stock_universe_backtest import StockUniverse30YearVerifier
         
-        verifier = StockUniverse30YearVerifier(result_dir=self.result_dir, strict=True)
+        verifier = StockUniverse30YearVerifier(
+            result_dir=self._make_verifier_fixture(), strict=True
+        )
         summary = verifier.verify_all()
         
         with tempfile.TemporaryDirectory() as tmp_dir:

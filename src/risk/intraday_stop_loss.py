@@ -1,0 +1,337 @@
+"""
+Intraday Microstructure & Dynamic Stop-Loss Engine
+Tracks intraday price momentum, order book imbalance, and volume spikes to trigger dynamic position scaling and stop-loss gating.
+"""
+
+import collections
+import logging
+import math
+from dataclasses import dataclass
+from typing import Dict, Any
+
+import numpy as np
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class IntradayTick:
+    symbol: str
+    price: float
+    volume: float
+    bid_ask_spread: float = 0.0
+    bid_volume: float = 0.0
+    ask_volume: float = 0.0
+    timestamp: float = 0.0
+
+
+@dataclass
+class StopLossSignal:
+    symbol: str = ""
+    triggered: bool = False
+    trigger_stop: bool = False
+    reason: str = "NONE"
+    recommended_action: str = "NO_ACTION"
+    drop_pct: float = 0.0
+    panic_volume_ratio: float = 1.0
+    scale_factor: float = 1.0
+    intraday_return: float = 0.0
+    panic_score: float = 0.0
+
+
+StopLossResult = StopLossSignal
+
+
+class IntradayStopLossEngine:
+    """
+    Intraday Microstructure & Dynamic Stop-Loss Engine
+    Monitors intraday drawdown, order book volume imbalance, dynamic ATR breach, and sudden volume surges.
+    """
+
+    def __init__(
+        self,
+        peak_drop_threshold: float = -0.04,
+        volume_spike_threshold: float = 3.0,
+        atr_multiplier: float = 2.5,
+        max_symbols: int = 1000,
+        stop_loss_threshold: float = -0.04,
+        order_imbalance_threshold: float = -0.6,
+        volume_spike_multiplier: float = 3.5,
+    ):
+        safe_peak_drop = float(peak_drop_threshold) if (peak_drop_threshold is not None and np.isfinite(peak_drop_threshold)) else -0.04
+        self.peak_drop_threshold = min(-0.001, safe_peak_drop)
+        safe_vol_spike = float(volume_spike_threshold) if (volume_spike_threshold is not None and np.isfinite(volume_spike_threshold)) else 3.0
+        self.volume_spike_threshold = max(1.0, safe_vol_spike)
+        safe_atr_mult = float(atr_multiplier) if (atr_multiplier is not None and np.isfinite(atr_multiplier)) else 2.5
+        self.atr_multiplier = max(0.5, safe_atr_mult)
+        self.max_symbols = max(10, int(max_symbols)) if max_symbols is not None else 1000
+        safe_stop_thresh = float(stop_loss_threshold) if (stop_loss_threshold is not None and np.isfinite(stop_loss_threshold)) else -0.04
+        self.stop_loss_threshold = min(-0.001, safe_stop_thresh)
+        safe_imbalance = float(order_imbalance_threshold) if (order_imbalance_threshold is not None and np.isfinite(order_imbalance_threshold)) else -0.6
+        self.order_imbalance_threshold = max(-1.0, min(1.0, safe_imbalance))
+        safe_vol_mult = float(volume_spike_multiplier) if (volume_spike_multiplier is not None and np.isfinite(volume_spike_multiplier)) else 3.5
+        self.volume_spike_multiplier = max(1.0, safe_vol_mult)
+
+        self._symbol_peaks: Dict[str, float] = collections.OrderedDict()
+        self._symbol_stops: Dict[str, float] = collections.OrderedDict()
+        self._price_history: Dict[str, list] = collections.OrderedDict()
+        self._volume_history: Dict[str, list] = collections.OrderedDict()
+        self._open_prices: Dict[str, float] = collections.OrderedDict()
+        self._avg_volumes: Dict[str, float] = collections.OrderedDict()
+
+    def _evict_lru_if_needed(self, symbol: str) -> None:
+        if symbol not in self._symbol_peaks and len(self._symbol_peaks) >= self.max_symbols:
+            oldest = next(iter(self._symbol_peaks))
+            self.reset_symbol(oldest)
+
+    def reset_symbol(self, symbol: str) -> None:
+        """Clear tracking state for a single symbol."""
+        self._symbol_peaks.pop(symbol, None)
+        self._symbol_stops.pop(symbol, None)
+        self._price_history.pop(symbol, None)
+        self._volume_history.pop(symbol, None)
+        self._open_prices.pop(symbol, None)
+        self._avg_volumes.pop(symbol, None)
+
+    def reset_all(self) -> None:
+        """Clear all internal states."""
+        self._symbol_peaks.clear()
+        self._price_history.clear()
+        self._volume_history.clear()
+        self._open_prices.clear()
+        self._avg_volumes.clear()
+
+    def register_open(self, symbol: str, open_price: float, avg_volume: float = 1000.0) -> None:
+        """Register market open price and baseline average volume for a symbol."""
+        self._evict_lru_if_needed(symbol)
+        safe_open = float(open_price) if (open_price is not None and np.isfinite(open_price)) else 1e-5
+        safe_vol = float(avg_volume) if (avg_volume is not None and np.isfinite(avg_volume)) else 1000.0
+        self._open_prices[symbol] = max(1e-5, safe_open)
+        self._symbol_peaks[symbol] = max(1e-5, safe_open)
+        self._avg_volumes[symbol] = max(1.0, safe_vol)
+
+    def evaluate(
+        self,
+        symbol: str,
+        data: Any,
+        crisis_multiplier: float = 1.0,
+    ) -> StopLossSignal:
+        """
+        Evaluate market data for dynamic stop-loss rules.
+        data can be a dict or a pandas DataFrame.
+        """
+        try:
+            if data is None:
+                return StopLossSignal(symbol=symbol, triggered=False, reason="EVALUATION_ERROR")
+
+            current_price = 0.0
+            peak_price = 0.0
+            volume = 0.0
+            volume_ma_20 = 0.0
+            atr = 0.0
+            prev_price = 0.0
+
+            if isinstance(data, pd.DataFrame):
+                if data.empty:
+                    return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
+
+                col_map = {str(c).lower(): c for c in data.columns}
+                close_col = col_map.get("close")
+                if not close_col:
+                    return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
+
+                raw_last = data[close_col].values[-1]
+                if pd.isna(raw_last) or not np.isfinite(float(raw_last)):
+                    return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
+
+                closes = data[close_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                if len(closes) == 0:
+                    return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
+
+                current_price = float(closes[-1])
+                if len(closes) > 1:
+                    prev_price = float(closes[-2])
+                else:
+                    prev_price = current_price
+
+                vol_col = col_map.get("volume")
+                if vol_col:
+                    vols = data[vol_col].replace([np.inf, -np.inf], np.nan).dropna().values[-20:]
+                    if len(vols) > 0:
+                        volume = float(vols[-1])
+                        volume_ma_20 = float(np.mean(vols))
+                    else:
+                        volume = 0.0
+                        volume_ma_20 = 0.0
+
+                is_multi_day = False
+                if len(data) > 1:
+                    date_col = next((c for c in ['date', 'datetime', 'time', 'timestamp'] if c in col_map), None)
+                    if date_col:
+                        try:
+                            s_dates = pd.to_datetime(data[col_map[date_col]]).dt.date
+                            if s_dates.nunique() > 1:
+                                is_multi_day = True
+                        except Exception:
+                            pass
+                    elif isinstance(data.index, pd.DatetimeIndex):
+                        if data.index.normalize().nunique() > 1:
+                            is_multi_day = True
+
+                high_col = col_map.get("high")
+                if high_col:
+                    if is_multi_day:
+                        try:
+                            if date_col:
+                                s_dates = pd.to_datetime(data[col_map[date_col]]).dt.date
+                                latest_date = s_dates.iloc[-1]
+                                today_mask = (s_dates == latest_date)
+                                today_highs = data.loc[today_mask, high_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                                peak_price = float(np.max(today_highs)) if len(today_highs) > 0 else current_price
+                            elif isinstance(data.index, pd.DatetimeIndex):
+                                latest_date = data.index.normalize()[-1]
+                                today_mask = (data.index.normalize() == latest_date)
+                                today_highs = data.loc[today_mask, high_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                                peak_price = float(np.max(today_highs)) if len(today_highs) > 0 else current_price
+                            else:
+                                highs = data[high_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                                peak_price = float(highs[-1]) if len(highs) > 0 else current_price
+                        except Exception:
+                            highs = data[high_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                            peak_price = float(highs[-1]) if len(highs) > 0 else current_price
+                    else:
+                        highs = data[high_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                        peak_price = float(np.max(highs)) if len(highs) > 0 else current_price
+                else:
+                    if is_multi_day:
+                        try:
+                            if date_col:
+                                s_dates = pd.to_datetime(data[col_map[date_col]]).dt.date
+                                latest_date = s_dates.iloc[-1]
+                                today_mask = (s_dates == latest_date)
+                                today_closes = data.loc[today_mask, close_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                                peak_price = float(np.max(today_closes)) if len(today_closes) > 0 else current_price
+                            elif isinstance(data.index, pd.DatetimeIndex):
+                                latest_date = data.index.normalize()[-1]
+                                today_mask = (data.index.normalize() == latest_date)
+                                today_closes = data.loc[today_mask, close_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                                peak_price = float(np.max(today_closes)) if len(today_closes) > 0 else current_price
+                            else:
+                                peak_price = float(closes[-1])
+                        except Exception:
+                            peak_price = float(closes[-1])
+                    else:
+                        peak_price = float(np.max(closes)) if len(closes) > 0 else current_price
+
+                atr_col = col_map.get("atr")
+                if atr_col:
+                    atrs = data[atr_col].replace([np.inf, -np.inf], np.nan).dropna().values
+                    if len(atrs) > 0:
+                        atr = float(atrs[-1])
+
+            elif isinstance(data, dict):
+                raw_cp = data.get("current_price", 0.0)
+                if pd.isna(raw_cp) or not np.isfinite(float(raw_cp)):
+                    return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
+
+                current_price = float(raw_cp)
+                peak_price = float(data.get("peak_price", 0.0))
+                volume = float(data.get("volume", 0.0))
+                volume_ma_20 = float(data.get("volume_ma_20", 0.0))
+                atr = float(data.get("atr", 0.0))
+                prev_price = float(data.get("prev_price", current_price))
+                entry_price = float(data.get("entry_price", 0.0))
+            else:
+                return StopLossSignal(symbol=symbol, triggered=False, reason="EVALUATION_ERROR")
+
+            # Validate price finiteness & positive value
+            if math.isnan(current_price) or math.isinf(current_price) or current_price <= 0:
+                return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
+
+            self._evict_lru_if_needed(symbol)
+
+            # Retrieve existing peak or default
+            last_peak = self._symbol_peaks.get(symbol, peak_price if peak_price > 0 else current_price)
+
+            # Flash spike outlier check: if price spikes > 1.5x of previous peak, ignore peak update
+            if last_peak > 0 and current_price > 1.5 * last_peak:
+                effective_peak = last_peak
+            else:
+                effective_peak = max(last_peak, peak_price, current_price)
+
+            self._symbol_peaks[symbol] = effective_peak
+            peak_price = effective_peak
+
+            if symbol not in self._price_history:
+                self._price_history[symbol] = []
+            self._price_history[symbol].append(current_price)
+            if len(self._price_history[symbol]) > 100:
+                self._price_history[symbol].pop(0)
+
+            if symbol not in self._volume_history:
+                self._volume_history[symbol] = []
+            self._volume_history[symbol].append(volume)
+            if len(self._volume_history[symbol]) > 100:
+                self._volume_history[symbol].pop(0)
+
+            # Compute panic volume ratio
+            if volume_ma_20 > 0:
+                panic_volume_ratio = volume / volume_ma_20
+            else:
+                panic_volume_ratio = 1.0
+
+            drop_pct = (current_price - peak_price) / peak_price if peak_price > 0 else 0.0
+
+            effective_drop_thresh = self.peak_drop_threshold * crisis_multiplier
+
+            reasons = []
+
+            # Rule 1: Dynamic ATR Trailing Stop Breach with Ratchet Monotonicity
+            if atr > 0:
+                raw_stop = peak_price - self.atr_multiplier * atr
+                # Breakeven ratchet lock: if gain from entry >= 8%, stop is raised to at least breakeven (+0.5%)
+                if 'entry_price' in locals() and entry_price > 0 and (current_price - entry_price) / entry_price >= 0.08:
+                    raw_stop = max(raw_stop, entry_price * 1.005)
+                last_stop = self._symbol_stops.get(symbol, 0.0)
+                effective_stop = max(last_stop, raw_stop)
+                self._symbol_stops[symbol] = effective_stop
+                if current_price < effective_stop:
+                    reasons.append("DYNAMIC_ATR_TRAILING_BREACH")
+
+            # Rule 2: Peak to Trough Drop
+            if drop_pct <= effective_drop_thresh:
+                reasons.append("PEAK_TO_TROUGH_DROP")
+
+            # Rule 3: Panic Volume Spike
+            if panic_volume_ratio >= self.volume_spike_threshold and current_price < prev_price:
+                reasons.append("PANIC_VOLUME_SPIKE")
+
+            triggered = len(reasons) > 0
+            reason_str = "|".join(reasons) if triggered else "NONE"
+            recommended_action = "FULL_LIQUIDATION" if triggered else "NO_ACTION"
+            scale_factor = 0.0 if triggered else 1.0
+
+            return StopLossSignal(
+                symbol=symbol,
+                triggered=triggered,
+                trigger_stop=triggered,
+                reason=reason_str,
+                recommended_action=recommended_action,
+                drop_pct=drop_pct,
+                panic_volume_ratio=panic_volume_ratio,
+                scale_factor=scale_factor,
+                intraday_return=drop_pct,
+                panic_score=1.0 if triggered else 0.0,
+            )
+
+        except Exception as e:
+            logger.error(f"Error evaluating intraday stop-loss for {symbol}: {e}")
+            return StopLossSignal(symbol=symbol, triggered=False, reason="EVALUATION_ERROR")
+
+    def evaluate_tick(self, tick: IntradayTick) -> StopLossSignal:
+        data = {
+            "current_price": tick.price,
+            "volume": tick.volume,
+        }
+        return self.evaluate(tick.symbol, data)

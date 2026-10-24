@@ -98,6 +98,8 @@ trading_system/result/*
 *.pdf
 test_*.log
 .coverage
+kill_switch_state.json
+KILL_SWITCH
 trading_system/.coverage
 
 # Temporary / scratch output

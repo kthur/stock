@@ -5,6 +5,6 @@
   "verification_status": "NOT_VERIFIED",
   "synthetic_rows": null,
   "artifact": "benchmarks/30year/stock_universe_summary.json",
-  "updated_at": "2026-10-21",
-  "reason": "Legacy 30-year figures are quarantined pending PIT data reconstruction and independent verification."
+  "updated_at": "2026-10-23",
+  "reason": "Legacy 30-year figures are quarantined. Causal PnL correction applied; 60-day CAGR is ~8.8%, below the 25% verification gate. Live backtest uses 5 factors from a 37-strategy catalog. Official benchmark remains unverified."
 }

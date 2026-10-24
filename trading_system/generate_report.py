@@ -2008,6 +2008,17 @@ def build_30year_benchmark_dashboard_html(result_dir: Optional[Path] = None) -> 
         synthetic_rows = meta.get("synthetic_rows")
         if isinstance(synthetic_rows, bool) or synthetic_rows != 0:
             continue
+        universe_symbols = meta.get("universe_symbols")
+        registry_symbols = meta.get("registry_symbols")
+        if (
+            isinstance(universe_symbols, bool)
+            or isinstance(registry_symbols, bool)
+            or not isinstance(universe_symbols, int)
+            or not isinstance(registry_symbols, int)
+            or universe_symbols <= 0
+            or universe_symbols != registry_symbols
+        ):
+            continue
         if not all(_as_float(overall_candidate.get(k)) is not None for k in ("cagr_pct", "total_net_return_pct", "max_drawdown_pct")):
             continue
         bdata = payload

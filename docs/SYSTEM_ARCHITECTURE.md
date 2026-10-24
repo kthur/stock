@@ -3,7 +3,7 @@
 > **Document Version**: 10.0 (Production Master / Release R138 / v129)  
 > **Status**: Full Production Ready (**11,669 tests across 898 modules 100% PASS**)  
 > **Operational Universe**: 5 Global Equity Markets — **KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000** (3,379 Symbols)  
-> **Historical Verification**: 30-Year Net Real Return Backtest (**CAGR +8.19%**, **Net Return +1,149.55%**, **MDD -35.43%**, 8,089 Trading Days)  
+> **Historical Verification**: **Unverified — official 30-year benchmark rebuild in progress.** Legacy figures are quarantined under `benchmarks/archive/unverified/`; the dashboard renders performance only after a non-synthetic artifact passes verification.
 > **Live Dashboard**: [https://kthur.github.io/stock/](https://kthur.github.io/stock/)
 
 ---
@@ -20,7 +20,7 @@
 5. Gatheral & Almgren-Chriss **3/2승 비선형 시장충격 페널티**, **연속 비례 Leland 불감대 밴드**, **8대 주문 안전 게이트(Gate 8: 합성 인버스 ETF 헤지 포함)**를 통해 마찰 비용을 극소화합니다.
 6. **Zero-Copy Kernel-Bypass DPDK/AF_XDP 라우팅 게이트웨이**, **Fast LOB L3 오더북 매칭**, **FIX 4.4 DMA 엔진** 및 **스마트 오더 라우터(SOR)**를 통해 마이크로초 수준의 초저지연 주문 집행을 지원합니다.
 7. 실시간 자율 **페이퍼 트레이딩 데몬(Track 3)**과 `trade_logs.db` 실체결 슬리피지 피드백 루프를 통해 이론과 실체결 간의 괴리를 동적으로 자동 보정합니다.
-8. 1996~2026년 30년(8,089 거래일)에 걸친 실데이터 복리 백테스터(Track 4)와 5대 경제위기 방어 매트릭스를 웹 대시보드에 실시간 시각화합니다.
+8. 1996~2026년 30년 벤치마크(Track 4)는 현재 검증 재구축 중입니다. 로컬 가격 데이터가 2006년 이후에 시작하고 1996~2005 구간이 합성 데이터이므로, 검증된 비합성 산출물이 생성되기 전까지 대시보드는 성과 수치를 표시하지 않습니다.
 
 ---
 
@@ -80,10 +80,10 @@ flowchart TB
         SlippageFB --> TradeLogs
     end
 
-    subgraph L7 ["Layer 7: 30년 복리 시뮬레이션 & 시각화 센터 (Track 4 Compounding Dashboard)"]
-        Backtest30Y["30-Year Net Real Return Backtester\n(1996~2026, 8,089 거래일, CAGR 8.19%, MDD -35.43%)"]
-        CrisesMatrix["5대 거시위기 방어 매트릭스\n(1997 IMF, 2000 닷컴, 2008 금융위기, 2020 코로나, 2022 베어마켓)"]
-        Dashboard["GitHub Pages 라이브 웹 대시보드\n(30년 복리 콘솔, 5대 위기 매트릭스, 실시간 Paper OMS 모니터, 37-Alpha 레이더)"]
+    subgraph L7 ["Layer 7: 30년 벤치마크 검증 & 시각화 센터 (Track 4 Benchmark Verification)"]
+        Backtest30Y["30-Year Net Real Return Backtester\n(verification pending — no official artifact)"]
+        CrisesMatrix["5대 거시위기 방어 매트릭스\n(검증된 산출물 필드만 표시)"]
+        Dashboard["GitHub Pages 라이브 웹 대시보드\n(30년 벤치마크 상태 카드, 실시간 Paper OMS 모니터, 37-Alpha 레이더)"]
         Backtest30Y --> Dashboard
         CrisesMatrix --> Dashboard
         TradeLogs --> Dashboard
@@ -220,22 +220,17 @@ flowchart TB
   - `paper_portfolio_snapshots`: 시점별 총자산, 순자산, 현금, 보유종목 비중, 레짐 상태.
   - `trade_logs`: 8대 안전 게이트 통과 여부 및 감사 추적 로그.
 
-### 3.7 Layer 7: 30년 복리 시뮬레이션 & 시각화 센터 (Track 4)
-- **30년 실데이터 복리 백테스터 (`run_30year_realistic_backtest.py`)**:
-  - 1996년 1월부터 2026년까지 **8,089 거래일** 실데이터 기반 시뮬레이션.
-  - 연평균 복리수익률 (CAGR): **+8.19%**
-  - 누적 순수익률: **+1,149.55%**
-  - 최대 낙폭 (MDD): **-35.43%**
-  - Leland 거래비용 압축률: **40.0%**
-- **5대 역사적 경제위기 방어 매트릭스**:
-  - 1997년 IMF 외환위기: 시스템 **+29.49%** (시장 대비 알파 **+26.56%p**)
-  - 2000년 닷컴 버블 붕괴: 시스템 **-5.36%** (시장 대비 알파 **+46.04%p**)
-  - 2008년 글로벌 금융위기: 시스템 **-27.39%** (시장 대비 알파 **+14.87%p**)
-  - 2020년 코로나 쇼크: 시스템 **-5.58%** (시장 대비 알파 **+1.15%p**)
-  - 2022년 금리인상 베어마켓: 시스템 **-11.81%** (시장 대비 알파 **+14.01%p**)
+### 3.7 Layer 7: 30년 벤치마크 재구축 & 시각화 센터 (Track 4)
+- **공식 30년 벤치마크 상태: UNVERIFIED / REBUILDING**:
+  - 기존 1996~2026 성과 수치는 검증되지 않은 레거시 산출물로 분류되어 `benchmarks/archive/unverified/`에 격리되었습니다.
+  - 로컬 가격 데이터는 canonical universe 기준 2006년 이후에 시작하며, 1996~2005 구간은 합성 데이터이므로 공식 30년 실데이터 산출물로 사용할 수 없습니다.
+  - `benchmarks/30year/status.json`은 `REBUILDING` / `NOT_VERIFIED` 상태를 유지합니다.
+- **대시보드 검증 게이트**:
+  - `benchmarks/30year/stock_universe_summary.json` 또는 `result_dir/stock_universe_summary.json`만 공식 산출물로 인정합니다.
+  - `metadata.official_benchmark == "stock_universe"`, `metadata.verification_status == "PASSED"`, `metadata.synthetic_rows == 0` 및 필수 수치 필드를 모두 통과해야 성과를 렌더링합니다.
+  - 검증된 산출물이 없으면 “공식 30년 벤치마크 재구축 중 (Unverified)” 상태만 표시합니다.
 - **GitHub Pages 통합 웹 대시보드 (`gh-pages/index.html`)**:
-  - 반응형 HTML5/JS/CSS 단일 파일 (499 KB).
-  - 30년 복리 시뮬레이션 인터랙티브 차트 및 5대 위기 방어 매트릭스.
+  - 30-Year Benchmark Status Card 및 재구축 안내.
   - 실시간 Paper Trading OMS 체결 모니터 위젯.
   - 3대 통합 메가 카드, 37-Alpha 레이더 차트, 컬럼 필터 프리셋.
 
@@ -283,7 +278,7 @@ flowchart TB
 .venv\Scripts\python trading_system/scripts/run_paper_trading_daemon.py --status
 ```
 
-### 5.3 30년 복리 벤치마크 및 웹 대시보드 리포트 생성
+### 5.3 30년 벤치마크 검증 및 웹 대시보드 리포트 생성
 ```powershell
 # GitHub Pages index.html 및 결과 리포트 자동 생성
 .venv\Scripts\python trading_system/generate_report.py
@@ -310,4 +305,4 @@ flowchart TB
 
 Stock Trading System은 Phase 1부터 Phase 122에 이르는 고도화 과정을 거쳐, 학술적 엄밀성(Fama-French, Hawkes, SDE Diffusion, Hyperbolic Geometry)과 산업용 고빈도 저지연 인프라(Kernel-Bypass DPDK/AF_XDP, L3 Fast LOB, FIX 4.4 DMA, RL Slicing)를 완전히 통합한 완성형 기관급 퀀트 매매 플랫폼을 달성하였습니다.
 
-본 시스템은 실시간 페이퍼 트레이딩 데몬을 통해 $Net\ Equity \le Gross\ Equity$ 불변식을 항시 유지하며, 30년 실데이터 복리 검증을 거친 견고한 리스크 예산 및 Leland 버퍼 밴드를 통해 지속 가능한 장기 복리 알파를 실현합니다.
+본 시스템은 실시간 페이퍼 트레이딩 데몬을 통해 $Net\ Equity \le Gross\ Equity$ 불변식을 항시 유지하며, 검증된 리스크 예산 및 Leland 버퍼 밴드를 통해 지속 가능한 장기 복리 알파를 추구합니다. 30년 벤치마크 수치는 공식 산출물이 검증을 통과할 때까지 인용하지 않습니다.
