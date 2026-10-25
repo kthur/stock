@@ -134,6 +134,7 @@ class PaperTradingDaemon:
         config: Optional[Any] = None,
         oms_engine: Optional[Any] = None,
         version: int = 113,
+        lob_engine: Optional[Any] = None,
     ):
         self.initial_capital = float(initial_capital)
         self.db_path = str(db_path)
@@ -152,6 +153,7 @@ class PaperTradingDaemon:
         self.us_broker_fee = float(us_broker_fee)
         self.config = config
         self.version = int(version)
+        self.lob_engine = lob_engine
 
         self._lock = threading.RLock()
 
@@ -776,8 +778,9 @@ class PaperTradingDaemon:
 
     def simulate_fill(
         self,
-        order: Dict[str, Any],
-        market_data: Optional[Dict[str, Any]] = None
+        order: Optional[Dict[str, Any]] = None,
+        market_data: Optional[Any] = None,
+        **kwargs
     ) -> PaperExecutionRecord:
         """
         Simulates realistic execution:
@@ -788,39 +791,158 @@ class PaperTradingDaemon:
         - Computes statutory exchange taxes (STT/SEC) and broker fees
         - Computes exact realized gross and net PnL
         """
-        sym = order["symbol"]
-        mkt = order["market"]
-        action = order["action"]
-        q = abs(int(order.get("executed_quantity", order.get("delta_quantity", 0))))
-        p0 = float(order["target_price"])
+        if order is None or not isinstance(order, dict):
+            order = dict(kwargs)
+            if "side" in order and "action" not in order:
+                order["action"] = order["side"]
+            if "quantity" in order and "executed_quantity" not in order:
+                order["executed_quantity"] = order["quantity"]
+        elif kwargs:
+            for k, v in kwargs.items():
+                if k not in order:
+                    order[k] = v
+        if market_data is None:
+            market_data = kwargs.get("market_data")
+
+        sym = order.get("symbol", "")
+        mkt = order.get("market", "KRX")
+        action = order.get("action", "BUY")
+        q = abs(int(order.get("executed_quantity", order.get("delta_quantity", order.get("quantity", 0)))))
+        p0 = float(order.get("target_price", order.get("current_price", order.get("price", 0.0))) or 0.0)
         adv = max(1000.0, float(order.get("adv_20d", 1e8)))
         vol = max(0.005, float(order.get("volatility", 0.015)))
         sigma_ann = max(0.10, vol * math.sqrt(252.0))
         gate_passed = str(order.get("gate_passed", "ALL_8_GATES"))
 
         is_krx = (str(mkt).upper() in ["KOSPI", "KOSDAQ", "KRX"] or sym.isdigit())
-        is_buy = (action in [PaperOrderAction.BUY.value, PaperOrderAction.BUY_HEDGE.value])
+        is_buy = (action in [PaperOrderAction.BUY.value, PaperOrderAction.BUY_HEDGE.value, "BUY", "BUY_HEDGE"])
 
-        # 1. Fast LOB Half-Spread (5 bps large cap, 10 bps small/US)
-        base_spread_bps = 5.0 if (is_krx and p0 >= 50000.0) else 10.0
-        half_spread = (base_spread_bps / 2.0) / 10000.0
+        # 1. Fast LOB Dynamic Spread & Depth Evaluation
+        live_bid = None
+        live_ask = None
+        live_spread_bps = None
+        depth_data = None
+
+        # Check market_data
+        src_data = None
+        if market_data:
+            if hasattr(market_data, "get_top_of_book"):
+                try:
+                    tob = market_data.get_top_of_book(sym) if hasattr(market_data, "has_symbol") else market_data.get_top_of_book()
+                    if tob:
+                        live_bid = tob.best_bid
+                        live_ask = tob.best_ask
+                        live_spread_bps = tob.spread_bps
+                    if hasattr(market_data, "get_depth_snapshot"):
+                        depth_data = market_data.get_depth_snapshot(sym) if hasattr(market_data, "has_symbol") else market_data.get_depth_snapshot()
+                except Exception:
+                    pass
+            elif isinstance(market_data, dict):
+                if sym in market_data:
+                    src_data = market_data[sym]
+                elif "best_bid" in market_data or "best_ask" in market_data:
+                    src_data = market_data
+
+        # Fallback to self.lob_engine if not found in market_data
+        if live_bid is None and hasattr(self, "lob_engine") and self.lob_engine is not None:
+            engine = self.lob_engine
+            if hasattr(engine, "get_top_of_book"):
+                try:
+                    tob = engine.get_top_of_book(sym) if hasattr(engine, "has_symbol") else engine.get_top_of_book()
+                    if tob:
+                        live_bid = tob.best_bid
+                        live_ask = tob.best_ask
+                        live_spread_bps = tob.spread_bps
+                    if hasattr(engine, "get_depth_snapshot"):
+                        depth_data = engine.get_depth_snapshot(sym) if hasattr(engine, "has_symbol") else engine.get_depth_snapshot()
+                except Exception:
+                    pass
+            elif isinstance(engine, dict) and sym in engine:
+                src_data = engine[sym]
+
+        if src_data:
+            if hasattr(src_data, "best_bid"):
+                live_bid = float(src_data.best_bid)
+                live_ask = float(src_data.best_ask)
+                live_spread_bps = float(getattr(src_data, "spread_bps", 0.0))
+            elif isinstance(src_data, dict):
+                live_bid = float(src_data.get("best_bid", src_data.get("bid_price", 0.0)) or 0.0)
+                live_ask = float(src_data.get("best_ask", src_data.get("ask_price", 0.0)) or 0.0)
+                live_spread_bps = float(src_data.get("spread_bps", 0.0) or 0.0)
+                depth_data = src_data.get("depth", src_data.get("depth_snapshot"))
+
+        # Compute dynamic spread if live quote available
+        depth_sweep_px = None
+
+        if live_bid is not None and live_ask is not None and live_bid > 0 and live_ask > 0 and live_ask >= live_bid:
+            live_mid = 0.5 * (live_bid + live_ask)
+            if p0 <= 0.0 and live_mid > 0.0:
+                p0 = float(live_mid)
+            live_spread = max(0.0, live_ask - live_bid)
+            base_spread_bps = (live_spread / live_mid * 10000.0) if live_mid > 0 else (live_spread_bps or 5.0)
+            half_spread = (live_spread / (2.0 * live_mid)) if live_mid > 0 else (base_spread_bps / 20000.0)
+        else:
+            if p0 <= 0.0:
+                if is_buy and live_ask is not None and live_ask > 0:
+                    p0 = float(live_ask)
+                elif not is_buy and live_bid is not None and live_bid > 0:
+                    p0 = float(live_bid)
+            # Fallback to static heuristic (5 bps large cap, 10 bps small/US)
+            base_spread_bps = 5.0 if (is_krx and p0 >= 50000.0) else 10.0
+            half_spread = (base_spread_bps / 2.0) / 10000.0
+
+        # Check if order sweeps multiple depth tiers (decoupled side checks for single-sided order books)
+        if depth_data and isinstance(depth_data, dict) and q > 0:
+            book_levels = depth_data.get("asks" if is_buy else "bids", [])
+            if book_levels:
+                rem_q = float(q)
+                cum_val = 0.0
+                cum_q = 0.0
+                for lvl in book_levels:
+                    try:
+                        if isinstance(lvl, (tuple, list)) and len(lvl) >= 2:
+                            lvl_p = float(lvl[0])
+                            lvl_sz = float(lvl[1])
+                        elif isinstance(lvl, dict):
+                            lvl_p = float(lvl.get("price", 0.0))
+                            lvl_sz = float(lvl.get("volume", lvl.get("size", 0.0)))
+                        else:
+                            lvl_p = float(getattr(lvl, "price", 0.0))
+                            lvl_sz = float(getattr(lvl, "size", getattr(lvl, "volume", 0.0)))
+                    except (ValueError, TypeError):
+                        continue
+                    if lvl_p <= 0 or lvl_sz <= 0:
+                        continue
+                    matched = min(rem_q, lvl_sz)
+                    cum_val += matched * lvl_p
+                    cum_q += matched
+                    rem_q -= matched
+                    if rem_q <= 1e-6:
+                        break
+                if cum_q > 0:
+                    depth_sweep_px = cum_val / cum_q
 
         # 2. Gatheral 3/2-Power Market Impact
-        target_amount = q * p0
-        participation_rate = target_amount / adv if adv > 0 else 0.0
-        impact_rate = self.gatheral_kappa * sigma_ann * (participation_rate ** 1.5)
+        target_amount = max(0.0, float(q) * float(p0))
+        participation_rate = max(0.0, target_amount / adv) if adv > 0 else 0.0
+        impact_rate = max(0.0, float(self.gatheral_kappa * sigma_ann * (participation_rate ** 1.5)))
         market_impact_bps = impact_rate * 10000.0
 
         # 3. Execution Price Pricing
-        if is_buy:
+        p_exec_raw = p0
+        if depth_sweep_px is not None:
+            p_exec_raw = float(depth_sweep_px)
+            p_exec = round(p_exec_raw, 4)
+            side_sign = 1.0 if is_buy else -1.0
+        elif is_buy:
             p_exec_raw = p0 * (1.0 + half_spread + impact_rate)
+            p_exec = self.round_to_tick_size(p_exec_raw, market=mkt)
             side_sign = 1.0
         else:
             p_exec_raw = p0 * (1.0 - half_spread - impact_rate)
+            p_exec = self.round_to_tick_size(p_exec_raw, market=mkt)
             side_sign = -1.0
 
-        # Round to official exchange tick size
-        p_exec = self.round_to_tick_size(p_exec_raw, market=mkt)
         if not is_buy and p_exec <= 0.0:
             p_exec = 1.0 if is_krx else 0.01
 

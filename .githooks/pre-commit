@@ -1,0 +1,37 @@
+#!/bin/sh
+# ==============================================================================
+# Git Pre-Commit Hook: Dual-Tree Cryptographic Parity Guard
+# Cross-Platform: Windows Git (sh.exe), Linux, and macOS
+# ==============================================================================
+
+# 1. Resolve Python Interpreter
+PYTHON=""
+
+if [ -n "$VIRTUAL_ENV" ]; then
+    if [ -x "$VIRTUAL_ENV/bin/python" ]; then
+        PYTHON="$VIRTUAL_ENV/bin/python"
+    elif [ -x "$VIRTUAL_ENV/Scripts/python.exe" ]; then
+        PYTHON="$VIRTUAL_ENV/Scripts/python.exe"
+    elif [ -x "$VIRTUAL_ENV/python.exe" ]; then
+        PYTHON="$VIRTUAL_ENV/python.exe"
+    fi
+fi
+
+if [ -z "$PYTHON" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON="python3"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON="python"
+    elif command -v py >/dev/null 2>&1; then
+        PYTHON="py -3"
+    fi
+fi
+
+if [ -z "$PYTHON" ]; then
+    echo "[pre-commit] ERROR: No Python interpreter found in PATH or VIRTUAL_ENV." >&2
+    echo "[pre-commit] Please install Python 3.10+ or activate a virtualenv." >&2
+    exit 1
+fi
+
+# 2. Execute Dual-Tree Pre-Commit Sync Engine
+exec "$PYTHON" scripts/hooks/pre-commit-dual-tree-sync.py "$@"

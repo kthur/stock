@@ -38,14 +38,17 @@ class ZeroCopyRingBuffer:
         self._size = 0
         self._lock = threading.Lock()
 
-    def append(self, price: float, volume: float, timestamp_ns: int, is_buy: bool) -> None:
+    def append(self, price: float, volume: float, timestamp_ns: int, is_buy: bool = True, side: Optional[Any] = None) -> None:
         """Appends a tick into the ring buffer with O(1) complexity."""
         with self._lock:
             idx = self._head
             self.prices[idx] = price
             self.volumes[idx] = volume
             self.timestamps[idx] = timestamp_ns
-            self.sides[idx] = 1 if is_buy else -1
+            if side is not None:
+                self.sides[idx] = 1 if (side in [1, "BUY", "BID"] or str(side).upper() in ["BUY", "BID"]) else -1
+            else:
+                self.sides[idx] = 1 if is_buy else -1
 
             self._head = (self._head + 1) % self.capacity
             if self._size < self.capacity:
@@ -87,6 +90,63 @@ class ZeroCopyRingBuffer:
             return self._size
 
 
+@dataclass(frozen=True, slots=True)
+class TopOfBook:
+    """Zero-contention immutable top-of-book BBO snapshot."""
+    symbol: str
+    best_bid: float
+    best_bid_volume: float
+    best_ask: float
+    best_ask_volume: float
+    spread: float
+    spread_bps: float
+    mid_price: float
+    micro_price: float
+    timestamp_ns: int
+    sequence: int = 0
+    venue: str = "DEFAULT"
+
+    @property
+    def bid_price(self) -> float:
+        return self.best_bid
+
+    @property
+    def ask_price(self) -> float:
+        return self.best_ask
+
+    @property
+    def bid_size(self) -> float:
+        return self.best_bid_volume
+
+    @property
+    def ask_size(self) -> float:
+        return self.best_ask_volume
+
+    @property
+    def bid_volume(self) -> float:
+        return self.best_bid_volume
+
+    @property
+    def ask_volume(self) -> float:
+        return self.best_ask_volume
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "symbol": self.symbol,
+            "best_bid": self.best_bid,
+            "best_bid_volume": self.best_bid_volume,
+            "best_ask": self.best_ask,
+            "best_ask_volume": self.best_ask_volume,
+            "spread": self.spread,
+            "spread_bps": self.spread_bps,
+            "mid_price": self.mid_price,
+            "micro_price": self.micro_price,
+            "timestamp_ns": self.timestamp_ns,
+            "sequence": self.sequence,
+            "venue": self.venue,
+        }
+
+
 @dataclass
 class OrderNode:
     order_id: str
@@ -96,13 +156,48 @@ class OrderNode:
     side: str # "BUY" or "SELL"
 
 
+class DepthSnapshotLevel(tuple):
+    """Dual tuple/dict compatibility for orderbook depth levels: (price, volume) and {'price': ..., 'volume': ...}."""
+    def __new__(cls, price: float, volume: float):
+        return super().__new__(cls, (float(price), float(volume)))
+
+    @property
+    def price(self) -> float:
+        return self[0]
+
+    @property
+    def volume(self) -> float:
+        return self[1]
+
+    def __getitem__(self, item):
+        if isinstance(item, str):
+            if item == "price":
+                return self[0]
+            elif item in ("volume", "size"):
+                return self[1]
+            raise KeyError(item)
+        return super().__getitem__(item)
+
+    def get(self, key, default=None):
+        if key == "price":
+            return self[0]
+        elif key in ("volume", "size"):
+            return self[1]
+        return default
+
+    def __contains__(self, key):
+        if key in ("price", "volume", "size"):
+            return True
+        return super().__contains__(key)
+
+
 class FastOrderBookMatchingEngine:
     """
     Level 3 FIFO Price-Time Priority Order Book Matching Engine.
     Maintains sorted price levels and FIFO order queues per price tier.
     """
 
-    def __init__(self, symbol: str, tick_size: float = 0.01):
+    def __init__(self, symbol: str, tick_size: float = 0.01, ring_buffer_capacity: int = 50_000):
         self.symbol = symbol
         self.tick_size = tick_size
         self.bids: Dict[float, Deque[OrderNode]] = {} # price -> FIFO queue of orders
@@ -110,6 +205,27 @@ class FastOrderBookMatchingEngine:
         self.order_lookup: Dict[str, Tuple[str, float]] = {} # order_id -> (side, price)
         self._lock = threading.RLock()
         self._qi_history: Deque[Tuple[float, float]] = deque(maxlen=20)
+
+        # Microstructure streaming, ring buffer, Hawkes process & VPIN state
+        self.trade_ring = ZeroCopyRingBuffer(capacity=ring_buffer_capacity)
+        self._bivariate_hawkes: Optional[Any] = None
+        self._top_of_book: Optional[TopOfBook] = None
+        self._rolling_prices: Deque[float] = deque(maxlen=1000)
+        self._rolling_volumes: Deque[float] = deque(maxlen=1000)
+        self._cached_vpin: float = 0.0
+        self._trade_tick_count: int = 0
+
+    @property
+    def bivariate_hawkes(self) -> Any:
+        if self._bivariate_hawkes is None:
+            self._bivariate_hawkes = BivariateHawkesIntensity(
+                mu_buy=1.0, mu_sell=1.0, alpha_self=0.4, alpha_cross=0.1, beta=1.2
+            )
+        return self._bivariate_hawkes
+
+    @bivariate_hawkes.setter
+    def bivariate_hawkes(self, val: Any) -> None:
+        self._bivariate_hawkes = val
 
     def add_limit_order(
         self,
@@ -207,7 +323,29 @@ class FastOrderBookMatchingEngine:
                     self.asks[price].append(node)
                     self.order_lookup[order_id] = ("SELL", price)
 
+            self._update_top_of_book_internal(ts=ts)
+
+        for f in fills:
+            self._on_internal_fill(price=f["price"], volume=f["volume"], side=f["side"], timestamp_ns=f["timestamp_ns"])
+
         return fills
+
+    def _on_internal_fill(self, price: float, volume: float, side: str, timestamp_ns: int) -> None:
+        p = float(price)
+        v = float(volume)
+        side_upper = str(side).upper()
+        side_int = np.int8(1 if side_upper in ["BUY", "BID"] else -1)
+
+        is_buy = (side_upper in ["BUY", "BID"])
+        self.trade_ring.append(price=p, volume=v, timestamp_ns=timestamp_ns, is_buy=is_buy)
+        self.bivariate_hawkes.update(side_upper, timestamp_sec=timestamp_ns / 1e9)
+
+        with self._lock:
+            self._rolling_prices.append(p)
+            self._rolling_volumes.append(v)
+            self._trade_tick_count += 1
+            if len(self._rolling_prices) >= 10 and self._trade_tick_count % 10 == 0:
+                self._cached_vpin = self._compute_vpin()
 
     def cancel_order(self, order_id: str) -> bool:
         """Cancels a resting limit order in O(1) level lookup."""
@@ -226,6 +364,7 @@ class FastOrderBookMatchingEngine:
                     book[price] = new_q
                 else:
                     del book[price]
+                self._update_top_of_book_internal()
                 return True
             return False
 
@@ -290,6 +429,11 @@ class FastOrderBookMatchingEngine:
             if rem_vol > 1e-6:
                 logger.debug(f"[LOB] Market {side_upper} order {order_id} partially filled. Unfilled: {rem_vol:.4f}")
 
+            self._update_top_of_book_internal(ts=ts)
+
+        for f in fills:
+            self._on_internal_fill(price=f["price"], volume=f["volume"], side=f["side"], timestamp_ns=f["timestamp_ns"])
+
         return fills
 
     def estimate_queue_position(self, order_id: str) -> Optional[Dict[str, Any]]:
@@ -351,8 +495,8 @@ class FastOrderBookMatchingEngine:
             sorted_bid_prices = sorted(self.bids.keys(), reverse=True)[:levels]
             sorted_ask_prices = sorted(self.asks.keys())[:levels]
 
-            bids = [{"price": p, "volume": sum(o.volume for o in self.bids[p])} for p in sorted_bid_prices]
-            asks = [{"price": p, "volume": sum(o.volume for o in self.asks[p])} for p in sorted_ask_prices]
+            bids = [DepthSnapshotLevel(p, sum(o.volume for o in self.bids[p])) for p in sorted_bid_prices]
+            asks = [DepthSnapshotLevel(p, sum(o.volume for o in self.asks[p])) for p in sorted_ask_prices]
 
         # Calculate Micro-Price and OBI
         p_b1 = bids[0]["price"] if bids else 0.0
@@ -427,6 +571,344 @@ class FastOrderBookMatchingEngine:
                 if p > 0 and self.asks[p]:
                     return p, sum(o.volume for o in self.asks[p])
         return 0.0, 0.0
+
+    def _update_top_of_book_internal(self, ts: Optional[int] = None) -> TopOfBook:
+        now_ts = ts or time.time_ns()
+        p_b, v_b = self.get_best_bid()
+        p_a, v_a = self.get_best_ask()
+        mid = 0.5 * (p_b + p_a) if (p_b > 0 and p_a > 0) else max(p_b, p_a)
+        spr = max(0.0, p_a - p_b) if (p_b > 0 and p_a > 0) else 0.0
+        spr_bps = (spr / mid * 10000.0) if mid > 0 else 0.0
+        tot = v_b + v_a
+        micro = (v_a * p_b + v_b * p_a) / tot if (tot > 0 and p_b > 0 and p_a > 0) else mid
+
+        self._top_of_book = TopOfBook(
+            symbol=self.symbol,
+            best_bid=float(p_b),
+            best_bid_volume=float(v_b),
+            best_ask=float(p_a),
+            best_ask_volume=float(v_a),
+            spread=round(float(spr), 4),
+            spread_bps=round(float(spr_bps), 4),
+            mid_price=round(float(mid), 4),
+            micro_price=round(float(micro), 4),
+            timestamp_ns=now_ts,
+        )
+        return self._top_of_book
+
+    def _compute_vpin(self) -> float:
+        if len(self._rolling_prices) < 5:
+            return 0.0
+        try:
+            from src.core.vpin_calculator import VPINCalculator
+            calc = VPINCalculator(num_buckets=50, window_size=20)
+            p_arr = np.array(self._rolling_prices, dtype=np.float64)
+            v_arr = np.array(self._rolling_volumes, dtype=np.float64)
+            total_vol = float(np.sum(v_arr))
+            bucket_vol = max(10.0, total_vol / 20.0)
+            return float(calc.compute_vpin(p_arr, v_arr, bucket_volume=bucket_vol))
+        except Exception:
+            p_arr = np.array(self._rolling_prices, dtype=np.float64)
+            v_arr = np.array(self._rolling_volumes, dtype=np.float64)
+            if len(p_arr) < 2:
+                return 0.0
+            diff = np.diff(p_arr)
+            std = float(np.std(diff))
+            if std <= 1e-8:
+                return 0.0
+            z = np.clip(diff / std, -8.0, 8.0)
+            buy_ratios = 0.5 * (1.0 + np.vectorize(math.erf)(z / 1.41421356))
+            vb = v_arr[1:] * buy_ratios
+            vs = v_arr[1:] * (1.0 - buy_ratios)
+            tot = float(np.sum(v_arr[1:]))
+            return float(np.clip(np.sum(np.abs(vb - vs)) / max(1e-12, tot), 0.0, 1.0)) if tot > 0 else 0.0
+
+    @staticmethod
+    def _extract_price_vol(item: Any) -> Tuple[float, float]:
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            return float(item[0]), float(item[1])
+        elif hasattr(item, "price") and (hasattr(item, "size") or hasattr(item, "volume")):
+            sz = getattr(item, "size", getattr(item, "volume", 0.0))
+            return float(item.price), float(sz)
+        elif isinstance(item, dict):
+            p = item.get("price", 0.0)
+            sz = item.get("volume", item.get("size", 0.0))
+            return float(p), float(sz)
+        return 0.0, 0.0
+
+    def on_quote_update(
+        self,
+        bid_price: Union[float, Any] = 0.0,
+        bid_size: Optional[float] = None,
+        ask_price: Optional[float] = None,
+        ask_size: Optional[float] = None,
+        timestamp_ns: Optional[int] = None,
+        venue: str = "DEFAULT",
+    ) -> TopOfBook:
+        """
+        Ingests real-time L1 BBO quote update without synthesizing L3 order nodes.
+        Accepts either a QuoteUpdate object or discrete price/size parameters.
+        Updates internal best bid/ask and publishes new immutable TopOfBook snapshot.
+        """
+        if hasattr(bid_price, "bid_price") and hasattr(bid_price, "ask_price"):
+            q = bid_price
+            bp = float(q.bid_price)
+            bs = float(q.bid_size)
+            ap = float(q.ask_price)
+            as_ = float(q.ask_size)
+            ts = getattr(q, "timestamp_ns", None) or (timestamp_ns or time.time_ns())
+            ven = getattr(q, "venue", venue)
+        else:
+            bp = float(bid_price)
+            bs = float(bid_size if bid_size is not None else 0.0)
+            ap = float(ask_price if ask_price is not None else 0.0)
+            as_ = float(ask_size if ask_size is not None else 0.0)
+            ts = timestamp_ns or time.time_ns()
+            ven = venue
+
+        with self._lock:
+            if bp > 0 and bs > 0:
+                node_b = OrderNode(order_id=f"quote_b_{ts}", price=bp, volume=bs, timestamp_ns=ts, side="BUY")
+                self.bids[bp] = deque([node_b])
+                self.order_lookup[node_b.order_id] = ("BUY", bp)
+                if ap > 0:
+                    crossed_bids = [p for p in list(self.bids.keys()) if p > ap and p != bp]
+                    for cp in crossed_bids:
+                        del self.bids[cp]
+
+            if ap > 0 and as_ > 0:
+                node_a = OrderNode(order_id=f"quote_a_{ts}", price=ap, volume=as_, timestamp_ns=ts, side="SELL")
+                self.asks[ap] = deque([node_a])
+                self.order_lookup[node_a.order_id] = ("SELL", ap)
+                if bp > 0:
+                    crossed_asks = [p for p in list(self.asks.keys()) if p < bp and p != ap]
+                    for cp in crossed_asks:
+                        del self.asks[cp]
+
+            mid = 0.5 * (bp + ap) if (bp > 0 and ap > 0) else max(bp, ap)
+            spr = max(0.0, ap - bp) if (bp > 0 and ap > 0) else 0.0
+            spr_bps = (spr / mid * 10000.0) if mid > 0 else 0.0
+            tot = bs + as_
+            micro = (as_ * bp + bs * ap) / tot if (tot > 0 and bp > 0 and ap > 0) else mid
+
+            self._top_of_book = TopOfBook(
+                symbol=self.symbol,
+                best_bid=bp,
+                best_bid_volume=bs,
+                best_ask=ap,
+                best_ask_volume=as_,
+                spread=round(spr, 4),
+                spread_bps=round(spr_bps, 4),
+                mid_price=round(mid, 4),
+                micro_price=round(micro, 4),
+                timestamp_ns=ts,
+                venue=ven,
+            )
+            return self._top_of_book
+
+    def on_depth_update(
+        self,
+        bids: Any,
+        asks: Optional[Any] = None,
+        is_snapshot: bool = True,
+        timestamp_ns: Optional[int] = None,
+        venue: str = "DEFAULT",
+        max_levels: int = 20,
+    ) -> TopOfBook:
+        """
+        Ingests real-time L2 depth ladder.
+        Accepts either a DepthUpdate object or discrete bids/asks lists.
+        If is_snapshot=True, clears and rebuilds price levels.
+        If is_snapshot=False, applies delta updates (volume <= 0 deletes level).
+        Atomically updates TopOfBook and returns it.
+        """
+        if hasattr(bids, "bids") and hasattr(bids, "asks"):
+            d = bids
+            actual_bids = d.bids
+            actual_asks = d.asks
+            is_snap = getattr(d, "is_snapshot", is_snapshot)
+            ts = getattr(d, "timestamp_ns", None) or (timestamp_ns or time.time_ns())
+            ven = getattr(d, "venue", venue)
+        else:
+            actual_bids = bids
+            actual_asks = asks
+            is_snap = is_snapshot
+            ts = timestamp_ns or time.time_ns()
+            ven = venue
+
+        with self._lock:
+            if is_snap:
+                self.bids.clear()
+                self.asks.clear()
+                self.order_lookup.clear()
+
+            bid_list = list(actual_bids)[:max_levels] if actual_bids is not None else []
+            ask_list = list(actual_asks)[:max_levels] if actual_asks is not None else []
+
+            for item in bid_list:
+                p, sz = self._extract_price_vol(item)
+                if p > 0 and sz > 0:
+                    node = OrderNode(order_id=f"depth_b_{p}_{ts}", price=p, volume=sz, timestamp_ns=ts, side="BUY")
+                    self.bids[p] = deque([node])
+                    self.order_lookup[node.order_id] = ("BUY", p)
+                elif not is_snap and sz <= 0 and p in self.bids:
+                    del self.bids[p]
+
+            for item in ask_list:
+                p, sz = self._extract_price_vol(item)
+                if p > 0 and sz > 0:
+                    node = OrderNode(order_id=f"depth_a_{p}_{ts}", price=p, volume=sz, timestamp_ns=ts, side="SELL")
+                    self.asks[p] = deque([node])
+                    self.order_lookup[node.order_id] = ("SELL", p)
+                elif not is_snap and sz <= 0 and p in self.asks:
+                    del self.asks[p]
+
+            return self._update_top_of_book_internal(ts=ts)
+
+    def on_trade_tick(
+        self,
+        price: Union[float, Any],
+        volume: Optional[float] = None,
+        side: Optional[Union[str, int]] = None,
+        timestamp_ns: Optional[int] = None,
+        venue: str = "DEFAULT",
+    ) -> Dict[str, Any]:
+        """
+        Ingests real-time market trade print:
+        Accepts either a TradeUpdate object or discrete price/volume/side parameters.
+        1. Appends tick to ZeroCopyRingBuffer.
+        2. Updates BivariateHawkesIntensity.
+        3. Updates rolling trade history and recomputes continuous VPIN.
+        """
+        if hasattr(price, "price") and hasattr(price, "volume"):
+            t = price
+            p = float(t.price)
+            v = float(t.volume)
+            side_raw = getattr(t, "side", "BUY")
+            ts = getattr(t, "timestamp_ns", None) or (timestamp_ns or time.time_ns())
+            ven = getattr(t, "venue", venue)
+        else:
+            p = float(price)
+            v = float(volume if volume is not None else 0.0)
+            side_raw = side if side is not None else "BUY"
+            ts = timestamp_ns or time.time_ns()
+            ven = venue
+
+        ts_sec = ts / 1e9
+        side_str = "BUY" if (side_raw in ["BUY", "BID", 1, "1"] or str(side_raw).upper() in ["BUY", "BID"]) else "SELL"
+        side_int = np.int8(1 if side_str == "BUY" else -1)
+
+        is_buy = (side_str == "BUY")
+        self.trade_ring.append(price=p, volume=v, timestamp_ns=ts, is_buy=is_buy)
+        lam_b, lam_s = self.bivariate_hawkes.update(side_str, timestamp_sec=ts_sec)
+
+        with self._lock:
+            self._rolling_prices.append(p)
+            self._rolling_volumes.append(v)
+            self._trade_tick_count += 1
+            if len(self._rolling_prices) >= 10 and self._trade_tick_count % 10 == 0:
+                self._cached_vpin = self._compute_vpin()
+
+        return {
+            "symbol": self.symbol,
+            "price": p,
+            "volume": v,
+            "side": side_str,
+            "hawkes_buy": round(lam_b, 4),
+            "hawkes_sell": round(lam_s, 4),
+            "hawkes_intensity": round(lam_b + lam_s, 4),
+            "vpin": round(self._cached_vpin, 4),
+            "timestamp_ns": ts,
+        }
+
+    def get_top_of_book(self) -> Optional[TopOfBook]:
+        """
+        Atomic lockless O(1) read of current top-of-book BBO, spread, and micro-price.
+        Safe for concurrent execution threads without acquiring reentrant lock.
+        """
+        tob = self._top_of_book
+        if tob is not None:
+            return tob
+        with self._lock:
+            return self._update_top_of_book_internal()
+
+    def get_hawkes_intensity(self, t_query_sec: Optional[float] = None) -> float:
+        """Returns total decaying Hawkes arrival intensity (lambda_buy + lambda_sell)."""
+        bh = self.bivariate_hawkes
+        if t_query_sec is not None and bh.last_ts is not None:
+            dt = max(0.0, t_query_sec - bh.last_ts)
+            decay = math.exp(-bh.beta * dt)
+            lam_b = bh.mu_buy + max(0.0, bh.lambda_buy - bh.mu_buy) * decay
+            lam_s = bh.mu_sell + max(0.0, bh.lambda_sell - bh.mu_sell) * decay
+            return float(lam_b + lam_s)
+        return float(bh.lambda_buy + bh.lambda_sell)
+
+    def get_vpin(self) -> float:
+        """Returns current Volume-Synchronized Probability of Toxicity (VPIN)."""
+        return float(self._cached_vpin)
+
+    def get_effective_spread(self, side: str = "BUY", quantity: float = 100.0, in_bps: bool = False) -> float:
+        """
+        Calculates volume-weighted effective spread:
+        eff_spread = 2 * |vwap - mid|
+        If in_bps=True, returns in basis points.
+        """
+        side_upper = str(side).upper()
+        is_buy = side_upper in ["BUY", "BID", "LONG", "BUY_HEDGE"]
+
+        with self._lock:
+            p_b, _ = self.get_best_bid()
+            p_a, _ = self.get_best_ask()
+            if p_b <= 0 or p_a <= 0:
+                tob = self._top_of_book
+                if not tob:
+                    return 0.0
+                return tob.spread_bps if in_bps else tob.spread
+
+            mid = 0.5 * (p_b + p_a)
+            if mid <= 0:
+                return 0.0
+
+            rem_q = max(1e-6, float(quantity))
+            cum_cost = 0.0
+            cum_vol = 0.0
+
+            if is_buy:
+                sorted_asks = sorted(self.asks.keys())
+                for p in sorted_asks:
+                    lvl_vol = sum(o.volume for o in self.asks[p])
+                    take_qty = min(rem_q, lvl_vol)
+                    cum_cost += take_qty * p
+                    cum_vol += take_qty
+                    rem_q -= take_qty
+                    if rem_q <= 1e-6:
+                        break
+            else:
+                sorted_bids = sorted(self.bids.keys(), reverse=True)
+                for p in sorted_bids:
+                    lvl_vol = sum(o.volume for o in self.bids[p])
+                    take_qty = min(rem_q, lvl_vol)
+                    cum_cost += take_qty * p
+                    cum_vol += take_qty
+                    rem_q -= take_qty
+                    if rem_q <= 1e-6:
+                        break
+
+            if cum_vol > 0:
+                vwap = cum_cost / cum_vol
+                eff_spread_dollar = 2.0 * abs(vwap - mid)
+                if in_bps:
+                    return float((eff_spread_dollar / mid) * 10000.0)
+                return float(eff_spread_dollar)
+
+            tob = self._top_of_book
+            if tob:
+                return tob.spread_bps if in_bps else tob.spread
+            return 0.0
+
+    apply_quote_update = on_quote_update
+    apply_depth_update = on_depth_update
+    apply_trade_update = on_trade_tick
 
     def compute_l3_queue_imbalance(
         self,
@@ -24009,6 +24491,12 @@ phase75_queue_acceleration = compute_kerr_newman_kiselev_54_dark_energy_daha_l3_
 l3_phase75_acceleration = compute_kerr_newman_kiselev_54_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
 phase75_knk_acceleration = compute_kerr_newman_kiselev_54_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
 compute_phase75_knk_daha_queue_acceleration = compute_kerr_newman_kiselev_54_dark_energy_daha_l3_spacetime_hydrodynamic_acceleration
+
+# =============================================================================
+# INSTITUTIONAL ENGINE & STREAMING ALIASES
+# =============================================================================
+FastLOBEngine = FastOrderBookMatchingEngine
+from src.core.streaming_feed_adapter import StreamingLOBManager, MultiSymbolLOBManager
 
 
 

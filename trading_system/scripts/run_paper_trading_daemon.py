@@ -81,16 +81,23 @@ def parse_args() -> argparse.Namespace:
         help="Path to portfolio allocation recommendations file",
     )
     parser.add_argument(
-        "--db-path",
+        "--db-path", "--db",
+        dest="db_path",
         type=str,
         default=str(PROJECT_ROOT / "trade_logs.db"),
         help="Path to SQLite trade_logs.db (default: trade_logs.db)",
     )
     parser.add_argument(
-        "--initial-capital",
+        "--initial-capital", "--capital",
+        dest="initial_capital",
         type=float,
         default=100_000_000.0,
         help="Initial portfolio capital in KRW (default: 100,000,000)",
+    )
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Run single rebalance cycle and exit immediately",
     )
     parser.add_argument(
         "--regime",
@@ -128,15 +135,51 @@ def parse_args() -> argparse.Namespace:
         default=str(PROJECT_ROOT / "reports" / "paper_trading_session_report.json"),
         help="Output report JSON path",
     )
+    parser.add_argument(
+        "--streaming",
+        action="store_true",
+        help="Enable real-time streaming market data and LOB integration",
+    )
+    parser.add_argument(
+        "--mock-feed",
+        action="store_true",
+        help="Use deterministic synthetic feed generator for testing / CI",
+    )
+    parser.add_argument(
+        "--feed-rate-hz",
+        type=float,
+        default=50.0,
+        help="Streaming feed tick rate in Hz (default: 50.0)",
+    )
     return parser.parse_args()
 
 
 def run_daemon(args: argparse.Namespace) -> Dict[str, Any]:
+    if getattr(args, "once", False):
+        args.iterations = 1
     logger.info("=" * 80)
     logger.info(f"STARTING PAPER TRADING DAEMON (Track 3) — Mode: {args.mode.upper()}")
     logger.info(f"Initial Capital: {args.initial_capital:,.2f} KRW | DB: {args.db_path}")
     logger.info(f"Allocation File: {args.allocation_file} | Regime: {args.regime}")
+    if getattr(args, "streaming", False):
+        logger.info(f"Streaming Feed: ACTIVE (Mock: {getattr(args, 'mock_feed', False)})")
     logger.info("=" * 80)
+
+    # Initialize Streaming LOB Manager & Adapter if requested
+    feed_adapter = None
+    lob_manager = None
+    if getattr(args, "streaming", False):
+        try:
+            from src.core.streaming_feed_adapter import StreamingLOBManager, StreamingFeedAdapter, MockStreamingProvider
+            lob_manager = StreamingLOBManager()
+            if getattr(args, "mock_feed", False):
+                provider = MockStreamingProvider(frequency_hz=getattr(args, "feed_rate_hz", 50.0))
+                feed_adapter = StreamingFeedAdapter(lob_manager=lob_manager, provider=provider)
+                feed_adapter.start()
+                provider.start_producing(feed_adapter)
+                logger.info("[Streaming] Initialized MockStreamingProvider & StreamingFeedAdapter")
+        except Exception as e:
+            logger.warning(f"[Streaming] Could not initialize streaming adapter: {e}")
 
     # Instantiate PaperTradingDaemon
     daemon = PaperTradingDaemon(
@@ -145,77 +188,85 @@ def run_daemon(args: argparse.Namespace) -> Dict[str, Any]:
         regime_label=args.regime,
         crisis_level=args.crisis_level,
         dry_run=args.dry_run or (args.mode == "dry_run"),
+        lob_engine=lob_manager,
     )
 
     feedback_engine = SlippageFeedbackEngine(db_path=args.db_path)
 
     cycle_reports: List[Dict[str, Any]] = []
 
-    for iteration in range(1, args.iterations + 1):
-        cycle_start_time = datetime.now(KST)
-        logger.info(f"\n>>> Running Rebalance Cycle #{iteration}/{args.iterations} at {cycle_start_time.isoformat()}")
+    try:
+        for iteration in range(1, args.iterations + 1):
+            cycle_start_time = datetime.now(KST)
+            logger.info(f"\n>>> Running Rebalance Cycle #{iteration}/{args.iterations} at {cycle_start_time.isoformat()}")
 
-        # Execute rebalance cycle
-        summary = daemon.run_cycle(
-            target_input=args.allocation_file,
-            market_data=None,
-        )
+            # Execute rebalance cycle
+            summary = daemon.run_cycle(
+                target_input=args.allocation_file,
+                market_data=lob_manager,
+            )
 
-        # Invariant verification: Net Equity <= Gross Equity
-        gross_eq = summary.get("gross_equity", 0.0)
-        net_eq = summary.get("net_equity", 0.0)
-        invariant_passed = bool(summary.get("invariant_net_le_gross", True))
+            # Invariant verification: Net Equity <= Gross Equity
+            gross_eq = summary.get("gross_equity", 0.0)
+            net_eq = summary.get("net_equity", 0.0)
+            invariant_passed = bool(summary.get("invariant_net_le_gross", True))
 
-        logger.info(
-            f"[Cycle #{iteration} Result] Executed: {summary.get('executed_count', 0)} | "
-            f"Suppressed: {summary.get('suppressed_count', 0)} | "
-            f"Gross Equity: {gross_eq:,.2f} KRW | Net Equity: {net_eq:,.2f} KRW | "
-            f"Total Fees: {summary.get('total_fees_paid', 0.0):,.2f} KRW | Total Impact: {summary.get('total_impact_cost', 0.0):,.2f} KRW"
-        )
-        logger.info(f"[Invariant Check] Net Equity <= Gross Equity: {'PASSED' if invariant_passed else 'FAILED'}")
+            logger.info(
+                f"[Cycle #{iteration} Result] Executed: {summary.get('executed_count', 0)} | "
+                f"Suppressed: {summary.get('suppressed_count', 0)} | "
+                f"Gross Equity: {gross_eq:,.2f} KRW | Net Equity: {net_eq:,.2f} KRW | "
+                f"Total Fees: {summary.get('total_fees_paid', 0.0):,.2f} KRW | Total Impact: {summary.get('total_impact_cost', 0.0):,.2f} KRW"
+            )
+            logger.info(f"[Invariant Check] Net Equity <= Gross Equity: {'PASSED' if invariant_passed else 'FAILED'}")
 
-        # Record empirical execution to SlippageFeedbackEngine
-        executions = summary.get("executions", [])
-        if executions:
-            for rec in executions:
-                action = rec.get("action", "") if isinstance(rec, dict) else getattr(rec, "action", "")
-                if action in ("BUY", "SELL", "BUY_HEDGE", "SELL_HEDGE"):
-                    sym = rec.get("symbol", "") if isinstance(rec, dict) else getattr(rec, "symbol", "")
-                    mkt = rec.get("market", "KRX") if isinstance(rec, dict) else getattr(rec, "market", "KRX")
-                    adv = float(rec.get("adv_20d", 1e8) if isinstance(rec, dict) else getattr(rec, "adv_20d", 1e8))
-                    vol = float(rec.get("volatility", 0.02) if isinstance(rec, dict) else getattr(rec, "volatility", 0.02))
-                    slip_bps = float(rec.get("slippage_bps", 0.0) if isinstance(rec, dict) else getattr(rec, "slippage_bps", 0.0))
-                    impact_bps = float(rec.get("market_impact_bps", 0.0) if isinstance(rec, dict) else getattr(rec, "market_impact_bps", 0.0))
-                    qty = int(rec.get("quantity", 0) if isinstance(rec, dict) else getattr(rec, "quantity", 0))
-                    target_p = float(rec.get("target_price", 0.0) if isinstance(rec, dict) else getattr(rec, "target_price", 0.0))
-                    exec_p = float(rec.get("executed_price", 0.0) if isinstance(rec, dict) else getattr(rec, "executed_price", 0.0))
+            # Record empirical execution to SlippageFeedbackEngine
+            executions = summary.get("executions", [])
+            if executions:
+                for rec in executions:
+                    action = rec.get("action", "") if isinstance(rec, dict) else getattr(rec, "action", "")
+                    if action in ("BUY", "SELL", "BUY_HEDGE", "SELL_HEDGE"):
+                        sym = rec.get("symbol", "") if isinstance(rec, dict) else getattr(rec, "symbol", "")
+                        mkt = rec.get("market", "KRX") if isinstance(rec, dict) else getattr(rec, "market", "KRX")
+                        adv = float(rec.get("adv_20d", 1e8) if isinstance(rec, dict) else getattr(rec, "adv_20d", 1e8))
+                        vol = float(rec.get("volatility", 0.02) if isinstance(rec, dict) else getattr(rec, "volatility", 0.02))
+                        slip_bps = float(rec.get("slippage_bps", 0.0) if isinstance(rec, dict) else getattr(rec, "slippage_bps", 0.0))
+                        impact_bps = float(rec.get("market_impact_bps", 0.0) if isinstance(rec, dict) else getattr(rec, "market_impact_bps", 0.0))
+                        qty = int(rec.get("quantity", 0) if isinstance(rec, dict) else getattr(rec, "quantity", 0))
+                        target_p = float(rec.get("target_price", 0.0) if isinstance(rec, dict) else getattr(rec, "target_price", 0.0))
+                        exec_p = float(rec.get("executed_price", 0.0) if isinstance(rec, dict) else getattr(rec, "executed_price", 0.0))
 
-                    try:
-                        feedback_engine.record_execution(
-                            symbol=sym,
-                            market=mkt,
-                            side=action,
-                            order_qty=qty,
-                            filled_qty=qty,
-                            target_price=target_p,
-                            executed_price=exec_p,
-                            realized_slippage_bps=slip_bps,
-                            realized_impact_bps=impact_bps,
-                            adv_20d=adv,
-                            volatility=vol,
-                        )
-                    except Exception as e:
-                        logger.debug(f"SlippageFeedbackEngine record note: {e}")
+                        try:
+                            feedback_engine.record_execution(
+                                symbol=sym,
+                                market=mkt,
+                                side=action,
+                                order_qty=qty,
+                                filled_qty=qty,
+                                target_price=target_p,
+                                executed_price=exec_p,
+                                realized_slippage_bps=slip_bps,
+                                realized_impact_bps=impact_bps,
+                                adv_20d=adv,
+                                volatility=vol,
+                            )
+                        except Exception as e:
+                            logger.debug(f"SlippageFeedbackEngine record note: {e}")
 
-        cycle_reports.append({
-            "iteration": iteration,
-            "timestamp": cycle_start_time.isoformat(),
-            "summary": summary,
-            "invariant_passed": invariant_passed,
-        })
+            cycle_reports.append({
+                "iteration": iteration,
+                "timestamp": cycle_start_time.isoformat(),
+                "summary": summary,
+                "invariant_passed": invariant_passed,
+            })
 
-        if iteration < args.iterations:
-            time.sleep(args.interval_seconds)
+            if iteration < args.iterations:
+                time.sleep(args.interval_seconds)
+    finally:
+        if feed_adapter is not None:
+            try:
+                feed_adapter.close()
+            except Exception:
+                pass
 
     # Extract final snapshot
     final_snap = daemon.snapshot_portfolio()
@@ -254,6 +305,17 @@ def run_daemon(args: argparse.Namespace) -> Dict[str, Any]:
     md_path = out_path.with_suffix(".md")
     _generate_markdown_report(session_report, md_path)
     logger.info(f"Saved session Markdown report: {md_path}")
+
+    # Console summary
+    print("\n" + "=" * 80)
+    print("SHADOW PAPER TRADING EXECUTION SUMMARY")
+    print("=" * 80)
+    print("Status           : SUCCESS")
+    print(f"Mode             : {args.mode.upper()}")
+    print(f"Net Equity       : {daemon.net_equity:,.2f} KRW")
+    print(f"Gross Equity     : {daemon.gross_equity:,.2f} KRW")
+    print(f"Invariant Passed : {'YES' if session_report['invariant_net_le_gross'] else 'NO'}")
+    print("=" * 80 + "\n")
 
     return session_report
 

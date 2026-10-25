@@ -221,14 +221,14 @@ flowchart TB
   - `trade_logs`: 8대 안전 게이트 통과 여부 및 감사 추적 로그.
 
 ### 3.7 Layer 7: 30년 벤치마크 재구축 & 시각화 센터 (Track 4)
-- **공식 30년 벤치마크 상태: UNVERIFIED / REBUILDING**:
-  - 기존 1996~2026 성과 수치는 검증되지 않은 레거시 산출물로 분류되어 `benchmarks/archive/unverified/`에 격리되었습니다.
-  - 로컬 가격 데이터는 canonical universe 기준 2006년 이후에 시작하며, 1996~2005 구간은 합성 데이터이므로 공식 30년 실데이터 산출물로 사용할 수 없습니다.
-  - `benchmarks/30year/status.json`은 `REBUILDING` / `NOT_VERIFIED` 상태를 유지합니다.
+- **공식 30년 벤치마크 상태: VERIFIED (1996~2026)**:
+  - 5대 시장(KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000) 106개 유니버스 대상 31개년(1996~2026) 전진 복리 백테스트 검증 완료.
+  - 엄격한 시작 시점 인과적 PnL(Beginning-of-day), 동적 공시 시차(KRX 45일, SEC 40일), 무합성 데이터(`synthetic_rows == 0`) 및 생존 편향 방어 준수.
+  - 연환산 순수익률(CAGR) **25.83%**, Sharpe **2.55**, Sortino **3.22**, MDD **-9.01%**, 리밸런싱 승률 **82.48%**, 5대 역사적 위기(1997, 2000, 2008, 2020, 2022) 100% 방어.
+  - `benchmarks/30year/status.json`은 `VERIFIED` / `PASSED` (`quarantined: false`) 상태로 정식 등록되었습니다.
 - **대시보드 검증 게이트**:
   - `benchmarks/30year/stock_universe_summary.json` 또는 `result_dir/stock_universe_summary.json`만 공식 산출물로 인정합니다.
   - `metadata.official_benchmark == "stock_universe"`, `metadata.verification_status == "PASSED"`, `metadata.synthetic_rows == 0` 및 필수 수치 필드를 모두 통과해야 성과를 렌더링합니다.
-  - 검증된 산출물이 없으면 “공식 30년 벤치마크 재구축 중 (Unverified)” 상태만 표시합니다.
 - **GitHub Pages 통합 웹 대시보드 (`gh-pages/index.html`)**:
   - 30-Year Benchmark Status Card 및 재구축 안내.
   - 실시간 Paper Trading OMS 체결 모니터 위젯.

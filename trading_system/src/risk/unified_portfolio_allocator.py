@@ -25929,6 +25929,8 @@ class UnifiedPortfolioAllocator:
                     from src.execution.slippage_feedback import SlippageFeedbackEngine
                     slip_engine = SlippageFeedbackEngine()
                     slip_metrics = slip_engine.calculate_realized_slippage()
+                    if slip_metrics and hasattr(slip_metrics, "kalman_kappa") and slip_metrics.kalman_kappa is not None:
+                        kappa_0 = float(np.clip(float(slip_metrics.kalman_kappa) * 2.0, 0.20, 5.0))
                     if slip_metrics and hasattr(slip_metrics, "cost_scaling_factor"):
                         slippage_cost_scale = float(slip_metrics.cost_scaling_factor or 1.0)
                     elif slip_metrics and hasattr(slip_metrics, "recommended_market_impact_multiplier"):

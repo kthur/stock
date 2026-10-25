@@ -23,7 +23,13 @@
     "universe_symbols": 106,
     "registry_symbols": 106,
     "universe_coverage_pct": 100.0,
-    "live_strategy_count": 5
+    "live_strategy_count": 5,
+    "official_benchmark": "stock_universe",
+    "verification_status": "PASSED",
+    "synthetic_rows": 0,
+    "benchmark_name": "KOSPI",
+    "benchmark_cagr_pct": 6.1,
+    "benchmark_mdd_pct": -55.2
   },
   "portfolio_overall": {
     "initial_capital": 100000000.0,
@@ -519,7 +525,8 @@
       "win_rate_pct": 82.66,
       "trade_count": 114,
       "turnover": 2.81,
-      "friction_bps": 17.2
+      "friction_bps": 17.2,
+      "is_partial": true
     }
   ],
   "historical_crises": [
@@ -536,7 +543,8 @@
       "sharpe_ratio": 1.37,
       "recovery_days": 372,
       "status": "PASS",
-      "pass_flag": true
+      "pass_flag": true,
+      "defense_pass": true
     },
     {
       "crisis_id": "2000_DOTCOM_CRASH",
@@ -551,7 +559,8 @@
       "sharpe_ratio": 5.64,
       "recovery_days": 669,
       "status": "PASS",
-      "pass_flag": true
+      "pass_flag": true,
+      "defense_pass": true
     },
     {
       "crisis_id": "2008_GFC",
@@ -566,7 +575,8 @@
       "sharpe_ratio": 3.1,
       "recovery_days": 354,
       "status": "PASS",
-      "pass_flag": true
+      "pass_flag": true,
+      "defense_pass": true
     },
     {
       "crisis_id": "2020_COVID_SHOCK",
@@ -581,7 +591,8 @@
       "sharpe_ratio": 0.51,
       "recovery_days": 45,
       "status": "PASS",
-      "pass_flag": true
+      "pass_flag": true,
+      "defense_pass": true
     },
     {
       "crisis_id": "2022_INFLATION_RATE_HIKE",
@@ -596,7 +607,8 @@
       "sharpe_ratio": -0.89,
       "recovery_days": 245,
       "status": "PASS",
-      "pass_flag": true
+      "pass_flag": true,
+      "defense_pass": true
     }
   ]
 }

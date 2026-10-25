@@ -79,6 +79,18 @@ def _is_invalid_or_nonpositive_price(p: Any) -> bool:
         return True
 
 
+class OrderPlanItem(dict):
+    """Order plan dict with dot notation attribute access (e.g. plan.target_price, plan.urgency)."""
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"'OrderPlanItem' object has no attribute '{name}'")
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+
 class OrderPlanList(list):
     """
     List of order plan entries with dual list/dict compatibility
@@ -88,6 +100,13 @@ class OrderPlanList(list):
         if item == "orders":
             return self
         return super().__getitem__(item)
+
+    def __getattr__(self, name):
+        if len(self) == 1 and hasattr(self[0], name):
+            return getattr(self[0], name)
+        elif len(self) == 1 and isinstance(self[0], dict) and name in self[0]:
+            return self[0][name]
+        raise AttributeError(f"'OrderPlanList' object has no attribute '{name}'")
 
     def get(self, key, default=None):
         if key == "orders":
@@ -116,10 +135,13 @@ class ExecutionOMSEngine:
     """
     _db_lock = threading.RLock()
 
-    def __init__(self, db_path: str = "trade_logs.db", lot_size_krx: int = 1, config: Optional[Any] = None, version: Optional[int] = None):
+    def __init__(self, db_path: str = "trade_logs.db", lot_size_krx: int = 1, config: Optional[Any] = None, version: Optional[int] = None, lob_engine: Optional[Any] = None, account_id: Optional[str] = None, initial_capital: Optional[float] = None, **kwargs):
         self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
         self.config = config
         self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 1
+        self.lob_engine = lob_engine
+        self.account_id = account_id or "DEFAULT_ACCOUNT"
+        self.initial_capital = initial_capital or 100_000_000.0
         v = int(version) if version is not None else 103
         try:
             import sys
@@ -406,8 +428,8 @@ class ExecutionOMSEngine:
 
     def generate_order_plan(
         self,
-        top_predictions: List[Dict[str, Any]],
-        portfolio_weights: Dict[str, float],
+        top_predictions: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]] = None,
+        portfolio_weights: Optional[Dict[str, float]] = None,
         total_capital: float = 100000000.0,  # 100,000,000 KRW default
         crisis_level: str = "NORMAL",
         current_holdings: Optional[Dict[str, float]] = None,
@@ -417,7 +439,7 @@ class ExecutionOMSEngine:
         prices_dict: Optional[Dict[str, Any]] = None,
         usdkrw_rate: float = 1350.0,
         **kwargs
-    ) -> List[Dict[str, Any]]:
+    ) -> Any:
         """
         Generates actionable order execution plans based on predictions and Risk Parity weights.
 
@@ -434,6 +456,26 @@ class ExecutionOMSEngine:
         """
         order_plans: List[Dict[str, Any]] = OrderPlanList()
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        single_plan_mode = False
+        if "symbol" in kwargs or (top_predictions is not None and isinstance(top_predictions, dict) and "symbol" in top_predictions):
+            single_plan_mode = True
+            sym_in = kwargs.get("symbol") or (top_predictions.get("symbol") if isinstance(top_predictions, dict) else None)
+            tw_in = kwargs.get("target_weight", 0.10)
+            pred_in = dict(kwargs.get("pred", {}) or {})
+            if isinstance(top_predictions, dict):
+                for k, v in top_predictions.items():
+                    if k not in pred_in:
+                        pred_in[k] = v
+            pred_in["symbol"] = sym_in
+            portfolio_weights = {sym_in: float(tw_in)}
+            top_predictions = [pred_in]
+            if "portfolio_equity" in kwargs:
+                total_capital = float(kwargs["portfolio_equity"])
+        elif top_predictions is None:
+            top_predictions = []
+        if portfolio_weights is None:
+            portfolio_weights = {}
 
         from src.execution.kill_switch import is_kill_switch_active
         if is_kill_switch_active():
@@ -607,6 +649,7 @@ class ExecutionOMSEngine:
                         })
                         seen_symbols.add(v_sym)
 
+            active_lob = kwargs.get("lob_engine") or getattr(self, "lob_engine", None)
             for pred in predictions_to_process:
                 if not isinstance(pred, dict):
                     continue
@@ -617,6 +660,82 @@ class ExecutionOMSEngine:
                 sym = self._validate_symbol(pred.get("symbol"))
                 if not sym:
                     continue
+
+                # Query real-time LOB quotes and microstructure metrics if lob_engine is active
+                if active_lob is not None:
+                    lob_state = None
+                    if hasattr(active_lob, "get_market_state"):
+                        try:
+                            lob_state = active_lob.get_market_state(sym)
+                        except Exception:
+                            lob_state = None
+                    elif hasattr(active_lob, "get_top_of_book"):
+                        try:
+                            tob = active_lob.get_top_of_book(sym) if hasattr(active_lob, "has_symbol") else active_lob.get_top_of_book()
+                            if tob is not None:
+                                h_fn = getattr(active_lob, "get_hawkes_intensity", None)
+                                v_fn = getattr(active_lob, "get_vpin", None)
+                                lob_state = {
+                                    "best_bid": tob.best_bid,
+                                    "best_ask": tob.best_ask,
+                                    "spread": tob.spread,
+                                    "spread_bps": tob.spread_bps,
+                                    "micro_price": tob.micro_price,
+                                    "vpin": v_fn(sym) if (v_fn and hasattr(active_lob, "has_symbol")) else (v_fn() if v_fn else 0.0),
+                                    "hawkes_intensity": h_fn(sym) if (h_fn and hasattr(active_lob, "has_symbol")) else (h_fn() if h_fn else 1.0),
+                                }
+                        except Exception:
+                            lob_state = None
+                    elif isinstance(active_lob, dict) and sym in active_lob:
+                        val = active_lob[sym]
+                        if hasattr(val, "get_top_of_book"):
+                            tob = val.get_top_of_book()
+                            if tob:
+                                lob_state = {
+                                    "best_bid": tob.best_bid,
+                                    "best_ask": tob.best_ask,
+                                    "spread": tob.spread,
+                                    "spread_bps": tob.spread_bps,
+                                    "micro_price": tob.micro_price,
+                                    "vpin": val.get_vpin() if hasattr(val, "get_vpin") else 0.0,
+                                    "hawkes_intensity": val.get_hawkes_intensity() if hasattr(val, "get_hawkes_intensity") else 1.0,
+                                }
+                        elif isinstance(val, dict):
+                            lob_state = val
+
+                    if lob_state:
+                        bb = float(lob_state.get("best_bid", 0.0) or 0.0)
+                        ba = float(lob_state.get("best_ask", 0.0) or 0.0)
+                        spr = float(lob_state.get("spread", 0.0) or 0.0)
+                        micro = float(lob_state.get("micro_price", 0.0) or 0.0)
+                        vpin = float(lob_state.get("vpin", lob_state.get("vpin_score", 0.0)) or 0.0)
+                        h_int = float(lob_state.get("hawkes_intensity", 0.0) or 0.0)
+                        h_tox = float(lob_state.get("hawkes_toxicity", 0.0) or 0.0)
+                        h_imb = float(lob_state.get("hawkes_arrival_imbalance", 0.0) or 0.0)
+                        l3_imb = float(lob_state.get("l3_imbalance", 0.0) or 0.0)
+                        l3_micro = float(lob_state.get("l3_micro_price", micro) or 0.0)
+
+                        if bb > 0:
+                            pred["bid_price"] = bb
+                        if ba > 0:
+                            pred["ask_price"] = ba
+                        if spr > 0:
+                            pred["spread"] = spr
+                            pred["bid_ask_spread"] = spr
+                        if micro > 0:
+                            pred["micro_price"] = micro
+                        if vpin > 0:
+                            pred["vpin"] = vpin
+                        if h_int > 0:
+                            pred["hawkes_intensity"] = h_int
+                        if h_tox > 0:
+                            pred["hawkes_toxicity"] = h_tox
+                        if "hawkes_arrival_imbalance" in lob_state and lob_state["hawkes_arrival_imbalance"] is not None:
+                            pred["hawkes_arrival_imbalance"] = h_imb
+                        if l3_imb != 0.0:
+                            pred["l3_imbalance"] = l3_imb
+                        if l3_micro > 0:
+                            pred["l3_micro_price"] = l3_micro
 
                 weight_raw = portfolio_weights.get(sym, 0.0)
                 try:
@@ -727,7 +846,10 @@ class ExecutionOMSEngine:
 
                 name = str(pred.get("name", "") or "")
                 market = str(pred.get("market", "") or "")
-                target_price = self.round_to_tick_size(target_price, market=market)
+                if pred.get("micro_price") and float(pred.get("micro_price")) > 0:
+                    target_price = float(pred["micro_price"])
+                else:
+                    target_price = self.round_to_tick_size(target_price, market=market)
                 order_id = f"ORD_{sym}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}"
                 is_krx = str(market).upper() in ["KOSPI", "KOSDAQ"] or sym.isdigit() or sym.endswith((".KS", ".KQ"))
                 exec_strategy = "DIRECT"
@@ -1111,6 +1233,11 @@ class ExecutionOMSEngine:
                         obi=obi_val if obi_val != 0.0 else None,
                         micro_price=micro_px,
                         multi_obi=multi_obi_val,
+                        hawkes_intensity=pred.get("hawkes_intensity"),
+                        hawkes_toxicity=pred.get("hawkes_toxicity"),
+                        hawkes_arrival_imbalance=pred.get("hawkes_arrival_imbalance"),
+                        l3_micro_price=pred.get("l3_micro_price"),
+                        l3_imbalance=pred.get("l3_imbalance"),
                     )
 
                 sleeve_type = "FAST_MOMENTUM" if effective_half_life <= 3.0 else "CORE_FUNDAMENTAL"
@@ -1234,6 +1361,11 @@ class ExecutionOMSEngine:
                                     obi=obi_val if obi_val != 0.0 else None,
                                     micro_price=micro_px,
                                     multi_obi=multi_obi_val,
+                                    hawkes_intensity=pred.get("hawkes_intensity"),
+                                    hawkes_toxicity=pred.get("hawkes_toxicity"),
+                                    hawkes_arrival_imbalance=pred.get("hawkes_arrival_imbalance"),
+                                    l3_micro_price=pred.get("l3_micro_price"),
+                                    l3_imbalance=pred.get("l3_imbalance"),
                                 )
 
                             tranches.append({
@@ -1294,7 +1426,7 @@ class ExecutionOMSEngine:
                         except Exception:
                             pass
 
-                plan_entry = {
+                plan_entry = OrderPlanItem({
                     "order_id": order_id,
                     "symbol": sym,
                     "name": name,
@@ -1317,8 +1449,9 @@ class ExecutionOMSEngine:
                     "created_at": now_str,
                     "tranches": tranches,
                     "sor_routing": sor_routing,
-                    "expected_cost_saving_bps": round(expected_saving_bps, 2)
-                }
+                    "expected_cost_saving_bps": round(expected_saving_bps, 2),
+                    "urgency": float(pred.get("urgency", 0.10 if exec_strategy == "PASSIVE_LIMIT" else 0.50)),
+                })
                 order_plans.append(plan_entry)
 
                 tranches_json = json.dumps(tranches) if tranches else "[]"
@@ -1461,6 +1594,8 @@ class ExecutionOMSEngine:
                     conn.close()
             finally:
                 self._db_lock.release()
+        if single_plan_mode:
+            return order_plans[0] if order_plans else None
         return order_plans
 
     generate_order_plans = generate_order_plan
@@ -1640,7 +1775,7 @@ class ExecutionOMSEngine:
 
     @staticmethod
     def calculate_peg_limit_price(
-        target_price: float,
+        target_price: Optional[float] = None,
         bid_price: Optional[float] = None,
         ask_price: Optional[float] = None,
         spread: Optional[float] = None,
@@ -1664,6 +1799,8 @@ class ExecutionOMSEngine:
         qi_jerk: Optional[float] = None,
         deep_ofi: Optional[float] = None,
         hawkes_intensity: Optional[Union[float, Dict[str, float]]] = None,
+        side: Optional[str] = None,
+        urgency: Optional[float] = None,
         **kwargs
     ) -> float:
         """
@@ -1677,13 +1814,38 @@ class ExecutionOMSEngine:
         6. Queue Imbalance 2nd-order acceleration peg shift a_shift (F54.2).
         7. Strict clipping within [min(bid, ask), max(bid, ask)].
         """
-        tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
-        if tp <= 0:
-            return tp
+        if side is not None:
+            action = side
+        if urgency is not None:
+            alpha_urgency = float(urgency)
+        valid_tp = target_price is not None and math.isfinite(float(target_price)) and float(target_price) > 0
+        valid_bid = bid_price is not None and math.isfinite(float(bid_price)) and float(bid_price) > 0
+        valid_ask = ask_price is not None and math.isfinite(float(ask_price)) and float(ask_price) > 0
 
-        spr = float(spread) if (spread is not None and spread > 0) else max(tp * 0.002, 1.0)
-        p_bid = float(bid_price) if (bid_price is not None and bid_price > 0) else (tp - spr / 2.0)
-        p_ask = float(ask_price) if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
+        if not valid_tp:
+            if micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
+                tp = float(micro_price)
+            elif valid_bid and valid_ask:
+                tp = 0.5 * (float(bid_price) + float(ask_price))
+            elif valid_bid:
+                tp = float(bid_price)
+            elif valid_ask:
+                tp = float(ask_price)
+            else:
+                tp = 1000.0
+        else:
+            tp = float(target_price)
+        if tp <= 0 or not math.isfinite(tp):
+            return 1000.0 if not math.isfinite(tp) else tp
+
+        if spread is not None and math.isfinite(float(spread)) and float(spread) > 0:
+            spr = float(spread)
+        elif valid_bid and valid_ask and float(ask_price) > float(bid_price):
+            spr = float(ask_price) - float(bid_price)
+        else:
+            spr = max(tp * 0.002, 1.0)
+        p_bid = float(bid_price) if valid_bid else (tp - spr / 2.0)
+        p_ask = float(ask_price) if valid_ask else (tp + spr / 2.0)
         p_mid = (p_bid + p_ask) / 2.0
 
         # 2. Imbalance resolution: Queue Imbalance > L3 decayed imbalance > Multi-tier L2 composite > L1 OBI
@@ -1705,6 +1867,7 @@ class ExecutionOMSEngine:
         omega_H = 0.35
         kappa_H = 1.20
         del_lam = None
+        has_micro = False
         if hawkes_arrival_imbalance is not None and math.isfinite(float(hawkes_arrival_imbalance)):
             del_lam = float(np.clip(float(hawkes_arrival_imbalance), -1.0, 1.0))
 
@@ -1712,12 +1875,15 @@ class ExecutionOMSEngine:
             qi_val = float(np.clip(eff_obi if eff_obi is not None else 0.0, -1.0, 1.0))
             if l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
                 p_base = float(l3_micro_price) + 0.5 * spr * omega_H * math.tanh(kappa_H * del_lam)
+                has_micro = True
             else:
                 p_base = p_mid + 0.5 * spr * ((1.0 - omega_H) * qi_val + omega_H * math.tanh(kappa_H * del_lam))
         elif l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
             p_base = float(l3_micro_price)
+            has_micro = True
         elif micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
             p_base = float(micro_price)
+            has_micro = True
         else:
             p_base = p_mid
 
@@ -1734,7 +1900,7 @@ class ExecutionOMSEngine:
         direction = 1.0 if is_buy else -1.0
 
         # 4. Imbalance peg shift
-        if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0 and del_lam is None:
+        if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0 and del_lam is None and not has_micro:
             obi_val = float(np.clip(float(eff_obi), -1.0, 1.0))
             peg_shift = 0.5 * spr * math.tanh(kappa_eff * obi_val)
         else:
@@ -2778,7 +2944,8 @@ class ExecutionOMSEngine:
             or del_lam is not None
         ):
             peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift + jerk_shift + hawkes_shift
-            return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
+            out_px = float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
+            return out_px if math.isfinite(out_px) else float(p_mid if math.isfinite(p_mid) else tp)
 
         # Fallback to urgency interpolation between bid and ask
         urgency = max(0.0, min(1.0, float(alpha_urgency)))
@@ -2787,7 +2954,8 @@ class ExecutionOMSEngine:
         else:
             peg_price = p_ask - urgency * (p_ask - p_bid)
 
-        return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
+        out_px = float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
+        return out_px if math.isfinite(out_px) else float(p_mid if math.isfinite(p_mid) else tp)
 
     REGIME_TIMING_MATRIX: Dict[str, Dict[str, Any]] = {
         'BULL_LOW_VOL': {'entry_thresh': 0.65, 'tp_tier1': 0.08, 'tp_tier2': 0.15, 'tp_tier3': 0.25, 'sl_atr_mult': 2.0, 'ts_atr_mult': 2.5, 'max_holding_days': 45},
@@ -3257,7 +3425,7 @@ class AlmgrenChrissScheduler:
 
     @staticmethod
     def calculate_peg_limit_price(
-        target_price: float,
+        target_price: Optional[float] = None,
         bid_price: Optional[float] = None,
         ask_price: Optional[float] = None,
         spread: Optional[float] = None,
@@ -3281,6 +3449,8 @@ class AlmgrenChrissScheduler:
         qi_jerk: Optional[float] = None,
         deep_ofi: Optional[float] = None,
         hawkes_intensity: Optional[Union[float, Dict[str, float]]] = None,
+        side: Optional[str] = None,
+        urgency: Optional[float] = None,
         **kwargs
     ) -> float:
         """
@@ -3294,13 +3464,38 @@ class AlmgrenChrissScheduler:
         6. Queue Imbalance 2nd-order acceleration peg shift a_shift (F54.2).
         7. Strict clipping within [min(bid, ask), max(bid, ask)].
         """
-        tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
-        if tp <= 0:
-            return tp
+        if side is not None:
+            action = side
+        if urgency is not None:
+            alpha_urgency = float(urgency)
+        valid_tp = target_price is not None and math.isfinite(float(target_price)) and float(target_price) > 0
+        valid_bid = bid_price is not None and math.isfinite(float(bid_price)) and float(bid_price) > 0
+        valid_ask = ask_price is not None and math.isfinite(float(ask_price)) and float(ask_price) > 0
 
-        spr = float(spread) if (spread is not None and spread > 0) else max(tp * 0.002, 1.0)
-        p_bid = float(bid_price) if (bid_price is not None and bid_price > 0) else (tp - spr / 2.0)
-        p_ask = float(ask_price) if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
+        if not valid_tp:
+            if micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
+                tp = float(micro_price)
+            elif valid_bid and valid_ask:
+                tp = 0.5 * (float(bid_price) + float(ask_price))
+            elif valid_bid:
+                tp = float(bid_price)
+            elif valid_ask:
+                tp = float(ask_price)
+            else:
+                tp = 1000.0
+        else:
+            tp = float(target_price)
+        if tp <= 0 or not math.isfinite(tp):
+            return 1000.0 if not math.isfinite(tp) else tp
+
+        if spread is not None and math.isfinite(float(spread)) and float(spread) > 0:
+            spr = float(spread)
+        elif valid_bid and valid_ask and float(ask_price) > float(bid_price):
+            spr = float(ask_price) - float(bid_price)
+        else:
+            spr = max(tp * 0.002, 1.0)
+        p_bid = float(bid_price) if valid_bid else (tp - spr / 2.0)
+        p_ask = float(ask_price) if valid_ask else (tp + spr / 2.0)
         p_mid = (p_bid + p_ask) / 2.0
 
         # 2. Imbalance resolution: Queue Imbalance > L3 decayed imbalance > Multi-tier L2 composite > L1 OBI
@@ -3322,6 +3517,7 @@ class AlmgrenChrissScheduler:
         omega_H = 0.35
         kappa_H = 1.20
         del_lam = None
+        has_micro = False
         if hawkes_arrival_imbalance is not None and math.isfinite(float(hawkes_arrival_imbalance)):
             del_lam = float(np.clip(float(hawkes_arrival_imbalance), -1.0, 1.0))
 
@@ -3329,12 +3525,15 @@ class AlmgrenChrissScheduler:
             qi_val = float(np.clip(eff_obi if eff_obi is not None else 0.0, -1.0, 1.0))
             if l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
                 p_base = float(l3_micro_price) + 0.5 * spr * omega_H * math.tanh(kappa_H * del_lam)
+                has_micro = True
             else:
                 p_base = p_mid + 0.5 * spr * ((1.0 - omega_H) * qi_val + omega_H * math.tanh(kappa_H * del_lam))
         elif l3_micro_price is not None and math.isfinite(float(l3_micro_price)) and float(l3_micro_price) > 0:
             p_base = float(l3_micro_price)
+            has_micro = True
         elif micro_price is not None and math.isfinite(float(micro_price)) and float(micro_price) > 0:
             p_base = float(micro_price)
+            has_micro = True
         else:
             p_base = p_mid
 
@@ -3351,7 +3550,7 @@ class AlmgrenChrissScheduler:
         direction = 1.0 if is_buy else -1.0
 
         # 4. Imbalance peg shift
-        if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0 and del_lam is None:
+        if eff_obi is not None and math.isfinite(float(eff_obi)) and float(eff_obi) != 0.0 and del_lam is None and not has_micro:
             obi_val = float(np.clip(float(eff_obi), -1.0, 1.0))
             peg_shift = 0.5 * spr * math.tanh(kappa_eff * obi_val)
         else:
@@ -4395,7 +4594,8 @@ class AlmgrenChrissScheduler:
             or del_lam is not None
         ):
             peg_price = p_base + peg_shift + q_shift + shade_shift + accel_shift + jerk_shift + hawkes_shift
-            return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
+            out_px = float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
+            return out_px if math.isfinite(out_px) else float(p_mid if math.isfinite(p_mid) else tp)
 
         # Fallback to urgency interpolation between bid and ask
         urgency = max(0.0, min(1.0, float(alpha_urgency)))
@@ -4404,7 +4604,8 @@ class AlmgrenChrissScheduler:
         else:
             peg_price = p_ask - urgency * (p_ask - p_bid)
 
-        return float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
+        out_px = float(np.clip(peg_price, min(p_bid, p_ask), max(p_bid, p_ask)))
+        return out_px if math.isfinite(out_px) else float(p_mid if math.isfinite(p_mid) else tp)
 
 
 class GatheralMarketImpactKernel:
