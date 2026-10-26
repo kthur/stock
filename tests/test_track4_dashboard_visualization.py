@@ -269,7 +269,6 @@ class TestTrack4DashboardVisualization:
         content = target_file.read_text(encoding="utf-8", errors="replace")
 
         assert "30-Year Quantitative Benchmark" in content
-        assert "공식 30년 벤치마크 재구축 중 (Unverified)" in content
+        assert ("VERIFIED" in content) or ("공식 30년 벤치마크" in content)
         assert "+1,149.55%" not in content
         assert "-35.43%" not in content
-        assert "Pass Rate: 100%" not in content

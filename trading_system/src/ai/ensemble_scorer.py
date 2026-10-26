@@ -12451,6 +12451,24 @@ class EnsembleScoringEngine:
         ],
     }
     TIER_WEIGHTS = {'slow': 0.50, 'medium': 0.35, 'fast': 0.15}
+ 
+    @classmethod
+    def get_regime_adaptive_tier_weights(cls, regime: Optional[Union[str, int]] = None) -> Dict[str, float]:
+        """
+        Regime-adaptive tier weights for hierarchical multi-horizon score blending.
+        Boosts fast-tier alpha signals in Bull/Sideways to eliminate latency drag.
+        Class default TIER_WEIGHTS remains {'slow': 0.50, 'medium': 0.35, 'fast': 0.15}.
+        """
+        reg_str = str(regime).upper() if regime is not None else "SIDEWAYS_LOW_VOL"
+        if "BULL_LOW_VOL" in reg_str or "BULL_HIGH_VOL" in reg_str or "BULL" in reg_str:
+            return {'slow': 0.20, 'medium': 0.50, 'fast': 0.30}
+        elif "SIDEWAYS" in reg_str:
+            return {'slow': 0.25, 'medium': 0.45, 'fast': 0.30}
+        elif "BEAR" in reg_str:
+            return {'slow': 0.45, 'medium': 0.35, 'fast': 0.20}
+        elif "CRISIS" in reg_str:
+            return {'slow': 0.55, 'medium': 0.30, 'fast': 0.15}
+        return dict(cls.TIER_WEIGHTS)
 
     # Dynamic Weight Configuration per 1D Market Regime (0: BEAR, 1: SIDEWAYS, 2: BULL)
     # Dynamic Weight Configuration per 1D Market Regime (37 Strategies, sum strictly = 1.00)
@@ -12654,161 +12672,161 @@ class EnsembleScoringEngine:
             'index_rebalance': 0.02,
             'overnight_gap_reversal': 0.03,
         },
-        'SIDEWAYS_LOW_VOL': {  # sum = 1.00
-            'regression': 0.03,
+        'SIDEWAYS_LOW_VOL': {  # sum = 1.0000 across all 37 strategies, surge = 0.015
+            'regression': 0.025,
             'surge': 0.015,
-            'lead_lag': 0.03,
-            'vcp_rule': 0.020,
-            'vcp_ml': 0.015,
-            'lstm': 0.03,
-            'stat_arb': 0.050,
-            'sector_rotation': 0.03,
-            'rim_valuation': 0.04,
-            'event_driven': 0.03,
-            'mq_factor': 0.03,
-            'iv_skew': 0.01,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.040,
-            'arm_factor': 0.02,
-            'card_factor': 0.03,
-            'latr_factor': 0.03,
-            'inst_foreign_sector': 0.03,
-            'supply_chain': 0.02,
-            'sentiment': 0.03,
-            'factor_neutralized': 0.03,
-            'vol_target': 0.050,
-            'microstructure': 0.02,
-            'accruals_quality': 0.03,
-            'short_squeeze': 0.02,
-            'valueup_catalyst': 0.04,
+            'lead_lag': 0.025,
+            'vcp_rule': 0.015,
+            'vcp_ml': 0.040,
+            'lstm': 0.025,
+            'stat_arb': 0.070,
+            'sector_rotation': 0.025,
+            'rim_valuation': 0.030,
+            'event_driven': 0.025,
+            'mq_factor': 0.025,
+            'iv_skew': 0.010,
+            'order_flow': 0.025,
+            'short_term_reversal': 0.045,
+            'arm_factor': 0.020,
+            'card_factor': 0.025,
+            'latr_factor': 0.025,
+            'inst_foreign_sector': 0.025,
+            'supply_chain': 0.015,
+            'sentiment': 0.025,
+            'factor_neutralized': 0.020,
+            'vol_target': 0.035,
+            'microstructure': 0.040,
+            'accruals_quality': 0.020,
+            'short_squeeze': 0.015,
+            'valueup_catalyst': 0.030,
             'trend_efficiency': 0.015,
-            'gamma_squeeze': 0.01,
-            'insider_buying': 0.02,
-            'darkpool': 0.02,
-            'earnings_tone_drift': 0.02,
-            'cross_asset_spillover': 0.02,
-            'supply_chain_gnn': 0.02,
-            'range_expansion_breakout': 0.015,
-            'dual_correction': 0.050,
-            'index_rebalance': 0.02,
-            'overnight_gap_reversal': 0.040,
+            'gamma_squeeze': 0.010,
+            'insider_buying': 0.020,
+            'darkpool': 0.020,
+            'earnings_tone_drift': 0.020,
+            'cross_asset_spillover': 0.035,
+            'supply_chain_gnn': 0.020,
+            'range_expansion_breakout': 0.035,
+            'dual_correction': 0.055,
+            'index_rebalance': 0.020,
+            'overnight_gap_reversal': 0.055,
         },
-        'SIDEWAYS_HIGH_VOL': {  # sum = 1.00
-            'regression': 0.03,
+        'SIDEWAYS_HIGH_VOL': {  # sum = 1.0000 across all 37 strategies, surge = 0.015
+            'regression': 0.025,
             'surge': 0.015,
-            'lead_lag': 0.03,
-            'vcp_rule': 0.020,
-            'vcp_ml': 0.015,
-            'lstm': 0.03,
-            'stat_arb': 0.050,
-            'sector_rotation': 0.030,
-            'rim_valuation': 0.04,
-            'event_driven': 0.03,
-            'mq_factor': 0.03,
-            'iv_skew': 0.02,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.040,
-            'arm_factor': 0.02,
-            'card_factor': 0.03,
-            'latr_factor': 0.03,
-            'inst_foreign_sector': 0.02,
-            'supply_chain': 0.02,
-            'sentiment': 0.03,
-            'factor_neutralized': 0.03,
-            'vol_target': 0.050,
-            'microstructure': 0.02,
-            'accruals_quality': 0.03,
-            'short_squeeze': 0.02,
-            'valueup_catalyst': 0.03,
+            'lead_lag': 0.025,
+            'vcp_rule': 0.015,
+            'vcp_ml': 0.040,
+            'lstm': 0.025,
+            'stat_arb': 0.075,
+            'sector_rotation': 0.025,
+            'rim_valuation': 0.030,
+            'event_driven': 0.025,
+            'mq_factor': 0.025,
+            'iv_skew': 0.015,
+            'order_flow': 0.025,
+            'short_term_reversal': 0.050,
+            'arm_factor': 0.015,
+            'card_factor': 0.025,
+            'latr_factor': 0.025,
+            'inst_foreign_sector': 0.020,
+            'supply_chain': 0.015,
+            'sentiment': 0.025,
+            'factor_neutralized': 0.020,
+            'vol_target': 0.035,
+            'microstructure': 0.040,
+            'accruals_quality': 0.020,
+            'short_squeeze': 0.015,
+            'valueup_catalyst': 0.025,
             'trend_efficiency': 0.015,
-            'gamma_squeeze': 0.02,
-            'insider_buying': 0.02,
-            'darkpool': 0.02,
-            'earnings_tone_drift': 0.02,
-            'cross_asset_spillover': 0.02,
-            'supply_chain_gnn': 0.02,
-            'range_expansion_breakout': 0.015,
-            'dual_correction': 0.050,
-            'index_rebalance': 0.02,
-            'overnight_gap_reversal': 0.040,
+            'gamma_squeeze': 0.015,
+            'insider_buying': 0.020,
+            'darkpool': 0.015,
+            'earnings_tone_drift': 0.015,
+            'cross_asset_spillover': 0.035,
+            'supply_chain_gnn': 0.020,
+            'range_expansion_breakout': 0.035,
+            'dual_correction': 0.060,
+            'index_rebalance': 0.015,
+            'overnight_gap_reversal': 0.060,
         },
         'BULL_LOW_VOL': {  # sum = 1.0000, high-conviction alphas = 39.0%
-            'regression': 0.04,
-            'surge': 0.04,
-            'lead_lag': 0.06,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.06,
-            'lstm': 0.02,
-            'stat_arb': 0.01,
-            'sector_rotation': 0.08,
-            'rim_valuation': 0.01,
-            'event_driven': 0.02,
-            'mq_factor': 0.08,
-            'iv_skew': 0.01,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.01,
-            'arm_factor': 0.02,
-            'card_factor': 0.01,
-            'latr_factor': 0.01,
-            'inst_foreign_sector': 0.03,
-            'supply_chain': 0.02,
-            'sentiment': 0.03,
-            'factor_neutralized': 0.01,
-            'vol_target': 0.01,
-            'microstructure': 0.02,
-            'accruals_quality': 0.01,
-            'short_squeeze': 0.02,
-            'valueup_catalyst': 0.01,
-            'trend_efficiency': 0.03,
-            'gamma_squeeze': 0.02,
-            'insider_buying': 0.03,
-            'darkpool': 0.02,
-            'earnings_tone_drift': 0.06,
-            'cross_asset_spillover': 0.02,
-            'supply_chain_gnn': 0.02,
-            'range_expansion_breakout': 0.03,
-            'dual_correction': 0.02,
-            'index_rebalance': 0.02,
-            'overnight_gap_reversal': 0.01,
+            'regression': 0.030,
+            'surge': 0.035,
+            'lead_lag': 0.060,
+            'vcp_rule': 0.060,
+            'vcp_ml': 0.080,
+            'lstm': 0.015,
+            'stat_arb': 0.020,
+            'sector_rotation': 0.070,
+            'rim_valuation': 0.005,
+            'event_driven': 0.015,
+            'mq_factor': 0.070,
+            'iv_skew': 0.005,
+            'order_flow': 0.025,
+            'short_term_reversal': 0.005,
+            'arm_factor': 0.015,
+            'card_factor': 0.020,
+            'latr_factor': 0.005,
+            'inst_foreign_sector': 0.025,
+            'supply_chain': 0.015,
+            'sentiment': 0.025,
+            'factor_neutralized': 0.005,
+            'vol_target': 0.005,
+            'microstructure': 0.040,
+            'accruals_quality': 0.005,
+            'short_squeeze': 0.015,
+            'valueup_catalyst': 0.005,
+            'trend_efficiency': 0.035,
+            'gamma_squeeze': 0.015,
+            'insider_buying': 0.025,
+            'darkpool': 0.015,
+            'earnings_tone_drift': 0.050,
+            'cross_asset_spillover': 0.040,
+            'supply_chain_gnn': 0.020,
+            'range_expansion_breakout': 0.040,
+            'dual_correction': 0.025,
+            'index_rebalance': 0.020,
+            'overnight_gap_reversal': 0.040,
         },
         'BULL_HIGH_VOL': {  # sum = 1.0000, high-conviction alphas = 39.0%
-            'regression': 0.03,
-            'surge': 0.04,
-            'lead_lag': 0.06,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.06,
-            'lstm': 0.02,
-            'stat_arb': 0.01,
-            'sector_rotation': 0.08,
-            'rim_valuation': 0.01,
-            'event_driven': 0.02,
-            'mq_factor': 0.08,
-            'iv_skew': 0.01,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.01,
-            'arm_factor': 0.02,
-            'card_factor': 0.01,
-            'latr_factor': 0.01,
-            'inst_foreign_sector': 0.03,
-            'supply_chain': 0.02,
-            'sentiment': 0.03,
-            'factor_neutralized': 0.01,
-            'vol_target': 0.01,
-            'microstructure': 0.03,
-            'accruals_quality': 0.01,
-            'short_squeeze': 0.02,
-            'valueup_catalyst': 0.01,
-            'trend_efficiency': 0.03,
-            'gamma_squeeze': 0.02,
-            'insider_buying': 0.03,
-            'darkpool': 0.02,
-            'earnings_tone_drift': 0.06,
-            'cross_asset_spillover': 0.02,
-            'supply_chain_gnn': 0.02,
-            'range_expansion_breakout': 0.03,
-            'dual_correction': 0.02,
-            'index_rebalance': 0.02,
-            'overnight_gap_reversal': 0.01,
+            'regression': 0.025,
+            'surge': 0.040,
+            'lead_lag': 0.060,
+            'vcp_rule': 0.060,
+            'vcp_ml': 0.080,
+            'lstm': 0.015,
+            'stat_arb': 0.025,
+            'sector_rotation': 0.070,
+            'rim_valuation': 0.005,
+            'event_driven': 0.015,
+            'mq_factor': 0.070,
+            'iv_skew': 0.010,
+            'order_flow': 0.025,
+            'short_term_reversal': 0.010,
+            'arm_factor': 0.015,
+            'card_factor': 0.025,
+            'latr_factor': 0.010,
+            'inst_foreign_sector': 0.025,
+            'supply_chain': 0.015,
+            'sentiment': 0.025,
+            'factor_neutralized': 0.005,
+            'vol_target': 0.005,
+            'microstructure': 0.045,
+            'accruals_quality': 0.005,
+            'short_squeeze': 0.015,
+            'valueup_catalyst': 0.005,
+            'trend_efficiency': 0.030,
+            'gamma_squeeze': 0.015,
+            'insider_buying': 0.025,
+            'darkpool': 0.015,
+            'earnings_tone_drift': 0.050,
+            'cross_asset_spillover': 0.040,
+            'supply_chain_gnn': 0.015,
+            'range_expansion_breakout': 0.035,
+            'dual_correction': 0.035,
+            'index_rebalance': 0.015,
+            'overnight_gap_reversal': 0.020,
         },
         'CRISIS': {  # sum = 1.0000 across all 37 strategies, all >= 0.005
             'regression': 0.050,
@@ -12989,18 +13007,31 @@ class EnsembleScoringEngine:
         else:
             reg_str = 'SIDEWAYS'
 
-        if 'BULL' in reg_str:
-            reg_mult = 1.25
-            reg_base = float(base_market_return) * 1.25  # 10.0%
+        base_ret = float(base_market_return)
+        if 'BULL_LOW_VOL' in reg_str:
+            reg_mult = 1.30
+            reg_base = base_ret * 1.25  # 10.0% when base=0.08
+        elif 'BULL_HIGH_VOL' in reg_str or 'BULL' in reg_str:
+            reg_mult = 1.15
+            reg_base = base_ret * 1.25  # 10.0% when base=0.08
+        elif 'SIDEWAYS_LOW_VOL' in reg_str:
+            reg_mult = 1.00
+            reg_base = base_ret  # 8.0% when base=0.08
+        elif 'SIDEWAYS_HIGH_VOL' in reg_str or 'SIDEWAYS' in reg_str:
+            reg_mult = 0.90
+            reg_base = base_ret * 0.875 if 'HIGH_VOL' in reg_str else base_ret  # 7.0% or 8.0%
+        elif 'BEAR_LOW_VOL' in reg_str:
+            reg_mult = 0.60
+            reg_base = 0.04  # 4.0%
+        elif 'BEAR_HIGH_VOL' in reg_str or 'BEAR' in reg_str:
+            reg_mult = 0.40
+            reg_base = 0.02  # 2.0%
         elif 'CRISIS' in reg_str:
             reg_mult = 0.50
             reg_base = 0.02  # Cash 2.0%
-        elif 'BEAR' in reg_str:
-            reg_mult = 0.75
-            reg_base = 0.04  # 4.0%
         else:
             reg_mult = 1.00
-            reg_base = float(base_market_return)  # 8.0%
+            reg_base = base_ret
 
         # Active annualized alpha
         active_alpha = z * eff_ir * float(target_volatility) * reg_mult
@@ -13065,7 +13096,7 @@ class EnsembleScoringEngine:
 
         self.correlation_monitor = StrategyCorrelationMonitor()
         self.factor_suppression = RegimeFactorSuppressionEngine()
-        self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric', preserve_consensus_pc1=True, preserve_top_k=2)
+        self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric', preserve_consensus_pc1=True, preserve_top_k=4)
         self.orthogonalizer_enabled = True
         self.enable_coverage_shrinkage = getattr(config, 'enable_coverage_shrinkage', True)
         self.score_normalizer = CrossSectionalScoreNormalizer(method='winsorized_zscore')
@@ -15676,7 +15707,7 @@ class EnsembleScoringEngine:
                     strategy_cols=strategy_score_cols,
                     weights=strat_weights,
                     method='pca_symmetric',
-                    preserve_top_k=2
+                    preserve_top_k=4
                 )
                 # Ensure attrs dictionary is strictly preserved after orthogonalization copy
                 if correlation_report_dict is not None:
@@ -15869,9 +15900,10 @@ class EnsembleScoringEngine:
 
             has_any_tier = any(c in merged.columns for c in ['slow_alpha_score', 'medium_alpha_score', 'fast_alpha_score'])
             if len(merged) >= 5 and has_any_tier:
-                w_slow = self.TIER_WEIGHTS.get('slow', 0.50)
-                w_med = self.TIER_WEIGHTS.get('medium', 0.35)
-                w_fast = self.TIER_WEIGHTS.get('fast', 0.15)
+                tier_weights = self.get_regime_adaptive_tier_weights(regime)
+                w_slow = tier_weights.get('slow', 0.50)
+                w_med = tier_weights.get('medium', 0.35)
+                w_fast = tier_weights.get('fast', 0.15)
 
                 tier_cols = [('slow_alpha_score', w_slow), ('medium_alpha_score', w_med), ('fast_alpha_score', w_fast)]
                 h_score_sum = pd.Series(0.0, index=merged.index)
@@ -16046,7 +16078,7 @@ class EnsembleScoringEngine:
         abs_centered = np.clip(ens_scores - 0.50, -0.50, 0.50)
 
         # Feature F36.2 & F42.2 & F48.2 & F52.2: Smooth Hyperbolic Tangent Noise Deadband Soft-Thresholding
-        _dn = self.get_regime_adaptive_noise_deadband(regime, regime_probs=regime_probs)
+        _dn = self.get_regime_adaptive_noise_deadband(regime, regime_probs=regime_probs, version=int(version))
         delta_noise = float(_dn[0]) if isinstance(_dn, tuple) else float(_dn)
         if int(version) >= 6:
             z_denoised = self.apply_smooth_noise_deadband(abs_centered, delta_noise=delta_noise, regime=regime, version=int(version))
@@ -25495,7 +25527,9 @@ class EnsembleScoringEngine:
         cls,
         regime: Union[int, str] = 'SIDEWAYS_LOW_VOL',
         regime_probs: Optional[Dict[str, float]] = None,
-        return_bilateral: bool = False
+        return_bilateral: bool = False,
+        version: Optional[int] = None,
+        **kwargs: Any
     ) -> Union[float, Tuple[float, float]]:
         """
         Feature F36.2 & F42.2: Computes regime-adaptive noise deadband:
@@ -25503,30 +25537,57 @@ class EnsembleScoringEngine:
         delta_noise^-(R, pi) = delta_noise^+ * chi_bear(R)
         """
         reg_str = str(regime).upper()
-        if 'CRISIS' in reg_str:
-            delta_0 = 0.070
-            chi_bear = 1.40
-        elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
-            delta_0 = 0.055
-            chi_bear = 1.35
-        elif 'SIDEWAYS_HIGH_VOL' in reg_str:
-            delta_0 = 0.060
-            chi_bear = 1.15
-        elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or 'SIDEWAYS' in reg_str:
-            delta_0 = 0.045
-            chi_bear = 1.00
-        elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or 'BEAR' in reg_str:
-            delta_0 = 0.040
-            chi_bear = 1.20
-        elif 'BULL_HIGH_VOL' in reg_str:
-            delta_0 = 0.035
-            chi_bear = 1.00
-        elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
-            delta_0 = 0.020
-            chi_bear = 1.00
+        eff_version = int(version) if version is not None else int(kwargs.get('version', 0))
+        if eff_version >= 100 or kwargs.get('calibrated', False):
+            if 'CRISIS' in reg_str:
+                delta_0 = 0.070
+                chi_bear = 1.40
+            elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
+                delta_0 = 0.050
+                chi_bear = 1.35
+            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+                delta_0 = 0.035
+                chi_bear = 1.15
+            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or 'SIDEWAYS' in reg_str:
+                delta_0 = 0.028
+                chi_bear = 1.00
+            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or 'BEAR' in reg_str:
+                delta_0 = 0.035
+                chi_bear = 1.20
+            elif 'BULL_HIGH_VOL' in reg_str:
+                delta_0 = 0.025
+                chi_bear = 1.00
+            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
+                delta_0 = 0.018
+                chi_bear = 1.00
+            else:
+                delta_0 = 0.028
+                chi_bear = 1.00
         else:
-            delta_0 = 0.045
-            chi_bear = 1.00
+            if 'CRISIS' in reg_str:
+                delta_0 = 0.070
+                chi_bear = 1.40
+            elif 'BEAR_HIGH_VOL' in reg_str or ('BEAR' in reg_str and 'HIGH_VOL' in reg_str):
+                delta_0 = 0.055
+                chi_bear = 1.35
+            elif 'SIDEWAYS_HIGH_VOL' in reg_str:
+                delta_0 = 0.060
+                chi_bear = 1.15
+            elif 'SIDEWAYS_LOW_VOL' in reg_str or reg_str == '1' or 'SIDEWAYS' in reg_str:
+                delta_0 = 0.045
+                chi_bear = 1.00
+            elif 'BEAR_LOW_VOL' in reg_str or reg_str == '0' or 'BEAR' in reg_str:
+                delta_0 = 0.040
+                chi_bear = 1.20
+            elif 'BULL_HIGH_VOL' in reg_str:
+                delta_0 = 0.035
+                chi_bear = 1.00
+            elif 'BULL_LOW_VOL' in reg_str or reg_str == '2' or 'BULL' in reg_str:
+                delta_0 = 0.020
+                chi_bear = 1.00
+            else:
+                delta_0 = 0.045
+                chi_bear = 1.00
 
         h_norm = 0.0
         if regime_probs is not None and isinstance(regime_probs, dict) and len(regime_probs) > 1:

@@ -25,7 +25,14 @@ import numpy as np
 import pandas as pd
 
 # Path bootstrapping
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+def _resolve_repo_root() -> Path:
+    cur = Path(__file__).resolve()
+    for candidate in [cur] + list(cur.parents):
+        if (candidate / "benchmarks" / "30year").exists():
+            return candidate
+    return Path.cwd()
+
+PROJECT_ROOT = _resolve_repo_root()
 TRADING_SYSTEM_DIR = PROJECT_ROOT / "trading_system"
 
 for p in (str(PROJECT_ROOT), str(TRADING_SYSTEM_DIR)):
@@ -668,6 +675,92 @@ class StockUniverse30YearVerifier:
             details=f"Gross: {gross_ret:.2f}%, Net: {net_ret:.2f}%, Frictions: {fric_bps:.1f} bps" if fric_ok else "Friction deduction unverified",
         )
 
+        # 7. Multi-Horizon Rolling Hurdles (60d, 120d, 252d)
+        if "multi_horizon_evaluation" in summary_data:
+            mhe = summary_data.get("multi_horizon_evaluation", {})
+            horizons = mhe.get("horizons", mhe) if isinstance(mhe, dict) else {}
+            req_horizons = ["rolling_60d", "rolling_120d", "rolling_252d"]
+            all_h_present = all(k in horizons for k in req_horizons)
+            all_h_pass = all_h_present and all(
+                isinstance(horizons.get(k), dict) and horizons[k].get("status") == "PASS"
+                for k in req_horizons
+            )
+            cagr_bounds_ok = (
+                all_h_present
+                and float(horizons["rolling_60d"].get("realized_cagr_pct", horizons["rolling_60d"].get("median_cagr_pct", 0))) >= 15.0
+                and float(horizons["rolling_120d"].get("realized_cagr_pct", horizons["rolling_120d"].get("median_cagr_pct", 0))) >= 20.0
+                and float(horizons["rolling_252d"].get("realized_cagr_pct", horizons["rolling_252d"].get("median_cagr_pct", 0))) >= 25.0
+            )
+            mhe_ok = all_h_present and all_h_pass and cagr_bounds_ok
+            self._add_check(
+                check_id="HURDLE-MULTI-HORIZON",
+                category=cat,
+                description="Multi-horizon rolling performance satisfies institutional hurdles (60d/120d/252d)",
+                passed=mhe_ok,
+                details=f"Horizons: {req_horizons}, all present: {all_h_present}, all pass: {all_h_pass}",
+            )
+
+        # 8. 8-Regime Dynamic Benchmark Hurdles
+        regime_data = summary_data.get("regime_hurdle_matrix") or summary_data.get("regime_dynamic_hurdles")
+        if regime_data is not None:
+            regimes = regime_data.get("regimes", regime_data) if isinstance(regime_data, dict) else {}
+            canonical_7 = [
+                "BULL_LOW_VOL",
+                "BULL_HIGH_VOL",
+                "SIDEWAYS_LOW_VOL",
+                "SIDEWAYS_HIGH_VOL",
+                "BEAR_LOW_VOL",
+                "BEAR_HIGH_VOL",
+                "PANIC_CRISIS",
+            ]
+            has_canonical_7 = all(r in regimes for r in canonical_7)
+            has_8th = ("EXTREME_LIQUIDITY_SQUEEZE" in regimes) or ("RELIEF_RALLY" in regimes)
+            all_8_present = has_canonical_7 and has_8th
+
+            def _validate_regime_hurdle(r_key: str) -> bool:
+                rd = regimes.get(r_key)
+                if not isinstance(rd, dict) or rd.get("status") != "PASS":
+                    return False
+                # Extract realized CAGR (support dictionary format variations)
+                realized = None
+                for k in ("realized_cagr_pct", "cagr_pct", "realized", "median_cagr_pct"):
+                    if rd.get(k) is not None:
+                        val = _safe_float(rd[k])
+                        if val is not None:
+                            realized = val
+                            break
+                if realized is None:
+                    return False
+
+                # Extract hurdle CAGR (support dictionary format variations)
+                hurdle = None
+                for k in ("hurdle_cagr_pct", "target_hurdle_cagr_pct", "target_cagr_pct", "hurdle"):
+                    if rd.get(k) is not None:
+                        val = _safe_float(rd[k])
+                        if val is not None:
+                            hurdle = val
+                            break
+                if hurdle is None:
+                    return False
+
+                return realized >= hurdle
+
+            all_regimes_pass = all_8_present and all(
+                _validate_regime_hurdle(r)
+                for r in canonical_7
+            )
+            if has_8th:
+                r8_key = "EXTREME_LIQUIDITY_SQUEEZE" if "EXTREME_LIQUIDITY_SQUEEZE" in regimes else "RELIEF_RALLY"
+                all_regimes_pass = all_regimes_pass and _validate_regime_hurdle(r8_key)
+
+            self._add_check(
+                check_id="HURDLE-8-REGIME",
+                category=cat,
+                description="8-regime dynamic benchmark hurdles verified (all 8 regimes present and PASS)",
+                passed=(all_8_present and all_regimes_pass),
+                details=f"Regimes count: {len(regimes)}, all 8 present: {all_8_present}, all pass: {all_regimes_pass}",
+            )
+
     # --------------------------------------------------------------------------
     # Suite 7: Causality, Dynamic Filing Lag, and Survivorship Bias Defense
     # --------------------------------------------------------------------------
@@ -714,6 +807,21 @@ class StockUniverse30YearVerifier:
                 details=f"PnL basis: {pnl_basis}, execution: {signal_execution}",
             )
 
+        # 2.2 Zero synthetic rows assertion
+        synth = meta.get("synthetic_rows")
+        synth_ok = (
+            isinstance(synth, int)
+            and not isinstance(synth, bool)
+            and synth == 0
+        )
+        self._add_check(
+            check_id="GUARD-ZERO-SYNTHETIC",
+            category=cat,
+            description="Zero synthetic rows strictly verified (synthetic_rows == 0)",
+            passed=synth_ok,
+            details=f"Synthetic rows: {synth} (is_int={isinstance(synth, int)}, not_bool={not isinstance(synth, bool)})",
+        )
+
         # 3. Dynamic regulatory filing lag
         krx_lag = meta.get("krx_filing_lag_days", 45)
         sec_lag = meta.get("sec_filing_lag_days", 40)
@@ -758,6 +866,45 @@ class StockUniverse30YearVerifier:
             passed=coverage_ok,
             details=f"Universe: {universe_symbols} / Registry: {registry_symbols}",
         )
+
+        # 5. Authoritative status.json synchronization
+        status_file = self.result_dir / "status.json"
+        if not status_file.exists():
+            repo_root = _resolve_repo_root()
+            canonical_status = repo_root / "benchmarks" / "30year" / "status.json"
+            if canonical_status.exists() and self.result_dir.name in ("30year", "result"):
+                status_file = canonical_status
+
+        if status_file.exists():
+            try:
+                with open(status_file, "r", encoding="utf-8") as sf:
+                    st_data = json.load(sf)
+                synth_val = st_data.get("synthetic_rows")
+                synth_sync = (
+                    isinstance(synth_val, int)
+                    and not isinstance(synth_val, bool)
+                    and synth_val == 0
+                )
+                st_passed = st_data.get("status") in ("VERIFIED", "PASSED")
+                cagr_st = st_data.get("metrics", {}).get("net_cagr_pct")
+                cagr_sum = summary_data.get("portfolio_overall", {}).get("cagr_pct")
+                cagr_sync = (cagr_st is not None and cagr_sum is not None and abs(float(cagr_st) - float(cagr_sum)) < 1e-3)
+                pnl_sync = True
+                if "pnl_basis" in st_data and "pnl_basis" in meta:
+                    pnl_sync = (st_data["pnl_basis"] == meta["pnl_basis"])
+                sync_ok = synth_sync and st_passed and cagr_sync and pnl_sync
+                details_msg = f"Status: {st_data.get('status')}, synth_rows: {synth_val}, CAGR match: {cagr_st}% == {cagr_sum}%"
+            except Exception as exc:
+                sync_ok = False
+                details_msg = f"Failed to parse status.json: {exc}"
+
+            self._add_check(
+                check_id="STATUS-JSON-SYNC",
+                category=cat,
+                description="Authoritative status.json synchronization and schema invariants",
+                passed=sync_ok,
+                details=details_msg,
+            )
 
     # --------------------------------------------------------------------------
     # Main Verifier Execution Loop

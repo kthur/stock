@@ -52,25 +52,25 @@ class UnifiedPortfolioAllocator:
         "BULL_LOW_VOL": {
             "target_vol": 0.22,
             "max_exposure": 1.00,
-            "min_exposure": 0.90,
+            "min_exposure": 0.95,
             "max_single_weight": 0.50,
         },
         "BULL_HIGH_VOL": {
-            "target_vol": 0.18,
+            "target_vol": 0.20,
             "max_exposure": 1.00,
-            "min_exposure": 0.85,
+            "min_exposure": 0.92,
             "max_single_weight": 0.50,
         },
         "SIDEWAYS_LOW_VOL": {
-            "target_vol": 0.12,
-            "max_exposure": 0.85,
-            "min_exposure": 0.60,
+            "target_vol": 0.16,
+            "max_exposure": 0.95,
+            "min_exposure": 0.80,
             "max_single_weight": 0.35,
         },
         "SIDEWAYS_HIGH_VOL": {
-            "target_vol": 0.10,
-            "max_exposure": 0.70,
-            "min_exposure": 0.40,
+            "target_vol": 0.14,
+            "max_exposure": 0.85,
+            "min_exposure": 0.65,
             "max_single_weight": 0.30,
         },
         "BEAR_LOW_VOL": {
@@ -510,6 +510,7 @@ class UnifiedPortfolioAllocator:
         v_vol = 0.0
         c_crisis = max(0.0, min(1.0, float(crisis_severity)))
 
+        reg_str = ""
         if isinstance(regime, dict):
             regime_probs = regime
             tot_p = sum(max(0.0, float(v)) for v in regime_probs.values())
@@ -524,8 +525,10 @@ class UnifiedPortfolioAllocator:
                         c_crisis = max(c_crisis, norm_p)
                     if "HIGH_VOL" in r_str:
                         v_vol = max(v_vol, norm_p)
+                reg_str = str(max(regime_probs, key=regime_probs.get)).upper()
             else:
                 blend_cfg = dict(self.REGIME_OPTIMIZER_BLENDS["SIDEWAYS_LOW_VOL"])
+                reg_str = "SIDEWAYS_LOW_VOL"
         else:
             if isinstance(regime, int):
                 int_map = {
@@ -563,7 +566,13 @@ class UnifiedPortfolioAllocator:
         if v_vol > 0.10 or c_crisis > 0.05:
             cvar_boost = 0.20 * v_vol + 0.40 * c_crisis
             rp_boost = 0.10 * v_vol * (1.0 - c_crisis)
-            bl_suppress = max(0.0, 1.0 - 0.70 * v_vol - 0.90 * c_crisis)
+            # Differentiate bull momentum vs crisis breakdown: preserve alpha conviction during bull runs
+            if "BULL" in reg_str:
+                bl_suppress = max(0.40, 1.0 - 0.25 * v_vol - 0.50 * c_crisis)
+            elif "SIDEWAYS" in reg_str:
+                bl_suppress = max(0.20, 1.0 - 0.45 * v_vol - 0.75 * c_crisis)
+            else:
+                bl_suppress = max(0.0, 1.0 - 0.70 * v_vol - 0.90 * c_crisis)
 
             blend_cfg["bl"] *= bl_suppress
             blend_cfg["cvar"] += cvar_boost
@@ -25965,8 +25974,9 @@ class UnifiedPortfolioAllocator:
                 theta_impact[active_mask] = ((numerator / denominator) ** 2) * trade_scaling
 
             # Dynamic maximum ADV liquidity participation cap
-            base_single_cap = eff_single_cap if 'eff_single_cap' in locals() else (self.max_single_weight if (n * self.max_single_weight > 1.0) else (min(1.0, max(self.max_single_weight, 1.0 / max(n - 1, 1))) if n > 1 else 1.0))
-            eff_max_single_w = float(kwargs.get("max_single_weight", base_single_cap))
+            curr_max_w = float(np.max(w_curr)) if (w_curr is not None and len(w_curr) > 0) else 0.0
+            base_single_cap = float(kwargs.get("max_single_weight", max(self.max_single_weight, curr_max_w)))
+            eff_max_single_w = min(max(self.max_single_weight, curr_max_w), base_single_cap)
             if max_delta_w is not None:
                 if isinstance(max_delta_w, dict):
                     max_delta_arr = np.array([float(max_delta_w.get(s, eff_max_single_w)) for s in symbols], dtype=float)
@@ -26366,9 +26376,15 @@ class UnifiedPortfolioAllocator:
 
         # Budget constraint safeguard: prevent accumulated buffer bands from creating unintended leverage or leaking cash reserve
         limit_exec = min(max_total_allocation, 1.00) if (max_total_allocation is not None and max_total_allocation > 0) else 1.00
+        tot_target = float(np.sum(target_weights))
+        ref_target = min(limit_exec, tot_target) if tot_target > 0 else limit_exec
         tot_w = float(np.sum(realized_w))
         if tot_w > limit_exec and tot_w > 0:
             realized_w = realized_w * (limit_exec / tot_w)
+        elif tot_w > 0 and tot_w < ref_target * 0.92:
+            # Rebalance-hold re-expansion: prevent unintended downward cash ratchet when holding inside boundary
+            expand_ratio = min(1.08, ref_target / tot_w)
+            realized_w = realized_w * expand_ratio
 
         return realized_w
 
@@ -26526,7 +26542,7 @@ class UnifiedPortfolioAllocator:
         base_currency: str = "KRW",
         usd_krw: float = 1350.0,
         rebalance_mode: Optional[str] = None,
-        version: int = 20,
+        version: Optional[int] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
         """
@@ -26534,6 +26550,7 @@ class UnifiedPortfolioAllocator:
         Executes end-to-end multi-model blending, target volatility scaling,
         Leland buffer filtering, and share discretization.
         """
+        eff_version = int(version) if version is not None else int(getattr(self, "version", 103))
         if predictions_df is None or predictions_df.empty:
             return pd.DataFrame()
 
@@ -26737,7 +26754,7 @@ class UnifiedPortfolioAllocator:
             market_caps=market_caps,
             alpha_half_lives=symbol_half_lives,
             darkpool_scores=darkpool_scores,
-            version=version,
+            version=eff_version,
         )
 
         # Step 2: Target Volatility Scaling & Cash Drag Eliminator

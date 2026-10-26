@@ -509,7 +509,7 @@ class PaperTradingDaemon:
                 "volatility": vol,
                 "adv_20d": adv,
                 "predicted_return": pred_ret,
-                "is_liquidation": False,
+                "is_liquidation": (q_curr > 0 and q_target == 0),
                 "is_fresh_entry": (q_curr == 0 and q_target > 0),
             })
 
@@ -675,10 +675,22 @@ class PaperTradingDaemon:
         Gate 8: Synthetic Beta Inverse Hedge Overlay.
         Decomposes portfolio into KRX and US long sub-portfolios, computing
         hedging weights for 114800 (-2x KRX) and PSQ / SH (-1x US).
+        Accurately converts USD equity holding valuations to base currency (KRW/USD).
         """
         hedge_orders: List[Dict[str, Any]] = []
+        if self.gross_equity <= 0:
+            return hedge_orders
+
         try:
             from src.risk.portfolio_allocator import PortfolioAllocator
+
+            # Robust FX fallback handling
+            fx_rate = float(self.usd_krw) if (
+                hasattr(self, "usd_krw")
+                and self.usd_krw is not None
+                and self.usd_krw > 0
+                and math.isfinite(self.usd_krw)
+            ) else 1350.0
 
             # Collect active long holdings & approved buys
             portfolio_weights: Dict[str, float] = {}
@@ -686,16 +698,30 @@ class PaperTradingDaemon:
                 q = held.get("quantity", 0)
                 p = held.get("current_price", held.get("avg_cost", 1000.0))
                 if q > 0 and self.gross_equity > 0:
-                    portfolio_weights[sym] = (q * p) / self.gross_equity
+                    mkt = str(held.get("market", self.detect_market(sym))).upper()
+                    is_krx = (mkt in ["KOSPI", "KOSDAQ", "KONEX", "KRX", "KS", "KQ"] or sym.isdigit() or sym.endswith((".KS", ".KQ")))
+                    is_us = not is_krx
 
-            # Also add incoming approved buys
+                    if self.base_currency == "KRW":
+                        fx = fx_rate if is_us else 1.0
+                    elif self.base_currency == "USD":
+                        fx = (1.0 / fx_rate) if is_krx else 1.0
+                    else:
+                        fx = 1.0
+
+                    portfolio_weights[sym] = (q * p * fx) / self.gross_equity
+
+            # Also add incoming approved buys (target_weight is already a portfolio fraction)
             for app in current_approved:
-                if app["action"] == PaperOrderAction.BUY.value:
+                if app.get("action") == PaperOrderAction.BUY.value:
                     s = app["symbol"]
-                    w = app["target_weight"]
+                    w = float(app.get("target_weight", 0.0))
                     portfolio_weights[s] = max(portfolio_weights.get(s, 0.0), w)
 
-            krx_weights = {s: w for s, w in portfolio_weights.items() if s.isdigit() or s.endswith((".KS", ".KQ"))}
+            krx_weights = {
+                s: w for s, w in portfolio_weights.items()
+                if (s.isdigit() or s.endswith((".KS", ".KQ")) or str(self.holdings.get(s, {}).get("market", "")).upper() in ["KOSPI", "KOSDAQ", "KONEX", "KRX"])
+            }
             us_weights = {s: w for s, w in portfolio_weights.items() if s not in krx_weights}
 
             tot_cap = self.gross_equity
@@ -710,9 +736,9 @@ class PaperTradingDaemon:
                 if h_krx.get("hedge_required") and h_krx.get("hedge_weight", 0.0) > 0.0:
                     h_sym = str(h_krx.get("hedge_symbol", "114800"))
                     h_w = float(np.clip(h_krx.get("hedge_weight", 0.0), 0.0, 0.50))
-                    h_price = 2500.0  # nominal KRX inverse price
-                    h_amt = tot_cap * h_w
-                    h_qty = int(h_amt / h_price)
+                    h_price = 2500.0  # nominal KRX inverse price in KRW
+                    h_amt_krw = tot_cap * h_w if self.base_currency == "KRW" else (tot_cap * h_w * fx_rate)
+                    h_qty = int(h_amt_krw / h_price)
                     if h_qty > 0:
                         hedge_orders.append({
                             "symbol": h_sym,
@@ -737,7 +763,10 @@ class PaperTradingDaemon:
 
             # US Inverse Hedge: PSQ / SH
             if sum(us_weights.values()) > 0.05:
-                has_nasdaq = any("NASDAQ" in self.detect_market(s) for s in us_weights)
+                has_nasdaq = any(
+                    "NASDAQ" in str(self.holdings.get(s, {}).get("market", self.detect_market(s))).upper()
+                    for s in us_weights
+                )
                 us_mkt = "NASDAQ" if has_nasdaq else "SP500"
                 h_us = PortfolioAllocator.compute_synthetic_inverse_hedge(
                     portfolio_weights=us_weights,
@@ -747,9 +776,9 @@ class PaperTradingDaemon:
                 if h_us.get("hedge_required") and h_us.get("hedge_weight", 0.0) > 0.0:
                     h_sym = str(h_us.get("hedge_symbol", "PSQ" if has_nasdaq else "SH"))
                     h_w = float(np.clip(h_us.get("hedge_weight", 0.0), 0.0, 0.50))
-                    h_price = 50.0  # nominal US ETF price
-                    h_amt = (tot_cap * h_w) / self.usd_krw if self.base_currency == "KRW" else (tot_cap * h_w)
-                    h_qty = int(h_amt / h_price)
+                    h_price = 50.0  # nominal US ETF price in USD
+                    h_amt_usd = (tot_cap * h_w) / fx_rate if self.base_currency == "KRW" else (tot_cap * h_w)
+                    h_qty = int(h_amt_usd / h_price)
                     if h_qty > 0:
                         hedge_orders.append({
                             "symbol": h_sym,

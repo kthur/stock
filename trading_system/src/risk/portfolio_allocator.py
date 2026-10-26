@@ -376,6 +376,7 @@ class PortfolioAllocator:
 
         df_sub = asset_returns_df.tail(lookback).dropna(how="all").fillna(0.0)
         corr = df_sub.corr().values
+        corr = corr.copy()
         np.fill_diagonal(corr, 0.0)
         total_off_diag = float(np.sum(np.abs(corr)))
         n = corr.shape[0]
