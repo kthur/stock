@@ -3936,7 +3936,7 @@ def _prepare_report_context(
   }}
 
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif; font-size: 13.5px; line-height: 1.5; transition: background-color .2s, color .2s; }}
+  body {{ overflow-x: hidden; width: 100%; max-width: 100vw; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif; font-size: 13.5px; line-height: 1.5; transition: background-color .2s, color .2s; }}
   .stock-link {{ color: var(--accent); text-decoration: none; font-weight: 600; font-family: var(--font-mono); }}
   .stock-link:hover {{ text-decoration: underline; color: #79c0ff; }}
 
@@ -3979,7 +3979,8 @@ def _prepare_report_context(
   .badge-healthy {{ display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #2ea043; background: rgba(46, 160, 67, 0.15); border: 1px solid rgba(46, 160, 67, 0.4); }}
   .badge-partial {{ display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #d29922; background: rgba(210, 153, 34, 0.15); border: 1px solid rgba(210, 153, 34, 0.4); }}
 
-  /* Health Monitor Section */
+  /* Regime Risk Card & Health Monitor Section */
+  .regime-risk-card {{ margin: 16px 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }}
   .health-monitor-section {{ margin: 16px 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-sm); }}
   .health-monitor-header {{ display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; background: linear-gradient(90deg, var(--surface) 0%, var(--surface2) 100%); cursor: pointer; border-bottom: 1px solid var(--border); }}
   .health-header-left {{ display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }}
@@ -4728,11 +4729,20 @@ def _prepare_report_context(
       display: flex !important;
     }}
     #btn-back-to-top {{
-      bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
-      right: 16px !important;
+      width: 44px !important;
+      height: 44px !important;
+      min-width: 44px !important;
+      min-height: 44px !important;
+      bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+      right: max(16px, env(safe-area-inset-right, 0px)) !important;
+    }}
+    .filter-btn, .chip-btn, .theme-btn, .drawer-nav-btn, .drawer-copy-btn {{
+      min-height: 44px !important;
+      min-width: 44px !important;
     }}
 
-    .header, .macro-strip, .tabs, .content, .row1-wrapper, .search-bar-wrap {{ padding-left: 12px; padding-right: 12px; }}
+    .header, .macro-strip, .tabs, .content, .row1-wrapper, .search-bar-wrap {{ padding-left: 14px !important; padding-right: 14px !important; }}
+    .regime-risk-card, .health-monitor-section {{ margin-left: 14px !important; margin-right: 14px !important; }}
     .header h1 {{ font-size: 18px; }}
     .header-top-row {{ flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }}
     .header-subtitle {{ display: none !important; }}
@@ -4742,20 +4752,6 @@ def _prepare_report_context(
 
     .row1-wrapper {{ grid-template-columns: 1fr; gap: 12px; padding: 12px; }}
 
-    /* Mobile Macro Horizontal Swipe Carousel (Saves ~250px vertical screen space) */
-    .macro-grid {{
-      display: flex !important;
-      overflow-x: auto !important;
-      scroll-snap-type: x mandatory !important;
-      gap: 10px !important;
-      padding: 4px 2px 10px 2px !important;
-      -webkit-overflow-scrolling: touch !important;
-    }}
-    .macro-item {{
-      flex: 0 0 145px !important;
-      scroll-snap-align: start !important;
-      min-width: 145px !important;
-    }}
 
     .tabs {{ padding: 0 8px; height: 44px; }}
     .tab {{ padding: 11px 12px; font-size: 13px; }}
@@ -4764,7 +4760,7 @@ def _prepare_report_context(
     tbody td {{ padding: 8px 6px; font-size: 12px; }}
     .table-wrap {{ -webkit-overflow-scrolling: touch; }}
     .filter-bar {{ overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }}
-    .filter-btn {{ flex-shrink: 0; font-size: 11px; padding: 6px 12px; min-height: 36px; }}
+    .filter-btn {{ flex-shrink: 0; font-size: 11px; padding: 6px 12px; min-height: 44px !important; min-width: 44px !important; }}
 
     /* Quick Filter Chips Mobile Scroll */
     .quick-filter-chips {{
@@ -4782,7 +4778,8 @@ def _prepare_report_context(
       scroll-snap-align: start !important;
       padding: 6px 12px !important;
       font-size: 12px !important;
-      min-height: 34px !important;
+      min-height: 44px !important;
+      min-width: 44px !important;
     }}
 
     /* Card View Grid on Mobile */
@@ -4792,17 +4789,17 @@ def _prepare_report_context(
       padding: 6px 0 !important;
     }}
 
-    /* Stock Detail Drawer: Native Bottom Sheet on Mobile */
+    /* Stock Detail Drawer: Native Bottom Sheet on Mobile (R5) */
     #stock-drawer {{
       top: auto !important;
       bottom: -100% !important;
       left: 0 !important;
       right: 0 !important;
       width: 100% !important;
-      max-width: 100% !important;
-      height: 86vh !important;
-      max-height: 86vh !important;
-      border-radius: 20px 20px 0 0 !important;
+      max-width: 100vw !important;
+      height: 90vh !important;
+      max-height: 90vh !important;
+      border-radius: 16px 16px 0 0 !important;
       border-left: none !important;
       border-top: 1px solid var(--border) !important;
       box-shadow: 0 -10px 32px rgba(0,0,0,0.6) !important;
@@ -4842,11 +4839,281 @@ def _prepare_report_context(
       min-height: 42px !important;
     }}
 
-    /* Mobile Table Optimization: Hide non-essential strategy columns */
-    .col-strat {{ display: none !important; }}
+    /* Mobile Table Optimization: Override .col-strat suppression for market tables (R4) */
+    .col-strat {{ display: none; }}
+    .market-content #market-full-table th.col-strat,
+    .market-content #market-full-table td.col-strat,
+    .market-content #market-full-table .col-strat,
+    #market-full-table .col-strat {{
+      display: table-cell;
+    }}
     .table-wrap table {{ min-width: 100% !important; }}
-    .table-wrap .sticky-name {{ max-width: 130px; border-right: 1px solid var(--border); box-shadow: 2px 0 4px rgba(0,0,0,0.3); }}
+    .table-wrap .sticky-rank {{
+      left: 0 !important;
+      width: 36px !important;
+      min-width: 36px !important;
+      max-width: 36px !important;
+      padding-left: 2px !important;
+      padding-right: 2px !important;
+      text-align: center !important;
+    }}
+    .sticky-rank {{
+      left: 0 !important;
+      width: 34px !important;
+      min-width: 34px !important;
+      max-width: 34px !important;
+      position: sticky !important;
+      z-index: 2 !important;
+      background: var(--surface) !important;
+      padding-left: 2px !important;
+      padding-right: 2px !important;
+      text-align: center !important;
+    }}
+    .table-wrap .sticky-symbol {{
+      left: 36px !important;
+      width: 68px !important;
+      min-width: 68px !important;
+      max-width: 68px !important;
+      padding-left: 4px !important;
+      padding-right: 4px !important;
+      font-size: 11px !important;
+    }}
+    .sticky-symbol {{
+      left: 34px !important;
+      width: 66px !important;
+      min-width: 66px !important;
+      max-width: 66px !important;
+      position: sticky !important;
+      z-index: 2 !important;
+      background: var(--surface) !important;
+      padding-left: 4px !important;
+      padding-right: 4px !important;
+      font-size: 11px !important;
+    }}
+    .table-wrap .sticky-name {{
+      left: 104px !important;
+      width: 86px !important;
+      min-width: 86px !important;
+      max-width: 96px !important;
+      padding-left: 6px !important;
+      padding-right: 6px !important;
+      font-size: 11px !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
+      box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
+    }}
+    .sticky-name {{
+      left: 100px !important;
+      width: 88px !important;
+      min-width: 88px !important;
+      max-width: 88px !important;
+      position: sticky !important;
+      z-index: 2 !important;
+      background: var(--surface) !important;
+      padding-left: 6px !important;
+      padding-right: 6px !important;
+      font-size: 11px !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
+      box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
+    }}
+    #market-full-table th.sticky-col,
+    .table-wrap th.sticky-col {{
+      top: 0 !important;
+      position: sticky !important;
+      z-index: 12 !important;
+      background: var(--surface2) !important;
+    }}
+    #market-full-table th.sticky-rank,
+    .table-wrap th.sticky-rank {{
+      left: 0 !important;
+      width: 34px !important;
+      min-width: 34px !important;
+      max-width: 34px !important;
+      top: 0 !important;
+      z-index: 15 !important;
+    }}
+    #market-full-table th.sticky-symbol,
+    .table-wrap th.sticky-symbol {{
+      left: 34px !important;
+      width: 66px !important;
+      min-width: 66px !important;
+      max-width: 66px !important;
+      top: 0 !important;
+      z-index: 14 !important;
+    }}
+    #market-full-table th.sticky-name,
+    .table-wrap th.sticky-name {{
+      left: 100px !important;
+      width: 88px !important;
+      min-width: 88px !important;
+      max-width: 88px !important;
+      top: 0 !important;
+      z-index: 13 !important;
+      border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
+      box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
+    }}
+    #market-full-table td.sticky-rank {{
+      left: 0 !important;
+      width: 34px !important;
+      min-width: 34px !important;
+      max-width: 34px !important;
+      z-index: 2 !important;
+      text-align: center !important;
+      padding-left: 2px !important;
+      padding-right: 2px !important;
+    }}
+    #market-full-table td.sticky-symbol {{
+      left: 34px !important;
+      width: 66px !important;
+      min-width: 66px !important;
+      max-width: 66px !important;
+      z-index: 2 !important;
+      padding-left: 4px !important;
+      padding-right: 4px !important;
+      font-size: 11px !important;
+    }}
+    #market-full-table td.sticky-name {{
+      left: 100px !important;
+      width: 88px !important;
+      min-width: 88px !important;
+      max-width: 88px !important;
+      z-index: 2 !important;
+      padding-left: 6px !important;
+      padding-right: 6px !important;
+      font-size: 11px !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
+      box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
+    }}
+    .preset-buttons {{
+      display: flex !important;
+      overflow-x: auto !important;
+      white-space: nowrap !important;
+      -webkit-overflow-scrolling: touch !important;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+      gap: 6px !important;
+      padding-bottom: 4px !important;
+      width: 100% !important;
+    }}
+    .preset-buttons::-webkit-scrollbar {{
+      display: none !important;
+    }}
+    .market-search-input {{
+      min-height: 44px !important;
+      font-size: 16px !important;
+      border-radius: 8px !important;
+      box-sizing: border-box !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      padding: 10px 14px !important;
+    }}
+    .btn-csv-export {{
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-size: 13px !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }}
     .mobile-collapsed-body {{ display: none; }}
+
+    /* R3: Strategy Encyclopedia strategies.html Mobile Grid */
+    .encyclopedia-intro {{
+      padding: 12px 14px 0 14px !important;
+    }}
+    .encyclopedia-grid {{
+      grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)) !important;
+      gap: 14px !important;
+      padding: 14px 14px !important;
+    }}
+    .strat-encyclopedia-card {{
+      min-width: 0 !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      padding: 16px 14px !important;
+    }}
+    .formula-box {{
+      max-width: 100% !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      box-sizing: border-box !important;
+      padding: 10px 12px !important;
+    }}
+    .formula-box mjx-container {{
+      max-width: 100% !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      display: block !important;
+      text-align: left !important;
+    }}
+    .strat-regime-mini-table {{
+      display: block !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      max-width: 100% !important;
+      width: 100% !important;
+    }}
+    .strat-card-footer .btn {{
+      min-height: 44px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+      font-size: 0.85rem !important;
+    }}
+  }}
+
+  @media (max-width: 480px) {{
+    .encyclopedia-intro {{
+      padding: 10px 10px 0 10px !important;
+    }}
+    .encyclopedia-grid {{
+      grid-template-columns: 1fr !important;
+      gap: 12px !important;
+      padding: 10px 8px !important;
+    }}
+    .strat-encyclopedia-card {{
+      padding: 12px 10px !important;
+    }}
+    .market-toolbar {{
+      margin: 8px 8px !important;
+      padding: 8px 8px !important;
+      gap: 8px !important;
+    }}
+    .market-content #market-full-table th.col-strat,
+    .market-content #market-full-table td.col-strat,
+    .market-content #market-full-table .col-strat,
+    #market-full-table .col-strat {{
+      display: table-cell;
+    }}
+    .sticky-rank {{
+      left: 0 !important;
+      width: 34px !important;
+      min-width: 34px !important;
+      max-width: 34px !important;
+    }}
+    .sticky-symbol {{
+      left: 34px !important;
+      width: 66px !important;
+      min-width: 66px !important;
+      max-width: 66px !important;
+    }}
+    .sticky-name {{
+      left: 100px !important;
+      width: 88px !important;
+      min-width: 88px !important;
+      max-width: 88px !important;
+    }}
   }}
 
   /* Strategy Info Guide Modal & Accordion */

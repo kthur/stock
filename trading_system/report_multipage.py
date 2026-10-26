@@ -9,6 +9,7 @@ Deploys 7 static pages:
 
 import html
 import json
+import re
 import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -517,6 +518,17 @@ def build_styles(base_styles: str = "") -> str:
     """Returns the complete unified stylesheet for all 7 dashboard pages."""
     extra_styles = """
 <style>
+  /* Global Mobile Hygiene (R6) */
+  html, body {
+    overflow-x: hidden !important;
+    max-width: 100vw;
+    width: 100%;
+  }
+
+  body {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   /* Sticky Navigation Header */
   .sticky-nav {
     position: sticky;
@@ -580,6 +592,590 @@ def build_styles(base_styles: str = "") -> str:
     font-weight: 600;
   }
 
+  /* Responsive Sticky Navigation Header (R1) */
+  @media (max-width: 768px) {
+    .sticky-nav {
+      height: 52px;
+      max-height: 56px;
+      padding: 0 10px;
+      padding-top: max(0px, env(safe-area-inset-top, 0px));
+      padding-left: max(10px, env(safe-area-inset-left, 0px));
+      padding-right: max(10px, env(safe-area-inset-right, 0px));
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+    }
+    .sticky-nav-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      flex-wrap: nowrap !important;
+      gap: 8px;
+    }
+    .sticky-nav-brand {
+      flex-shrink: 0;
+      font-size: 0.95rem;
+      gap: 6px;
+    }
+    .sticky-nav-brand .badge-quant-edition {
+      display: none !important;
+    }
+    .sticky-nav-actions {
+      display: none !important;
+    }
+    .sticky-nav-links {
+      display: flex !important;
+      flex: 1 1 auto;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap !important;
+      overflow-x: auto !important;
+      white-space: nowrap !important;
+      -webkit-overflow-scrolling: touch !important;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+      padding: 0 2px;
+      height: 100%;
+    }
+    .sticky-nav-links::-webkit-scrollbar {
+      display: none !important;
+    }
+    .nav-link {
+      flex-shrink: 0 !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      min-height: 44px !important;
+      min-width: 44px !important;
+      padding: 0 12px !important;
+      font-size: 0.8rem !important;
+      border-radius: 22px !important;
+      touch-action: manipulation;
+    }
+
+    /* Outer Container Padding & Margin Normalization */
+    .header, .content, .row2-content, .row1-wrapper, .search-bar-wrap,
+    .encyclopedia-intro, .encyclopedia-grid, .market-toolbar, .market-content {
+      padding-left: 14px !important;
+      padding-right: 14px !important;
+    }
+    .regime-risk-card, .health-monitor-section, .strategy-page-banner {
+      margin-left: 14px !important;
+      margin-right: 14px !important;
+    }
+
+    /* CARD 1: 2D Regime & Risk Gates Console Adaptation */
+    .regime-risk-card {
+      margin: 12px 14px 16px !important;
+      border-radius: 8px !important;
+    }
+    .regime-risk-header {
+      padding: 10px 14px !important;
+    }
+    .regime-risk-body {
+      padding: 12px 14px !important;
+    }
+    .regime-badge-strip {
+      gap: 6px !important;
+    }
+    .macro-grid {
+      display: grid !important;
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 8px !important;
+      overflow-x: visible !important;
+      padding: 0 !important;
+    }
+    .macro-item {
+      flex: none !important;
+      min-width: 0 !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+      padding: 8px 10px !important;
+    }
+    .gate-status-strip {
+      display: grid !important;
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 8px !important;
+      padding: 10px 12px !important;
+    }
+    #regime-console-details {
+      grid-template-columns: 1fr !important;
+      gap: 12px !important;
+    }
+
+    /* CARD 2: Strategy Health Monitor Adaptation */
+    .health-monitor-section {
+      margin: 12px 14px 16px !important;
+    }
+    .health-monitor-header {
+      padding: 10px 14px !important;
+    }
+    .health-monitor-body {
+      padding: 12px 14px !important;
+    }
+    .health-summary-pills {
+      gap: 6px !important;
+      margin-top: 8px !important;
+      margin-left: 0 !important;
+      width: 100% !important;
+    }
+    .health-pill {
+      min-height: 44px !important;
+      padding: 6px 14px !important;
+      font-size: 11.5px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
+      touch-action: manipulation !important;
+    }
+    .health-grid {
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 8px !important;
+    }
+    .health-card {
+      min-height: 44px !important;
+      padding: 10px 12px !important;
+      min-width: 0 !important;
+    }
+    .health-reasons-breakdown > div {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* CARD 3: Portfolio & Allocation Adaptation */
+    .charts-grid {
+      grid-template-columns: 1fr !important;
+      gap: 14px !important;
+      width: 100% !important;
+    }
+    .chart-card {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      padding: 12px 12px !important;
+    }
+    .chart-card > div[style*="height"] {
+      height: 280px !important;
+      max-width: 100% !important;
+    }
+
+    /* Ensemble Table & Market Full Table Sticky Column Compacting (R4) */
+    .market-content #market-full-table th.col-strat,
+    .market-content #market-full-table td.col-strat,
+    .market-content #market-full-table .col-strat,
+    #market-full-table .col-strat {
+      display: table-cell;
+    }
+    .table-wrap {
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      scroll-behavior: smooth !important;
+    }
+    .table-wrap .sticky-rank {
+      left: 0 !important;
+      width: 36px !important;
+      min-width: 36px !important;
+      max-width: 36px !important;
+      padding-left: 2px !important;
+      padding-right: 2px !important;
+      text-align: center !important;
+    }
+    .table-wrap .sticky-symbol {
+      left: 36px !important;
+      width: 68px !important;
+      min-width: 68px !important;
+      max-width: 68px !important;
+      padding-left: 4px !important;
+      padding-right: 4px !important;
+      font-size: 11px !important;
+    }
+    .table-wrap .sticky-name {
+      left: 104px !important;
+      width: 86px !important;
+      min-width: 86px !important;
+      max-width: 96px !important;
+      padding-left: 6px !important;
+      padding-right: 6px !important;
+      font-size: 11px !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
+      box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
+    }
+    .sticky-rank {
+      left: 0 !important;
+      width: 34px !important;
+      min-width: 34px !important;
+      max-width: 34px !important;
+      position: sticky !important;
+      z-index: 2 !important;
+      background: var(--surface) !important;
+      padding-left: 2px !important;
+      padding-right: 2px !important;
+      text-align: center !important;
+    }
+    .sticky-symbol {
+      left: 34px !important;
+      width: 66px !important;
+      min-width: 66px !important;
+      max-width: 66px !important;
+      position: sticky !important;
+      z-index: 2 !important;
+      background: var(--surface) !important;
+      padding-left: 4px !important;
+      padding-right: 4px !important;
+      font-size: 11px !important;
+    }
+    .sticky-name {
+      left: 100px !important;
+      width: 88px !important;
+      min-width: 88px !important;
+      max-width: 88px !important;
+      position: sticky !important;
+      z-index: 2 !important;
+      background: var(--surface) !important;
+      padding-left: 6px !important;
+      padding-right: 6px !important;
+      font-size: 11px !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
+      box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
+    }
+    #market-full-table {
+      min-width: 1200px;
+    }
+    #market-full-table th.sticky-col,
+    .table-wrap th.sticky-col {
+      top: 0 !important;
+      position: sticky !important;
+      z-index: 12 !important;
+      background: var(--surface2) !important;
+    }
+    #market-full-table th.sticky-rank,
+    .table-wrap th.sticky-rank {
+      left: 0 !important;
+      width: 34px !important;
+      min-width: 34px !important;
+      max-width: 34px !important;
+      top: 0 !important;
+      z-index: 15 !important;
+    }
+    #market-full-table th.sticky-symbol,
+    .table-wrap th.sticky-symbol {
+      left: 34px !important;
+      width: 66px !important;
+      min-width: 66px !important;
+      max-width: 66px !important;
+      top: 0 !important;
+      z-index: 14 !important;
+    }
+    #market-full-table th.sticky-name,
+    .table-wrap th.sticky-name {
+      left: 100px !important;
+      width: 88px !important;
+      min-width: 88px !important;
+      max-width: 88px !important;
+      top: 0 !important;
+      z-index: 13 !important;
+      border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
+      box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
+    }
+    #market-full-table td.sticky-rank {
+      left: 0 !important;
+      width: 34px !important;
+      min-width: 34px !important;
+      max-width: 34px !important;
+      z-index: 2 !important;
+      text-align: center !important;
+      padding-left: 2px !important;
+      padding-right: 2px !important;
+    }
+    #market-full-table td.sticky-symbol {
+      left: 34px !important;
+      width: 66px !important;
+      min-width: 66px !important;
+      max-width: 66px !important;
+      z-index: 2 !important;
+      padding-left: 4px !important;
+      padding-right: 4px !important;
+      font-size: 11px !important;
+    }
+    #market-full-table td.sticky-name {
+      left: 100px !important;
+      width: 88px !important;
+      min-width: 88px !important;
+      max-width: 88px !important;
+      z-index: 2 !important;
+      padding-left: 6px !important;
+      padding-right: 6px !important;
+      font-size: 11px !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
+      box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
+    }
+    .clickable-row td {
+      min-height: 44px !important;
+      padding: 10px 6px !important;
+    }
+
+    /* R4: Responsive .market-toolbar on < 768px */
+    .market-toolbar {
+      margin: 12px 14px !important;
+      padding: 10px 12px !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 10px !important;
+    }
+    .preset-buttons {
+      display: flex !important;
+      overflow-x: auto !important;
+      white-space: nowrap !important;
+      -webkit-overflow-scrolling: touch !important;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+      gap: 6px !important;
+      padding-bottom: 4px !important;
+      width: 100% !important;
+    }
+    .preset-buttons::-webkit-scrollbar {
+      display: none !important;
+    }
+    .filter-btn {
+      min-height: 44px !important;
+      padding: 8px 14px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex-shrink: 0 !important;
+      font-size: 12px !important;
+      box-sizing: border-box !important;
+      touch-action: manipulation !important;
+    }
+    .market-toolbar-actions {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 8px !important;
+      width: 100% !important;
+    }
+    .market-search-input {
+      min-height: 44px !important;
+      font-size: 16px !important;
+      border-radius: 8px !important;
+      box-sizing: border-box !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      padding: 10px 14px !important;
+    }
+    .btn-csv-export {
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-size: 13px !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+
+    /* R3: Strategy Encyclopedia strategies.html Mobile Grid */
+    .encyclopedia-intro {
+      padding: 12px 14px 0 14px !important;
+    }
+    .encyclopedia-grid {
+      grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)) !important;
+      gap: 14px !important;
+      padding: 14px 14px !important;
+    }
+    .strat-encyclopedia-card {
+      min-width: 0 !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      padding: 16px 14px !important;
+    }
+    .formula-box {
+      max-width: 100% !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      box-sizing: border-box !important;
+      padding: 10px 12px !important;
+    }
+    .formula-box mjx-container {
+      max-width: 100% !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      display: block !important;
+      text-align: left !important;
+    }
+    .strat-regime-mini-table {
+      display: block !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      max-width: 100% !important;
+      width: 100% !important;
+    }
+    .strat-card-footer .btn {
+      min-height: 44px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+      font-size: 0.85rem !important;
+    }
+
+    /* Stock Detail Drawer: Native Bottom Sheet on Mobile (R5) */
+    #stock-drawer {
+      top: auto !important;
+      bottom: -100% !important;
+      left: 0 !important;
+      right: 0 !important;
+      width: 100% !important;
+      max-width: 100vw !important;
+      height: 90vh !important;
+      max-height: 90vh !important;
+      border-radius: 16px 16px 0 0 !important;
+      border-left: none !important;
+      border-top: 1px solid var(--border) !important;
+      box-shadow: 0 -10px 32px rgba(0,0,0,0.6) !important;
+      transition: bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      padding: 0 16px 24px 16px !important;
+    }
+    #stock-drawer.drawer-open-mobile {
+      bottom: 0 !important;
+    }
+    .drawer-drag-handle {
+      display: block !important;
+      width: 44px;
+      height: 5px;
+      background: var(--muted);
+      border-radius: 3px;
+      margin: 10px auto 4px auto;
+      opacity: 0.7;
+      cursor: pointer;
+    }
+    .drawer-close-btn {
+      min-height: 44px !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .sticky-nav {
+      height: 50px;
+      max-height: 56px;
+      padding: 0 8px;
+      padding-top: max(0px, env(safe-area-inset-top, 0px));
+      padding-left: max(8px, env(safe-area-inset-left, 0px));
+      padding-right: max(8px, env(safe-area-inset-right, 0px));
+    }
+    .sticky-nav-container {
+      gap: 6px;
+    }
+    .sticky-nav-brand {
+      font-size: 0.88rem;
+    }
+    .sticky-nav-links {
+      gap: 4px;
+    }
+    .nav-link {
+      min-height: 44px !important;
+      padding: 0 10px !important;
+      font-size: 0.78rem !important;
+    }
+
+    /* Outer Padding Reduced to 8px~10px */
+    .header, .content, .row2-content, .row1-wrapper, .search-bar-wrap,
+    .encyclopedia-intro, .encyclopedia-grid, .market-toolbar, .market-content {
+      padding-left: 10px !important;
+      padding-right: 10px !important;
+    }
+    .regime-risk-card, .health-monitor-section, .strategy-page-banner {
+      margin-left: 8px !important;
+      margin-right: 8px !important;
+    }
+
+    /* CARD 1: Single-Column Collapse */
+    .regime-risk-card {
+      margin: 10px 8px 14px !important;
+    }
+    .macro-grid {
+      grid-template-columns: 1fr !important;
+      gap: 6px !important;
+    }
+    .gate-status-strip {
+      grid-template-columns: 1fr !important;
+      gap: 6px !important;
+      font-size: 11px !important;
+    }
+
+    /* CARD 2: Single-Column Collapse */
+    .health-monitor-section {
+      margin: 10px 8px 14px !important;
+    }
+    .health-grid {
+      grid-template-columns: 1fr !important;
+      gap: 6px !important;
+    }
+
+    /* CARD 3: Single-Column Collapse */
+    .chart-card {
+      padding: 10px 8px !important;
+    }
+    .chart-card > div[style*="height"] {
+      height: 260px !important;
+    }
+
+    /* R3: Strategy Encyclopedia Mobile Grid < 480px */
+    .encyclopedia-intro {
+      padding: 10px 10px 0 10px !important;
+    }
+    .encyclopedia-grid {
+      grid-template-columns: 1fr !important;
+      gap: 12px !important;
+      padding: 10px 8px !important;
+    }
+    .strat-encyclopedia-card {
+      padding: 12px 10px !important;
+    }
+
+    /* R4: Market full table & toolbar on < 480px */
+    .market-toolbar {
+      margin: 8px 8px !important;
+      padding: 8px 8px !important;
+      gap: 8px !important;
+    }
+    .market-content #market-full-table th.col-strat,
+    .market-content #market-full-table td.col-strat,
+    .market-content #market-full-table .col-strat,
+    #market-full-table .col-strat {
+      display: table-cell;
+    }
+    .sticky-rank {
+      left: 0 !important;
+      width: 34px !important;
+      min-width: 34px !important;
+      max-width: 34px !important;
+    }
+    .sticky-symbol {
+      left: 34px !important;
+      width: 66px !important;
+      min-width: 66px !important;
+      max-width: 66px !important;
+    }
+    .sticky-name {
+      left: 100px !important;
+      width: 88px !important;
+      min-width: 88px !important;
+      max-width: 88px !important;
+    }
+  }
+
   /* Strategy Encyclopedia Styling */
   .encyclopedia-intro {
     padding: 16px 32px 0 32px;
@@ -633,6 +1229,9 @@ def build_styles(base_styles: str = "") -> str:
     font-size: 0.88rem;
     color: #67e8f9;
     overflow-x: auto;
+    max-width: 100%;
+    box-sizing: border-box;
+    -webkit-overflow-scrolling: touch;
   }
   .strat-desc-text {
     font-size: 0.86rem;
@@ -670,6 +1269,49 @@ def build_styles(base_styles: str = "") -> str:
     justify-content: space-between;
     align-items: center;
   }
+
+  /* Dedicated Market Table Sticky Columns (Desktop & Base) */
+  #market-full-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  #market-full-table th.sticky-col,
+  #market-full-table td.sticky-col {
+    position: sticky;
+    background: var(--surface);
+    z-index: 2;
+    box-sizing: border-box;
+  }
+  #market-full-table th.sticky-col {
+    top: 0;
+    z-index: 12;
+    background: var(--surface2);
+  }
+  #market-full-table .sticky-rank {
+    left: 0;
+    width: 48px;
+    min-width: 48px;
+    max-width: 48px;
+    text-align: center;
+  }
+  #market-full-table .sticky-symbol {
+    left: 48px;
+    width: 86px;
+    min-width: 86px;
+    max-width: 86px;
+  }
+  #market-full-table .sticky-name {
+    left: 134px;
+    width: 120px;
+    min-width: 120px;
+    max-width: 140px;
+    border-right: 2px solid var(--border-color, rgba(255,255,255,0.1));
+    box-shadow: 2px 0 4px rgba(0,0,0,0.15);
+  }
+  #market-full-table th.sticky-rank { z-index: 15; }
+  #market-full-table th.sticky-symbol { z-index: 14; }
+  #market-full-table th.sticky-name { z-index: 13; }
 
   /* Dedicated Market Pages Toolbar */
   .market-toolbar {
@@ -726,7 +1368,7 @@ def build_head(title: str, description: str, active_page: str, extra_head: str =
     """Generates the unified <head> block for pages."""
     return f"""<head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{title}</title>
 <meta name="description" content="{description}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -767,6 +1409,14 @@ def build_sticky_nav(active_page: str, now_kst: str = "") -> str:
     </div>
   </div>
 </header>
+<script>
+(function() {{
+  var active = document.querySelector('.sticky-nav-links .active, .sticky-nav-links .nav-active');
+  if (active && active.scrollIntoView) {{
+    active.scrollIntoView({{ inline: 'center', block: 'nearest' }});
+  }}
+}})();
+</script>
 """
 
 def build_strategy_catalog_html() -> str:
@@ -804,7 +1454,7 @@ def build_strategy_catalog_html() -> str:
             </div>
           </div>
           <div class="strat-card-footer">
-            <a href="#panel-{s['id']}" onclick="switchTabById('{s['id']}')" class="btn btn-outline" style="font-size:0.8rem; text-decoration:none; padding:4px 10px;">
+            <a href="#panel-{s['id']}" onclick="switchTabById('{s['id']}')" class="btn btn-outline" style="min-height:44px; font-size:0.85rem; text-decoration:none; padding:8px 16px; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box;">
               📊 라이브 후보 종목 보러가기 &darr;
             </a>
           </div>
@@ -854,7 +1504,7 @@ def build_index_html(ctx: dict, is_executive_summary: bool = True) -> str:
     drawer = ctx.get("rendered_drawer_body", "")
     bottom = ctx.get("rendered_bottom_body", "")
 
-    return f"""<!DOCTYPE html>
+    html_out = f"""<!DOCTYPE html>
 <html lang="ko">
 {head_html}
 <body>
@@ -867,6 +1517,20 @@ def build_index_html(ctx: dict, is_executive_summary: bool = True) -> str:
 {bottom}
 </body>
 </html>"""
+    if is_executive_summary:
+        def _compress_summary_css(m):
+            txt = re.sub(r'/\*.*?\*/', '', m.group(1), flags=re.DOTALL)
+            lines = [line.strip() for line in txt.splitlines() if line.strip()]
+            return '<style>\n' + '\n'.join(lines) + '\n</style>'
+
+        html_out = re.sub(
+            r'<style>(.*?)</style>',
+            _compress_summary_css,
+            html_out,
+            flags=re.DOTALL
+        )
+        html_out = re.sub(r'\n\s{4,}', '\n  ', html_out)
+    return html_out
 
 def build_strategies_html(ctx: dict) -> str:
     """Builds the Strategy Encyclopedia & Technical Docs (strategies.html)."""
@@ -1306,6 +1970,97 @@ function filterDrawerFactors(cat, btn) {{
 
 // ── Drawer Stock Navigation ──
 let currentDrawerIndex = -1;
+let drawerRadarChartInstance = null;
+
+function renderDrawerRadarChart(factors) {{
+  const canvas = document.getElementById('drawerRadarChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  const parseVal = (k) => {{
+    const v = factors ? factors[k] : undefined;
+    if (v === null || v === undefined) return 50;
+    let s = String(v).trim();
+    if (s.toLowerCase().includes('nan') || s === 'None' || s === '-' || s === '' || s === 'N/A') return 50;
+    let num = parseFloat(s.replace(/[^0-9.-]/g, ''));
+    if (isNaN(num)) return 50;
+    if (num > 0 && num <= 1.0 && !s.includes('%')) {{
+      num = num * 100;
+    }}
+    return Math.min(100, Math.max(0, num));
+  }};
+
+  // Full 37-Strategy Mapping across 5 Alpha Dimensions
+  const aiKeys = ['1. XGBoost 회귀', '2. Surge 분류기', '5. VCP ML', '6. Strict LSTM'];
+  const aiScore = aiKeys.reduce((acc, k) => acc + parseVal(k), 0) / aiKeys.length;
+
+  const momKeys = [
+    '3. Lead-Lag', '4. VCP 패턴 (Rule)', '8. Sector Rotation', '11. MQ Factor', 
+    '14. Short-Term Reversal', '27. Trend Efficiency', '34. Range Expansion', 
+    '35. Dual Correction', '37. Overnight Gap'
+  ];
+  const momScore = momKeys.reduce((acc, k) => acc + parseVal(k), 0) / momKeys.length;
+
+  const valKeys = [
+    '9. RIM Valuation', '10. Event-Driven', '15. ARM Factor', 
+    '24. Accruals Quality', '26. Value-Up Yield', '31. Tone Drift'
+  ];
+  const valScore = valKeys.reduce((acc, k) => acc + parseVal(k), 0) / valKeys.length;
+
+  const flowKeys = [
+    '13. Order Flow', '18. Inst & Foreign Sector', '23. Microstructure', 
+    '25. Short Squeeze', '28. Gamma Squeeze', '29. Insider Buying', 
+    '30. Darkpool & HFT', '36. Index Rebalance'
+  ];
+  const flowScore = flowKeys.reduce((acc, k) => acc + parseVal(k), 0) / flowKeys.length;
+
+  const macroKeys = [
+    '7. Stat-Arb', '12. Options IV Skew', '16. CARD Factor', '17. LATR Factor', 
+    '19. Supply Chain', '20. NLP Sentiment', '21. Factor Neutralized', 
+    '22. Vol Targeting', '32. Cross-Asset Spillover', '33. Supply Chain GNN'
+  ];
+  const macroScore = macroKeys.reduce((acc, k) => acc + parseVal(k), 0) / macroKeys.length;
+
+  if (drawerRadarChartInstance) {{
+    drawerRadarChartInstance.destroy();
+  }}
+
+  drawerRadarChartInstance = new Chart(canvas, {{
+    type: 'radar',
+    data: {{
+      labels: ['AI/ML 예측 (4)', '모멘텀/추세 (9)', '밸류/퀄리티 (6)', '수급/스마트 (8)', '매크로/GNN (10)'],
+      datasets: [{{
+        label: '37대 알파 레이더',
+        data: [aiScore.toFixed(1), momScore.toFixed(1), valScore.toFixed(1), flowScore.toFixed(1), macroScore.toFixed(1)],
+        backgroundColor: 'rgba(56, 189, 248, 0.25)',
+        borderColor: '#38bdf8',
+        borderWidth: 2,
+        pointBackgroundColor: '#38bdf8',
+        pointBorderColor: '#fff',
+        pointRadius: 3
+      }}]
+    }},
+    options: {{
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {{
+        r: {{
+          min: 0,
+          max: 100,
+          ticks: {{ display: false, stepSize: 25 }},
+          grid: {{ color: 'rgba(255, 255, 255, 0.1)' }},
+          angleLines: {{ color: 'rgba(255, 255, 255, 0.15)' }},
+          pointLabels: {{
+            color: '#e2e8f0',
+            font: {{ size: 11, weight: '600' }}
+          }}
+        }}
+      }},
+      plugins: {{
+        legend: {{ display: false }}
+      }}
+    }}
+  }});
+}}
 
 function navigateDrawerStock(direction) {{
   const rows = Array.from(document.querySelectorAll('#market-full-table tbody tr.clickable-row')).filter(r => r.style.display !== 'none');
@@ -1365,14 +2120,15 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
     tvLink.href = `https://www.tradingview.com/symbols/${{cleanCode}}/`;
   }}
 
+  let factors = {{}};
+  try {{
+    factors = JSON.parse(decodeURIComponent(factorObjStr || '{{}}'));
+  }} catch(e) {{
+    factors = {{}};
+  }}
+
   const factorGrid = document.getElementById('drawer-factors-grid');
   if (factorGrid) {{
-    let factors = {{}};
-    try {{
-      factors = JSON.parse(decodeURIComponent(factorObjStr || '{{}}'));
-    }} catch(e) {{
-      factors = {{}};
-    }}
     let html = '';
     for (const [key, rawVal] of Object.entries(factors)) {{
       let valStr = (rawVal === null || rawVal === undefined) ? 'N/A' : String(rawVal).trim();
@@ -1409,6 +2165,9 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   }});
   const countBadge = document.getElementById('drawer-factor-count-badge');
   if (countBadge) countBadge.textContent = '37개 전수';
+
+  // Radar chart rendering
+  renderDrawerRadarChart(factors);
 
   const isMobile = window.innerWidth <= 768;
   document.body.style.overflow = 'hidden';
@@ -1498,27 +2257,27 @@ def build_all_pages(ctx: dict, out_dir: Path, out_path: Optional[Path] = None) -
     # 1. index.html
     p_index = out_dir / "index.html"
     index_content = build_index_html(ctx, is_executive_summary=True)
-    p_index.write_text(index_content, encoding="utf-8")
+    p_index.write_text(index_content, encoding="utf-8", newline="\n")
     generated["index"] = p_index
 
     # If caller specified a non-index.html out_path (e.g. in test harness), also write to out_path
     if out_path is not None:
         try:
             if out_path.resolve() != p_index.resolve():
-                out_path.write_text(index_content, encoding="utf-8")
+                out_path.write_text(index_content, encoding="utf-8", newline="\n")
                 generated["out"] = out_path
         except Exception:
             pass
 
     # 2. strategies.html
     p_strat = out_dir / "strategies.html"
-    p_strat.write_text(build_strategies_html(ctx), encoding="utf-8")
+    p_strat.write_text(build_strategies_html(ctx), encoding="utf-8", newline="\n")
     generated["strategies"] = p_strat
 
     # 3-7. market pages
     for m in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
         p_mkt = out_dir / f"market_{m.lower()}.html"
-        p_mkt.write_text(build_market_html(m, ctx), encoding="utf-8")
+        p_mkt.write_text(build_market_html(m, ctx), encoding="utf-8", newline="\n")
         generated[m.lower()] = p_mkt
 
     return generated
