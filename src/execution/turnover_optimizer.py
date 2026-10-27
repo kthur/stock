@@ -144,12 +144,56 @@ class TurnoverOptimizer:
             # Market-adaptive hysteresis threshold (theta_US = 0.025, theta_KRX = 0.045)
             thresh = self.resolve_threshold(sym, currency=curr_str, market_map=kwargs.get("market_map"))
 
+            # Winner hysteresis cooperation with 2.2x Leland buffer band expansion:
+            # For winning positions (unrealized return >= +8%), expand hysteresis threshold by +25%
+            # to prevent premature trimming and allow compounding winners to run.
+            u_ret = 0.0
+            unrealized_returns = kwargs.get("unrealized_returns")
+            if isinstance(unrealized_returns, dict) and sym in unrealized_returns:
+                try:
+                    val = float(unrealized_returns[sym])
+                    if math.isfinite(val):
+                        u_ret = val
+                except (ValueError, TypeError):
+                    u_ret = 0.0
+            if u_ret >= 0.08:
+                thresh *= 1.25
+
             # Full liquidation (raw_w == 0) and fresh entries (curr_w == 0) bypass hysteresis threshold
             is_full_exit = (raw_w == 0.0 and curr_w > 0.0)
             is_fresh_entry = (curr_w == 0.0 and raw_w > 0.0)
             # C-07 fix: Allow rebalance if relative position change is large (>= 50%) and capital delta is non-trivial
             is_large_relative_shift = (curr_w > 0.0 and (weight_delta / curr_w) >= 0.50 and amount_delta >= min_rebalance_delta * 2.0)
-            if not is_full_exit and not is_fresh_entry and not is_large_relative_shift and (weight_delta < thresh or amount_delta < min_rebalance_delta):
+
+            # Leland buffer band & boundary rebalancing cooperation
+            band_info = None
+            bands_dict = kwargs.get("leland_bands") or kwargs.get("buffer_bands")
+            if isinstance(bands_dict, dict) and sym in bands_dict:
+                b_val = bands_dict[sym]
+                if isinstance(b_val, (tuple, list)) and len(b_val) >= 2:
+                    try:
+                        band_info = (float(b_val[0]), float(b_val[1]))
+                    except (ValueError, TypeError):
+                        band_info = None
+
+            if band_info is not None and not is_full_exit and not is_fresh_entry:
+                L_i, U_i = band_info
+                rebalance_mode = str(kwargs.get("rebalance_mode", "boundary")).lower()
+                if L_i <= curr_w <= U_i:
+                    final_w = curr_w
+                    action = "HOLD"
+                    total_turnover_reduced += amount_delta
+                elif rebalance_mode == "boundary":
+                    if curr_w > U_i:
+                        final_w = float(np.clip(U_i, 0.0, 1.0))
+                        action = "SELL" if final_w < curr_w else "HOLD"
+                    else:
+                        final_w = float(np.clip(L_i, 0.0, 1.0))
+                        action = "BUY" if final_w > curr_w else "HOLD"
+                else:
+                    final_w = float(np.clip(raw_w, 0.0, 1.0))
+                    action = "BUY" if raw_w > curr_w else "SELL"
+            elif not is_full_exit and not is_fresh_entry and not is_large_relative_shift and (weight_delta < thresh or amount_delta < min_rebalance_delta):
                 final_w = curr_w
                 action = "HOLD"
                 total_turnover_reduced += amount_delta

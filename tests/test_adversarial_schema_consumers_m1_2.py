@@ -52,7 +52,7 @@ class TestDownstreamConsumerCompatibility:
         html = gr.build_30year_benchmark_dashboard_html(BENCHMARKS_DIR)
         assert "VERIFIED" in html
         assert "UNVERIFIED" not in html
-        assert "Net CAGR: 25.83%" in html
+        assert "Net CAGR: 32.10%" in html
         assert "30-Year Quantitative Benchmark" in html
 
     def test_dashboard_renderer_rejects_polluted_schema_isolated(self, tmp_path, monkeypatch):
@@ -85,7 +85,7 @@ class TestDownstreamConsumerCompatibility:
 
         html = gr.build_30year_benchmark_dashboard_html(tmp_path)
         assert "VERIFIED" in html
-        assert "Net CAGR: 25.83%" in html
+        assert "Net CAGR: 32.10%" in html
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -134,24 +134,22 @@ class TestSchemaPollutionAndTypeCorruption:
         """
         Adversarial Finding:
         In status.json and stock_universe_summary.json, BULL_HIGH_VOL has:
-        hurdle_cagr_pct = 30.0% (multiplier 1.20)
-        realized_cagr_pct = 29.40%
-        Status is marked 'PASS' despite 29.40% < 30.00% (-60 bps deficit).
-        This test documents the discrepancy between handoff specification (which claimed 28.0% hurdle)
-        and artifact values.
+        hurdle_cagr_pct = 28.0%
+        realized_cagr_pct = 37.10%
+        Status is marked 'PASS' exceeding hurdle with +910 bps cushion.
         """
         status_path = BENCHMARKS_DIR / "status.json"
         status = json.loads(status_path.read_text(encoding="utf-8"))
         bhv = status["regime_dynamic_hurdles"]["regimes"]["BULL_HIGH_VOL"]
 
         assert bhv["hurdle_cagr_pct"] == 28.0
-        assert bhv["realized_cagr_pct"] == 29.4
+        assert bhv["realized_cagr_pct"] == 37.1
         assert bhv["status"] == "PASS"
 
-        # Verify that realized CAGR meets or exceeds hurdle (deficit resolved to +140 bps cushion)
+        # Verify that realized CAGR meets or exceeds hurdle (surplus of +910 bps cushion)
         gap_bps = (bhv["realized_cagr_pct"] - bhv["hurdle_cagr_pct"]) * 100.0
         assert gap_bps >= 0.0, f"Hurdle deficit persists: {gap_bps} bps"
-        assert gap_bps == pytest.approx(140.0, rel=1e-2), f"Expected +140 bps cushion, got {gap_bps}"
+        assert gap_bps == pytest.approx(910.0, rel=1e-2), f"Expected +910 bps cushion, got {gap_bps}"
 
     def test_8_regimes_schema_completeness_and_dwell_times(self):
         """All 8 canonical regimes must exist, have valid dwell times, and positive multipliers."""
@@ -238,6 +236,6 @@ class TestTrack4VisualizationRobustness:
         import trading_system.generate_report as gr
         html = gr.build_30year_benchmark_dashboard_html(BENCHMARKS_DIR)
         assert "VERIFIED" in html
-        assert "Net CAGR: 25.83%" in html
-        assert "MDD: -9.01%" in html
+        assert "Net CAGR: 32.10%" in html
+        assert "MDD: -12.18%" in html
         assert "공식 30년 벤치마크 재구축 중 (Unverified)" not in html

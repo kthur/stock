@@ -792,7 +792,7 @@ class ExecutionOMSEngine:
                                 logger.info(f"[OMS LELAND BUFFER] Symbol {sym}: Current weight {curr_w:.3f} within ±{delta_i:.3f} of target {weight:.3f} -> skipping redundant trade (Hold)")
                                 continue
 
-                            # Gate: Alpha Hurdle Gating (Expected Alpha must exceed 1.5x transaction friction)
+                            # Gate: Alpha Hurdle Gating (Expected Alpha must exceed cost hurdle: 1.2x in Bull, 1.5x in Sideways/Bear/Crisis)
                             exp_ret = pred.get("ensemble_expected_return", pred.get("predicted_return", pred.get("score", 0.0)))
                             if exp_ret is not None:
                                 try:
@@ -800,8 +800,10 @@ class ExecutionOMSEngine:
                                     if abs(f_ret) > 1.0:
                                         f_ret = f_ret / 100.0
                                     trade_delta = abs(curr_w - weight)
-                                    if f_ret < 1.5 * c_rate and trade_delta < 0.10:
-                                        logger.info(f"[OMS ALPHA HURDLE] Symbol {sym}: Expected alpha {f_ret:.4f} < 1.5x cost {c_rate:.4f} -> skipping marginal rebalance (Hold)")
+                                    regime_str = str(pred.get("regime") or pred.get("market_regime") or regime_label or "BULL").upper()
+                                    hurdle_mult = 1.2 if regime_str.startswith("BULL") else 1.5
+                                    if f_ret < hurdle_mult * c_rate and trade_delta < 0.10:
+                                        logger.info(f"[OMS ALPHA HURDLE] Symbol {sym}: Expected alpha {f_ret:.4f} < {hurdle_mult:.1f}x cost {c_rate:.4f} -> skipping marginal rebalance (Hold)")
                                         continue
                                 except Exception:
                                     pass

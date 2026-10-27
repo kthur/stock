@@ -1329,7 +1329,7 @@ class PortfolioAllocator:
         """
         Computes continuous volatility-normalized asymmetric Leland buffer multipliers:
             z_unrealized = u_ret / (volatility_20d * sqrt(5))
-        - Runners (z > 0): smoothly expands upper band (1.0 -> 1.8x) to let winners run.
+        - Runners (z > 0): smoothly expands upper band (1.0 -> 2.2x) to let winners run.
         - Laggards (z < 0): smoothly tightens lower band (1.0 -> 0.6x) for swift de-risking.
         Returns:
             Tuple of (upper_mult, lower_mult)
@@ -1341,7 +1341,7 @@ class PortfolioAllocator:
 
         if z_unrealized > 0.0:
             z_clamped = min(max((z_unrealized - 1.0) / 2.0, 0.0), 1.0)
-            upper_mult = 1.0 + 0.8 * z_clamped
+            upper_mult = 1.0 + 1.2 * z_clamped
             lower_mult = 1.0
         elif z_unrealized < 0.0:
             z_clamped = min(max((-1.0 - z_unrealized) / 2.0, 0.0), 1.0)
@@ -1407,7 +1407,7 @@ class PortfolioAllocator:
         - If current_weight is INSIDE band: returns action HOLD with 0 trade weight.
         - If current_weight BREACHES band: triggers BUY/SELL rebalancing trade.
         - Supports Asymmetric Leland Buffer Bands:
-          * Winning positions (unrealized_return >= +8%): expands upper band (1.8x) to prevent premature rebalance sales.
+          * Winning positions (unrealized_return >= +8%): expands upper band (2.2x) to prevent premature rebalance sales.
           * Lagging positions (unrealized_return <= -3%): tightens lower band (0.6x) for swift de-risking.
         """
         mode = (rebalance_mode or self.rebalance_mode).lower()

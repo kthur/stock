@@ -38,31 +38,31 @@ class UnifiedPortfolioAllocator:
     # Regime-Adaptive Weights across 4 core optimization paradigms
     # [w_BL, w_HERC, w_RiskParity, w_CVaR]
     REGIME_OPTIMIZER_BLENDS = {
-        "BULL_LOW_VOL": {"bl": 0.65, "herc": 0.25, "rp": 0.10, "cvar": 0.00},
+        "BULL_LOW_VOL": {"bl": 0.70, "herc": 0.20, "rp": 0.10, "cvar": 0.00},
         "BULL_HIGH_VOL": {"bl": 0.45, "herc": 0.35, "rp": 0.10, "cvar": 0.10},
         "SIDEWAYS_LOW_VOL": {"bl": 0.25, "herc": 0.45, "rp": 0.20, "cvar": 0.10},
         "SIDEWAYS_HIGH_VOL": {"bl": 0.15, "herc": 0.40, "rp": 0.20, "cvar": 0.25},
         "BEAR_LOW_VOL": {"bl": 0.05, "herc": 0.35, "rp": 0.20, "cvar": 0.40},
         "BEAR_HIGH_VOL": {"bl": 0.00, "herc": 0.20, "rp": 0.10, "cvar": 0.70},
-        "CRISIS": {"bl": 0.00, "herc": 0.15, "rp": 0.05, "cvar": 0.80},
+        "CRISIS": {"bl": 0.00, "herc": 0.10, "rp": 0.05, "cvar": 0.85},
     }
 
     # Regime-Adaptive Volatility Budget & Max Exposure Ceilings (30-Year Optimized)
     REGIME_ADAPTIVE_RISK_BUDGET = {
         "BULL_LOW_VOL": {
-            "target_vol": 0.22,
+            "target_vol": 0.16,
+            "max_exposure": 1.00,
+            "min_exposure": 0.98,
+            "max_single_weight": 0.50,
+        },
+        "BULL_HIGH_VOL": {
+            "target_vol": 0.14,
             "max_exposure": 1.00,
             "min_exposure": 0.95,
             "max_single_weight": 0.50,
         },
-        "BULL_HIGH_VOL": {
-            "target_vol": 0.20,
-            "max_exposure": 1.00,
-            "min_exposure": 0.92,
-            "max_single_weight": 0.50,
-        },
         "SIDEWAYS_LOW_VOL": {
-            "target_vol": 0.16,
+            "target_vol": 0.12,
             "max_exposure": 0.95,
             "min_exposure": 0.80,
             "max_single_weight": 0.35,
@@ -86,7 +86,7 @@ class UnifiedPortfolioAllocator:
             "max_single_weight": 0.20,
         },
         "CRISIS": {
-            "target_vol": 0.06,
+            "target_vol": 0.05,
             "max_exposure": 0.15,
             "min_exposure": 0.00,
             "max_single_weight": 0.15,
@@ -186,7 +186,7 @@ class UnifiedPortfolioAllocator:
         Computes continuous volatility-normalized asymmetric Leland buffer multipliers:
             z_unrealized = u_ret / (volatility_20d * sqrt(5)) (for u_ret >= 0)
             z_unrealized = u_ret / (downside_semi_volatility * sqrt(5)) (for u_ret < 0, F43)
-        - Runners (z > 0): smoothly expands upper band (1.0 -> 1.8x) to let winners run.
+        - Runners (z > 0): smoothly expands upper band (1.0 -> 2.2x) to let winners run.
         - Laggards (z < 0): smoothly tightens lower band (1.0 -> 0.6x) for swift de-risking.
         Returns:
             Tuple of (upper_mult, lower_mult)
@@ -204,7 +204,7 @@ class UnifiedPortfolioAllocator:
 
         if z_unrealized > 0.0:
             z_clamped = min(max((z_unrealized - 1.0) / 2.0, 0.0), 1.0)
-            upper_mult = 1.0 + 0.8 * z_clamped
+            upper_mult = 1.0 + 1.2 * z_clamped
             lower_mult = 1.0
         elif z_unrealized < 0.0:
             z_clamped = min(max((-1.0 - z_unrealized) / 2.0, 0.0), 1.0)
@@ -26186,9 +26186,9 @@ class UnifiedPortfolioAllocator:
             max_alloc_cap = float(budget_cfg.get("max_exposure", 0.98))
             min_alloc_floor = float(budget_cfg.get("min_exposure", 0.20))
         elif "BULL" in regime_str:
-            base_target_vol = 0.20
-            max_alloc_cap = 0.98  # Cash drag eliminator
-            min_alloc_floor = 0.80
+            base_target_vol = 0.16 if "LOW_VOL" in regime_str else 0.14
+            max_alloc_cap = 1.00  # Cash drag eliminator
+            min_alloc_floor = 0.98 if "LOW_VOL" in regime_str else 0.95
         elif "SIDEWAYS" in regime_str:
             base_target_vol = 0.12
             max_alloc_cap = 0.85
@@ -26208,7 +26208,7 @@ class UnifiedPortfolioAllocator:
                 sharpe_proxy = (annualized_exp_ret - 0.03) / max(annualized_port_vol, 0.05)
                 if sharpe_proxy >= 1.50 and annualized_port_vol <= 0.15:
                     max_alloc_cap = 1.00
-                    min_alloc_floor = 0.88
+                    min_alloc_floor = 0.98 if "LOW_VOL" in regime_str else 0.95
         elif "SIDEWAYS" in regime_str:
             if getattr(self, "is_phase101", False):
                 # Phase 101 F477.1: Sideways Cash Drag Release
@@ -26275,7 +26275,7 @@ class UnifiedPortfolioAllocator:
         Uses continuous volatility-normalized Z-scores:
             z_unrealized = u_ret / (sigma_20d * sqrt(5)) (for u_ret >= 0)
             z_unrealized = u_ret / (sigma_minus * sqrt(5)) (for u_ret < 0, F43)
-        - Winning runners (z > 0): upper band smoothly expands up to 1.8x to prevent premature rebalance sales.
+        - Winning runners (z > 0): upper band smoothly expands up to 2.2x to prevent premature rebalance sales.
         - Laggards (z < 0): lower band smoothly tightens down to 0.6x for prompt de-risking.
         - Boundary Rebalancing: when weight breaches band, rebalances to boundary (L_i or U_i) rather
           than full target, minimizing unnecessary turnover and market impact while controlling tracking error.

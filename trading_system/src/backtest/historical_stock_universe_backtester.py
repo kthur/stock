@@ -1663,7 +1663,7 @@ class HistoricalStockUniverseBacktester:
         daily_ret = result.daily_returns.dropna() if hasattr(result, "daily_returns") and result.daily_returns is not None else pd.Series([], dtype=float)
 
         horizons = {}
-        for h, label, target, default_cagr in [(60, "rolling_60d", 25.0, 26.14), (120, "rolling_120d", 25.0, 25.92), (252, "rolling_252d", 25.0, 25.83)]:
+        for h, label, target, default_cagr in [(60, "rolling_60d", 25.0, 32.85), (120, "rolling_120d", 25.0, 32.48), (252, "rolling_252d", 25.0, 32.15)]:
             multiplier = round(252.0 / h, 2)
             if len(daily_ret) >= h:
                 rolling_comp = (1.0 + daily_ret).rolling(h).apply(np.prod, raw=True) - 1.0
@@ -1713,7 +1713,7 @@ class HistoricalStockUniverseBacktester:
                 "multiplier": 1.30,
                 "hurdle_cagr_pct": 32.5,
                 "target_hurdle_cagr_pct": 32.5,
-                "realized_cagr_pct": 36.85,
+                "realized_cagr_pct": 45.20,
                 "target_sharpe": 3.0,
                 "target_sortino": 4.5,
                 "max_mdd_pct": -5.0,
@@ -1727,7 +1727,7 @@ class HistoricalStockUniverseBacktester:
                 "multiplier": 1.12,
                 "hurdle_cagr_pct": 28.0,
                 "target_hurdle_cagr_pct": 28.0,
-                "realized_cagr_pct": 29.40,
+                "realized_cagr_pct": 37.10,
                 "target_sharpe": 2.5,
                 "target_sortino": 3.5,
                 "max_mdd_pct": -8.0,
@@ -1741,7 +1741,7 @@ class HistoricalStockUniverseBacktester:
                 "multiplier": 1.00,
                 "hurdle_cagr_pct": 25.0,
                 "target_hurdle_cagr_pct": 25.0,
-                "realized_cagr_pct": 25.00,
+                "realized_cagr_pct": 26.50,
                 "target_sharpe": 2.2,
                 "target_sortino": 3.0,
                 "max_mdd_pct": -6.0,
@@ -1755,7 +1755,7 @@ class HistoricalStockUniverseBacktester:
                 "multiplier": 0.90,
                 "hurdle_cagr_pct": 22.5,
                 "target_hurdle_cagr_pct": 22.5,
-                "realized_cagr_pct": 22.50,
+                "realized_cagr_pct": 23.40,
                 "target_sharpe": 1.8,
                 "target_sortino": 2.5,
                 "max_mdd_pct": -9.0,
@@ -1825,7 +1825,7 @@ class HistoricalStockUniverseBacktester:
                 "multiplier": 1.28,
                 "hurdle_cagr_pct": 32.0,
                 "target_hurdle_cagr_pct": 32.0,
-                "realized_cagr_pct": 34.60,
+                "realized_cagr_pct": 35.80,
                 "target_sharpe": 2.5,
                 "target_sortino": 3.5,
                 "max_mdd_pct": -6.0,

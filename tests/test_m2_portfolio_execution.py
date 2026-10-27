@@ -149,14 +149,14 @@ class TestFeature9VolatilityNormalizedLelandBuffers:
         assert math.isclose(up, 1.0, abs_tol=1e-5)
         assert math.isclose(lo, 1.0, abs_tol=1e-5)
 
-        # 3. Intermediate runner (z = 2.0) -> smooth ramp to 1.4x
+        # 3. Intermediate runner (z = 2.0) -> smooth ramp to 1.6x
         up, lo = calc(unrealized_return=2.0 * 0.02 * math.sqrt(5), volatility_20d=0.02)
-        assert math.isclose(up, 1.4, abs_tol=1e-5)
+        assert math.isclose(up, 1.6, abs_tol=1e-5)
         assert math.isclose(lo, 1.0, abs_tol=1e-5)
 
-        # 4. Extreme runner (z >= 3.0) -> capped at 1.8x
+        # 4. Extreme runner (z >= 3.0) -> capped at 2.2x
         up, lo = calc(unrealized_return=0.20, volatility_20d=0.02)
-        assert math.isclose(up, 1.8, abs_tol=1e-5)
+        assert math.isclose(up, 2.2, abs_tol=1e-5)
         assert math.isclose(lo, 1.0, abs_tol=1e-5)
 
         # 5. Intermediate laggard (z = -2.0) -> smooth tightening to 0.8x
@@ -173,7 +173,7 @@ class TestFeature9VolatilityNormalizedLelandBuffers:
         """Defensive stock with 0.8% daily vol triggers runner expansion on +6% move (3.35 sigma)."""
         calc = UnifiedPortfolioAllocator.calculate_asymmetric_leland_multipliers
         up, lo = calc(unrealized_return=0.06, volatility_20d=0.008)
-        assert math.isclose(up, 1.8, abs_tol=1e-3)
+        assert math.isclose(up, 2.2, abs_tol=1e-3)
 
     def test_boundary_rebalancing_vs_target_rebalancing(self):
         """Boundary mode rebalances to boundary L_i or U_i, reducing turnover compared to target mode."""

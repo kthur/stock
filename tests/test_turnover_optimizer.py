@@ -154,3 +154,56 @@ def test_market_adaptive_hysteresis_dampens_krx_differently_than_us():
     assert res["SP500"]["target_weight"] > 0.20
 
 
+def test_winner_hysteresis_relaxation():
+    """
+    Verify winner hysteresis: for winning positions (unrealized_return >= +8%),
+    threshold is relaxed by +25% to allow compounding winners to run without trimming.
+    """
+    opt = TurnoverOptimizer()
+    current_holdings = {"AAPL": 0.10}
+    # Raw target delta = 0.028 (normal US threshold theta_US = 0.025)
+    target_allocations = {"AAPL": 0.128}
+
+    # Without unrealized return: delta 0.028 > 0.025 -> triggers rebalancing
+    res_normal = opt.optimize_allocations(
+        current_holdings=current_holdings,
+        target_allocations=target_allocations,
+        total_capital=100000000.0,
+    )
+    assert res_normal["AAPL"]["action"] == "BUY"
+
+    # With unrealized return >= +8%: threshold relaxed to 0.025 * 1.25 = 0.03125
+    # Since delta 0.028 < 0.03125, it should be held as HOLD
+    res_winner = opt.optimize_allocations(
+        current_holdings=current_holdings,
+        target_allocations=target_allocations,
+        total_capital=100000000.0,
+        unrealized_returns={"AAPL": 0.15},
+    )
+    assert res_winner["AAPL"]["action"] == "HOLD"
+    assert res_winner["AAPL"]["target_weight"] == 0.10
+
+
+def test_boundary_execution_with_leland_bands():
+    """
+    Verify boundary execution cleanly cooperates with Leland dynamic buffer bands.
+    When current weight breaches band, boundary mode rebalances to boundary L_i or U_i.
+    """
+    opt = TurnoverOptimizer()
+    current_holdings = {"NVDA": 0.15}
+    target_allocations = {"NVDA": 0.08}
+    leland_bands = {"NVDA": (0.07, 0.09)}  # [L_i, U_i]
+
+    # Current weight 0.15 breaches U_i (0.09) -> boundary mode sells down to U_i (0.09)
+    res = opt.optimize_allocations(
+        current_holdings=current_holdings,
+        target_allocations=target_allocations,
+        total_capital=100000000.0,
+        leland_bands=leland_bands,
+        rebalance_mode="boundary",
+    )
+    assert res["NVDA"]["action"] == "SELL"
+    assert abs(res["NVDA"]["target_weight"] - 0.09) < 1e-4
+
+
+
