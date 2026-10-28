@@ -19,6 +19,10 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+VERSION = 142
+RELEASE = "R142"
+FEATURE = "F692_ONLINE_3D_RECURSIVE_KALMAN_SLIPPAGE_FILTER"
+
 
 @dataclass
 class SlippageMetrics:
@@ -52,6 +56,7 @@ class SlippageMetrics:
     # Recursive Kalman Filter Calibration States
     kalman_kappa: float = 0.50
     kalman_beta: float = 1.00
+    kalman_eta: float = 1.00
     kalman_state: List[float] = field(default_factory=lambda: [0.50, 1.00])
     kalman_covariance: List[List[float]] = field(default_factory=lambda: [[0.25, 0.0], [0.0, 0.25]])
     kalman_cost_scaling_factor: float = 1.0
@@ -59,45 +64,67 @@ class SlippageMetrics:
 
 class OnlineKalmanSlippageFilter:
     """
-    2D Recursive Kalman Filter for Online Slippage & Impact Estimation.
+    3D (and backward-compatible 2D) Recursive Kalman Filter for Online Slippage & Impact Estimation.
 
     State:
-      theta_t = [kappa_t, beta_t]^T
+      theta_t = [kappa_t, beta_t, eta_t]^T (3D) or [kappa_t, beta_t]^T (2D)
       - kappa_t: Market impact coefficient (Almgren-Chriss / Gatheral impact scale)
       - beta_t: Effective spread fraction / base slippage scale
+      - eta_t: Intraday volatility multiplier
 
     Observation:
       y_t = H_t * theta_t + v_t
-      - H_t = [h_kappa, h_beta]
-      - h_kappa = sigma * sqrt(Q / ADV) * 10000 (bps) or impact proxy
-      - h_beta = base_slippage_bps
-      - y_t = realized_slippage_bps
+      - In 3D: H_t = [h_kappa, h_beta, h_eta]
+      - In 2D: H_t = [h_kappa, h_beta]
+      - Joseph-stabilized covariance: P = (I - KH)P(I - KH)^T + KRK^T
+      - Symmetrization: P = 0.5(P + P^T) + 1e-8*I
     """
 
     def __init__(
         self,
         initial_kappa: float = 0.50,
         initial_beta: float = 1.00,
+        initial_eta: Optional[float] = None,
         process_noise_cov: Optional[np.ndarray] = None,
         measurement_noise_var: float = 9.0,
         initial_covariance: Optional[np.ndarray] = None,
         kappa_bounds: Tuple[float, float] = (0.05, 5.0),
         beta_bounds: Tuple[float, float] = (0.10, 5.0),
+        eta_bounds: Tuple[float, float] = (0.10, 5.0),
+        dim: Optional[int] = None,
     ):
-        self.theta = np.array([float(initial_kappa), float(initial_beta)], dtype=float)
-        self.P = (
-            np.array(initial_covariance, dtype=float)
-            if initial_covariance is not None
-            else np.diag([0.25, 0.25])
-        )
-        self.Q = (
-            np.array(process_noise_cov, dtype=float)
-            if process_noise_cov is not None
-            else np.diag([1e-4, 1e-4])
-        )
+        if dim == 3 or (dim is None and initial_eta is not None):
+            self.dim = 3
+            eta_val = float(initial_eta if initial_eta is not None else 1.00)
+            self.theta = np.array([float(initial_kappa), float(initial_beta), eta_val], dtype=float)
+            self.P = (
+                np.array(initial_covariance, dtype=float)
+                if initial_covariance is not None
+                else np.diag([0.25, 0.25, 0.25])
+            )
+            self.Q = (
+                np.array(process_noise_cov, dtype=float)
+                if process_noise_cov is not None
+                else np.diag([1e-4, 1e-4, 1e-4])
+            )
+        else:
+            self.dim = 2
+            self.theta = np.array([float(initial_kappa), float(initial_beta)], dtype=float)
+            self.P = (
+                np.array(initial_covariance, dtype=float)
+                if initial_covariance is not None
+                else np.diag([0.25, 0.25])
+            )
+            self.Q = (
+                np.array(process_noise_cov, dtype=float)
+                if process_noise_cov is not None
+                else np.diag([1e-4, 1e-4])
+            )
+
         self.R = float(measurement_noise_var)
         self.kappa_bounds = kappa_bounds
         self.beta_bounds = beta_bounds
+        self.eta_bounds = eta_bounds
         self.update_count = 0
         self.history: List[Dict[str, float]] = []
 
@@ -106,19 +133,27 @@ class OnlineKalmanSlippageFilter:
         realized_slippage_bps: float,
         h_kappa: float,
         h_beta: float = 5.0,
+        h_eta: float = 2.0,
         R_override: Optional[float] = None,
-    ) -> Tuple[float, float]:
+    ) -> Union[Tuple[float, float], Tuple[float, float, float]]:
         """
         Executes one recursive Kalman update step with Joseph-stabilized covariance.
-        Returns: (kappa_t, beta_t)
+        Returns: (kappa_t, beta_t) in 2D mode, or (kappa_t, beta_t, eta_t) in 3D mode.
         """
         y = float(realized_slippage_bps)
         if not math.isfinite(y):
-            return float(self.theta[0]), float(self.theta[1])
+            if self.dim == 2:
+                return float(self.theta[0]), float(self.theta[1])
+            return float(self.theta[0]), float(self.theta[1]), float(self.theta[2])
 
         hk = float(h_kappa) if (h_kappa is not None and math.isfinite(float(h_kappa))) else 0.0
         hb = float(h_beta) if (h_beta is not None and math.isfinite(float(h_beta))) else 5.0
-        H = np.array([hk, hb], dtype=float)
+        he = float(h_eta) if (h_eta is not None and math.isfinite(float(h_eta))) else 2.0
+
+        if self.dim == 2:
+            H = np.array([hk, hb], dtype=float)
+        else:
+            H = np.array([hk, hb, he], dtype=float)
 
         # 1. Prediction step: theta_{t|t-1} = theta_{t-1}, P_{t|t-1} = P_{t-1} + Q
         P_pred = self.P + self.Q
@@ -139,55 +174,90 @@ class OnlineKalmanSlippageFilter:
 
         # 5. Joseph-Stabilized Covariance Update:
         # P = (I - K*H) * P_pred * (I - K*H)^T + K * R * K^T
-        I = np.eye(2)
+        I = np.eye(self.dim)
         IKH = I - np.outer(K, H)
         P_new = np.dot(IKH, np.dot(P_pred, IKH.T)) + np.outer(K, K) * R
-        P_new = 0.5 * (P_new + P_new.T)
+        P_new = 0.5 * (P_new + P_new.T) + 1e-8 * I
 
         # 6. Projection / Bounding
         theta_new[0] = float(np.clip(theta_new[0], self.kappa_bounds[0], self.kappa_bounds[1]))
         theta_new[1] = float(np.clip(theta_new[1], self.beta_bounds[0], self.beta_bounds[1]))
+        if self.dim >= 3:
+            theta_new[2] = float(np.clip(theta_new[2], self.eta_bounds[0], self.eta_bounds[1]))
 
         self.theta = theta_new
         self.P = P_new
         self.update_count += 1
-        self.history.append({
+        rec = {
             "step": float(self.update_count),
             "y": y,
             "pred_y": pred_y,
             "innovation": innovation,
             "kappa": float(theta_new[0]),
             "beta": float(theta_new[1]),
-        })
+        }
+        if self.dim >= 3:
+            rec["eta"] = float(theta_new[2])
+        self.history.append(rec)
 
-        return float(self.theta[0]), float(self.theta[1])
+        if self.dim == 2:
+            return float(self.theta[0]), float(self.theta[1])
+        return float(self.theta[0]), float(self.theta[1]), float(self.theta[2])
 
-    def batch_update(self, observations: List[Dict[str, float]]) -> Tuple[float, float]:
-        """Runs a sequence of (realized_slippage_bps, h_kappa, h_beta) updates."""
+    def batch_update(
+        self, observations: List[Dict[str, float]]
+    ) -> Union[Tuple[float, float], Tuple[float, float, float]]:
+        """Runs a sequence of (realized_slippage_bps, h_kappa, h_beta, h_eta) updates."""
         for obs in observations:
             y = obs.get("realized_slippage_bps", obs.get("y", 0.0))
             hk = obs.get("h_kappa", obs.get("hk", 0.0))
             hb = obs.get("h_beta", obs.get("hb", 5.0))
-            self.update(y, hk, hb)
-        return float(self.theta[0]), float(self.theta[1])
+            he = obs.get("h_eta", obs.get("he", 2.0))
+            self.update(y, hk, hb, he)
+        if self.dim == 2:
+            return float(self.theta[0]), float(self.theta[1])
+        return float(self.theta[0]), float(self.theta[1]), float(self.theta[2])
 
     def get_state(self) -> Dict[str, Any]:
         """Returns the current state vector, covariance matrix, and update count."""
-        scaling = float(np.clip(self.theta[1] * (self.theta[0] / 0.50), 0.5, 8.0))
-        return {
-            "kappa": float(self.theta[0]),
-            "beta": float(self.theta[1]),
-            "covariance": self.P.tolist(),
-            "update_count": self.update_count,
-            "cost_scaling_factor": scaling,
-        }
+        if self.dim == 2:
+            scaling = float(np.clip(self.theta[1] * (self.theta[0] / 0.50), 0.5, 8.0))
+            return {
+                "kappa": float(self.theta[0]),
+                "beta": float(self.theta[1]),
+                "covariance": self.P.tolist(),
+                "update_count": self.update_count,
+                "cost_scaling_factor": scaling,
+            }
+        else:
+            scaling = float(np.clip(self.theta[1] * (self.theta[0] / 0.50) * self.theta[2], 0.5, 8.0))
+            return {
+                "kappa": float(self.theta[0]),
+                "beta": float(self.theta[1]),
+                "eta": float(self.theta[2]),
+                "covariance": self.P.tolist(),
+                "update_count": self.update_count,
+                "cost_scaling_factor": scaling,
+            }
 
-    def reset(self, initial_kappa: float = 0.50, initial_beta: float = 1.00) -> None:
+    def reset(
+        self,
+        initial_kappa: float = 0.50,
+        initial_beta: float = 1.00,
+        initial_eta: float = 1.00,
+    ) -> None:
         """Resets filter state and covariance to baseline priors."""
-        self.theta = np.array([float(initial_kappa), float(initial_beta)], dtype=float)
-        self.P = np.diag([0.25, 0.25])
+        if self.dim == 2:
+            self.theta = np.array([float(initial_kappa), float(initial_beta)], dtype=float)
+            self.P = np.diag([0.25, 0.25])
+        else:
+            self.theta = np.array([float(initial_kappa), float(initial_beta), float(initial_eta)], dtype=float)
+            self.P = np.diag([0.25, 0.25, 0.25])
         self.update_count = 0
         self.history.clear()
+
+
+Online3DKalmanSlippageFilter = OnlineKalmanSlippageFilter
 
 
 class SlippageFeedbackEngine:
@@ -203,6 +273,9 @@ class SlippageFeedbackEngine:
         default_slippage_bps: float = 5.0,
         initial_kappa: float = 0.50,
         initial_beta: float = 1.00,
+        initial_eta: Optional[float] = None,
+        dim: Optional[int] = None,
+        use_3d: bool = False,
     ):
         _root = Path(__file__).resolve().parent.parent.parent
         if db_path is None:
@@ -227,9 +300,12 @@ class SlippageFeedbackEngine:
         except (ValueError, TypeError):
             safe_slip = 5.0
         self.default_slippage_bps = max(0.0, min(1000.0, safe_slip))
+        filter_dim = 3 if (use_3d or dim == 3 or initial_eta is not None) else 2
         self.kalman_filter = OnlineKalmanSlippageFilter(
             initial_kappa=initial_kappa,
             initial_beta=initial_beta,
+            initial_eta=initial_eta,
+            dim=filter_dim,
         )
 
     def calculate_realized_slippage(
@@ -250,6 +326,8 @@ class SlippageFeedbackEngine:
 
         if not Path(self.db_path).exists():
             k_state = self.kalman_filter.get_state()
+            k_eta = k_state.get("eta", 1.00)
+            k_state_list = [k_state["kappa"], k_state["beta"], k_eta] if self.kalman_filter.dim == 3 else [k_state["kappa"], k_state["beta"]]
             return SlippageMetrics(
                 avg_slippage_bps=self.default_slippage_bps,
                 market_impact_alpha=0.50,
@@ -261,7 +339,8 @@ class SlippageFeedbackEngine:
                 recommended_market_impact_multiplier=1.0,
                 kalman_kappa=k_state["kappa"],
                 kalman_beta=k_state["beta"],
-                kalman_state=[k_state["kappa"], k_state["beta"]],
+                kalman_eta=k_eta,
+                kalman_state=k_state_list,
                 kalman_covariance=k_state["covariance"],
                 kalman_cost_scaling_factor=k_state["cost_scaling_factor"],
             )
@@ -476,6 +555,8 @@ class SlippageFeedbackEngine:
 
             if not valid_slippages:
                 k_state = self.kalman_filter.get_state()
+                k_eta = k_state.get("eta", 1.00)
+                k_state_list = [k_state["kappa"], k_state["beta"], k_eta] if self.kalman_filter.dim == 3 else [k_state["kappa"], k_state["beta"]]
                 return SlippageMetrics(
                     avg_slippage_bps=self.default_slippage_bps,
                     market_impact_alpha=0.50,
@@ -487,7 +568,8 @@ class SlippageFeedbackEngine:
                     recommended_market_impact_multiplier=1.0,
                     kalman_kappa=k_state["kappa"],
                     kalman_beta=k_state["beta"],
-                    kalman_state=[k_state["kappa"], k_state["beta"]],
+                    kalman_eta=k_eta,
+                    kalman_state=k_state_list,
                     kalman_covariance=k_state["covariance"],
                     kalman_cost_scaling_factor=k_state["cost_scaling_factor"],
                 )
@@ -545,16 +627,22 @@ class SlippageFeedbackEngine:
             # Online Recursive Kalman Filter updates across observed executions
             if use_kalman and kalman_obs:
                 self.kalman_filter.reset()
-                for s_bps, hk, hb in kalman_obs:
+                for item in kalman_obs:
+                    s_bps = item[0]
+                    hk = item[1]
+                    hb = item[2]
+                    he = item[3] if len(item) > 3 else 2.0
                     if math.isfinite(s_bps):
                         clipped_s = float(np.clip(s_bps, -50.0, 100.0))
-                        self.kalman_filter.update(clipped_s, hk, hb)
+                        self.kalman_filter.update(clipped_s, hk, hb, he)
 
             k_state = self.kalman_filter.get_state()
             kalman_kappa = k_state["kappa"]
             kalman_beta = k_state["beta"]
+            kalman_eta = k_state.get("eta", 1.00)
             kalman_cov = k_state["covariance"]
             kalman_cost_scaling = k_state["cost_scaling_factor"]
+            k_state_list = [kalman_kappa, kalman_beta, kalman_eta] if self.kalman_filter.dim == 3 else [kalman_kappa, kalman_beta]
 
             alpha = 0.50
 
@@ -591,7 +679,8 @@ class SlippageFeedbackEngine:
                 bayesian_cost_scaling_factor=bayesian_scaling,
                 kalman_kappa=kalman_kappa,
                 kalman_beta=kalman_beta,
-                kalman_state=[kalman_kappa, kalman_beta],
+                kalman_eta=kalman_eta,
+                kalman_state=k_state_list,
                 kalman_covariance=kalman_cov,
                 kalman_cost_scaling_factor=kalman_cost_scaling,
             )
@@ -599,6 +688,8 @@ class SlippageFeedbackEngine:
         except Exception as e:
             logger.error(f"Error calculating realized slippage: {e}")
             k_state = self.kalman_filter.get_state()
+            k_eta = k_state.get("eta", 1.00)
+            k_state_list = [k_state["kappa"], k_state["beta"], k_eta] if self.kalman_filter.dim == 3 else [k_state["kappa"], k_state["beta"]]
             return SlippageMetrics(
                 avg_slippage_bps=self.default_slippage_bps,
                 market_impact_alpha=0.50,
@@ -606,7 +697,8 @@ class SlippageFeedbackEngine:
                 cost_scaling_factor=1.0,
                 kalman_kappa=k_state["kappa"],
                 kalman_beta=k_state["beta"],
-                kalman_state=[k_state["kappa"], k_state["beta"]],
+                kalman_eta=k_eta,
+                kalman_state=k_state_list,
                 kalman_covariance=k_state["covariance"],
                 kalman_cost_scaling_factor=k_state["cost_scaling_factor"],
             )

@@ -2,9 +2,54 @@ import functools
 import logging
 import numpy as np
 import pandas as pd
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 logger = logging.getLogger(__name__)
+
+# Metadata Constants
+VERSION: int = 140
+RELEASE: str = "R140"
+FEATURE: str = "F684"
+
+
+def apply_hyperbolic_deadband_phase140(
+    z: Union[float, np.ndarray, pd.Series],
+    delta: float = 0.035,
+    alpha: float = 440.0,
+) -> Union[float, np.ndarray, pd.Series]:
+    """
+    Feature F684 / Phase 140: Hyperbolic deadband noise suppression (alpha=440.0, delta=0.035).
+    Suppresses sub-threshold noise leakage below 10^-308 for |z| <= 0.035 while transmitting
+    100% of signals for |z| >= 0.045.
+    z_clean = z * tanh((|z| / delta)^alpha)
+    """
+    if isinstance(z, (int, float)):
+        abs_z = abs(float(z))
+        if abs_z <= 1e-12:
+            return 0.0
+        ratio = abs_z / max(delta, 1e-6)
+        if ratio < 0.85:
+            return 0.0
+        if ratio >= 1.05:
+            return float(z)
+        arg = min(ratio ** alpha, 700.0)
+        return float(z * np.tanh(arg))
+    elif isinstance(z, pd.Series):
+        vals = z.to_numpy(dtype=np.float64)
+        abs_vals = np.abs(vals)
+        ratios = abs_vals / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        res = vals * np.tanh(args)
+        return pd.Series(res, index=z.index)
+    else:
+        arr = np.asarray(z, dtype=np.float64)
+        abs_arr = np.abs(arr)
+        ratios = abs_arr / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        return arr * np.tanh(args)
+
 
 # Mandatory Integrity Warning
 # DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results,
@@ -274,6 +319,48 @@ class FactorOrthogonalizerEngine:
 
         out_df[valid_cols] = scaled_vals
         return out_df
+
+    def orthogonalize_phase140(
+        self,
+        score_df: pd.DataFrame,
+        strategy_cols: List[str],
+        weights: Optional[Dict[str, float]] = None,
+        preserve_top_k: int = 4,
+        apply_deadband: bool = True,
+        deadband_delta: float = 0.035,
+        deadband_alpha: float = 440.0,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """
+        Feature F684: Phase 140 PCA-ZCA Whitening with Top-4 Consensus Preservation
+        and Hyperbolic Deadband (alpha=440.0, delta=0.035).
+        """
+        # 1. Run PCA-ZCA symmetric whitening with preserve_top_k=4
+        decorr_df = self.orthogonalize(
+            score_df=score_df,
+            strategy_cols=strategy_cols,
+            weights=weights,
+            method="pca_symmetric",
+            preserve_top_k=preserve_top_k,
+            **kwargs
+        )
+
+        if not apply_deadband:
+            return decorr_df
+
+        # 2. Apply hyperbolic deadband centered around 0.50
+        res_df = decorr_df.copy()
+        for col in strategy_cols:
+            if col in res_df.columns:
+                s = res_df[col]
+                valid_mask = s.notna()
+                if valid_mask.any():
+                    s_valid = s[valid_mask]
+                    z = s_valid - 0.50
+                    z_clean = apply_hyperbolic_deadband_phase140(z, delta=deadband_delta, alpha=deadband_alpha)
+                    res_df.loc[valid_mask, col] = np.clip(0.50 + z_clean, 0.05, 0.95)
+
+        return res_df
 
     def _gram_schmidt(
         self,
@@ -717,11 +804,24 @@ class CrossSectionalFactorNeutralizer:
         }
 
 
+# Complete Alias Trees
+Phase140FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+F684FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+ZCAWhiteningEngine = FactorOrthogonalizerEngine
+PCAZCAWhiteningEngine = FactorOrthogonalizerEngine
+
+
 __all__ = [
     "FactorOrthogonalizerEngine",
     "CrossSectionalFactorNeutralizer",
     "safe_matrix_precision_guard",
     "compute_pairwise_available_covariance",
     "repair_covariance_psd",
+    "apply_hyperbolic_deadband_phase140",
+    "Phase140FactorOrthogonalizerEngine",
+    "F684FactorOrthogonalizerEngine",
+    "ZCAWhiteningEngine",
+    "PCAZCAWhiteningEngine",
 ]
+
 

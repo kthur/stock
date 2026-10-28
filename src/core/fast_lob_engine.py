@@ -21,6 +21,10 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+VERSION = 142
+RELEASE = "R142"
+FEATURE = "F691_MICROSTRUCTURE_SPREAD_HARVESTER"
+
 
 class ZeroCopyRingBuffer:
     """
@@ -846,6 +850,109 @@ class FastOrderBookMatchingEngine:
     def get_vpin(self) -> float:
         """Returns current Volume-Synchronized Probability of Toxicity (VPIN)."""
         return float(self._cached_vpin)
+
+    def compute_hawkes_micro_tick_shading(
+        self,
+        side: str,
+        tick_size: Optional[float] = None,
+        kappa_shade: float = 2.0,
+        sigma_lambda: float = 1.0,
+    ) -> Dict[str, Any]:
+        """
+        Computes Hawkes micro-tick shading during adverse selection cascades (Roadmap §4.3).
+        delta_P_shade = sign(side) * TickSize * floor(tanh((lambda_adverse - mu_0) / sigma_lambda) * kappa_shade)
+        For BUY: adverse flow is selling (lambda_sell). Limit shades downwards (- ticks * tick_size).
+        For SELL: adverse flow is buying (lambda_buy). Limit shades upwards (+ ticks * tick_size).
+        """
+        ts = float(tick_size if tick_size is not None else self.tick_size)
+        bw = self.bivariate_hawkes
+        side_clean = str(side).upper()
+        is_buy = side_clean in ["BUY", "BID", "LONG", "BUY_HEDGE"]
+
+        lam_adv = float(bw.lambda_sell if is_buy else bw.lambda_buy)
+        mu_base = float(bw.mu_sell if is_buy else bw.mu_buy)
+        sig_lam = max(1e-4, float(sigma_lambda))
+
+        z = (lam_adv - mu_base) / sig_lam
+        raw_offset = math.tanh(max(0.0, z)) * kappa_shade
+        ticks = int(math.floor(raw_offset))
+        ticks = max(0, min(2, ticks))
+
+        price_offset = -ticks * ts if is_buy else ticks * ts
+
+        return {
+            "side": side,
+            "lambda_adverse": round(lam_adv, 4),
+            "lambda_baseline": round(mu_base, 4),
+            "intensity_zscore": round(z, 4),
+            "ticks_to_shade": ticks,
+            "price_shade_offset": round(price_offset, 4),
+            "is_cascade": bool(ticks >= 1),
+        }
+
+    def harvest_spread_and_fees(
+        self,
+        venue: str,
+        channel: str,
+        spread_bps: float,
+        notional: float,
+        shares: int,
+        is_maker: bool = True,
+    ) -> Dict[str, float]:
+        """
+        Computes microstructure fee and spread harvesting capturing US maker rebates (+2.5 bps)
+        on lit exchanges (BZX/EDGX) and Nextrade ATS midpoint crosses (-35% fee discount, 50% spread saving).
+        """
+        v_upper = str(venue).upper()
+        ch_upper = str(channel).upper()
+
+        maker_rebate_bps = 0.0
+        taker_fee_bps = 1.5
+        spread_saving_bps = 0.0
+        fee_discount_pct = 0.0
+
+        if any(u in v_upper for u in ["US", "BZX", "EDGX", "NASDAQ", "NYSE"]):
+            maker_rebate_bps = 2.5
+            taker_fee_bps = 1.5
+        elif any(u in v_upper for u in ["NEXTRADE", "ATS"]):
+            maker_rebate_bps = 0.5
+            taker_fee_bps = 0.1755  # 35% discount on regular exchange fees
+            fee_discount_pct = 35.0
+
+        if ch_upper in ["MID_PEG", "MID_PEG_DARK", "DARK_ATS_MIDPOINT"]:
+            spread_saving_bps = 0.5 * spread_bps
+            net_alpha_bps = spread_saving_bps + (0.5 if ("NEXTRADE" in v_upper or "ATS" in v_upper) else 0.0)
+        elif is_maker or ch_upper in ["PASSIVE_MAKER", "PRIMARY_PEG"]:
+            spread_saving_bps = 0.5 * spread_bps
+            net_alpha_bps = spread_saving_bps + maker_rebate_bps
+        else:  # AGGRESSIVE_TAKER
+            spread_saving_bps = 0.0
+            net_alpha_bps = -taker_fee_bps
+
+        harvested_cash = float(notional * (net_alpha_bps / 10000.0))
+        return {
+            "venue": venue,
+            "channel": channel,
+            "spread_saving_bps": round(float(spread_saving_bps), 2),
+            "maker_rebate_bps": round(float(maker_rebate_bps), 2),
+            "fee_discount_pct": round(float(fee_discount_pct), 1),
+            "net_harvested_alpha_bps": round(float(net_alpha_bps), 2),
+            "harvested_cash": round(float(harvested_cash), 2),
+        }
+
+    def add_shaded_limit_order(
+        self,
+        order_id: str,
+        side: str,
+        base_price: float,
+        volume: float,
+        timestamp_ns: Optional[int] = None,
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Adds limit order with automatic Hawkes micro-tick adverse selection shading."""
+        shading = self.compute_hawkes_micro_tick_shading(side=side)
+        shaded_price = base_price + shading["price_shade_offset"]
+        fills = self.add_limit_order(order_id, side, shaded_price, volume, timestamp_ns)
+        return fills, {"shaded_price": shaded_price, "shading": shading}
 
     def get_effective_spread(self, side: str = "BUY", quantity: float = 100.0, in_bps: bool = False) -> float:
         """

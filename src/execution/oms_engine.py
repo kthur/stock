@@ -17,6 +17,10 @@ from typing import Dict, List, Any, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
+VERSION = 142
+RELEASE = "R142"
+FEATURE = "F690_EXECUTION_OMS_ENGINE"
+
 _SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9._\-^]*$")
 
 # Conservative sanity bounds for order planning. Plans outside these are dropped:

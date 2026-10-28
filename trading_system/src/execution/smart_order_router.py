@@ -17,6 +17,10 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+VERSION = 142
+RELEASE = "R142"
+FEATURE = "F691_SMART_ORDER_ROUTER_HARVESTER"
+
 
 class SmartOrderRouter:
     """
@@ -54,7 +58,8 @@ class SmartOrderRouter:
         except Exception:
             pass
         self.version = v
-        self.is_phase111 = (self.version >= 111)
+        self.is_phase142 = (self.version >= 142)
+        self.is_phase111 = self.is_phase142 or (self.version >= 111)
         self.is_phase110 = self.is_phase111 or (self.version >= 110)
         self.is_phase109 = self.is_phase110 or (self.version >= 109)
         self.is_phase108 = self.is_phase109 or (self.version >= 108)

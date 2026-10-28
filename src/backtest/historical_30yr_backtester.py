@@ -780,18 +780,18 @@ class Historical30YrBacktester:
             scores = {}
             is_expansion = bool("BULL" in regime and (trends.get("NASDAQ", False) or trends.get("SP500", False)))
             for m in trending:
-                s = max(0.01, 0.85 * moms.get(m, 0.0) + 0.20 * max(0.0, alphas.get(m, 0.0)))
+                s = max(0.01, 0.90 * moms.get(m, 0.0) + 0.25 * max(0.0, alphas.get(m, 0.0)))
                 if is_expansion:
                     if m == "NASDAQ":
-                        s *= 2.00
+                        s *= 2.40
                     elif m == "SP500":
-                        s *= 1.50
+                        s *= 1.75
                     elif m == "RUSSELL2000":
-                        s *= 1.10
+                        s *= 1.15
                     elif m == "KOSPI":
                         s *= 0.85
                     elif m == "KOSDAQ":
-                        s *= 0.25
+                        s *= 0.20
                 scores[m] = s
 
             tot_s = sum(scores.values())

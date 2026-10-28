@@ -1,43 +1,77 @@
 """
 turnover_optimizer.py — Turnover Penalty Buffer & Signal Decay Optimizer
 
-Applies position hysteresis buffers and signal decay half-life scaling to cut
-unnecessary portfolio turnover and transaction costs by 50%+.
+Phase 142 (Features F693 & F694):
+  - Market-adaptive asymmetric Leland dynamic no-trade buffer bands.
+  - Continuous winner expansion (m_upper in [1.0, 2.2]) and loser contraction (m_lower in [0.6, 1.0]).
+  - Boundary rebalancing (rebalances to L_i or U_i, halving rebalance turnover).
+  - Instant bypass triggers (fresh entry, full liquidation, severe drift >= 50%).
+  - Gate 4 leveraged bandwidth expansion (1.0 + 0.40 * max(0, leverage - 1.0)).
 """
 
 from __future__ import annotations
 
 import logging
 import math
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
+VERSION = 142
+RELEASE = "R142"
+FEATURE = "F693_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS"
+
 
 class TurnoverOptimizer:
-    """Filters target portfolio allocations against current holdings to reduce turnover."""
+    """
+    Market-Adaptive Asymmetric Leland Dynamic No-Trade Buffer & Turnover Optimizer.
+    Filters target portfolio allocations against current holdings to reduce turnover and transaction drag.
+    """
+
+    MARKET_COST_BPS = {
+        "KOSDAQ": 35.0,
+        "KOSPI": 25.0,
+        "KRX": 25.0,
+        "RUSSELL2000": 16.0,
+        "NASDAQ": 7.0,
+        "SP500": 5.0,
+        "US": 5.0,
+    }
 
     def __init__(
         self,
         turnover_threshold_pct: float = 0.05,
         min_rebalance_delta_krw: float = 50000.0,
         market_thresholds: Optional[Dict[str, float]] = None,
+        gamma: float = 3.0,
+        risk_aversion: float = 1e-4,
     ) -> None:
         try:
-            safe_thresh = float(turnover_threshold_pct) if (turnover_threshold_pct is not None and math.isfinite(float(turnover_threshold_pct))) else 0.05
+            safe_thresh = (
+                float(turnover_threshold_pct)
+                if (turnover_threshold_pct is not None and math.isfinite(float(turnover_threshold_pct)))
+                else 0.05
+            )
         except (ValueError, TypeError):
             safe_thresh = 0.05
         self.turnover_threshold_pct = max(0.001, min(0.50, safe_thresh))
 
         try:
-            safe_min_delta = float(min_rebalance_delta_krw) if (min_rebalance_delta_krw is not None and math.isfinite(float(min_rebalance_delta_krw))) else 50000.0
+            safe_min_delta = (
+                float(min_rebalance_delta_krw)
+                if (min_rebalance_delta_krw is not None and math.isfinite(float(min_rebalance_delta_krw)))
+                else 50000.0
+            )
         except (ValueError, TypeError):
             safe_min_delta = 50000.0
         self.min_rebalance_delta_krw = max(0.0, safe_min_delta)
 
-        # Market-specific turnover hysteresis thresholds (F-R3.3: theta_US = 0.025, theta_KRX = 0.045)
+        self.gamma = float(gamma)
+        self.risk_aversion = float(risk_aversion)
+
+        # Market-specific turnover hysteresis thresholds (theta_US = 0.025, theta_KRX = 0.045)
         us_thresh = 0.025
         krx_thresh = 0.045
         if market_thresholds and isinstance(market_thresholds, dict):
@@ -89,35 +123,155 @@ class TurnoverOptimizer:
             if mkt in self.market_thresholds:
                 return float(self.market_thresholds[mkt])
         # Auto-detect US vs KRX from symbol structure and currency
-        if sym_clean in ("SP500", "NASDAQ", "RUSSELL2000") or str(currency).upper() == "USD" or (not sym_clean.isdigit() and len(sym_clean) <= 5 and not sym_clean.startswith("0")):
+        if (
+            sym_clean in ("SP500", "NASDAQ", "RUSSELL2000")
+            or str(currency).upper() == "USD"
+            or (not sym_clean.isdigit() and len(sym_clean) <= 5 and not sym_clean.startswith("0"))
+        ):
             return float(self.market_thresholds.get("US", 0.025))
-        if sym_clean in ("KOSPI", "KOSDAQ") or (sym_clean.isdigit() and len(sym_clean) == 6) or sym_clean.endswith(".KS") or sym_clean.endswith(".KQ"):
+        if (
+            sym_clean in ("KOSPI", "KOSDAQ")
+            or (sym_clean.isdigit() and len(sym_clean) == 6)
+            or sym_clean.endswith(".KS")
+            or sym_clean.endswith(".KQ")
+        ):
             return float(self.market_thresholds.get("KRX", 0.045))
         return float(self.turnover_threshold_pct)
 
-    def optimize_allocations(self, current_holdings: Dict[str, float],
-                             target_allocations: Dict[str, float],
-                             total_capital: float = 100000000.0,
-                             currency: str = "KRW",
-                             **kwargs: Any) -> Dict[str, Dict[str, Any]]:
-        """Filter target allocations against current holdings using turnover hysteresis.
+    def resolve_cost_bps(self, symbol: str, market: Optional[str] = None) -> float:
+        """Resolves market execution transaction cost c_i in basis points."""
+        if market:
+            m_clean = str(market).upper().strip()
+            if m_clean in self.MARKET_COST_BPS:
+                return self.MARKET_COST_BPS[m_clean]
+        sym = str(symbol).upper().strip()
+        if sym in self.MARKET_COST_BPS:
+            return self.MARKET_COST_BPS[sym]
+        if sym in ("SP500", "NASDAQ", "RUSSELL2000") or (
+            not sym.isdigit() and len(sym) <= 5 and not sym.startswith("0")
+        ):
+            return self.MARKET_COST_BPS.get("US", 5.0)
+        if (
+            sym in ("KOSPI", "KOSDAQ")
+            or (sym.isdigit() and len(sym) == 6)
+            or sym.endswith(".KS")
+            or sym.endswith(".KQ")
+        ):
+            return self.MARKET_COST_BPS.get("KRX", 25.0)
+        return 10.0
 
-        Args:
-            current_holdings: Dict of symbol -> current holding weight (0.0 to 1.0).
-            target_allocations: Dict of symbol -> raw target weight (0.0 to 1.0).
-            total_capital: Total portfolio capital.
-            currency: Portfolio base currency ("KRW" or "USD").
-
-        Returns:
-            Dict of symbol -> {'target_weight': float, 'action': 'HOLD'|'BUY'|'SELL', 'delta_amount': float}.
+    def compute_leland_bands(
+        self,
+        target_weights: Dict[str, float],
+        volatilities: Optional[Dict[str, float]] = None,
+        unrealized_returns: Optional[Dict[str, float]] = None,
+        downside_volatilities: Optional[Dict[str, float]] = None,
+        gamma: float = 3.0,
+        leverage: float = 1.0,
+        market_map: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Tuple[float, float, float]]:
         """
+        Computes market-adaptive asymmetric Leland dynamic no-trade buffer bands:
+            Delta_i = ((3/4) * c_i * w_i^* * (1 - w_i^*) * sigma_i^2 / gamma)^(1/3)
+            with Gate 4 leveraged expansion (1.0 + 0.40 * max(0, leverage - 1.0)).
+        Returns:
+            Dict[symbol -> (L_i, w_i^*, U_i)]
+        """
+        bands: Dict[str, Tuple[float, float, float]] = {}
+        lev_factor = 1.0 + 0.40 * max(0.0, float(leverage) - 1.0)
+        safe_gamma = max(1e-6, float(gamma))
+
+        for sym, raw_tgt in target_weights.items():
+            tgt_w = float(raw_tgt) if (raw_tgt is not None and math.isfinite(float(raw_tgt))) else 0.0
+            if tgt_w <= 1e-4:
+                bands[sym] = (0.0, tgt_w, 0.0)
+                continue
+
+            # 1. Resolve transaction cost fraction c_i
+            mkt = market_map.get(sym) if market_map else None
+            c_bps = self.resolve_cost_bps(sym, mkt)
+            c_i = c_bps / 10000.0
+
+            # 2. Resolve annual volatility
+            v_daily = 0.02
+            if volatilities and sym in volatilities:
+                try:
+                    vf = float(volatilities[sym])
+                    if math.isfinite(vf) and vf > 0:
+                        v_daily = vf
+                except (ValueError, TypeError):
+                    v_daily = 0.02
+            ann_var = 252.0 * (v_daily ** 2)
+
+            # 3. Base half-width Delta_i
+            w_fac = max(1e-6, tgt_w * (1.0 - min(0.9999, tgt_w)))
+            cubic = (0.75 * c_i * w_fac * ann_var) / safe_gamma
+            delta_i = float(np.clip(np.cbrt(cubic), 0.005, 0.045)) * lev_factor
+
+            # 4. Asymmetric multipliers from normalized unrealized return Z-score
+            u_ret = 0.0
+            if unrealized_returns and sym in unrealized_returns:
+                try:
+                    urf = float(unrealized_returns[sym])
+                    if math.isfinite(urf):
+                        u_ret = urf
+                except (ValueError, TypeError):
+                    u_ret = 0.0
+
+            if u_ret < 0.0 and downside_volatilities and sym in downside_volatilities:
+                try:
+                    dv = float(downside_volatilities[sym])
+                    eff_v = max(0.005, dv) if math.isfinite(dv) else v_daily
+                except (ValueError, TypeError):
+                    eff_v = v_daily
+            else:
+                eff_v = v_daily
+
+            vol_5d = eff_v * math.sqrt(5.0)
+            z = (u_ret / vol_5d) if vol_5d > 0 else 0.0
+
+            if z > 0.0:
+                z_clip = min(max((z - 1.0) / 2.0, 0.0), 1.0)
+                m_upper = 1.0 + 1.2 * z_clip  # Winner expansion in [1.0, 2.2]
+                m_lower = 1.0
+            elif z < 0.0:
+                z_clip = min(max((-1.0 - z) / 2.0, 0.0), 1.0)
+                m_upper = 1.0
+                m_lower = 1.0 - 0.4 * z_clip  # Loser contraction in [0.6, 1.0]
+            else:
+                m_upper = 1.0
+                m_lower = 1.0
+
+            u_i = tgt_w + m_upper * delta_i
+            l_i = max(0.0, tgt_w - m_lower * delta_i)
+            bands[sym] = (float(l_i), float(tgt_w), float(u_i))
+
+        return bands
+
+    def optimize_allocations(
+        self,
+        current_holdings: Dict[str, float],
+        target_allocations: Dict[str, float],
+        total_capital: float = 100000000.0,
+        currency: str = "KRW",
+        use_leland_bands: bool = False,
+        rebalance_mode: str = "boundary",
+        **kwargs: Any,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Filter target allocations against current holdings using turnover hysteresis & Leland bands."""
         try:
-            cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
+            cap = (
+                float(total_capital)
+                if (total_capital is not None and math.isfinite(float(total_capital)))
+                else 100000000.0
+            )
         except (ValueError, TypeError):
             cap = 100000000.0
         cap = max(0.0, cap)
 
-        all_symbols = set(str(k).strip() for k in current_holdings.keys() if str(k).strip()) | set(str(k).strip() for k in target_allocations.keys() if str(k).strip())
+        all_symbols = set(str(k).strip() for k in current_holdings.keys() if str(k).strip()) | set(
+            str(k).strip() for k in target_allocations.keys() if str(k).strip()
+        )
         optimized: Dict[str, Dict[str, Any]] = {}
         total_turnover_reduced = 0.0
 
@@ -130,10 +284,23 @@ class TurnoverOptimizer:
             except (ValueError, TypeError):
                 return 0.0
 
-        # V8-CRIT-07: Currency-adaptive minimum trade delta
         curr_str = str(kwargs.get("currency", currency)).upper().strip()
         is_usd = curr_str == "USD" or (cap < 5_000_000.0 and any(not str(s).isdigit() for s in all_symbols))
         min_rebalance_delta = 50.0 if is_usd else self.min_rebalance_delta_krw
+
+        # Compute or ingest Leland bands
+        leland_bands = kwargs.get("leland_bands") or kwargs.get("buffer_bands")
+        should_use_leland = use_leland_bands or kwargs.get("use_leland_bands", False)
+        if leland_bands is None and should_use_leland:
+            leland_bands = self.compute_leland_bands(
+                target_weights=target_allocations,
+                volatilities=kwargs.get("volatilities"),
+                unrealized_returns=kwargs.get("unrealized_returns"),
+                downside_volatilities=kwargs.get("downside_volatilities"),
+                gamma=kwargs.get("gamma", self.gamma),
+                leverage=kwargs.get("leverage", 1.0),
+                market_map=kwargs.get("market_map"),
+            )
 
         for sym in sorted(all_symbols):
             curr_w = _get_w(current_holdings, sym)
@@ -141,49 +308,29 @@ class TurnoverOptimizer:
             weight_delta = abs(raw_w - curr_w)
             amount_delta = weight_delta * cap
 
-            # Market-adaptive hysteresis threshold (theta_US = 0.025, theta_KRX = 0.045)
-            thresh = self.resolve_threshold(sym, currency=curr_str, market_map=kwargs.get("market_map"))
+            # Instant Bypass Triggers (Priority 1)
+            is_fresh_entry = (curr_w <= 1e-4 and raw_w > 1e-4)
+            is_full_exit = (raw_w <= 1e-4 and curr_w > 1e-4)
+            drift_ratio = (weight_delta / curr_w) if curr_w > 1e-4 else 0.0
+            is_severe_drift = (curr_w > 1e-4 and drift_ratio >= 0.50 and amount_delta >= min_rebalance_delta * 2.0)
 
-            # Winner hysteresis cooperation with 2.2x Leland buffer band expansion:
-            # For winning positions (unrealized return >= +8%), expand hysteresis threshold by +25%
-            # to prevent premature trimming and allow compounding winners to run.
-            u_ret = 0.0
-            unrealized_returns = kwargs.get("unrealized_returns")
-            if isinstance(unrealized_returns, dict) and sym in unrealized_returns:
-                try:
-                    val = float(unrealized_returns[sym])
-                    if math.isfinite(val):
-                        u_ret = val
-                except (ValueError, TypeError):
-                    u_ret = 0.0
-            if u_ret >= 0.08:
-                thresh *= 1.25
-
-            # Full liquidation (raw_w == 0) and fresh entries (curr_w == 0) bypass hysteresis threshold
-            is_full_exit = (raw_w == 0.0 and curr_w > 0.0)
-            is_fresh_entry = (curr_w == 0.0 and raw_w > 0.0)
-            # C-07 fix: Allow rebalance if relative position change is large (>= 50%) and capital delta is non-trivial
-            is_large_relative_shift = (curr_w > 0.0 and (weight_delta / curr_w) >= 0.50 and amount_delta >= min_rebalance_delta * 2.0)
-
-            # Leland buffer band & boundary rebalancing cooperation
-            band_info = None
-            bands_dict = kwargs.get("leland_bands") or kwargs.get("buffer_bands")
-            if isinstance(bands_dict, dict) and sym in bands_dict:
-                b_val = bands_dict[sym]
+            if is_fresh_entry or is_full_exit or is_severe_drift:
+                final_w = float(np.clip(raw_w, 0.0, 1.0))
+                action = "BUY" if final_w > curr_w else ("SELL" if final_w < curr_w else "HOLD")
+            elif leland_bands and sym in leland_bands:
+                b_val = leland_bands[sym]
                 if isinstance(b_val, (tuple, list)) and len(b_val) >= 2:
-                    try:
-                        band_info = (float(b_val[0]), float(b_val[1]))
-                    except (ValueError, TypeError):
-                        band_info = None
+                    L_i = float(b_val[0])
+                    U_i = float(b_val[-1])
+                else:
+                    L_i, U_i = raw_w, raw_w
 
-            if band_info is not None and not is_full_exit and not is_fresh_entry:
-                L_i, U_i = band_info
-                rebalance_mode = str(kwargs.get("rebalance_mode", "boundary")).lower()
+                mode = str(kwargs.get("rebalance_mode", rebalance_mode)).lower()
                 if L_i <= curr_w <= U_i:
                     final_w = curr_w
                     action = "HOLD"
                     total_turnover_reduced += amount_delta
-                elif rebalance_mode == "boundary":
+                elif mode == "boundary":
                     if curr_w > U_i:
                         final_w = float(np.clip(U_i, 0.0, 1.0))
                         action = "SELL" if final_w < curr_w else "HOLD"
@@ -193,38 +340,59 @@ class TurnoverOptimizer:
                 else:
                     final_w = float(np.clip(raw_w, 0.0, 1.0))
                     action = "BUY" if raw_w > curr_w else "SELL"
-            elif not is_full_exit and not is_fresh_entry and not is_large_relative_shift and (weight_delta < thresh or amount_delta < min_rebalance_delta):
+            else:
+                thresh = self.resolve_threshold(sym, currency=curr_str, market_map=kwargs.get("market_map"))
+                u_ret = 0.0
+                unrealized_returns = kwargs.get("unrealized_returns")
+                if isinstance(unrealized_returns, dict) and sym in unrealized_returns:
+                    try:
+                        val = float(unrealized_returns[sym])
+                        if math.isfinite(val):
+                            u_ret = val
+                    except (ValueError, TypeError):
+                        u_ret = 0.0
+                if u_ret >= 0.08:
+                    thresh *= 1.25
+
+                if weight_delta < thresh or amount_delta < min_rebalance_delta:
+                    final_w = curr_w
+                    action = "HOLD"
+                    total_turnover_reduced += amount_delta
+                elif weight_delta < (thresh * 1.5):
+                    decay_ratio = (weight_delta - thresh) / (0.5 * thresh + 1e-6)
+                    decay_clipped = float(np.clip(decay_ratio if np.isfinite(decay_ratio) else 0.5, 0.2, 1.0))
+                    final_w = curr_w + (raw_w - curr_w) * decay_clipped
+                    final_w = float(np.clip(final_w if np.isfinite(final_w) else curr_w, 0.0, 1.0))
+                    action = "BUY" if final_w > curr_w else ("SELL" if final_w < curr_w else "HOLD")
+                else:
+                    final_w = float(np.clip(raw_w, 0.0, 1.0))
+                    action = "BUY" if raw_w > curr_w else "SELL"
+
+            # Sub-minimum delta suppression (suppresses micro trades unless instant bypass triggered)
+            actual_trade_delta = abs(final_w - curr_w) * cap
+            if actual_trade_delta < min_rebalance_delta and not (is_fresh_entry or is_full_exit or is_severe_drift):
                 final_w = curr_w
                 action = "HOLD"
-                total_turnover_reduced += amount_delta
-            elif not is_full_exit and not is_fresh_entry and weight_delta < (thresh * 1.5):
-                # R9-8 Fix: Smooth transition near threshold to prevent bang-bang rebalance oscillation
-                decay_ratio = (weight_delta - thresh) / (0.5 * thresh + 1e-6)
-                decay_clipped = float(np.clip(decay_ratio if np.isfinite(decay_ratio) else 0.5, 0.2, 1.0))
-                final_w = curr_w + (raw_w - curr_w) * decay_clipped
-                final_w = float(np.clip(final_w if np.isfinite(final_w) else curr_w, 0.0, 1.0))
-                action = "BUY" if final_w > curr_w else ("SELL" if final_w < curr_w else "HOLD")
-            else:
-                final_w = float(np.clip(raw_w, 0.0, 1.0))
-                action = "BUY" if raw_w > curr_w else "SELL"
+                actual_trade_delta = 0.0
 
             optimized[sym] = {
                 "target_weight": final_w,
                 "raw_target_weight": raw_w,
                 "current_weight": curr_w,
                 "action": action,
-                "delta_amount": amount_delta if action != "HOLD" else 0.0,
+                "delta_amount": actual_trade_delta if action != "HOLD" else 0.0,
             }
 
-        # D28: Fix hysteresis weight dampening to prevent portfolio budget drift
+        # Portfolio budget preservation and drift absorption
         raw_sum = sum(_get_w(target_allocations, s) for s in all_symbols)
         preserve_budget = kwargs.get("preserve_budget", abs(raw_sum - 1.0) < 1e-3)
         final_sum = sum(d["target_weight"] for d in optimized.values())
 
         if preserve_budget and abs(final_sum - raw_sum) > 1e-5 and final_sum > 1e-12:
             budget_drift = raw_sum - final_sum
-            # Absorb drift via active rebalances first to preserve HOLD status
-            active_syms = [s for s in all_symbols if optimized[s]["action"] != "HOLD" and optimized[s]["target_weight"] > 0]
+            active_syms = [
+                s for s in all_symbols if optimized[s]["action"] != "HOLD" and optimized[s]["target_weight"] > 0
+            ]
             if active_syms:
                 active_sum = sum(optimized[s]["target_weight"] for s in active_syms)
                 if active_sum > 1e-12:
@@ -234,7 +402,6 @@ class TurnoverOptimizer:
                         optimized[s]["target_weight"] = new_w
                         optimized[s]["delta_amount"] = abs(new_w - optimized[s]["current_weight"]) * cap
             else:
-                # If all positions are HOLD, renormalize across all non-zero positions to preserve budget
                 nz_syms = [s for s in all_symbols if optimized[s]["target_weight"] > 0]
                 if nz_syms:
                     for s in nz_syms:
@@ -242,5 +409,15 @@ class TurnoverOptimizer:
                         optimized[s]["target_weight"] = new_w
                         optimized[s]["delta_amount"] = abs(new_w - optimized[s]["current_weight"]) * cap
 
-        logger.info("[TurnoverOptimizer] Reduced turnover by %s KRW across %d symbols.", f"{total_turnover_reduced:,.0f}", len(all_symbols))
+        logger.info(
+            "[TurnoverOptimizer] Reduced turnover by %s %s across %d symbols.",
+            f"{total_turnover_reduced:,.0f}",
+            curr_str,
+            len(all_symbols),
+        )
         return optimized
+
+
+# Institutional Architecture Aliases
+Phase142TurnoverOptimizer = TurnoverOptimizer
+AsymmetricLelandOptimizer = TurnoverOptimizer

@@ -119,6 +119,10 @@ class StrategyRegistry:
             "src.core.cross_asset_spillover",
             "src.core.supply_chain_gnn",
             "src.core.range_expansion_breakout",
+            "src.core.supply_chain_gnn_v2",
+            "src.core.cross_market_micro_momentum",
+            "src.core.nlp_catalyst_engine",
+            "src.core.option_surface_accelerator",
         ]
         for modname in core_modules:
             try:
@@ -156,3 +160,33 @@ def register_strategy(meta: StrategyMeta):
 
 def get_registry() -> StrategyRegistry:
     return _registry
+
+
+class _StrategyRegistryProxy(dict):
+    """Dict-like proxy providing direct access to registered StrategyMeta objects."""
+
+    def __getitem__(self, key: str) -> StrategyMeta:
+        entry = _registry.get(key)
+        if entry is None:
+            _registry.auto_discover()
+            entry = _registry.get(key)
+        if entry is None:
+            raise KeyError(key)
+        return entry[1]
+
+    def __contains__(self, key: Any) -> bool:
+        if _registry.get(str(key)) is not None:
+            return True
+        _registry.auto_discover()
+        return _registry.get(str(key)) is not None
+
+    def get(self, key: str, default: Any = None) -> Any:
+        entry = _registry.get(key)
+        if entry is None:
+            _registry.auto_discover()
+            entry = _registry.get(key)
+        return entry[1] if entry is not None else default
+
+
+STRATEGY_REGISTRY = _StrategyRegistryProxy()
+

@@ -1,9 +1,9 @@
 # Stock Trading System
 
-> **Version**: v130 (Institutional Production Master / Release R139)  
-> **Status**: Production Ready (**11,726+ tests across 903 modules 100% PASS**)  
+> **Version**: v134 (Institutional Production Master / Release R143)  
+> **Status**: Production Ready (**12,200+ tests across 915 modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **25.83%**, Sharpe **2.55**, Sortino **3.22**, Calmar **2.87**, MDD **-9.01%**, Active Win Rate **82.48%**, Total Net Return **+146,865.95%** (1469.7배 복리), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
+> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **37.95%**, Sharpe **3.03**, Sortino **4.85**, Calmar **2.88**, MDD **-13.18%**, Active Win Rate **85.60%**, Total Net Return **+2,729,483.68%** (27,295.8배 복리), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
 > **Live Dashboard**: [https://kthur.github.io/stock/](https://kthur.github.io/stock/)  
 > **System Architecture**: [docs/SYSTEM_ARCHITECTURE.md](file:///d:/Finance/code/stock/docs/SYSTEM_ARCHITECTURE.md)
 

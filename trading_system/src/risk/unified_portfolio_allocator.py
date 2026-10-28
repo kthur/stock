@@ -27,6 +27,14 @@ from src.analysis.portfolio_optimizer import (
 
 logger = logging.getLogger(__name__)
 
+try:
+    from src.risk.dynamic_regime_leverage_allocator import DynamicRegimeLeverageAllocator
+except ImportError:
+    try:
+        from trading_system.src.risk.dynamic_regime_leverage_allocator import DynamicRegimeLeverageAllocator
+    except ImportError:
+        DynamicRegimeLeverageAllocator = None  # type: ignore
+
 
 class UnifiedPortfolioAllocator:
     """
@@ -47,12 +55,18 @@ class UnifiedPortfolioAllocator:
         "CRISIS": {"bl": 0.00, "herc": 0.10, "rp": 0.05, "cvar": 0.85},
     }
 
-    # Regime-Adaptive Volatility Budget & Max Exposure Ceilings (30-Year Optimized)
+    # Regime-Adaptive Volatility Budget & Max Exposure Ceilings (30-Year Optimized, Unleveraged Baseline)
     REGIME_ADAPTIVE_RISK_BUDGET = {
         "BULL_LOW_VOL": {
             "target_vol": 0.16,
             "max_exposure": 1.00,
             "min_exposure": 0.98,
+            "max_single_weight": 0.50,
+        },
+        "RELIEF_RALLY": {
+            "target_vol": 0.16,
+            "max_exposure": 1.00,
+            "min_exposure": 0.90,
             "max_single_weight": 0.50,
         },
         "BULL_HIGH_VOL": {
@@ -123,7 +137,8 @@ class UnifiedPortfolioAllocator:
                     if m:
                         version = int(m.group(1))
         self.version = int(version)
-        self.is_phase110 = (self.version >= 110)
+        self.is_phase141 = (self.version >= 141)
+        self.is_phase110 = (self.version >= 110) or self.is_phase141
         self.is_phase109 = (self.version >= 109) or self.is_phase110
         self.is_phase108 = (self.version >= 108) or self.is_phase109
         self.is_phase107 = (self.version >= 107) or self.is_phase108
@@ -175,6 +190,21 @@ class UnifiedPortfolioAllocator:
             except Exception as e_alloc:
                 logger.debug(f"[HierarchicalEntropyAllocator init] {e_alloc}")
                 self.herc_entropy_allocator = None
+
+        if "enable_dynamic_regime_leverage" in kwargs:
+            self.enable_dynamic_regime_leverage = bool(kwargs["enable_dynamic_regime_leverage"])
+        else:
+            self.enable_dynamic_regime_leverage = self.is_phase141
+        self.regime_leverage_allocator = None
+        if DynamicRegimeLeverageAllocator is not None:
+            self.regime_leverage_allocator = DynamicRegimeLeverageAllocator(
+                max_bull_leverage=1.25,
+                min_crisis_exposure=0.15,
+                borrowing_spread_bps=60.0,
+                hwm_dd_limit=-0.15,
+                default_kappa=0.375,
+                top_k_modes=50,
+            )
 
     @staticmethod
     def calculate_asymmetric_leland_multipliers(
@@ -26139,12 +26169,14 @@ class UnifiedPortfolioAllocator:
         cov_matrix: np.ndarray,
         regime: Optional[Union[str, int, Dict[str, float]]] = "BULL_LOW_VOL",
         expected_returns: Optional[np.ndarray] = None,
+        dynamic_leverage: Optional[float] = None,
+        asset_betas: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, float]:
         """
         Dynamic Target Volatility (12% Annualized) Scaling & Cash Drag Eliminator:
         Scales total portfolio allocation up or down based on current realized volatility.
-        - In Bull Low-Vol: scales allocation up to 98% (eliminating cash drag).
-        - In High-Conviction Bull (Sharpe >= 1.5): scales allocation up to 100% (Kelly boost).
+        - In Bull Low-Vol: scales allocation up to 98% (eliminating cash drag) or up to 125% with dynamic leverage.
+        - In High-Conviction Bull (Sharpe >= 1.5): scales allocation up to 100% or 125% (Kelly boost).
         - In Bear High-Vol / Crisis: scales allocation down to 40~50% (preserving cash).
         F37: Entropy-Weighted Adaptive Target Volatility Scaling under Shannon regime uncertainty:
             U_regime = H(pi) / ln(6)
@@ -26179,15 +26211,15 @@ class UnifiedPortfolioAllocator:
         else:
             regime_str = str(regime).upper() if regime else ""
 
-        # 30-Year Optimized Regime-Adaptive Risk Budget Resolution (F-R1.1)
+        # 30-Year Optimized Regime-Adaptive Risk Budget Resolution (F-R1.1, Phase 141 Dynamic Leverage)
         budget_cfg = self.REGIME_ADAPTIVE_RISK_BUDGET.get(regime_str)
         if budget_cfg is not None:
             base_target_vol = float(budget_cfg.get("target_vol", self.target_volatility))
-            max_alloc_cap = float(budget_cfg.get("max_exposure", 0.98))
+            max_alloc_cap = float(budget_cfg.get("max_exposure", 1.00))
             min_alloc_floor = float(budget_cfg.get("min_exposure", 0.20))
         elif "BULL" in regime_str:
             base_target_vol = 0.16 if "LOW_VOL" in regime_str else 0.14
-            max_alloc_cap = 1.00  # Cash drag eliminator
+            max_alloc_cap = 1.00
             min_alloc_floor = 0.98 if "LOW_VOL" in regime_str else 0.95
         elif "SIDEWAYS" in regime_str:
             base_target_vol = 0.12
@@ -26198,6 +26230,19 @@ class UnifiedPortfolioAllocator:
             max_alloc_cap = 0.50  # Risk off
             min_alloc_floor = 0.20
 
+        # Dynamic Leverage Override: Instance-level runtime scaling without mutating static dictionary
+        dynamic_leverage_enabled = getattr(self, "enable_dynamic_regime_leverage", False) or (dynamic_leverage is not None and dynamic_leverage > 0)
+        if dynamic_leverage_enabled:
+            if dynamic_leverage is not None and dynamic_leverage > 0:
+                max_alloc_cap = float(dynamic_leverage)
+            elif "LOW_VOL" in regime_str or "RELIEF_RALLY" in regime_str:
+                max_alloc_cap = 1.25
+            elif "BULL_HIGH_VOL" in regime_str:
+                max_alloc_cap = 1.10
+        else:
+            max_alloc_cap = float(budget_cfg.get("max_exposure", 1.00)) if budget_cfg is not None else 1.00
+            max_alloc_cap = min(max_alloc_cap, 1.00)
+
         if "BULL" in regime_str:
             # High-Conviction Continuous Kelly Edge Boost
             if expected_returns is not None and len(expected_returns) == n:
@@ -26207,7 +26252,10 @@ class UnifiedPortfolioAllocator:
                 annualized_exp_ret = float(np.dot(weights, p_rets) * (252.0 / 20.0))
                 sharpe_proxy = (annualized_exp_ret - 0.03) / max(annualized_port_vol, 0.05)
                 if sharpe_proxy >= 1.50 and annualized_port_vol <= 0.15:
-                    max_alloc_cap = 1.00
+                    if dynamic_leverage_enabled:
+                        max_alloc_cap = max(max_alloc_cap, 1.25 if "LOW_VOL" in regime_str else 1.10)
+                    else:
+                        max_alloc_cap = 1.00
                     min_alloc_floor = 0.98 if "LOW_VOL" in regime_str else 0.95
         elif "SIDEWAYS" in regime_str:
             if getattr(self, "is_phase101", False):
@@ -26240,6 +26288,15 @@ class UnifiedPortfolioAllocator:
 
         # Scale weights
         scaled_weights = weights * effective_alloc
+
+        # Strict Portfolio Beta Clamping: beta_port <= 1.00 when effective_alloc > 1.00
+        if effective_alloc > 1.00 and asset_betas is not None:
+            betas = np.nan_to_num(np.asarray(asset_betas, dtype=float), nan=1.0)
+            if len(betas) == n:
+                port_beta = float(np.sum(scaled_weights * betas))
+                if port_beta > 1.000001:
+                    scaled_weights = scaled_weights * (1.00 / port_beta)
+
         return scaled_weights, effective_alloc
 
     scale_target_volatility = apply_target_volatility_scaling
@@ -26268,6 +26325,7 @@ class UnifiedPortfolioAllocator:
         markets: Optional[List[str]] = None,
         downside_volatilities: Optional[Union[np.ndarray, List[float]]] = None,
         max_total_allocation: Optional[float] = None,
+        leverage: Optional[float] = None,
     ) -> np.ndarray:
         """
         Volatility-Normalized Asymmetric Leland Dynamic No-Trade Buffer Bands:
@@ -26286,6 +26344,7 @@ class UnifiedPortfolioAllocator:
           - NASDAQ: 7.0 bps (0.5 bps reg fee + 6.5 bps half-spread)
           - SP500: 5.0 bps (0.5 bps reg fee + 4.5 bps half-spread)
         Delta_i = ( 3/4 * Cost_i * w_i * (1 - w_i) * sigma_ann^2 / gamma )^(1/3)
+        Phase 141 Gate 4: Leveraged bandwidth expansion factor (1.0 + 0.40 * max(0, L - 1.0))
         """
         n = len(target_weights)
         if current_weights is None or len(current_weights) != n or np.all(current_weights <= 0):
@@ -26334,14 +26393,20 @@ class UnifiedPortfolioAllocator:
             0.045
         )
 
+        # Gate 4: Leveraged Leland dynamic buffer band expansion
+        lev = float(leverage) if (leverage is not None and leverage > 0) else (float(max_total_allocation) if (max_total_allocation is not None and max_total_allocation > 0) else 1.0)
+        bandwidth_factor = 1.0 + 0.40 * max(0.0, lev - 1.0)
+        leland_deltas = leland_deltas * bandwidth_factor
+
         realized_w = np.copy(target_weights)
         for i in range(n):
             curr_w = current_weights[i]
             tgt_w = target_weights[i]
             delta = leland_deltas[i]
 
-            # Bypass buffer for new entries (curr <= 1e-4) or full liquidations (tgt <= 1e-4)
-            if curr_w <= 1e-4 or tgt_w <= 1e-4:
+            # Bypass buffer for new entries (curr <= 1e-4), full liquidations (tgt <= 1e-4), or extreme drift (>= 50%)
+            drift = abs(curr_w - tgt_w) / max(tgt_w, 1e-6)
+            if curr_w <= 1e-4 or tgt_w <= 1e-4 or drift >= 0.50:
                 realized_w[i] = tgt_w
                 continue
 
@@ -26375,7 +26440,8 @@ class UnifiedPortfolioAllocator:
                 realized_w[i] = upper_band if mode == "boundary" else tgt_w
 
         # Budget constraint safeguard: prevent accumulated buffer bands from creating unintended leverage or leaking cash reserve
-        limit_exec = min(max_total_allocation, 1.00) if (max_total_allocation is not None and max_total_allocation > 0) else 1.00
+        max_cap = 1.25 if getattr(self, "enable_dynamic_regime_leverage", False) else 1.00
+        limit_exec = min(max_total_allocation, max_cap) if (max_total_allocation is not None and max_total_allocation > 0) else 1.00
         tot_target = float(np.sum(target_weights))
         ref_target = min(limit_exec, tot_target) if tot_target > 0 else limit_exec
         tot_w = float(np.sum(realized_w))
@@ -26757,9 +26823,30 @@ class UnifiedPortfolioAllocator:
             version=eff_version,
         )
 
+        # Phase 141 (Feature F689): Dynamic Regime Leverage & 4-Tier Protective Gating
+        vix_val = float(kwargs.get("vix", 16.0))
+        vix_hist = kwargs.get("vix_history", None)
+        tsr_val = float(kwargs.get("tsr_ratio", kwargs.get("tsr", 0.90)))
+        tsr_hist = kwargs.get("tsr_history", None)
+        asset_betas = kwargs.get("asset_betas", None)
+        if asset_betas is None and "beta" in df_candidates.columns:
+            asset_betas = df_candidates["beta"].values.astype(float)
+
+        dyn_leverage = 1.0
+        if getattr(self, "enable_dynamic_regime_leverage", False) and hasattr(self, "regime_leverage_allocator") and self.regime_leverage_allocator is not None:
+            dyn_leverage = self.regime_leverage_allocator.evaluate_dynamic_leverage_frontier(
+                current_nav=total_portfolio_value,
+                vix=vix_val,
+                vix_history=vix_hist or [],
+                tsr_ratio=tsr_val,
+                regime=regime or "BULL_LOW_VOL",
+                tsr_history=tsr_hist,
+            )
+
         # Step 2: Target Volatility Scaling & Cash Drag Eliminator
         w_scaled, effective_alloc = self.apply_target_volatility_scaling(
-            w_opt, cov_matrix, regime=regime, expected_returns=pred_rets
+            w_opt, cov_matrix, regime=regime, expected_returns=pred_rets,
+            dynamic_leverage=dyn_leverage, asset_betas=asset_betas,
         )
 
         # Step 3: Asymmetric Leland Dynamic No-Trade Buffer
@@ -26788,7 +26875,8 @@ class UnifiedPortfolioAllocator:
         w_final = self.apply_leland_no_trade_buffers(
             w_scaled, current_weights, volatilities=vols, unrealized_returns=unrealized_rets,
             rebalance_mode=rebalance_mode, symbols=valid_symbols,
-            max_total_allocation=effective_alloc
+            max_total_allocation=effective_alloc,
+            leverage=effective_alloc,
         )
 
         # Step 4: Compute shares, lot sizes, and allocation amounts
@@ -26865,11 +26953,14 @@ class UnifiedPortfolioAllocator:
         df_candidates["lot_size"] = lot_list
 
         tot_invested = float(df_candidates['weight'].sum())
-        cash_buffer_weight = max(0.0, 1.0 - tot_invested)
+        gross_budget = max(1.0, float(effective_alloc))
+        cash_buffer_weight = max(0.0, gross_budget - tot_invested)
         cash_buffer_amount = cash_buffer_weight * total_portfolio_value
         df_candidates.attrs["cash_buffer_weight"] = cash_buffer_weight
         df_candidates.attrs["cash_buffer_amount"] = cash_buffer_amount
         df_candidates.attrs["total_invested_weight"] = tot_invested
+        df_candidates.attrs["dynamic_leverage"] = dyn_leverage
+        df_candidates.attrs["effective_allocation"] = effective_alloc
 
         logger.info(
             f"[UnifiedPortfolioAllocator] Allocated {len(df_candidates)} assets. "
