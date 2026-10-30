@@ -576,7 +576,7 @@ def test_relative_links_and_page_budgets(pages_content: Dict[str, str]):
     for page_name, content in pages_content.items():
         links = re.findall(r'href="([^"]+)"', content)
         for link in links:
-            if link.startswith(("http://", "https://", "mailto:", "javascript:", "#")):
+            if link.startswith(("http://", "https://", "mailto:", "javascript:", "data:", "#")):
                 continue
             if "#" in link:
                 file_part, anchor = link.split("#", 1)

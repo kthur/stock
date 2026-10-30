@@ -1366,11 +1366,25 @@ def build_styles(base_styles: str = "") -> str:
 
 def build_head(title: str, description: str, active_page: str, extra_head: str = "", base_styles: str = "") -> str:
     """Generates the unified <head> block for pages."""
+    favicon_svg = (
+        "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+        "<text y='.9em' font-size='90'>📈</text></svg>"
+    )
+    theme_script = """<script>
+(function() {
+  try {
+    var t = localStorage.getItem('quant_theme') || localStorage.getItem('app_theme') || localStorage.getItem('theme');
+    if (t) document.documentElement.setAttribute('data-theme', t);
+  } catch(e) {}
+})();
+</script>"""
     return f"""<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{title}</title>
 <meta name="description" content="{description}">
+<link rel="icon" href="{favicon_svg}">
+{theme_script}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {extra_head}
 {build_styles(base_styles)}
@@ -1827,23 +1841,39 @@ function setColumnPreset(preset) {{
 
 function filterMarketTable(query) {{
   const q = (query || '').trim().toLowerCase();
-  const trs = document.querySelectorAll('#market-full-table tbody tr');
+  const tbody = document.querySelector('#market-full-table tbody');
+  if (!tbody) return;
+  const trs = tbody.querySelectorAll('tr:not(.search-empty-row)');
+  let matches = 0;
   trs.forEach(tr => {{
     const sym = (tr.getAttribute('data-symbol') || '').toLowerCase();
     const name = (tr.getAttribute('data-name') || '').toLowerCase();
     if (!q || sym.includes(q) || name.includes(q)) {{
       tr.style.display = '';
+      matches++;
     }} else {{
       tr.style.display = 'none';
     }}
   }});
+  let emptyRow = tbody.querySelector('.search-empty-row');
+  if (matches === 0 && trs.length > 0) {{
+    if (!emptyRow) {{
+      emptyRow = document.createElement('tr');
+      emptyRow.className = 'search-empty-row';
+      emptyRow.innerHTML = '<td colspan="100" class="empty" style="text-align:center; padding:36px 16px; color:var(--muted); font-size:0.9rem;">🔍 일치하는 종목이 없습니다.</td>';
+      tbody.appendChild(emptyRow);
+    }}
+    emptyRow.style.display = '';
+  }} else if (emptyRow) {{
+    emptyRow.style.display = 'none';
+  }}
 }}
 
 let sortState = {{}};
 function sortMarketTable(colIdx) {{
   const table = document.getElementById('market-full-table');
   const tbody = table.querySelector('tbody');
-  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const rows = Array.from(tbody.querySelectorAll('tr:not(.search-empty-row)'));
   const isAsc = sortState[colIdx] === 'asc';
   sortState[colIdx] = isAsc ? 'desc' : 'asc';
   
@@ -1884,7 +1914,11 @@ function exportMarketToCsv(mktName) {{
 
 function switchTheme(theme) {{
   document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('theme', theme);
+  try {{
+    localStorage.setItem('quant_theme', theme);
+    localStorage.setItem('app_theme', theme);
+    localStorage.setItem('theme', theme);
+  }} catch(e) {{}}
   document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
   const btn = document.getElementById('theme-' + theme);
   if (btn) btn.classList.add('active');
@@ -1893,13 +1927,23 @@ function switchTheme(theme) {{
 function resetTableSort() {{
   const tbody = document.querySelector('#market-full-table tbody');
   if (!tbody) return;
-  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const rows = Array.from(tbody.querySelectorAll('tr:not(.search-empty-row)'));
   rows.sort((a, b) => {{
     const oA = parseInt(a.getAttribute('data-initial-order') || '0', 10);
     const oB = parseInt(b.getAttribute('data-initial-order') || '0', 10);
     return oA - oB;
   }});
   rows.forEach(r => tbody.appendChild(r));
+}}
+
+function updateWatchlistUI() {{
+  try {{
+    const list = JSON.parse(localStorage.getItem('quant_watchlist') || '[]');
+    document.querySelectorAll('.btn-watchlist').forEach(btn => {{
+      const sym = btn.getAttribute('data-sym');
+      btn.classList.toggle('active', list.includes(sym));
+    }});
+  }} catch(e) {{}}
 }}
 
 function toggleWatchlist(symbol, event) {{
@@ -1914,9 +1958,7 @@ function toggleWatchlist(symbol, event) {{
     showToast(`[${{symbol}}] 관심종목에서 해제되었습니다.`, '⭐');
   }}
   localStorage.setItem('quant_watchlist', JSON.stringify(list));
-  document.querySelectorAll(`button[data-sym="${{symbol}}"]`).forEach(btn => {{
-    btn.classList.toggle('active', list.includes(symbol));
-  }});
+  updateWatchlistUI();
 }}
 
 // ── Global Toast Notification ──
@@ -2213,6 +2255,22 @@ window.addEventListener('keydown', (e) => {{
     else if (e.key === 'Escape') closeStockDrawer();
   }}
 }});
+
+// Initialize Market Page UX State
+function initMarketPage() {{
+  try {{
+    const savedTheme = localStorage.getItem('quant_theme') || localStorage.getItem('app_theme') || localStorage.getItem('theme') || 'dark';
+    switchTheme(savedTheme);
+  }} catch(e) {{}}
+  try {{
+    updateWatchlistUI();
+  }} catch(e) {{}}
+}}
+if (document.readyState === 'loading') {{
+  document.addEventListener('DOMContentLoaded', initMarketPage);
+}} else {{
+  initMarketPage();
+}}
 </script>
 """
 

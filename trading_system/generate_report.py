@@ -6354,6 +6354,9 @@ function switchTabById(tabId) {{
   if (targetBtn) {{
     targetBtn.click();
     targetBtn.scrollIntoView({{ behavior: 'smooth', block: 'nearest', inline: 'center' }});
+  }} else {{
+    // If tab not present on current page (e.g. index.html), navigate to strategies.html deep-link
+    window.location.href = `strategies.html#panel-${{tabId}}`;
   }}
 }}
 
@@ -6728,8 +6731,21 @@ document.addEventListener('DOMContentLoaded', function() {{
 
   // Initial trigger
   // Initialize UX State
-  const savedTheme = localStorage.getItem('app_theme') || 'dark';
+  const savedTheme = localStorage.getItem('quant_theme') || localStorage.getItem('app_theme') || localStorage.getItem('theme') || 'dark';
   switchTheme(savedTheme);
+
+  // Deep link support for strategy panels (e.g. #panel-regression)
+  if (window.location.hash) {{
+    const rawHash = window.location.hash.substring(1);
+    const targetStrat = rawHash.replace(/^panel-/, '').replace(/^strat-card-/, '');
+    setTimeout(() => {{
+      switchTabById(targetStrat);
+      const targetEl = document.getElementById(rawHash) || document.getElementById('panel-' + targetStrat) || document.getElementById('strat-card-' + targetStrat);
+      if (targetEl) {{
+        targetEl.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+      }}
+    }}, 150);
+  }}
   const savedDensity = localStorage.getItem('table_density') || 'comfortable';
   if (savedDensity === 'compact') setTableDensity('compact');
 
@@ -6833,7 +6849,11 @@ let drawerRadarChartInstance = null;
 
 function switchTheme(theme) {{
   document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('app_theme', theme);
+  try {{
+    localStorage.setItem('quant_theme', theme);
+    localStorage.setItem('app_theme', theme);
+    localStorage.setItem('theme', theme);
+  }} catch(e) {{}}
   document.querySelectorAll('.theme-btn').forEach(btn => {{
     btn.classList.toggle('active', btn.id === `theme-${{theme}}`);
   }});

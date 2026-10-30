@@ -51,7 +51,7 @@ def _verify_all_relative_links(base_dir: Path) -> list[str]:
         soup = BeautifulSoup(file_path.read_text(encoding="utf-8"), "html.parser")
         for a in soup.find_all("a", href=True):
             href = a["href"].strip()
-            if not href or href == "#" or href.startswith("http://") or href.startswith("https://") or href.startswith("mailto:"):
+            if not href or href == "#" or href.startswith("http://") or href.startswith("https://") or href.startswith("mailto:") or href.startswith("data:") or href.startswith("javascript:"):
                 continue
             if href.startswith("#"):
                 anchor = href.lstrip("#")

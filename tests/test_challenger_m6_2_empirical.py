@@ -382,7 +382,7 @@ def test_payload_budget_and_zero_broken_relative_links(pages_raw: Dict[str, str]
     for page_name, html in pages_raw.items():
         links = re.findall(r'href="([^"]+)"', html)
         for link in links:
-            if link.startswith(("http://", "https://", "mailto:", "javascript:", "#")):
+            if link.startswith(("http://", "https://", "mailto:", "javascript:", "data:", "#")):
                 continue
             if "#" in link:
                 file_target, anchor = link.split("#", 1)

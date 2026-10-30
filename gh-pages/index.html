@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>📈 Stock Prediction Dashboard | KRX & SP500</title>
 <meta name="description" content="AI 기반 한국·미국 주식 3,379종목 37대 다변화 전략 앙상블 대시보드">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<script>
+(function() {
+  try {
+  var t = localStorage.getItem('quant_theme') || localStorage.getItem('app_theme') || localStorage.getItem('theme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+  } catch(e) {}
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -2092,7 +2101,7 @@ border-color: var(--accent);
   <a href="index.html" class="nav-link active nav-active">🏠 메인 대시보드</a><a href="strategies.html" class="nav-link">📚 전략 도감 (37)</a><a href="market_kospi.html" class="nav-link">🇰🇷 KOSPI</a><a href="market_kosdaq.html" class="nav-link">🇰🇷 KOSDAQ</a><a href="market_sp500.html" class="nav-link">🇺🇸 S&P 500</a><a href="market_nasdaq.html" class="nav-link">🇺🇸 NASDAQ</a><a href="market_russell2000.html" class="nav-link">🇺🇸 Russell 2000</a>
   </nav>
   <div class="sticky-nav-actions">
-  <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-10-28 16:58 KST</span>
+  <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-10-31 06:37 KST</span>
   </div>
   </div>
 </header>
@@ -2128,10 +2137,10 @@ border-color: var(--accent);
   <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇺🇸 US: 🟢 BULL_LOW_VOL (저변동 강세)</span>
   <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇰🇷 KR: 🟢 BULL_LOW_VOL (저변동 강세)</span>
   <span class="badge" style="color:#e3b341; border-color:#e3b341; background:#e3b34120;">⚡ Decoupled (DECOUPLING_KR_BULL_US_BEAR)</span>
-  <span class="badge market-hours-badge" id="krx-status-badge">🇰🇷 KRX <span class="pulse-dot closed" id="krx-pulse"></span> <span id="krx-status-text">장마감 (Closed)</span></span>
-  <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot closed" id="us-pulse"></span> <span id="us-status-text">장마감 (Closed)</span></span>
+  <span class="badge market-hours-badge" id="krx-status-badge">🇰🇷 KRX <span class="pulse-dot closed" id="krx-pulse"></span> <span id="krx-status-text">주말 휴장 (Closed)</span></span>
+  <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot pre" id="us-pulse"></span> <span id="us-status-text">After-Hours</span></span>
   <span class="badge badge-date">📅 2026-10-15 06:25 KST</span>
-  <span class="badge badge-updated">🔄 갱신: 2026-10-28 16:58 KST</span>
+  <span class="badge badge-updated">🔄 갱신: 2026-10-31 06:37 KST</span>
   </div>
 </div>
 
@@ -2150,7 +2159,7 @@ border-color: var(--accent);
   <span class="badge" style="color:#e3b341; border-color:#e3b341; background:#e3b34120;">⚡ Decoupled (DECOUPLING_KR_BULL_US_BEAR)</span>
   <span class="badge badge-crisis-none" style="color: #2ea043; border-color: rgba(46, 160, 67, 0.5); background: rgba(46, 160, 67, 0.15);">🛡️ Crisis: NONE</span>
   <span class="badge badge-date">📅 2026-10-15 06:25 KST</span>
-  <span class="badge badge-updated">🔄 2026-10-28 16:58 KST</span>
+  <span class="badge badge-updated">🔄 2026-10-31 06:37 KST</span>
   </div>
   </div>
 
@@ -3129,15 +3138,15 @@ border-color: var(--accent);
   </div>
   <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
   <span style="color: var(--muted);">총자산:</span>
-  <strong style="color: var(--text); float: right;">50,000,000 KRW</strong>
+  <strong style="color: var(--text); float: right;">100,000,000 KRW</strong>
   </div>
   <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
   <span style="color: var(--muted);">순자산:</span>
-  <strong style="color: #2ea043; float: right;">49,999,844 KRW</strong>
+  <strong style="color: #2ea043; float: right;">99,999,688 KRW</strong>
   </div>
   <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
   <span style="color: var(--muted);">누적 수수료+슬리피지:</span>
-  <strong style="color: #f85149; float: right;">156.12 KRW</strong>
+  <strong style="color: #f85149; float: right;">312.33 KRW</strong>
   </div>
   <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
   <span style="color: var(--muted);">8대 게이트 심사 체결:</span>
@@ -3145,7 +3154,7 @@ border-color: var(--accent);
   </div>
   <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
   <span style="color: var(--muted);">최종 스냅샷:</span>
-  <strong style="color: var(--text); float: right;">2026-10-27 09:27:11</strong>
+  <strong style="color: var(--text); float: right;">2026-10-28 16:59:44</strong>
   </div>
   </div>
   </div>
@@ -5847,6 +5856,9 @@ function switchTabById(tabId) {
   if (targetBtn) {
   targetBtn.click();
   targetBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  } else {
+  // If tab not present on current page (e.g. index.html), navigate to strategies.html deep-link
+  window.location.href = `strategies.html#panel-${tabId}`;
   }
 }
 
@@ -6206,8 +6218,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Initial trigger
   // Initialize UX State
-  const savedTheme = localStorage.getItem('app_theme') || 'dark';
+  const savedTheme = localStorage.getItem('quant_theme') || localStorage.getItem('app_theme') || localStorage.getItem('theme') || 'dark';
   switchTheme(savedTheme);
+
+  // Deep link support for strategy panels (e.g. #panel-regression)
+  if (window.location.hash) {
+  const rawHash = window.location.hash.substring(1);
+  const targetStrat = rawHash.replace(/^panel-/, '').replace(/^strat-card-/, '');
+  setTimeout(() => {
+  switchTabById(targetStrat);
+  const targetEl = document.getElementById(rawHash) || document.getElementById('panel-' + targetStrat) || document.getElementById('strat-card-' + targetStrat);
+  if (targetEl) {
+  targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  }, 150);
+  }
   const savedDensity = localStorage.getItem('table_density') || 'comfortable';
   if (savedDensity === 'compact') setTableDensity('compact');
 
@@ -6309,7 +6334,11 @@ let drawerRadarChartInstance = null;
 
 function switchTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
+  try {
+  localStorage.setItem('quant_theme', theme);
   localStorage.setItem('app_theme', theme);
+  localStorage.setItem('theme', theme);
+  } catch(e) {}
   document.querySelectorAll('.theme-btn').forEach(btn => {
   btn.classList.toggle('active', btn.id === `theme-${theme}`);
   });

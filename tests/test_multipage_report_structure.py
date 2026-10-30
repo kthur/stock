@@ -96,7 +96,7 @@ def test_5_zero_broken_relative_links_across_all_pages():
         content = (GH_PAGES_DIR / page_name).read_text(encoding="utf-8")
         links = re.findall(r'href="([^"]+)"', content)
         for link in links:
-            if link.startswith("http://") or link.startswith("https://") or link.startswith("mailto:"):
+            if link.startswith("http://") or link.startswith("https://") or link.startswith("mailto:") or link.startswith("data:") or link.startswith("javascript:"):
                 continue
             if link == "#":
                 continue
