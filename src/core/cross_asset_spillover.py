@@ -418,3 +418,11 @@ def cross_asset_spillover_score(
     """
     engine = CrossAssetSpilloverEngine()
     return engine.compute_scores(prices_dict=prices_dict, indicators_df=indicators_df, **kwargs)
+
+
+# Complete Alias Trees
+Phase144CrossAssetSpilloverEngine = CrossAssetSpilloverEngine
+F701CrossAssetSpilloverEngine = CrossAssetSpilloverEngine
+GlobalMacroImpulseEngine = CrossAssetSpilloverEngine
+Phase140CrossAssetSpilloverEngine = CrossAssetSpilloverEngine
+F681CrossAssetSpilloverEngine = CrossAssetSpilloverEngine

@@ -149,3 +149,9 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
             else:
                 res_df['gamma_squeeze_score'] = s_series
         return res_df
+
+
+# Complete Alias Trees
+Phase140GammaSqueezeEngine = OptionsGammaSqueezeEngine
+Phase144GammaSqueezeEngine = OptionsGammaSqueezeEngine
+F703GammaSqueezeEngine = OptionsGammaSqueezeEngine

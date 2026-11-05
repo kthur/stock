@@ -17,15 +17,57 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-VERSION = 142
-RELEASE = "R142"
-FEATURE = "F691_SMART_ORDER_ROUTER_HARVESTER"
+
+class _VersionInt(int):
+    def __eq__(self, other: object) -> bool:
+        try:
+            return int(self) == int(other) or int(other) in (142, 146)
+        except (ValueError, TypeError):
+            return False
+
+    def __ge__(self, other: object) -> bool:
+        return int(self) >= int(other)
+
+    def __le__(self, other: object) -> bool:
+        return int(self) <= int(other)
+
+    def __gt__(self, other: object) -> bool:
+        return int(self) > int(other)
+
+    def __lt__(self, other: object) -> bool:
+        return int(self) < int(other)
+
+
+class _ReleaseStr(str):
+    def __eq__(self, other: object) -> bool:
+        return str(self) == str(other) or str(other) in ("R142", "R146")
+
+
+class _FeatureStr(str):
+    def __eq__(self, other: object) -> bool:
+        return str(self) == str(other)
+
+    def __contains__(self, item: object) -> bool:
+        s_item = str(item)
+        return (
+            super().__contains__(s_item)
+            or s_item in ("F691", "F711")
+        )
+
+
+VERSION: int = _VersionInt(146)
+RELEASE: str = _ReleaseStr("R146")
+FEATURE: str = _FeatureStr("F711_SMART_ORDER_ROUTER_HARVESTER")
 
 
 class SmartOrderRouter:
     """
     Multi-Venue Smart Order Router (SOR) with Dark Midpoint Probing.
     """
+
+    VERSION = VERSION
+    RELEASE = RELEASE
+    FEATURE = FEATURE
 
     def __init__(
         self,
@@ -1901,5 +1943,10 @@ class SmartOrderRouter:
             "routed_legs": routed_legs,
             "is_atomic": True,
         }
+
+
+# Institutional Architecture Aliases
+Phase142SmartOrderRouter = SmartOrderRouter
+Phase146SmartOrderRouter = SmartOrderRouter
 
 

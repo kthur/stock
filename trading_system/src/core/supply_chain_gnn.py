@@ -398,3 +398,10 @@ def supply_chain_gnn_score(
     """
     engine = SupplyChainGNNEngine()
     return engine.compute_scores(prices_dict=prices_dict, **kwargs)
+
+
+# Complete Alias Trees
+Phase144SupplyChainGNNEngine = SupplyChainGNNEngine
+F700SupplyChainGNNEngine = SupplyChainGNNEngine
+Phase140SupplyChainGNNEngine = SupplyChainGNNEngine
+F680SupplyChainGNNEngine = SupplyChainGNNEngine

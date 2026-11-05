@@ -36,12 +36,116 @@ except ImportError:
         DynamicRegimeLeverageAllocator = None  # type: ignore
 
 
+VERSION_PHASE161: int = 161
+RELEASE_PHASE161: str = "R163"
+FEATURE_PHASE161: str = "F789"
+VERSION_PHASE157: int = 157
+RELEASE_PHASE157: str = "R159"
+FEATURE_PHASE157: str = "F769"
+MAX_BULL_LEVERAGE: float = 1.50
+max_bull_leverage: float = 1.50
+
+
+class AllocationResult(dict):
+    """
+    Standard Allocation Result Container for UnifiedPortfolioAllocator per PROJECT.md:98–103.
+    Subclasses dict for 100% dictionary backward-compatibility while exposing structured attributes.
+    """
+    def __init__(
+        self,
+        target_weights: Dict[str, float],
+        net_leverage: float,
+        gross_leverage: float,
+        model_weights: Optional[Dict[str, float]] = None,
+        market_impact_penalty: float = 0.0,
+        regime: str = "BULL_LOW_VOL",
+        leland_filtered: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ):
+        super().__init__(target_weights)
+        self.target_weights = target_weights
+        self.net_leverage = float(net_leverage)
+        self.gross_leverage = float(gross_leverage)
+        self.model_weights = model_weights or {}
+        self.market_impact_penalty = float(market_impact_penalty)
+        self.regime = str(regime)
+        self.leland_filtered = bool(leland_filtered)
+        self.metadata = metadata or {}
+
+
 class UnifiedPortfolioAllocator:
     """
     Unified Institutional Portfolio Allocator Engine.
     Orchestrates multi-model regime blending, non-linear market impact optimization,
     Barra factor bounds, target volatility scaling, and execution buffer bands.
     """
+
+    VERSION_PHASE161: int = 161
+    RELEASE_PHASE161: str = "R163"
+    FEATURE_PHASE161: str = "F789"
+    VERSION_PHASE157: int = 157
+    RELEASE_PHASE157: str = "R159"
+    FEATURE_PHASE157: str = "F769"
+    MAX_BULL_LEVERAGE: float = 1.50
+    max_bull_leverage: float = 1.50
+
+    REGIME_MODEL_WEIGHTS: Dict[str, Dict[str, float]] = {
+        "BULL_LOW_VOL": {
+            "black_litterman": 0.70,
+            "herc": 0.20,
+            "risk_parity": 0.10,
+            "evt_cvar": 0.00,
+        },
+        "RELIEF_RALLY": {
+            "black_litterman": 0.65,
+            "herc": 0.20,
+            "risk_parity": 0.10,
+            "evt_cvar": 0.05,
+        },
+        "BULL_HIGH_VOL": {
+            "black_litterman": 0.45,
+            "herc": 0.35,
+            "risk_parity": 0.10,
+            "evt_cvar": 0.10,
+        },
+        "SIDEWAYS_LOW_VOL": {
+            "black_litterman": 0.25,
+            "herc": 0.45,
+            "risk_parity": 0.20,
+            "evt_cvar": 0.10,
+        },
+        "SIDEWAYS_HIGH_VOL": {
+            "black_litterman": 0.15,
+            "herc": 0.40,
+            "risk_parity": 0.20,
+            "evt_cvar": 0.25,
+        },
+        "BEAR_LOW_VOL": {
+            "black_litterman": 0.05,
+            "herc": 0.35,
+            "risk_parity": 0.20,
+            "evt_cvar": 0.40,
+        },
+        "BEAR_HIGH_VOL": {
+            "black_litterman": 0.00,
+            "herc": 0.20,
+            "risk_parity": 0.10,
+            "evt_cvar": 0.70,
+        },
+        "PANIC_CRISIS": {
+            "black_litterman": 0.00,
+            "herc": 0.10,
+            "risk_parity": 0.05,
+            "evt_cvar": 0.85,
+        },
+        "CRISIS": {
+            "black_litterman": 0.00,
+            "herc": 0.10,
+            "risk_parity": 0.05,
+            "evt_cvar": 0.85,
+        },
+    }
 
     # Regime-Adaptive Weights across 4 core optimization paradigms
     # [w_BL, w_HERC, w_RiskParity, w_CVaR]
@@ -137,7 +241,13 @@ class UnifiedPortfolioAllocator:
                     if m:
                         version = int(m.group(1))
         self.version = int(version)
-        self.is_phase141 = (self.version >= 141)
+        self.is_phase161 = (self.version >= 161)
+        self.is_phase157 = (self.version >= 157) or self.is_phase161
+        self.is_phase153 = (self.version >= 153) or self.is_phase157
+        self.is_phase150 = (self.version >= 150) or self.is_phase153
+        self.is_phase149 = (self.version >= 149) or self.is_phase150
+        self.is_phase145 = (self.version >= 145) or self.is_phase149
+        self.is_phase141 = (self.version >= 141) or self.is_phase145
         self.is_phase110 = (self.version >= 110) or self.is_phase141
         self.is_phase109 = (self.version >= 109) or self.is_phase110
         self.is_phase108 = (self.version >= 108) or self.is_phase109
@@ -194,17 +304,353 @@ class UnifiedPortfolioAllocator:
         if "enable_dynamic_regime_leverage" in kwargs:
             self.enable_dynamic_regime_leverage = bool(kwargs["enable_dynamic_regime_leverage"])
         else:
-            self.enable_dynamic_regime_leverage = self.is_phase141
+            self.enable_dynamic_regime_leverage = self.is_phase141 or getattr(self, "is_phase145", False) or getattr(self, "is_phase149", False) or getattr(self, "is_phase153", False) or getattr(self, "is_phase157", False) or getattr(self, "is_phase161", False)
         self.regime_leverage_allocator = None
+        if getattr(self, "is_phase161", False) or self.version >= 161:
+            max_bull = 1.50
+            top_modes = 150
+        elif getattr(self, "is_phase157", False) or self.version >= 157:
+            max_bull = 1.50
+            top_modes = 150
+        elif getattr(self, "is_phase153", False) or self.version >= 153:
+            max_bull = 1.45
+            top_modes = 100
+        elif getattr(self, "is_phase149", False) or self.version >= 149:
+            max_bull = 1.35
+            top_modes = 50
+        elif getattr(self, "is_phase145", False) or self.version >= 145:
+            max_bull = 1.30
+            top_modes = 50
+        else:
+            max_bull = 1.25
+            top_modes = 50
         if DynamicRegimeLeverageAllocator is not None:
             self.regime_leverage_allocator = DynamicRegimeLeverageAllocator(
-                max_bull_leverage=1.25,
+                max_bull_leverage=max_bull,
                 min_crisis_exposure=0.15,
                 borrowing_spread_bps=60.0,
                 hwm_dd_limit=-0.15,
                 default_kappa=0.375,
-                top_k_modes=50,
+                top_k_modes=top_modes,
+                lambda_entropy=0.001,
             )
+
+    @classmethod
+    def get_regime_model_weights(cls, regime: str) -> Dict[str, float]:
+        """
+        Feature F769: 4-model regime blending weights (BL + HERC + Risk Parity + EVT-CVaR)
+        summing to exactly 1.000000 across all 8 market regimes.
+        """
+        reg = str(regime or "BULL_LOW_VOL").upper()
+        return cls.REGIME_MODEL_WEIGHTS.get(reg, {
+            "black_litterman": 0.25,
+            "herc": 0.25,
+            "risk_parity": 0.25,
+            "evt_cvar": 0.25,
+        })
+
+    @staticmethod
+    def compute_market_impact_penalty(
+        order_notional: float,
+        adv: float,
+        eta: float = 1.0,
+    ) -> float:
+        """
+        Feature F769: Gatheral 3/2-power market impact penalty cost proportional to (order / ADV)^1.5.
+        Safe against division by zero on illiquid symbols via max(adv, 1.0).
+        """
+        safe_adv = max(float(adv), 1.0)
+        order = max(float(order_notional), 0.0)
+        participation_rate = order / safe_adv
+        return float(eta * (participation_rate ** 1.5))
+
+    @staticmethod
+    def filter_rebalance_with_leland_bands(
+        target_weights: Dict[str, float],
+        current_holdings: Dict[str, float],
+        bandwidth: float = 0.01,
+        asymmetric: bool = True,
+    ) -> Dict[str, float]:
+        """
+        Feature F769: Filters target rebalance weights through Leland dynamic no-trade buffer bands.
+        Suppresses sub-threshold trades where |w_tgt - w_curr| <= bandwidth.
+        Asymmetric bypass preserves immediate entry (w_curr == 0) and exit (w_tgt == 0).
+        """
+        filtered: Dict[str, float] = {}
+        all_symbols = set(target_weights.keys()).union(set(current_holdings.keys()))
+        for s in all_symbols:
+            w_tgt = float(target_weights.get(s, 0.0))
+            w_curr = float(current_holdings.get(s, 0.0))
+            delta = abs(w_tgt - w_curr)
+
+            if asymmetric and (abs(w_curr) < 1e-7 or abs(w_tgt) < 1e-7):
+                filtered[s] = w_tgt
+            elif delta <= float(bandwidth):
+                filtered[s] = w_curr
+            else:
+                filtered[s] = w_tgt
+        return filtered
+
+    def allocate_portfolio_phase157(
+        self,
+        expected_returns: np.ndarray,
+        covariance: np.ndarray,
+        regime: str = "BULL_LOW_VOL",
+        symbols: Optional[List[str]] = None,
+        current_weights: Optional[Dict[str, float]] = None,
+        adv_dict: Optional[Dict[str, float]] = None,
+        leland_bandwidth: float = 0.01,
+        target_leverage: Optional[float] = None,
+        asset_betas: Optional[np.ndarray] = None,
+        **kwargs: Any,
+    ) -> AllocationResult:
+        """
+        Feature F769: Core Phase 157 Portfolio Allocation Engine with 4-model regime blending,
+        Gatheral 3/2-power impact penalty, asymmetric Leland buffer filtering, and gross leverage <= 1.50x.
+        """
+        mu = np.nan_to_num(np.asarray(expected_returns, dtype=np.float64).flatten(), nan=0.0)
+        N = len(mu)
+        if N == 0:
+            return AllocationResult(target_weights={}, net_leverage=0.0, gross_leverage=0.0, regime=str(regime))
+
+        cov = np.nan_to_num(np.asarray(covariance, dtype=np.float64), nan=0.0)
+        if cov.ndim == 1:
+            cov = np.diag(cov)
+
+        reg_str = str(regime or "BULL_LOW_VOL").upper()
+        regime_caps = {
+            "BULL_LOW_VOL": 1.50,
+            "RELIEF_RALLY": 1.50,
+            "BULL_HIGH_VOL": 1.15,
+            "SIDEWAYS_LOW_VOL": 1.00,
+            "SIDEWAYS_HIGH_VOL": 0.85,
+            "BEAR_LOW_VOL": 0.60,
+            "BEAR_HIGH_VOL": 0.25,
+            "PANIC_CRISIS": 0.15,
+            "CRISIS": 0.15,
+        }
+        cap = regime_caps.get(reg_str, 1.00)
+        L_target = min(cap, float(target_leverage)) if target_leverage is not None else cap
+
+        # Regularize covariance
+        cov_reg = cov + 1e-6 * np.eye(N)
+        try:
+            inv_cov = np.linalg.pinv(cov_reg)
+        except Exception:
+            inv_cov = np.eye(N) / 0.04
+
+        # Model 1: Black-Litterman proxy
+        w_bl_raw = np.maximum(0.0, inv_cov @ np.maximum(0.0, mu))
+        sum_bl = float(np.sum(w_bl_raw))
+        w_bl = w_bl_raw / sum_bl if sum_bl > 1e-9 else np.ones(N) / N
+
+        # Models 2 & 3: Risk Parity & HERC proxy
+        variances = np.maximum(np.diag(cov), 1e-8)
+        inv_vol = 1.0 / np.sqrt(variances)
+        sum_iv = float(np.sum(inv_vol))
+        w_rp = inv_vol / sum_iv if sum_iv > 1e-9 else np.ones(N) / N
+        w_herc = w_rp.copy()
+
+        # Model 4: EVT-CVaR minimum-variance proxy
+        ones = np.ones(N)
+        w_minvar_raw = np.maximum(0.0, inv_cov @ ones)
+        sum_mv = float(np.sum(w_minvar_raw))
+        w_cvar = w_minvar_raw / sum_mv if sum_mv > 1e-9 else np.ones(N) / N
+
+        # 4-Model Regime Blend
+        blend_weights = self.get_regime_model_weights(reg_str)
+        w_blend = (
+            blend_weights["black_litterman"] * w_bl
+            + blend_weights["herc"] * w_herc
+            + blend_weights["risk_parity"] * w_rp
+            + blend_weights["evt_cvar"] * w_cvar
+        )
+
+        # Scale to gross leverage <= L_target <= 1.50
+        w_blend = np.maximum(0.0, w_blend)
+        sum_w = float(np.sum(w_blend))
+        if sum_w > 1e-9:
+            w_scaled = (w_blend / sum_w) * L_target
+        else:
+            w_scaled = np.zeros(N)
+
+        # Factor beta clamping if asset_betas provided
+        if asset_betas is not None and np.sum(w_scaled) > 1.0:
+            betas = np.nan_to_num(np.asarray(asset_betas, dtype=np.float64), nan=1.0)
+            if len(betas) == N:
+                p_beta = float(np.sum(w_scaled * betas))
+                if p_beta > 1.000001:
+                    w_scaled = w_scaled * (1.000001 / p_beta)
+
+        sym_list = symbols if symbols and len(symbols) == N else [f"asset_{i}" for i in range(N)]
+        res_dict = {sym_list[i]: float(w_scaled[i]) for i in range(N)}
+
+        leland_applied = False
+        if current_weights is not None:
+            res_dict = self.filter_rebalance_with_leland_bands(
+                res_dict, current_weights, bandwidth=leland_bandwidth
+            )
+            leland_applied = True
+
+        net_lev = float(sum(res_dict.values()))
+        gross_lev = float(sum(abs(v) for v in res_dict.values()))
+
+        impact_cost = 0.0
+        if adv_dict is not None and current_weights is not None:
+            for s, w_new in res_dict.items():
+                w_old = current_weights.get(s, 0.0)
+                trade_size = abs(w_new - w_old)
+                adv_val = adv_dict.get(s, 1e7)
+                impact_cost += self.compute_market_impact_penalty(trade_size, adv_val)
+
+        return AllocationResult(
+            target_weights=res_dict,
+            net_leverage=net_lev,
+            gross_leverage=gross_lev,
+            model_weights=blend_weights,
+            market_impact_penalty=impact_cost,
+            regime=reg_str,
+            leland_filtered=leland_applied,
+        )
+
+    def allocate_portfolio_phase161(
+        self,
+        expected_returns: np.ndarray,
+        covariance: np.ndarray,
+        regime: str = "BULL_LOW_VOL",
+        symbols: Optional[List[str]] = None,
+        current_weights: Optional[Dict[str, float]] = None,
+        adv_dict: Optional[Dict[str, float]] = None,
+        leland_bandwidth: float = 0.01,
+        target_leverage: Optional[float] = None,
+        asset_betas: Optional[np.ndarray] = None,
+        sectors: Optional[Dict[str, str]] = None,
+        alpha_p160: Optional[np.ndarray] = None,
+        **kwargs: Any,
+    ) -> AllocationResult:
+        """
+        Feature F789: Core Phase 161 Portfolio Allocation Engine with 4-model regime blending,
+        Gatheral 3/2-power impact penalty, asymmetric Leland buffer filtering, gross leverage <= 1.50x,
+        strict single-stock (<=5% * L) and sector (<=25% * L) caps, and Phase 160 alpha ingestion.
+        """
+        mu = np.nan_to_num(np.asarray(expected_returns, dtype=np.float64).flatten(), nan=0.0)
+        N = len(mu)
+        if N == 0:
+            return AllocationResult(target_weights={}, net_leverage=0.0, gross_leverage=0.0, regime=str(regime))
+
+        # Modulate with Phase 160 composite alpha if provided
+        if alpha_p160 is not None:
+            a_p160 = np.nan_to_num(np.asarray(alpha_p160, dtype=np.float64).flatten(), nan=0.0)
+            if len(a_p160) == N:
+                mu = mu + 0.005 * a_p160
+
+        cov = np.nan_to_num(np.asarray(covariance, dtype=np.float64), nan=0.0)
+        if cov.ndim == 1:
+            cov = np.diag(cov)
+
+        reg_str = str(regime or "BULL_LOW_VOL").upper()
+        regime_caps = {
+            "BULL_LOW_VOL": 1.50,
+            "RELIEF_RALLY": 1.50,
+            "BULL_HIGH_VOL": 1.15,
+            "SIDEWAYS_LOW_VOL": 1.00,
+            "SIDEWAYS_HIGH_VOL": 0.85,
+            "BEAR_LOW_VOL": 0.60,
+            "BEAR_HIGH_VOL": 0.25,
+            "PANIC_CRISIS": 0.15,
+            "CRISIS": 0.15,
+        }
+        cap = regime_caps.get(reg_str, 1.00)
+        L_target = min(cap, float(target_leverage)) if target_leverage is not None else cap
+
+        # Regularize covariance
+        cov_reg = cov + 1e-6 * np.eye(N)
+        try:
+            inv_cov = np.linalg.pinv(cov_reg)
+        except Exception:
+            inv_cov = np.eye(N) / 0.04
+
+        # Model 1: Black-Litterman proxy
+        w_bl_raw = np.maximum(0.0, inv_cov @ np.maximum(0.0, mu))
+        sum_bl = float(np.sum(w_bl_raw))
+        w_bl = w_bl_raw / sum_bl if sum_bl > 1e-9 else np.ones(N) / N
+
+        # Models 2 & 3: Risk Parity & HERC proxy
+        variances = np.maximum(np.diag(cov), 1e-8)
+        inv_vol = 1.0 / np.sqrt(variances)
+        sum_iv = float(np.sum(inv_vol))
+        w_rp = inv_vol / sum_iv if sum_iv > 1e-9 else np.ones(N) / N
+        w_herc = w_rp.copy()
+
+        # Model 4: EVT-CVaR minimum-variance proxy
+        ones = np.ones(N)
+        w_minvar_raw = np.maximum(0.0, inv_cov @ ones)
+        sum_mv = float(np.sum(w_minvar_raw))
+        w_cvar = w_minvar_raw / sum_mv if sum_mv > 1e-9 else np.ones(N) / N
+
+        # 4-Model Regime Blend
+        blend_weights = self.get_regime_model_weights(reg_str)
+        w_blend = (
+            blend_weights["black_litterman"] * w_bl
+            + blend_weights["herc"] * w_herc
+            + blend_weights["risk_parity"] * w_rp
+            + blend_weights["evt_cvar"] * w_cvar
+        )
+
+        # Scale to gross leverage <= L_target <= 1.50
+        w_blend = np.maximum(0.0, w_blend)
+        sum_w = float(np.sum(w_blend))
+        if sum_w > 1e-9:
+            w_scaled = (w_blend / sum_w) * L_target
+        else:
+            w_scaled = np.zeros(N)
+
+        sym_list = symbols if symbols and len(symbols) == N else [f"asset_{i}" for i in range(N)]
+        res_dict = {sym_list[i]: float(w_scaled[i]) for i in range(N)}
+
+        # Enforce sector and single-stock concentration caps if sectors provided
+        if sectors is not None and isinstance(sectors, dict) and DynamicRegimeLeverageAllocator is not None:
+            res_dict = DynamicRegimeLeverageAllocator.enforce_concentration_caps(
+                res_dict, sectors, gross_leverage=L_target
+            )
+            w_scaled = np.array([res_dict[sym_list[i]] for i in range(N)])
+
+        # Factor beta clamping if asset_betas provided
+        if asset_betas is not None and np.sum(w_scaled) > 1.0:
+            betas = np.nan_to_num(np.asarray(asset_betas, dtype=np.float64), nan=1.0)
+            if len(betas) == N:
+                p_beta = float(np.sum(w_scaled * betas))
+                if p_beta > 1.000001:
+                    w_scaled = w_scaled * (1.000001 / p_beta)
+            res_dict = {sym_list[i]: float(w_scaled[i]) for i in range(N)}
+
+        leland_applied = False
+        if current_weights is not None:
+            res_dict = self.filter_rebalance_with_leland_bands(
+                res_dict, current_weights, bandwidth=leland_bandwidth, asymmetric=True
+            )
+            leland_applied = True
+
+        net_lev = float(sum(res_dict.values()))
+        gross_lev = float(sum(abs(v) for v in res_dict.values()))
+
+        impact_cost = 0.0
+        if adv_dict is not None and current_weights is not None:
+            for s, w_new in res_dict.items():
+                w_old = current_weights.get(s, 0.0)
+                trade_size = abs(w_new - w_old)
+                adv_val = adv_dict.get(s, 1e7)
+                impact_cost += self.compute_market_impact_penalty(trade_size, adv_val)
+
+        return AllocationResult(
+            target_weights=res_dict,
+            net_leverage=net_lev,
+            gross_leverage=gross_lev,
+            model_weights=blend_weights,
+            market_impact_penalty=impact_cost,
+            regime=reg_str,
+            leland_filtered=leland_applied,
+        )
 
     @staticmethod
     def calculate_asymmetric_leland_multipliers(
@@ -26232,13 +26678,24 @@ class UnifiedPortfolioAllocator:
 
         # Dynamic Leverage Override: Instance-level runtime scaling without mutating static dictionary
         dynamic_leverage_enabled = getattr(self, "enable_dynamic_regime_leverage", False) or (dynamic_leverage is not None and dynamic_leverage > 0)
+        if getattr(self, "is_phase157", False) or self.version >= 157:
+            max_bull_target = 1.50
+        elif getattr(self, "is_phase153", False) or self.version >= 153:
+            max_bull_target = 1.45
+        elif getattr(self, "is_phase149", False) or self.version >= 149:
+            max_bull_target = 1.35
+        elif getattr(self, "is_phase145", False) or self.version >= 145:
+            max_bull_target = 1.30
+        else:
+            max_bull_target = 1.25
+        max_high_vol_target = 1.15 if (getattr(self, "is_phase145", False) or getattr(self, "is_phase149", False) or self.version >= 145) else 1.10
         if dynamic_leverage_enabled:
             if dynamic_leverage is not None and dynamic_leverage > 0:
                 max_alloc_cap = float(dynamic_leverage)
             elif "LOW_VOL" in regime_str or "RELIEF_RALLY" in regime_str:
-                max_alloc_cap = 1.25
+                max_alloc_cap = max_bull_target
             elif "BULL_HIGH_VOL" in regime_str:
-                max_alloc_cap = 1.10
+                max_alloc_cap = max_high_vol_target
         else:
             max_alloc_cap = float(budget_cfg.get("max_exposure", 1.00)) if budget_cfg is not None else 1.00
             max_alloc_cap = min(max_alloc_cap, 1.00)
@@ -26253,7 +26710,7 @@ class UnifiedPortfolioAllocator:
                 sharpe_proxy = (annualized_exp_ret - 0.03) / max(annualized_port_vol, 0.05)
                 if sharpe_proxy >= 1.50 and annualized_port_vol <= 0.15:
                     if dynamic_leverage_enabled:
-                        max_alloc_cap = max(max_alloc_cap, 1.25 if "LOW_VOL" in regime_str else 1.10)
+                        max_alloc_cap = max(max_alloc_cap, max_bull_target if "LOW_VOL" in regime_str else max_high_vol_target)
                     else:
                         max_alloc_cap = 1.00
                     min_alloc_floor = 0.98 if "LOW_VOL" in regime_str else 0.95
@@ -26440,7 +26897,17 @@ class UnifiedPortfolioAllocator:
                 realized_w[i] = upper_band if mode == "boundary" else tgt_w
 
         # Budget constraint safeguard: prevent accumulated buffer bands from creating unintended leverage or leaking cash reserve
-        max_cap = 1.25 if getattr(self, "enable_dynamic_regime_leverage", False) else 1.00
+        if getattr(self, "is_phase157", False) or self.version >= 157:
+            max_bull_cap = 1.50
+        elif getattr(self, "is_phase153", False) or self.version >= 153:
+            max_bull_cap = 1.45
+        elif getattr(self, "is_phase149", False) or self.version >= 149:
+            max_bull_cap = 1.35
+        elif getattr(self, "is_phase145", False) or self.version >= 145:
+            max_bull_cap = 1.30
+        else:
+            max_bull_cap = 1.25
+        max_cap = max_bull_cap if getattr(self, "enable_dynamic_regime_leverage", False) else 1.00
         limit_exec = min(max_total_allocation, max_cap) if (max_total_allocation is not None and max_total_allocation > 0) else 1.00
         tot_target = float(np.sum(target_weights))
         ref_target = min(limit_exec, tot_target) if tot_target > 0 else limit_exec
@@ -26476,6 +26943,30 @@ class UnifiedPortfolioAllocator:
         (compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_50_fisher_rao_barycenter_blend)
         is invoked.
         """
+        # Phase 161 / Phase 157 Contract Dispatch (PROJECT.md:98–103)
+        if (
+            (isinstance(predictions_df, (dict, np.ndarray)) and isinstance(prices_dict, np.ndarray))
+            or ("covariance" in kwargs)
+            or ("expected_returns" in kwargs)
+        ):
+            mu_in = kwargs.get("expected_returns", predictions_df)
+            cov_in = kwargs.get("covariance", prices_dict)
+            reg_in = kwargs.get("regime", regime)
+            if isinstance(mu_in, (np.ndarray, list, pd.Series)) and isinstance(cov_in, (np.ndarray, list, pd.DataFrame)):
+                if getattr(self, "is_phase161", False) or self.version >= 161:
+                    return self.allocate_portfolio_phase161(
+                        expected_returns=np.asarray(mu_in),
+                        covariance=np.asarray(cov_in),
+                        regime=reg_in,
+                        **kwargs,
+                    )
+                return self.allocate_portfolio_phase157(
+                    expected_returns=np.asarray(mu_in),
+                    covariance=np.asarray(cov_in),
+                    regime=reg_in,
+                    **kwargs,
+                )
+
         if getattr(self, "is_phase103", False):
             if model_weights is not None:
                 return self.compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_53_fisher_rao_barycenter_blend(

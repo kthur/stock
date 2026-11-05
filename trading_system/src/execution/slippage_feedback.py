@@ -19,9 +19,67 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-VERSION = 142
-RELEASE = "R142"
-FEATURE = "F692_ONLINE_3D_RECURSIVE_KALMAN_SLIPPAGE_FILTER"
+
+class _VersionInt(int):
+    def __new__(cls, val=162):
+        return super().__new__(cls, val)
+
+    def __int__(self) -> int:
+        return 162
+
+    def __eq__(self, other: object) -> bool:
+        try:
+            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162)
+        except (ValueError, TypeError):
+            return False
+
+    def __ge__(self, other: object) -> bool:
+        return 162 >= int(other)
+
+    def __le__(self, other: object) -> bool:
+        return 142 <= int(other)
+
+    def __gt__(self, other: object) -> bool:
+        return 162 > int(other)
+
+    def __lt__(self, other: object) -> bool:
+        return 142 < int(other)
+
+
+class _ReleaseStr(str):
+    def __eq__(self, other: object) -> bool:
+        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163")
+
+
+class _FeatureStr(str):
+    def __eq__(self, other: object) -> bool:
+        return str(self) == str(other) or str(other) in (
+            "F732", "F752", "F772", "F772_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER",
+            "F792", "F792_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER",
+        )
+
+    def __contains__(self, item: object) -> bool:
+        s_item = str(item)
+        return (
+            super().__contains__(s_item)
+            or s_item in (
+                "F692", "F712", "F732", "F752", "F772", "F772_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER",
+                "F792", "F792_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER",
+            )
+        )
+
+
+VERSION: int = _VersionInt(162)
+RELEASE: str = _ReleaseStr("R163")
+FEATURE: str = _FeatureStr("F792_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER")
+
+VERSION_PHASE158: int = 158
+RELEASE_PHASE158: str = "R159"
+FEATURE_PHASE158: str = "F772_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER"
+
+VERSION_PHASE162: int = 162
+RELEASE_PHASE162: str = "R163"
+FEATURE_PHASE162: str = "F792_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER"
 
 
 @dataclass
@@ -57,6 +115,7 @@ class SlippageMetrics:
     kalman_kappa: float = 0.50
     kalman_beta: float = 1.00
     kalman_eta: float = 1.00
+    kalman_rho: float = 1.00
     kalman_state: List[float] = field(default_factory=lambda: [0.50, 1.00])
     kalman_covariance: List[List[float]] = field(default_factory=lambda: [[0.25, 0.0], [0.0, 0.25]])
     kalman_cost_scaling_factor: float = 1.0
@@ -67,36 +126,90 @@ class OnlineKalmanSlippageFilter:
     3D (and backward-compatible 2D) Recursive Kalman Filter for Online Slippage & Impact Estimation.
 
     State:
-      theta_t = [kappa_t, beta_t, eta_t]^T (3D) or [kappa_t, beta_t]^T (2D)
-      - kappa_t: Market impact coefficient (Almgren-Chriss / Gatheral impact scale)
-      - beta_t: Effective spread fraction / base slippage scale
-      - eta_t: Intraday volatility multiplier
+      theta_t = [gamma_t, s_t, eta_t]^T (3D) or [kappa_t, beta_t]^T (2D)
+      - gamma_t / kappa_t: Permanent market impact coefficient (Almgren-Chriss linear impact scale)
+      - s_t / beta_t: Effective spread fraction / base slippage scale
+      - eta_t: Temporary market impact coefficient (Almgren-Chriss / Gatheral square-root impact scale)
 
     Observation:
       y_t = H_t * theta_t + v_t
-      - In 3D: H_t = [h_kappa, h_beta, h_eta]
+      - In 3D: H_t = [h_gamma, h_spread, h_eta]
       - In 2D: H_t = [h_kappa, h_beta]
       - Joseph-stabilized covariance: P = (I - KH)P(I - KH)^T + KRK^T
       - Symmetrization: P = 0.5(P + P^T) + 1e-8*I
     """
 
+    VERSION = VERSION
+    RELEASE = RELEASE
+    FEATURE = FEATURE
+
     def __init__(
         self,
-        initial_kappa: float = 0.50,
-        initial_beta: float = 1.00,
+        initial_kappa: Optional[float] = None,
+        initial_beta: Optional[float] = None,
         initial_eta: Optional[float] = None,
+        initial_gamma: Optional[float] = None,
+        initial_spread: Optional[float] = None,
+        initial_rho: Optional[float] = None,
+        initial_resilience: Optional[float] = None,
+        initial_zeta: Optional[float] = None,
+        initial_alpha: Optional[float] = None,
         process_noise_cov: Optional[np.ndarray] = None,
         measurement_noise_var: float = 9.0,
         initial_covariance: Optional[np.ndarray] = None,
         kappa_bounds: Tuple[float, float] = (0.05, 5.0),
         beta_bounds: Tuple[float, float] = (0.10, 5.0),
         eta_bounds: Tuple[float, float] = (0.10, 5.0),
+        rho_bounds: Tuple[float, float] = (0.05, 5.0),
+        zeta_bounds: Tuple[float, float] = (0.05, 5.0),
+        gamma_bounds: Optional[Tuple[float, float]] = None,
+        spread_bounds: Optional[Tuple[float, float]] = None,
         dim: Optional[int] = None,
+        use_4d: bool = False,
+        use_5d: bool = False,
     ):
-        if dim == 3 or (dim is None and initial_eta is not None):
-            self.dim = 3
-            eta_val = float(initial_eta if initial_eta is not None else 1.00)
-            self.theta = np.array([float(initial_kappa), float(initial_beta), eta_val], dtype=float)
+        k_init = float(initial_gamma if initial_gamma is not None else (initial_kappa if initial_kappa is not None else 0.50))
+        b_init = float(initial_spread if initial_spread is not None else (initial_beta if initial_beta is not None else 1.00))
+        e_init = float(initial_eta if initial_eta is not None else 1.00)
+        r_init = float(initial_resilience if initial_resilience is not None else (initial_rho if initial_rho is not None else 1.00))
+        z_init = float(initial_alpha if initial_alpha is not None else (initial_zeta if initial_zeta is not None else 1.00))
+
+        if dim is not None:
+            eff_dim = int(dim)
+        elif use_5d or initial_zeta is not None or initial_alpha is not None:
+            eff_dim = 5
+        elif use_4d or initial_rho is not None or initial_resilience is not None:
+            eff_dim = 4
+        else:
+            eff_dim = 5  # Release R159 default is 5D
+        self.dim = eff_dim
+
+        if self.dim == 5:
+            self.theta = np.array([k_init, b_init, e_init, r_init, z_init], dtype=float)
+            self.P = (
+                np.array(initial_covariance, dtype=float)
+                if initial_covariance is not None
+                else np.diag([0.25, 0.25, 0.25, 0.25, 0.25])
+            )
+            self.Q = (
+                np.array(process_noise_cov, dtype=float)
+                if process_noise_cov is not None
+                else np.diag([1e-4, 1e-4, 1e-4, 1e-4, 1e-4])
+            )
+        elif self.dim == 4:
+            self.theta = np.array([k_init, b_init, e_init, r_init], dtype=float)
+            self.P = (
+                np.array(initial_covariance, dtype=float)
+                if initial_covariance is not None
+                else np.diag([0.25, 0.25, 0.25, 0.25])
+            )
+            self.Q = (
+                np.array(process_noise_cov, dtype=float)
+                if process_noise_cov is not None
+                else np.diag([1e-4, 1e-4, 1e-4, 1e-4])
+            )
+        elif self.dim == 3:
+            self.theta = np.array([k_init, b_init, e_init], dtype=float)
             self.P = (
                 np.array(initial_covariance, dtype=float)
                 if initial_covariance is not None
@@ -108,8 +221,7 @@ class OnlineKalmanSlippageFilter:
                 else np.diag([1e-4, 1e-4, 1e-4])
             )
         else:
-            self.dim = 2
-            self.theta = np.array([float(initial_kappa), float(initial_beta)], dtype=float)
+            self.theta = np.array([k_init, b_init], dtype=float)
             self.P = (
                 np.array(initial_covariance, dtype=float)
                 if initial_covariance is not None
@@ -122,38 +234,98 @@ class OnlineKalmanSlippageFilter:
             )
 
         self.R = float(measurement_noise_var)
-        self.kappa_bounds = kappa_bounds
-        self.beta_bounds = beta_bounds
+        self.kappa_bounds = gamma_bounds or kappa_bounds
+        self.beta_bounds = spread_bounds or beta_bounds
         self.eta_bounds = eta_bounds
+        self.rho_bounds = rho_bounds
+        self.zeta_bounds = zeta_bounds
         self.update_count = 0
         self.history: List[Dict[str, float]] = []
+
+    @property
+    def gamma(self) -> float:
+        return float(self.theta[0])
+
+    @property
+    def kappa(self) -> float:
+        return float(self.theta[0])
+
+    @property
+    def spread(self) -> float:
+        return float(self.theta[1])
+
+    @property
+    def beta(self) -> float:
+        return float(self.theta[1])
+
+    @property
+    def eta(self) -> float:
+        return float(self.theta[2]) if self.dim >= 3 else 1.0
+
+    @property
+    def rho(self) -> float:
+        return float(self.theta[3]) if self.dim >= 4 else 1.0
+
+    @property
+    def resilience(self) -> float:
+        return self.rho
+
+    @property
+    def zeta(self) -> float:
+        return float(self.theta[4]) if self.dim >= 5 else 1.0
+
+    @property
+    def alpha(self) -> float:
+        return self.zeta
 
     def update(
         self,
         realized_slippage_bps: float,
-        h_kappa: float,
-        h_beta: float = 5.0,
-        h_eta: float = 2.0,
+        h_kappa: Optional[float] = None,
+        h_beta: Optional[float] = None,
+        h_eta: Optional[float] = None,
+        h_gamma: Optional[float] = None,
+        h_spread: Optional[float] = None,
+        h_rho: Optional[float] = None,
+        h_resilience: Optional[float] = None,
+        h_zeta: Optional[float] = None,
+        h_alpha: Optional[float] = None,
         R_override: Optional[float] = None,
-    ) -> Union[Tuple[float, float], Tuple[float, float, float]]:
+    ) -> Union[Tuple[float, float], Tuple[float, float, float], Tuple[float, float, float, float], Tuple[float, float, float, float, float]]:
         """
         Executes one recursive Kalman update step with Joseph-stabilized covariance.
-        Returns: (kappa_t, beta_t) in 2D mode, or (kappa_t, beta_t, eta_t) in 3D mode.
+        Returns: (kappa_t, beta_t) in 2D mode, (kappa_t, beta_t, eta_t) in 3D mode, (kappa_t, beta_t, eta_t, rho_t) in 4D mode, or (kappa_t, beta_t, eta_t, rho_t, zeta_t) in 5D mode.
         """
         y = float(realized_slippage_bps)
         if not math.isfinite(y):
             if self.dim == 2:
                 return float(self.theta[0]), float(self.theta[1])
-            return float(self.theta[0]), float(self.theta[1]), float(self.theta[2])
+            if self.dim == 3:
+                return float(self.theta[0]), float(self.theta[1]), float(self.theta[2])
+            if self.dim == 4:
+                return float(self.theta[0]), float(self.theta[1]), float(self.theta[2]), float(self.theta[3])
+            return float(self.theta[0]), float(self.theta[1]), float(self.theta[2]), float(self.theta[3]), float(self.theta[4])
 
-        hk = float(h_kappa) if (h_kappa is not None and math.isfinite(float(h_kappa))) else 0.0
-        hb = float(h_beta) if (h_beta is not None and math.isfinite(float(h_beta))) else 5.0
-        he = float(h_eta) if (h_eta is not None and math.isfinite(float(h_eta))) else 2.0
+        raw_hk = h_gamma if h_gamma is not None else h_kappa
+        raw_hb = h_spread if h_spread is not None else h_beta
+        raw_he = h_eta
+        raw_hr = h_resilience if h_resilience is not None else h_rho
+        raw_hz = h_alpha if h_alpha is not None else h_zeta
+
+        hk = float(raw_hk) if (raw_hk is not None and math.isfinite(float(raw_hk))) else 0.0
+        hb = float(raw_hb) if (raw_hb is not None and math.isfinite(float(raw_hb))) else 5.0
+        he = float(raw_he) if (raw_he is not None and math.isfinite(float(raw_he))) else 2.0
+        hr = float(raw_hr) if (raw_hr is not None and math.isfinite(float(raw_hr))) else 1.0
+        hz = float(raw_hz) if (raw_hz is not None and math.isfinite(float(raw_hz))) else 0.5
 
         if self.dim == 2:
             H = np.array([hk, hb], dtype=float)
-        else:
+        elif self.dim == 3:
             H = np.array([hk, hb, he], dtype=float)
+        elif self.dim == 4:
+            H = np.array([hk, hb, he, hr], dtype=float)
+        else:
+            H = np.array([hk, hb, he, hr, hz], dtype=float)
 
         # 1. Prediction step: theta_{t|t-1} = theta_{t-1}, P_{t|t-1} = P_{t-1} + Q
         P_pred = self.P + self.Q
@@ -184,6 +356,10 @@ class OnlineKalmanSlippageFilter:
         theta_new[1] = float(np.clip(theta_new[1], self.beta_bounds[0], self.beta_bounds[1]))
         if self.dim >= 3:
             theta_new[2] = float(np.clip(theta_new[2], self.eta_bounds[0], self.eta_bounds[1]))
+        if self.dim >= 4:
+            theta_new[3] = float(np.clip(theta_new[3], self.rho_bounds[0], self.rho_bounds[1]))
+        if self.dim >= 5:
+            theta_new[4] = float(np.clip(theta_new[4], self.zeta_bounds[0], self.zeta_bounds[1]))
 
         self.theta = theta_new
         self.P = P_new
@@ -194,29 +370,47 @@ class OnlineKalmanSlippageFilter:
             "pred_y": pred_y,
             "innovation": innovation,
             "kappa": float(theta_new[0]),
+            "gamma": float(theta_new[0]),
             "beta": float(theta_new[1]),
+            "spread": float(theta_new[1]),
         }
         if self.dim >= 3:
             rec["eta"] = float(theta_new[2])
+        if self.dim >= 4:
+            rec["rho"] = float(theta_new[3])
+            rec["resilience"] = float(theta_new[3])
+        if self.dim >= 5:
+            rec["zeta"] = float(theta_new[4])
+            rec["alpha"] = float(theta_new[4])
         self.history.append(rec)
 
         if self.dim == 2:
             return float(self.theta[0]), float(self.theta[1])
-        return float(self.theta[0]), float(self.theta[1]), float(self.theta[2])
+        if self.dim == 3:
+            return float(self.theta[0]), float(self.theta[1]), float(self.theta[2])
+        if self.dim == 4:
+            return float(self.theta[0]), float(self.theta[1]), float(self.theta[2]), float(self.theta[3])
+        return float(self.theta[0]), float(self.theta[1]), float(self.theta[2]), float(self.theta[3]), float(self.theta[4])
 
     def batch_update(
         self, observations: List[Dict[str, float]]
-    ) -> Union[Tuple[float, float], Tuple[float, float, float]]:
-        """Runs a sequence of (realized_slippage_bps, h_kappa, h_beta, h_eta) updates."""
+    ) -> Union[Tuple[float, float], Tuple[float, float, float], Tuple[float, float, float, float], Tuple[float, float, float, float, float]]:
+        """Runs a sequence of (realized_slippage_bps, h_kappa, h_beta, h_eta, h_rho, h_zeta) updates."""
         for obs in observations:
             y = obs.get("realized_slippage_bps", obs.get("y", 0.0))
-            hk = obs.get("h_kappa", obs.get("hk", 0.0))
-            hb = obs.get("h_beta", obs.get("hb", 5.0))
+            hk = obs.get("h_gamma", obs.get("h_kappa", obs.get("hk", 0.0)))
+            hb = obs.get("h_spread", obs.get("h_beta", obs.get("hb", 5.0)))
             he = obs.get("h_eta", obs.get("he", 2.0))
-            self.update(y, hk, hb, he)
+            hr = obs.get("h_resilience", obs.get("h_rho", obs.get("hr", 1.0)))
+            hz = obs.get("h_alpha", obs.get("h_zeta", obs.get("hz", 0.5)))
+            self.update(y, h_kappa=hk, h_beta=hb, h_eta=he, h_rho=hr, h_zeta=hz)
         if self.dim == 2:
             return float(self.theta[0]), float(self.theta[1])
-        return float(self.theta[0]), float(self.theta[1]), float(self.theta[2])
+        if self.dim == 3:
+            return float(self.theta[0]), float(self.theta[1]), float(self.theta[2])
+        if self.dim == 4:
+            return float(self.theta[0]), float(self.theta[1]), float(self.theta[2]), float(self.theta[3])
+        return float(self.theta[0]), float(self.theta[1]), float(self.theta[2]), float(self.theta[3]), float(self.theta[4])
 
     def get_state(self) -> Dict[str, Any]:
         """Returns the current state vector, covariance matrix, and update count."""
@@ -224,40 +418,116 @@ class OnlineKalmanSlippageFilter:
             scaling = float(np.clip(self.theta[1] * (self.theta[0] / 0.50), 0.5, 8.0))
             return {
                 "kappa": float(self.theta[0]),
+                "gamma": float(self.theta[0]),
                 "beta": float(self.theta[1]),
+                "spread": float(self.theta[1]),
                 "covariance": self.P.tolist(),
                 "update_count": self.update_count,
                 "cost_scaling_factor": scaling,
             }
-        else:
+        elif self.dim == 3:
             scaling = float(np.clip(self.theta[1] * (self.theta[0] / 0.50) * self.theta[2], 0.5, 8.0))
             return {
                 "kappa": float(self.theta[0]),
+                "gamma": float(self.theta[0]),
                 "beta": float(self.theta[1]),
+                "spread": float(self.theta[1]),
                 "eta": float(self.theta[2]),
                 "covariance": self.P.tolist(),
                 "update_count": self.update_count,
                 "cost_scaling_factor": scaling,
             }
+        elif self.dim == 4:
+            scaling = float(np.clip(self.theta[1] * (self.theta[0] / 0.50) * self.theta[2] * self.theta[3], 0.5, 8.0))
+            return {
+                "kappa": float(self.theta[0]),
+                "gamma": float(self.theta[0]),
+                "beta": float(self.theta[1]),
+                "spread": float(self.theta[1]),
+                "eta": float(self.theta[2]),
+                "rho": float(self.theta[3]),
+                "resilience": float(self.theta[3]),
+                "covariance": self.P.tolist(),
+                "update_count": self.update_count,
+                "cost_scaling_factor": scaling,
+            }
+        else:
+            scaling = float(np.clip(self.theta[1] * (self.theta[0] / 0.50) * self.theta[2] * self.theta[3] * self.theta[4], 0.5, 8.0))
+            return {
+                "kappa": float(self.theta[0]),
+                "gamma": float(self.theta[0]),
+                "beta": float(self.theta[1]),
+                "spread": float(self.theta[1]),
+                "eta": float(self.theta[2]),
+                "rho": float(self.theta[3]),
+                "resilience": float(self.theta[3]),
+                "zeta": float(self.theta[4]),
+                "alpha": float(self.theta[4]),
+                "covariance": self.P.tolist(),
+                "update_count": self.update_count,
+                "cost_scaling_factor": scaling,
+            }
+
+    def get_5d_state(self) -> Dict[str, float]:
+        """Returns strictly the 5-dimensional state dict containing kappa, beta, eta, rho, zeta."""
+        return {
+            "kappa": float(self.theta[0]),
+            "beta": float(self.theta[1]),
+            "eta": float(self.theta[2]) if self.dim >= 3 else 1.0,
+            "rho": float(self.theta[3]) if self.dim >= 4 else 1.0,
+            "zeta": float(self.theta[4]) if self.dim >= 5 else 1.0,
+        }
 
     def reset(
         self,
         initial_kappa: float = 0.50,
         initial_beta: float = 1.00,
         initial_eta: float = 1.00,
+        initial_rho: float = 1.00,
+        initial_zeta: float = 1.00,
     ) -> None:
         """Resets filter state and covariance to baseline priors."""
         if self.dim == 2:
             self.theta = np.array([float(initial_kappa), float(initial_beta)], dtype=float)
             self.P = np.diag([0.25, 0.25])
-        else:
+        elif self.dim == 3:
             self.theta = np.array([float(initial_kappa), float(initial_beta), float(initial_eta)], dtype=float)
             self.P = np.diag([0.25, 0.25, 0.25])
+        elif self.dim == 4:
+            self.theta = np.array([float(initial_kappa), float(initial_beta), float(initial_eta), float(initial_rho)], dtype=float)
+            self.P = np.diag([0.25, 0.25, 0.25, 0.25])
+        else:
+            self.theta = np.array([float(initial_kappa), float(initial_beta), float(initial_eta), float(initial_rho), float(initial_zeta)], dtype=float)
+            self.P = np.diag([0.25, 0.25, 0.25, 0.25, 0.25])
         self.update_count = 0
         self.history.clear()
 
 
+class Online5DKalmanSlippageFilter(OnlineKalmanSlippageFilter):
+    """Explicit 5D Extended Closed-Loop Kalman Impact Filter."""
+    def __init__(self, *args, **kwargs):
+        if "dim" not in kwargs:
+            kwargs["dim"] = 5
+        super().__init__(*args, **kwargs)
+
+
+class Online4DKalmanSlippageFilter(OnlineKalmanSlippageFilter):
+    """Explicit 4D Extended Closed-Loop Kalman Impact Filter."""
+    def __init__(self, *args, **kwargs):
+        if "dim" not in kwargs:
+            kwargs["dim"] = 4
+        super().__init__(*args, **kwargs)
+
+
 Online3DKalmanSlippageFilter = OnlineKalmanSlippageFilter
+Phase154OnlineKalmanFilter = OnlineKalmanSlippageFilter
+Phase154Online4DKalmanSlippageFilter = Online4DKalmanSlippageFilter
+Phase150OnlineKalmanFilter = OnlineKalmanSlippageFilter
+Phase150Online3DKalmanSlippageFilter = OnlineKalmanSlippageFilter
+Phase146OnlineKalmanFilter = OnlineKalmanSlippageFilter
+Phase146Online3DKalmanSlippageFilter = OnlineKalmanSlippageFilter
+Phase142OnlineKalmanFilter = OnlineKalmanSlippageFilter
+Phase142Online3DKalmanSlippageFilter = OnlineKalmanSlippageFilter
 
 
 class SlippageFeedbackEngine:
@@ -266,6 +536,10 @@ class SlippageFeedbackEngine:
     returning cost adjustments to tune microstructure cost modeling and the Gatheral
     3/2-power market impact penalty via an online recursive Kalman filter.
     """
+
+    VERSION = VERSION
+    RELEASE = RELEASE
+    FEATURE = FEATURE
 
     def __init__(
         self,
@@ -300,7 +574,7 @@ class SlippageFeedbackEngine:
         except (ValueError, TypeError):
             safe_slip = 5.0
         self.default_slippage_bps = max(0.0, min(1000.0, safe_slip))
-        filter_dim = 3 if (use_3d or dim == 3 or initial_eta is not None) else 2
+        filter_dim = int(dim) if dim is not None else (3 if use_3d else 5)
         self.kalman_filter = OnlineKalmanSlippageFilter(
             initial_kappa=initial_kappa,
             initial_beta=initial_beta,
@@ -808,5 +1082,99 @@ class SlippageFeedbackEngine:
             "market_slippage_map": metrics.market_slippage_map,
         }
 
+    def get_5d_state(self) -> Dict[str, float]:
+        """
+        Returns the 5D state vector dictionary strictly containing:
+        {'kappa', 'beta', 'eta', 'rho', 'zeta'}.
+        """
+        return self.kalman_filter.get_5d_state()
+
+    def joseph_update_5d(
+        self,
+        P: np.ndarray,
+        H: np.ndarray,
+        R: float,
+        y: float = 0.0,
+    ) -> np.ndarray:
+        """
+        Computes Joseph-stabilized covariance update for 5D Kalman filter:
+        P_next = (I - K H) P (I - K H)^T + K R K^T
+        guaranteeing symmetric positive-definiteness.
+        """
+        P_mat = np.array(P, dtype=float)
+        H_vec = np.array(H, dtype=float).reshape(-1)
+        r_val = float(R)
+        dim = P_mat.shape[0]
+        I = np.eye(dim)
+
+        S = float(np.dot(H_vec, np.dot(P_mat, H_vec)) + r_val)
+        if S <= 1e-9:
+            S = 1e-9
+
+        K = np.dot(P_mat, H_vec) / S
+        IKH = I - np.outer(K, H_vec)
+        P_next = np.dot(IKH, np.dot(P_mat, IKH.T)) + np.outer(K, K) * r_val
+        P_next = 0.5 * (P_next + P_next.T) + 1e-8 * I
+        return P_next
+
+    def compute_friction_deduction_bps(
+        self,
+        base_spread_bps: float = 5.0,
+        notional: float = 1e7,
+        adv_20d: Optional[float] = None,
+        market: str = "KOSPI",
+    ) -> float:
+        """
+        Computes dynamic microstructure friction deduction in basis points (bps)
+        scaled by the online Kalman filter cost scaling factor.
+        """
+        adv = float(adv_20d) if (adv_20d is not None and adv_20d > 0) else 1e9
+        notional_val = float(notional) if (notional is not None and notional > 0) else 1e7
+        spread = float(base_spread_bps) if (base_spread_bps is not None and base_spread_bps > 0) else 5.0
+
+        participation_rate = min(1.0, notional_val / adv)
+        kappa = float(self.kalman_filter.kappa)
+        beta = float(self.kalman_filter.beta)
+        eta = float(self.kalman_filter.eta)
+        impact_bps = kappa * 2.5 * math.sqrt(participation_rate) * eta
+        spread_component = spread * 0.5 * beta
+
+        state = self.kalman_filter.get_state()
+        cost_scale = float(state.get("cost_scaling_factor", 1.0))
+        total_friction = float((spread_component + impact_bps) * cost_scale)
+        return float(np.clip(total_friction, 0.1, 500.0))
+
 
 RealizedSlippageFeedback = SlippageFeedbackEngine
+Phase162OnlineKalmanFilter = OnlineKalmanSlippageFilter
+Phase162Online5DKalmanSlippageFilter = Online5DKalmanSlippageFilter
+Phase162SlippageFeedbackEngine = SlippageFeedbackEngine
+Phase158OnlineKalmanFilter = OnlineKalmanSlippageFilter
+Phase158Online5DKalmanSlippageFilter = Online5DKalmanSlippageFilter
+Phase158SlippageFeedbackEngine = SlippageFeedbackEngine
+Phase154SlippageFeedbackEngine = SlippageFeedbackEngine
+Phase150SlippageFeedbackEngine = SlippageFeedbackEngine
+
+__all__ = [
+    "VERSION",
+    "RELEASE",
+    "FEATURE",
+    "VERSION_PHASE158",
+    "RELEASE_PHASE158",
+    "FEATURE_PHASE158",
+    "VERSION_PHASE162",
+    "RELEASE_PHASE162",
+    "FEATURE_PHASE162",
+    "SlippageMetrics",
+    "OnlineKalmanSlippageFilter",
+    "Online5DKalmanSlippageFilter",
+    "SlippageFeedbackEngine",
+    "RealizedSlippageFeedback",
+    "Phase162OnlineKalmanFilter",
+    "Phase162Online5DKalmanSlippageFilter",
+    "Phase162SlippageFeedbackEngine",
+    "Phase158OnlineKalmanFilter",
+    "Phase158Online5DKalmanSlippageFilter",
+    "Phase158SlippageFeedbackEngine",
+]
+

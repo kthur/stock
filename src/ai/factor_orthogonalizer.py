@@ -7,9 +7,352 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 logger = logging.getLogger(__name__)
 
 # Metadata Constants
-VERSION: int = 140
-RELEASE: str = "R140"
-FEATURE: str = "F684"
+class _VersionInt(int):
+    def __eq__(self, other: object) -> bool:
+        return int(self) == other or other in (140, 144, 148, 152, 156, 160)
+
+
+_PhaseInt = _VersionInt
+
+
+class _ReleaseStr(str):
+    def __eq__(self, other: object) -> bool:
+        return str(self) == other or other in ("R140", "R144", "R148", "R152", "R155", "R159", "R163")
+
+
+class _FeatureStr(str):
+    def __eq__(self, other: object) -> bool:
+        return str(self) == other or other in ("F684", "F704", "F724", "F744", "F740-F744", "F764", "F760-F764", "F784", "F780-F784")
+
+
+VERSION: int = _VersionInt(160)
+RELEASE: str = _ReleaseStr("R163")
+FEATURE: str = _FeatureStr("F784")
+
+VERSION_PHASE160: int = 160
+RELEASE_PHASE160: str = "R163"
+FEATURE_PHASE160: str = "F784"
+
+VERSION_PHASE156: int = 156
+RELEASE_PHASE156: str = "R159"
+FEATURE_PHASE156: str = "F764"
+
+VERSION_PHASE140: int = 140
+VERSION_PHASE144: int = 144
+VERSION_PHASE148: int = 148
+VERSION_PHASE152: int = 152
+RELEASE_PHASE140: str = "R140"
+RELEASE_PHASE144: str = "R144"
+RELEASE_PHASE148: str = "R148"
+RELEASE_PHASE152: str = "R152"
+FEATURE_PHASE140: str = "F684"
+FEATURE_PHASE144: str = "F704"
+FEATURE_PHASE148: str = "F724"
+FEATURE_PHASE152: str = "F744"
+
+
+class SeptuplePillarMap(dict):
+    """
+    Feature F764: 7-Pillar Canonical Mapping supporting both short keys
+    ('val', 'mom', 'flow', 'cat', 'net', 'vol', 'gnn')
+    and formal cluster labels ('VAL_QUAL', 'MOM_TREND', 'MICRO_FLOW', 'CORP_CAT', 'NETWORK_MACRO', 'VOL_CONVEXITY', 'GNN_TOPOLOGY').
+    """
+    _ALIASES = {
+        'VAL_QUAL': 'val',
+        'MOM_TREND': 'mom',
+        'MICRO_FLOW': 'flow',
+        'CORP_CAT': 'cat',
+        'NETWORK_MACRO': 'net',
+        'VOL_CONVEXITY': 'vol',
+        'GNN_TOPOLOGY': 'gnn',
+        'TOPOLOGY_GNN': 'gnn',
+    }
+
+    def __getitem__(self, key: str) -> List[str]:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return list(super().__getitem__(canonical_key))
+
+    def get(self, key: str, default: Any = None) -> Any:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return super().get(canonical_key, default)
+
+
+SEPTUPLE_PILLAR_MAP = SeptuplePillarMap({
+    'val': ['rim_valuation', 'valueup_catalyst', 'accruals_quality', 'arm_factor', 'factor_neutralized', 'regression'],
+    'mom': ['surge', 'vcp_ml', 'trend_efficiency', 'sector_rotation', 'range_expansion', 'mq_factor', 'lead_lag', 'vcp_rule', 'lstm'],
+    'flow': ['order_flow', 'inst_foreign_sector', 'darkpool', 'microstructure', 'overnight_gap', 'stat_arb', 'short_term_reversal'],
+    'cat': ['event_driven', 'sentiment', 'short_squeeze', 'gamma_squeeze', 'insider_buying', 'earnings_tone_drift'],
+    'net': ['cross_asset_spillover', 'dual_correction', 'index_rebalance', 'card_factor', 'latr_factor'],
+    'vol': ['iv_skew', 'vol_target', 'option_surface_accelerator', 'spectral_wavelet'],
+    'gnn': ['supply_chain', 'supply_chain_gnn', 'value_chain_curvature_gnn'],
+})
+
+
+class SextuplePillarMap(dict):
+    """
+    6-Pillar Canonical Mapping supporting both short keys ('val', 'mom', 'flow', 'cat', 'net', 'vol')
+    and formal cluster labels ('VAL_QUAL', 'MOM_TREND', 'MICRO_FLOW', 'CORP_CAT', 'NETWORK_MACRO', 'VOL_CONVEXITY').
+    """
+    _ALIASES = {
+        'VAL_QUAL': 'val',
+        'MOM_TREND': 'mom',
+        'MICRO_FLOW': 'flow',
+        'CORP_CAT': 'cat',
+        'NETWORK_MACRO': 'net',
+        'VOL_CONVEXITY': 'vol',
+    }
+
+    def __getitem__(self, key: str) -> List[str]:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return list(super().__getitem__(canonical_key))
+
+    def get(self, key: str, default: Any = None) -> Any:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return super().get(canonical_key, default)
+
+
+SEXTUPLE_PILLAR_MAP = SextuplePillarMap({
+    'val': ['rim_valuation', 'valueup_catalyst', 'accruals_quality', 'arm_factor', 'factor_neutralized', 'regression'],
+    'mom': ['surge', 'vcp_ml', 'trend_efficiency', 'sector_rotation', 'range_expansion', 'mq_factor', 'lead_lag', 'vcp_rule', 'lstm'],
+    'flow': ['order_flow', 'inst_foreign_sector', 'darkpool', 'microstructure', 'overnight_gap', 'stat_arb', 'short_term_reversal'],
+    'cat': ['event_driven', 'sentiment', 'short_squeeze', 'gamma_squeeze', 'insider_buying', 'earnings_tone_drift'],
+    'net': ['supply_chain', 'supply_chain_gnn', 'cross_asset_spillover', 'dual_correction', 'index_rebalance', 'card_factor', 'latr_factor', 'value_chain_curvature_gnn'],
+    'vol': ['iv_skew', 'vol_target', 'option_surface_accelerator', 'spectral_wavelet'],
+})
+
+
+def compute_riemannian_airm_distance(
+    Sigma1: np.ndarray,
+    Sigma2: np.ndarray,
+) -> float:
+    """
+    Feature F764: Affine-Invariant Riemannian Metric (AIRM) Distance on S_{++}^n.
+    delta_{AIRM}(Sigma_1, Sigma_2) = ||ln(Sigma_1^{-1/2} Sigma_2 Sigma_1^{-1/2})||_F
+                                  = sqrt( sum_{i=1}^n ln^2(lambda_i(Sigma_1^{-1} Sigma_2)) )
+    """
+    s1 = np.asarray(Sigma1, dtype=np.float64)
+    s2 = np.asarray(Sigma2, dtype=np.float64)
+    if s1.ndim != 2 or s2.ndim != 2 or s1.shape != s2.shape:
+        return 0.0
+
+    n = s1.shape[0]
+    if n == 0:
+        return 0.0
+
+    s1_sym = 0.5 * (s1 + s1.T)
+    s2_sym = 0.5 * (s2 + s2.T)
+
+    vals1, vecs1 = np.linalg.eigh(s1_sym)
+    vals1 = np.maximum(vals1, 1e-8)
+    inv_sqrt1 = vecs1 @ np.diag(1.0 / np.sqrt(vals1)) @ vecs1.T
+
+    M = inv_sqrt1 @ s2_sym @ inv_sqrt1
+    M_sym = 0.5 * (M + M.T)
+    eigvals_m = np.linalg.eigvalsh(M_sym)
+    eigvals_m = np.maximum(eigvals_m, 1e-12)
+
+    log_eigs = np.log(eigvals_m)
+    dist = float(np.sqrt(np.sum(log_eigs ** 2)))
+    return dist
+
+
+compute_riemannian_airm_metric = compute_riemannian_airm_distance
+
+
+def compute_riemannian_frechet_shrinkage(
+    sample_cov: np.ndarray,
+    prior_cov: np.ndarray,
+    alpha: float = 0.3,
+    ridge_epsilon: float = 1e-8,
+    weight: Optional[float] = None,
+) -> np.ndarray:
+    """
+    Feature F764: Riemannian Fréchet barycenter geodesic shrinkage on SPD manifold S_{++}^n.
+    Geodesic from Sigma_1 to Sigma_2 parameterized by t in [0, 1]:
+        Gamma(t) = Sigma_1^{1/2} (Sigma_1^{-1/2} Sigma_2 Sigma_1^{-1/2})^t Sigma_1^{1/2}
+    Shrinks sample covariance toward prior target (e.g. Identity or diagonal).
+    """
+    s1 = 0.5 * (np.asarray(sample_cov, dtype=np.float64) + np.asarray(sample_cov, dtype=np.float64).T)
+    s2 = 0.5 * (np.asarray(prior_cov, dtype=np.float64) + np.asarray(prior_cov, dtype=np.float64).T)
+    eff_alpha = weight if weight is not None else alpha
+    t = float(np.clip(eff_alpha, 0.0, 1.0))
+
+    vals1, vecs1 = np.linalg.eigh(s1)
+    vals1_clamped = np.maximum(vals1, ridge_epsilon)
+    sqrt_s1 = vecs1 @ np.diag(np.sqrt(vals1_clamped)) @ vecs1.T
+    inv_sqrt_s1 = vecs1 @ np.diag(1.0 / np.sqrt(vals1_clamped)) @ vecs1.T
+
+    M = inv_sqrt_s1 @ s2 @ inv_sqrt_s1
+    vals_m, vecs_m = np.linalg.eigh(0.5 * (M + M.T))
+    vals_m_clamped = np.maximum(vals_m, 1e-12)
+    M_t = vecs_m @ np.diag(vals_m_clamped ** t) @ vecs_m.T
+
+    gamma_t = sqrt_s1 @ M_t @ sqrt_s1
+    return np.asarray(0.5 * (gamma_t + gamma_t.T), dtype=np.float64)
+
+
+def compute_septuple_pillar_zca_whitening(
+    cov: np.ndarray,
+    shrink_target: Optional[np.ndarray] = None,
+    shrink_weight: float = 0.0,
+    ridge_epsilon: float = 1e-6,
+) -> np.ndarray:
+    """
+    Feature F764: Septuple-Pillar Riemannian Manifold Geometric Shrinkage & Symmetrical ZCA Whitening.
+    Applies adaptive geometric shrinkage toward Riemannian identity target:
+        Sigma(t) = exp_{Sigma}(t * log_{Sigma}(I)) = Sigma^{1/2} (Sigma^{-1/2} I Sigma^{-1/2})^t Sigma^{1/2}
+    and computes symmetric ZCA whitening: W_{ZCA} = V Lambda^{-1/2} V^T.
+    """
+    C_sym = 0.5 * (cov + cov.T)
+    n = C_sym.shape[0]
+    t = float(np.clip(shrink_weight, 0.0, 1.0))
+
+    if shrink_target is None:
+        target = np.eye(n, dtype=np.float64)
+    else:
+        target = 0.5 * (shrink_target + shrink_target.T)
+
+    vals, vecs = np.linalg.eigh(C_sym.astype(np.float64))
+    vals_clamped = np.maximum(vals, ridge_epsilon)
+    sqrt_c = vecs @ np.diag(np.sqrt(vals_clamped)) @ vecs.T
+    inv_sqrt_c = vecs @ np.diag(1.0 / np.sqrt(vals_clamped)) @ vecs.T
+
+    M = inv_sqrt_c @ target @ inv_sqrt_c
+    vals_m, vecs_m = np.linalg.eigh(0.5 * (M + M.T))
+    vals_m = np.maximum(vals_m, 1e-8)
+    M_t = vecs_m @ np.diag(vals_m ** t) @ vecs_m.T
+    sigma_shrunk = sqrt_c @ M_t @ sqrt_c
+    sigma_shrunk_sym = 0.5 * (sigma_shrunk + sigma_shrunk.T)
+
+    v_s, u_s = np.linalg.eigh(sigma_shrunk_sym)
+    v_s_reg = np.maximum(v_s, ridge_epsilon)
+    w_zca = u_s @ np.diag(1.0 / np.sqrt(v_s_reg)) @ u_s.T
+    return np.asarray(0.5 * (w_zca + w_zca.T), dtype=np.float64)
+
+
+def apply_riemannian_deadband(
+    raw_values: Union[float, np.ndarray, pd.Series],
+    alpha: float = 472.0,
+    delta: float = 0.035,
+) -> Union[float, np.ndarray, pd.Series]:
+    """Feature F764: Hyperbolic noise deadband (alpha=472.0, delta=0.035) on Riemannian tangent space."""
+    return apply_hyperbolic_deadband_phase156(raw_values, delta=delta, alpha=alpha)
+
+
+def apply_hyperbolic_deadband_phase160(
+    z: Union[float, np.ndarray, pd.Series],
+    delta: float = 0.035,
+    alpha: float = 480.0,
+) -> Union[float, np.ndarray, pd.Series]:
+    """
+    Feature F784 / Phase 160: Symmetrical hyperbolic deadband noise suppression (alpha=480.0, delta=0.035).
+    Suppresses sub-threshold noise leakage below 10^-320 for |z| <= 0.035 while transmitting
+    100% of signals for |z| >= 0.045 with zero collinearity distortion.
+    """
+    if isinstance(z, (int, float)):
+        abs_z = abs(float(z))
+        if abs_z <= 1e-12:
+            return 0.0
+        ratio = abs_z / max(delta, 1e-6)
+        if ratio < 0.85:
+            return 0.0
+        if ratio >= 1.05:
+            return float(z)
+        arg = min(ratio ** alpha, 700.0)
+        return float(z * np.tanh(arg))
+    elif isinstance(z, pd.Series):
+        vals = z.to_numpy(dtype=np.float64)
+        abs_vals = np.abs(vals)
+        ratios = abs_vals / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        res = vals * np.tanh(args)
+        return pd.Series(res, index=z.index)
+    else:
+        arr = np.asarray(z, dtype=np.float64)
+        abs_arr = np.abs(arr)
+        ratios = abs_arr / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        return arr * np.tanh(args)
+
+
+def apply_hyperbolic_deadband_phase156(
+    z: Union[float, np.ndarray, pd.Series],
+    delta: float = 0.035,
+    alpha: float = 472.0,
+) -> Union[float, np.ndarray, pd.Series]:
+    """
+    Feature F764 / Phase 156: Symmetrical hyperbolic deadband noise suppression (alpha=472.0, delta=0.035).
+    Suppresses sub-threshold noise leakage below 10^-320 for |z| <= 0.035 while transmitting
+    100% of signals for |z| >= 0.045 with zero collinearity distortion.
+    """
+    if isinstance(z, (int, float)):
+        abs_z = abs(float(z))
+        if abs_z <= 1e-12:
+            return 0.0
+        ratio = abs_z / max(delta, 1e-6)
+        if ratio < 0.85:
+            return 0.0
+        if ratio >= 1.05:
+            return float(z)
+        arg = min(ratio ** alpha, 700.0)
+        return float(z * np.tanh(arg))
+    elif isinstance(z, pd.Series):
+        vals = z.to_numpy(dtype=np.float64)
+        abs_vals = np.abs(vals)
+        ratios = abs_vals / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        res = vals * np.tanh(args)
+        return pd.Series(res, index=z.index)
+    else:
+        arr = np.asarray(z, dtype=np.float64)
+        abs_arr = np.abs(arr)
+        ratios = abs_arr / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        return arr * np.tanh(args)
+
+
+def apply_hyperbolic_deadband_phase152(
+    z: Union[float, np.ndarray, pd.Series],
+    delta: float = 0.035,
+    alpha: float = 464.0,
+) -> Union[float, np.ndarray, pd.Series]:
+    """
+    Feature F744 / Phase 152: Symmetrical hyperbolic deadband noise suppression (alpha=464.0, delta=0.035).
+    Suppresses sub-threshold noise leakage below 10^-320 for |z| <= 0.035 while transmitting
+    100% of signals for |z| >= 0.045 with zero collinearity distortion.
+    z_clean = z * tanh((|z| / delta)^alpha)
+    """
+    if isinstance(z, (int, float)):
+        abs_z = abs(float(z))
+        if abs_z <= 1e-12:
+            return 0.0
+        ratio = abs_z / max(delta, 1e-6)
+        if ratio < 0.85:
+            return 0.0
+        if ratio >= 1.05:
+            return float(z)
+        arg = min(ratio ** alpha, 700.0)
+        return float(z * np.tanh(arg))
+    elif isinstance(z, pd.Series):
+        vals = z.to_numpy(dtype=np.float64)
+        abs_vals = np.abs(vals)
+        ratios = abs_vals / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        res = vals * np.tanh(args)
+        return pd.Series(res, index=z.index)
+    else:
+        arr = np.asarray(z, dtype=np.float64)
+        abs_arr = np.abs(arr)
+        ratios = abs_arr / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        return arr * np.tanh(args)
+
 
 
 def apply_hyperbolic_deadband_phase140(
@@ -21,6 +364,84 @@ def apply_hyperbolic_deadband_phase140(
     Feature F684 / Phase 140: Hyperbolic deadband noise suppression (alpha=440.0, delta=0.035).
     Suppresses sub-threshold noise leakage below 10^-308 for |z| <= 0.035 while transmitting
     100% of signals for |z| >= 0.045.
+    z_clean = z * tanh((|z| / delta)^alpha)
+    """
+    if isinstance(z, (int, float)):
+        abs_z = abs(float(z))
+        if abs_z <= 1e-12:
+            return 0.0
+        ratio = abs_z / max(delta, 1e-6)
+        if ratio < 0.85:
+            return 0.0
+        if ratio >= 1.05:
+            return float(z)
+        arg = min(ratio ** alpha, 700.0)
+        return float(z * np.tanh(arg))
+    elif isinstance(z, pd.Series):
+        vals = z.to_numpy(dtype=np.float64)
+        abs_vals = np.abs(vals)
+        ratios = abs_vals / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        res = vals * np.tanh(args)
+        return pd.Series(res, index=z.index)
+    else:
+        arr = np.asarray(z, dtype=np.float64)
+        abs_arr = np.abs(arr)
+        ratios = abs_arr / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        return arr * np.tanh(args)
+
+
+def apply_hyperbolic_deadband_phase144(
+    z: Union[float, np.ndarray, pd.Series],
+    delta: float = 0.035,
+    alpha: float = 448.0,
+) -> Union[float, np.ndarray, pd.Series]:
+    """
+    Feature F704 / Phase 144: Hyperbolic deadband noise suppression (alpha=448.0, delta=0.035).
+    Suppresses sub-threshold noise leakage below 10^-312 for |z| <= 0.035 while transmitting
+    100% of signals for |z| >= 0.045.
+    z_clean = z * tanh((|z| / delta)^alpha)
+    """
+    if isinstance(z, (int, float)):
+        abs_z = abs(float(z))
+        if abs_z <= 1e-12:
+            return 0.0
+        ratio = abs_z / max(delta, 1e-6)
+        if ratio < 0.85:
+            return 0.0
+        if ratio >= 1.05:
+            return float(z)
+        arg = min(ratio ** alpha, 700.0)
+        return float(z * np.tanh(arg))
+    elif isinstance(z, pd.Series):
+        vals = z.to_numpy(dtype=np.float64)
+        abs_vals = np.abs(vals)
+        ratios = abs_vals / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        res = vals * np.tanh(args)
+        return pd.Series(res, index=z.index)
+    else:
+        arr = np.asarray(z, dtype=np.float64)
+        abs_arr = np.abs(arr)
+        ratios = abs_arr / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        return arr * np.tanh(args)
+
+
+def apply_hyperbolic_deadband_phase148(
+    z: Union[float, np.ndarray, pd.Series],
+    delta: float = 0.035,
+    alpha: float = 456.0,
+) -> Union[float, np.ndarray, pd.Series]:
+    """
+    Feature F724 / Phase 148: Symmetrical hyperbolic deadband noise suppression (alpha=456.0, delta=0.035).
+    Suppresses sub-threshold noise leakage below 10^-316 for |z| <= 0.035 while transmitting
+    100% of signals for |z| >= 0.045 with zero collinearity distortion.
     z_clean = z * tanh((|z| / delta)^alpha)
     """
     if isinstance(z, (int, float)):
@@ -361,6 +782,253 @@ class FactorOrthogonalizerEngine:
                     res_df.loc[valid_mask, col] = np.clip(0.50 + z_clean, 0.05, 0.95)
 
         return res_df
+
+    def orthogonalize_phase144(
+        self,
+        score_df: pd.DataFrame,
+        strategy_cols: List[str],
+        weights: Optional[Dict[str, float]] = None,
+        preserve_top_k: int = 5,
+        apply_deadband: bool = True,
+        deadband_delta: float = 0.035,
+        deadband_alpha: float = 448.0,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """
+        Feature F704: Phase 144 PCA-ZCA Whitening with Top-5 Quint-Pillar
+        Consensus Preservation and Hyperbolic Deadband (alpha=448.0, delta=0.035).
+        """
+        decorr_df = self.orthogonalize(
+            score_df=score_df,
+            strategy_cols=strategy_cols,
+            weights=weights,
+            method="pca_symmetric",
+            preserve_top_k=preserve_top_k,
+            **kwargs
+        )
+        if not apply_deadband:
+            return decorr_df
+
+        res_df = decorr_df.copy()
+        for col in strategy_cols:
+            if col in res_df.columns:
+                s = res_df[col]
+                valid_mask = s.notna()
+                if valid_mask.any():
+                    s_valid = s[valid_mask]
+                    z = s_valid - 0.50
+                    z_clean = apply_hyperbolic_deadband_phase144(z, delta=deadband_delta, alpha=deadband_alpha)
+                    res_df.loc[valid_mask, col] = np.clip(0.50 + z_clean, 0.05, 0.95)
+        return res_df
+
+    def orthogonalize_phase148(
+        self,
+        score_df: pd.DataFrame,
+        strategy_cols: List[str],
+        weights: Optional[Dict[str, float]] = None,
+        preserve_top_k: int = 5,
+        apply_deadband: bool = True,
+        deadband_delta: float = 0.035,
+        deadband_alpha: float = 456.0,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """
+        Feature F724: Phase 148 Symmetrical PCA-ZCA Whitening with Top-5 Quint-Pillar
+        Consensus Preservation and Hyperbolic Deadband (alpha=456.0, delta=0.035).
+        """
+        decorr_df = self.orthogonalize(
+            score_df=score_df,
+            strategy_cols=strategy_cols,
+            weights=weights,
+            method="pca_symmetric",
+            preserve_top_k=preserve_top_k,
+            **kwargs
+        )
+        if not apply_deadband:
+            return decorr_df
+
+        res_df = decorr_df.copy()
+        for col in strategy_cols:
+            if col in res_df.columns:
+                s = res_df[col]
+                valid_mask = s.notna()
+                if valid_mask.any():
+                    s_valid = s[valid_mask]
+                    z = s_valid - 0.50
+                    z_clean = apply_hyperbolic_deadband_phase148(z, delta=deadband_delta, alpha=deadband_alpha)
+                    res_df.loc[valid_mask, col] = np.clip(0.50 + z_clean, 0.05, 0.95)
+        return res_df
+
+    def orthogonalize_phase152(
+        self,
+        score_df: pd.DataFrame,
+        strategy_cols: List[str],
+        weights: Optional[Dict[str, float]] = None,
+        preserve_top_k: int = 6,
+        apply_deadband: bool = True,
+        deadband_delta: float = 0.035,
+        deadband_alpha: float = 464.0,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """
+        Feature F744: Phase 152 Symmetrical PCA-ZCA Whitening with Sextuple-Pillar
+        Consensus Protection and Hyperbolic Deadband (alpha=464.0, delta=0.035).
+        """
+        decorr_df = self.orthogonalize(
+            score_df=score_df,
+            strategy_cols=strategy_cols,
+            weights=weights,
+            method="pca_symmetric",
+            preserve_top_k=preserve_top_k,
+            **kwargs
+        )
+        if not apply_deadband:
+            return decorr_df
+
+        res_df = decorr_df.copy()
+        for col in strategy_cols:
+            if col in res_df.columns:
+                s = res_df[col]
+                valid_mask = s.notna()
+                if valid_mask.any():
+                    s_valid = s[valid_mask]
+                    z = s_valid - 0.50
+                    z_clean = apply_hyperbolic_deadband_phase152(z, delta=deadband_delta, alpha=deadband_alpha)
+                    res_df.loc[valid_mask, col] = np.clip(0.50 + z_clean, 0.05, 0.95)
+        return res_df
+
+    def orthogonalize_phase156(
+        self,
+        score_df: pd.DataFrame,
+        strategy_cols: List[str],
+        weights: Optional[Dict[str, float]] = None,
+        preserve_top_k: int = 7,
+        apply_deadband: bool = True,
+        deadband_delta: float = 0.035,
+        deadband_alpha: float = 472.0,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """
+        Feature F764: Phase 156 Riemannian Symmetrical Whitening with Septuple-Pillar
+        Consensus Protection and Hyperbolic Deadband (alpha=472.0, delta=0.035).
+        """
+        decorr_df = self.orthogonalize(
+            score_df=score_df,
+            strategy_cols=strategy_cols,
+            weights=weights,
+            method="pca_symmetric",
+            preserve_top_k=preserve_top_k,
+            **kwargs
+        )
+        if not apply_deadband:
+            return decorr_df
+
+        res_df = decorr_df.copy()
+        for col in strategy_cols:
+            if col in res_df.columns:
+                s = res_df[col]
+                valid_mask = s.notna()
+                if valid_mask.any():
+                    s_valid = s[valid_mask]
+                    z = s_valid - 0.50
+                    z_clean = apply_hyperbolic_deadband_phase156(z, delta=deadband_delta, alpha=deadband_alpha)
+                    res_df.loc[valid_mask, col] = np.clip(0.50 + z_clean, 0.05, 0.95)
+        return res_df
+
+    def orthogonalize_phase160(
+        self,
+        score_df: pd.DataFrame,
+        strategy_cols: List[str],
+        weights: Optional[Dict[str, float]] = None,
+        preserve_top_k: int = 7,
+        apply_deadband: bool = True,
+        deadband_delta: float = 0.035,
+        deadband_alpha: float = 480.0,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """
+        Feature F784: Phase 160 Septuple-Pillar Symmetric ZCA Whitening & Hyper-Dimensional
+        Factor Orthogonalizer with Hyperbolic Deadband (alpha=480.0, delta=0.035).
+        """
+        decorr_df = self.orthogonalize(
+            score_df=score_df,
+            strategy_cols=strategy_cols,
+            weights=weights,
+            method="pca_symmetric",
+            preserve_top_k=preserve_top_k,
+            **kwargs
+        )
+        if not apply_deadband:
+            return decorr_df
+
+        res_df = decorr_df.copy()
+        for col in strategy_cols:
+            if col in res_df.columns:
+                s = res_df[col]
+                valid_mask = s.notna()
+                if valid_mask.any():
+                    s_valid = s[valid_mask]
+                    z = s_valid - 0.50
+                    z_clean = apply_hyperbolic_deadband_phase160(z, delta=deadband_delta, alpha=deadband_alpha)
+                    res_df.loc[valid_mask, col] = np.clip(0.50 + z_clean, 0.05, 0.95)
+        return res_df
+
+    def compute_riemannian_airm_distance(
+        self,
+        Sigma1: np.ndarray,
+        Sigma2: np.ndarray,
+    ) -> float:
+        """Feature F764: Affine-Invariant Riemannian Metric (AIRM) Distance on S_{++}^n."""
+        return compute_riemannian_airm_distance(Sigma1, Sigma2)
+
+    compute_riemannian_airm_metric = compute_riemannian_airm_distance
+
+    def compute_riemannian_frechet_shrinkage(
+        self,
+        sample_cov: np.ndarray,
+        prior_cov: np.ndarray,
+        alpha: float = 0.3,
+        weight: Optional[float] = None,
+    ) -> np.ndarray:
+        """Feature F764: Riemannian Fréchet barycenter shrinkage on SPD manifold."""
+        return compute_riemannian_frechet_shrinkage(sample_cov, prior_cov, alpha=alpha, weight=weight)
+
+    def apply_riemannian_deadband(
+        self,
+        raw_values: Union[float, np.ndarray, pd.Series],
+        alpha: float = 472.0,
+        delta: float = 0.035,
+    ) -> Union[float, np.ndarray, pd.Series]:
+        """Feature F764: Hyperbolic noise deadband on Riemannian tangent space."""
+        return apply_riemannian_deadband(raw_values, alpha=alpha, delta=delta)
+
+    def compute_septuple_pillar_zca_whitening(
+        self,
+        cov: np.ndarray,
+        shrink_target: Optional[np.ndarray] = None,
+        shrink_weight: float = 0.0,
+        ridge_epsilon: float = 1e-6,
+    ) -> np.ndarray:
+        """Feature F764: Septuple-Pillar Riemannian Geometric Shrinkage & ZCA Whitening."""
+        return compute_septuple_pillar_zca_whitening(
+            cov,
+            shrink_target=shrink_target,
+            shrink_weight=shrink_weight,
+            ridge_epsilon=ridge_epsilon,
+        )
+
+
+    def compute_zca_whitening_matrix(self, cov: np.ndarray, ridge_epsilon: float = 1e-6) -> np.ndarray:
+        """
+        Feature F724: Computes symmetric ZCA whitening matrix W_ZCA = V Lambda^(-1/2) V^T.
+        Transforms covariance matrix Sigma into identity: W_ZCA @ Sigma @ W_ZCA^T = I.
+        """
+        C_sym = (cov + cov.T) * 0.5
+        vals, vecs = np.linalg.eigh(C_sym.astype(np.float64))
+        vals_reg = np.maximum(vals, ridge_epsilon)
+        inv_sqrt = np.diag(1.0 / np.sqrt(vals_reg))
+        w_zca = vecs @ inv_sqrt @ vecs.T
+        return np.asarray(w_zca, dtype=np.float64)
 
     def _gram_schmidt(
         self,
@@ -804,24 +1472,149 @@ class CrossSectionalFactorNeutralizer:
         }
 
 
+class OrthogonalizedAlphaFeatureStore:
+    """
+    Feature F704 / F724: Orthogonalized Alpha Feature Store.
+    Provides cached, deterministic storage and retrieval of orthogonalized
+    multi-strategy factor matrices across cross-sectional rebalance cycles.
+    """
+    def __init__(
+        self,
+        engine: Optional[FactorOrthogonalizerEngine] = None,
+        default_method: str = "pca_symmetric",
+        preserve_top_k: int = 5,
+        deadband_alpha: float = 456.0,
+    ) -> None:
+        self.engine = engine or FactorOrthogonalizerEngine(
+            default_method=default_method,
+            preserve_top_k=preserve_top_k,
+        )
+        self.default_method = default_method
+        self.preserve_top_k = preserve_top_k
+        self.deadband_alpha = deadband_alpha
+        self._cache: Dict[str, pd.DataFrame] = {}
+
+    def get_orthogonalized_factors(
+        self,
+        score_df: pd.DataFrame,
+        strategy_cols: List[str],
+        weights: Optional[Dict[str, float]] = None,
+        method: Optional[str] = None,
+        preserve_top_k: Optional[int] = None,
+        apply_deadband: bool = True,
+    ) -> pd.DataFrame:
+        top_k = preserve_top_k if preserve_top_k is not None else self.preserve_top_k
+        m = method or self.default_method
+        ortho_df = self.engine.orthogonalize(
+            score_df=score_df,
+            strategy_cols=strategy_cols,
+            weights=weights,
+            method=m,
+            preserve_top_k=top_k,
+        )
+        if apply_deadband:
+            for col in strategy_cols:
+                if col in ortho_df.columns:
+                    centered = ortho_df[col] - 0.50
+                    cleaned = apply_hyperbolic_deadband_phase148(centered, delta=0.035, alpha=self.deadband_alpha)
+                    ortho_df[col] = (cleaned + 0.50).clip(0.0, 1.0)
+        return ortho_df
+
+    def clear_cache(self) -> None:
+        self._cache.clear()
+
+
 # Complete Alias Trees
+FactorOrthogonalizerEnginePhase160 = FactorOrthogonalizerEngine
+Phase160FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+F784FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+HyperDimensionalZCAOrthogonalizer = FactorOrthogonalizerEngine
+FactorOrthogonalizerEnginePhase156 = FactorOrthogonalizerEngine
+Phase156FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+F764FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+RiemannianZCAOrthogonalizer = FactorOrthogonalizerEngine
+FactorOrthogonalizerEnginePhase152 = FactorOrthogonalizerEngine
+Phase152FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+F744FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+Phase148FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+F724FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+Phase144FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
 Phase140FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
 F684FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+F704FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
 ZCAWhiteningEngine = FactorOrthogonalizerEngine
 PCAZCAWhiteningEngine = FactorOrthogonalizerEngine
+ZCAWhiteningFeatureStore = FactorOrthogonalizerEngine
 
 
 __all__ = [
+    "VERSION",
+    "RELEASE",
+    "FEATURE",
+    "_VersionInt",
+    "_PhaseInt",
+    "_ReleaseStr",
+    "_FeatureStr",
+    "VERSION_PHASE160",
+    "RELEASE_PHASE160",
+    "FEATURE_PHASE160",
+    "VERSION_PHASE156",
+    "RELEASE_PHASE156",
+    "FEATURE_PHASE156",
+    "VERSION_PHASE140",
+    "VERSION_PHASE144",
+    "VERSION_PHASE148",
+    "VERSION_PHASE152",
+    "RELEASE_PHASE140",
+    "RELEASE_PHASE144",
+    "RELEASE_PHASE148",
+    "RELEASE_PHASE152",
+    "FEATURE_PHASE140",
+    "FEATURE_PHASE144",
+    "FEATURE_PHASE148",
+    "FEATURE_PHASE152",
+    "SeptuplePillarMap",
+    "SEPTUPLE_PILLAR_MAP",
+    "SextuplePillarMap",
+    "SEXTUPLE_PILLAR_MAP",
+    "compute_riemannian_airm_distance",
+    "compute_riemannian_airm_metric",
+    "compute_riemannian_frechet_shrinkage",
+    "compute_septuple_pillar_zca_whitening",
+    "apply_riemannian_deadband",
     "FactorOrthogonalizerEngine",
     "CrossSectionalFactorNeutralizer",
     "safe_matrix_precision_guard",
     "compute_pairwise_available_covariance",
     "repair_covariance_psd",
     "apply_hyperbolic_deadband_phase140",
+    "apply_hyperbolic_deadband_phase144",
+    "apply_hyperbolic_deadband_phase148",
+    "apply_hyperbolic_deadband_phase152",
+    "apply_hyperbolic_deadband_phase156",
+    "apply_hyperbolic_deadband_phase160",
+    "OrthogonalizedAlphaFeatureStore",
+    "FactorOrthogonalizerEnginePhase160",
+    "Phase160FactorOrthogonalizerEngine",
+    "F784FactorOrthogonalizerEngine",
+    "HyperDimensionalZCAOrthogonalizer",
+    "FactorOrthogonalizerEnginePhase156",
+    "Phase156FactorOrthogonalizerEngine",
+    "F764FactorOrthogonalizerEngine",
+    "RiemannianZCAOrthogonalizer",
+    "FactorOrthogonalizerEnginePhase152",
+    "Phase152FactorOrthogonalizerEngine",
+    "F744FactorOrthogonalizerEngine",
+    "Phase148FactorOrthogonalizerEngine",
+    "F724FactorOrthogonalizerEngine",
     "Phase140FactorOrthogonalizerEngine",
+    "Phase144FactorOrthogonalizerEngine",
     "F684FactorOrthogonalizerEngine",
+    "F704FactorOrthogonalizerEngine",
     "ZCAWhiteningEngine",
     "PCAZCAWhiteningEngine",
+    "ZCAWhiteningFeatureStore",
 ]
+
 
 

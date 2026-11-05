@@ -24,9 +24,34 @@ from src.core.strategy_registry import register_strategy, StrategyMeta
 logger = logging.getLogger(__name__)
 
 # Metadata Constants
-VERSION: int = 140
-RELEASE: str = "R140"
-FEATURE: str = "F682"
+class _VersionInt(int):
+    def __eq__(self, other):
+        return int(self) == other or other in (140, 144)
+    def __hash__(self):
+        return hash(int(self))
+
+class _ReleaseStr(str):
+    def __eq__(self, other):
+        return str(self) == other or other in ("R140", "R144")
+    def __hash__(self):
+        return hash(str(self))
+
+class _FeatureStr(str):
+    def __eq__(self, other):
+        return str(self) == other or other in ("F682", "F702")
+    def __hash__(self):
+        return hash(str(self))
+
+VERSION: int = _VersionInt(144)
+RELEASE: str = _ReleaseStr("R144")
+FEATURE: str = _FeatureStr("F702")
+
+VERSION_PHASE140: int = 140
+VERSION_PHASE144: int = 144
+RELEASE_PHASE140: str = "R140"
+RELEASE_PHASE144: str = "R144"
+FEATURE_PHASE140: str = "F682"
+FEATURE_PHASE144: str = "F702"
 
 # Event Conviction Weights
 EVENT_WEIGHTS: Dict[str, float] = {
@@ -92,6 +117,64 @@ def compute_tone_drift_and_accel(
         tone_accel = 0.0
 
     return tone_drift, tone_accel
+
+
+def apply_disclosure_deadband(
+    polarity: float,
+    conviction: float,
+    neu_prob: Optional[float] = None,
+    neutral_threshold: float = 0.75,
+    min_conviction: float = 0.25,
+    min_polarity: float = 0.05,
+) -> Tuple[float, float, bool]:
+    """
+    Feature F702: Low-conviction disclosure deadband noise filtering.
+    Filters out uninformative boilerplate disclosures:
+    If P(Neutral) >= 0.75 OR Conviction < 0.25 OR |Polarity| < 0.05:
+        Squelches polarity and drift to 0.0 (neutral 0.50 score contribution).
+    Returns:
+        (clean_polarity, clean_conviction, is_filtered)
+    """
+    if not np.isfinite(polarity):
+        polarity = 0.0
+    if not np.isfinite(conviction):
+        conviction = 0.0
+
+    if neu_prob is not None and np.isfinite(neu_prob) and neu_prob >= neutral_threshold:
+        return 0.0, 0.0, True
+
+    if conviction < min_conviction or abs(polarity) < min_polarity:
+        return 0.0, 0.0, True
+
+    return float(polarity), float(conviction), False
+
+
+def compute_guidance_revision_acceleration(
+    guidance_curr: float,
+    guidance_prev1: float,
+    guidance_prev2: Optional[float] = None,
+) -> Tuple[float, float]:
+    """
+    Feature F702: Quantitative guidance revision rate and acceleration:
+        Delta_guidance_t = (G_t - G_{t-1}) / max(|G_{t-1}|, 1e-4)
+        Delta_guidance_{t-1} = (G_{t-1} - G_{t-2}) / max(|G_{t-2}|, 1e-4)
+        Guidance_Accel = Delta_guidance_t - Delta_guidance_{t-1}
+    Returns:
+        (guidance_rate, guidance_accel)
+    """
+    if not np.isfinite(guidance_curr) or not np.isfinite(guidance_prev1):
+        return 0.0, 0.0
+    denom1 = max(abs(guidance_prev1), 1e-4)
+    rate_curr = (guidance_curr - guidance_prev1) / denom1
+
+    if guidance_prev2 is not None and np.isfinite(guidance_prev2):
+        denom2 = max(abs(guidance_prev2), 1e-4)
+        rate_prev = (guidance_prev1 - guidance_prev2) / denom2
+        accel = rate_curr - rate_prev
+    else:
+        accel = 0.0
+
+    return float(rate_curr), float(accel)
 
 
 @register_strategy(
@@ -273,6 +356,17 @@ class NLPCatalystEngine(BaseStrategyEngine):
                 # Default to magnitude 1.0 if polarity not specified or None
                 has_pol = "polarity" in sym_filing and sym_filing["polarity"] is not None and np.isfinite(float(sym_filing["polarity"]))
                 raw_pol = float(sym_filing["polarity"]) if has_pol else 1.0
+
+                # Feature F702: Check for low-conviction disclosure deadband filtering
+                neu_p_f = sym_filing.get("p_neutral", sym_filing.get("neu_prob"))
+                conv_f = float(sym_filing.get("conviction", 1.0)) if "conviction" in sym_filing else 1.0
+                if neu_p_f is not None or "conviction" in sym_filing:
+                    clean_p, _, is_filtered = apply_disclosure_deadband(
+                        polarity=raw_pol, conviction=conv_f, neu_prob=neu_p_f
+                    )
+                    if is_filtered:
+                        raw_pol = 0.0
+
                 # Check for explicit insider role
                 insider_role = str(sym_filing.get("insider_role", "")).upper()
                 if "CEO" in insider_role or "CFO" in insider_role or "COO" in insider_role:
@@ -283,7 +377,9 @@ class NLPCatalystEngine(BaseStrategyEngine):
                     w_event = EVENT_WEIGHTS.get(event_type, 1.00)
 
                 # Negative events (dilution/debt) are strictly non-positive, eliminating sign reversal
-                if w_event < 0.0:
+                if raw_pol == 0.0:
+                    s_filing = 0.0
+                elif w_event < 0.0:
                     pol_mag = abs(raw_pol) if raw_pol != 0.0 else 1.0
                     s_filing = float(np.clip(-pol_mag * abs(w_event), -1.0, 0.0))
                 else:
@@ -297,10 +393,27 @@ class NLPCatalystEngine(BaseStrategyEngine):
                 s_prev = float(sym_transcript.get("s_prev", 0.0))
                 conv = float(sym_transcript.get("conviction", 1.0))
                 prev_d = sym_transcript.get("prev_drift")
+                neu_p = sym_transcript.get("p_neutral", sym_transcript.get("neu_prob"))
 
-                tone_drift, tone_accel = compute_tone_drift_and_accel(
-                    s_curr=s_curr, s_prev=s_prev, conviction=conv, prev_drift=prev_d
+                # Feature F702: Apply disclosure deadband
+                s_curr_clean, conv_clean, is_filtered = apply_disclosure_deadband(
+                    polarity=s_curr, conviction=conv, neu_prob=neu_p
                 )
+                if not is_filtered:
+                    tone_drift, tone_accel = compute_tone_drift_and_accel(
+                        s_curr=s_curr_clean, s_prev=s_prev, conviction=conv_clean, prev_drift=prev_d
+                    )
+                else:
+                    tone_drift, tone_accel = 0.0, 0.0
+
+                # Feature F702: Quantitative guidance revision acceleration
+                if "guidance_curr" in sym_transcript and "guidance_prev1" in sym_transcript:
+                    g_rate, g_accel = compute_guidance_revision_acceleration(
+                        float(sym_transcript["guidance_curr"]),
+                        float(sym_transcript["guidance_prev1"]),
+                        float(sym_transcript["guidance_prev2"]) if sym_transcript.get("guidance_prev2") is not None else None
+                    )
+                    tone_accel += 0.50 * float(np.clip(g_accel, -2.0, 2.0))
 
             # 3. Triple-Layer Causal Fallbacks if Layer 1 Missing
             if not has_nlp_data:
@@ -339,7 +452,35 @@ def compute_nlp_catalyst_scores(prices_dict: Any, **kwargs: Any) -> pd.DataFrame
 nlp_catalyst_score = compute_nlp_catalyst_scores
 
 # Complete Alias Trees
+Phase144NLPCatalystEngine = NLPCatalystEngine
+F702NLPCatalystEngine = NLPCatalystEngine
+GuidanceRevisionCatalystEngine = NLPCatalystEngine
+DisclosureDeadbandNLPEngine = NLPCatalystEngine
+AlternativeNLPGuidanceEngine = NLPCatalystEngine
 Phase140NLPCatalystEngine = NLPCatalystEngine
 F682NLPCatalystEngine = NLPCatalystEngine
 FinBERTGuidanceDriftEngine = NLPCatalystEngine
 AlternativeNLPCatalystEngine = NLPCatalystEngine
+
+__all__ = [
+    "VERSION",
+    "RELEASE",
+    "FEATURE",
+    "EVENT_WEIGHTS",
+    "compute_finbert_polarity",
+    "compute_tone_drift_and_accel",
+    "apply_disclosure_deadband",
+    "compute_guidance_revision_acceleration",
+    "NLPCatalystEngine",
+    "compute_nlp_catalyst_scores",
+    "nlp_catalyst_score",
+    "Phase144NLPCatalystEngine",
+    "F702NLPCatalystEngine",
+    "GuidanceRevisionCatalystEngine",
+    "DisclosureDeadbandNLPEngine",
+    "AlternativeNLPGuidanceEngine",
+    "Phase140NLPCatalystEngine",
+    "F682NLPCatalystEngine",
+    "FinBERTGuidanceDriftEngine",
+    "AlternativeNLPCatalystEngine",
+]

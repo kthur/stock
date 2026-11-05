@@ -2101,7 +2101,7 @@ border-color: var(--accent);
   <a href="index.html" class="nav-link active nav-active">🏠 메인 대시보드</a><a href="strategies.html" class="nav-link">📚 전략 도감 (37)</a><a href="market_kospi.html" class="nav-link">🇰🇷 KOSPI</a><a href="market_kosdaq.html" class="nav-link">🇰🇷 KOSDAQ</a><a href="market_sp500.html" class="nav-link">🇺🇸 S&P 500</a><a href="market_nasdaq.html" class="nav-link">🇺🇸 NASDAQ</a><a href="market_russell2000.html" class="nav-link">🇺🇸 Russell 2000</a>
   </nav>
   <div class="sticky-nav-actions">
-  <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-10-31 06:37 KST</span>
+  <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-01 16:01 KST</span>
   </div>
   </div>
 </header>
@@ -2138,9 +2138,9 @@ border-color: var(--accent);
   <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇰🇷 KR: 🟢 BULL_LOW_VOL (저변동 강세)</span>
   <span class="badge" style="color:#e3b341; border-color:#e3b341; background:#e3b34120;">⚡ Decoupled (DECOUPLING_KR_BULL_US_BEAR)</span>
   <span class="badge market-hours-badge" id="krx-status-badge">🇰🇷 KRX <span class="pulse-dot closed" id="krx-pulse"></span> <span id="krx-status-text">주말 휴장 (Closed)</span></span>
-  <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot pre" id="us-pulse"></span> <span id="us-status-text">After-Hours</span></span>
+  <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot closed" id="us-pulse"></span> <span id="us-status-text">주말 휴장 (Closed)</span></span>
   <span class="badge badge-date">📅 2026-10-15 06:25 KST</span>
-  <span class="badge badge-updated">🔄 갱신: 2026-10-31 06:37 KST</span>
+  <span class="badge badge-updated">🔄 갱신: 2026-11-01 16:01 KST</span>
   </div>
 </div>
 
@@ -2159,7 +2159,7 @@ border-color: var(--accent);
   <span class="badge" style="color:#e3b341; border-color:#e3b341; background:#e3b34120;">⚡ Decoupled (DECOUPLING_KR_BULL_US_BEAR)</span>
   <span class="badge badge-crisis-none" style="color: #2ea043; border-color: rgba(46, 160, 67, 0.5); background: rgba(46, 160, 67, 0.15);">🛡️ Crisis: NONE</span>
   <span class="badge badge-date">📅 2026-10-15 06:25 KST</span>
-  <span class="badge badge-updated">🔄 2026-10-31 06:37 KST</span>
+  <span class="badge badge-updated">🔄 2026-11-01 16:01 KST</span>
   </div>
   </div>
 
@@ -2882,10 +2882,11 @@ border-color: var(--accent);
   </div>
   <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
   <span class="badge" title="stock_universe_summary.json" style="color: #2ea043; border-color: rgba(46,160,67,0.5); background: rgba(46,160,67,0.15); font-weight: 700;">VERIFIED</span>
-  <span class="badge" style="color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.15); font-weight: 700;">Net CAGR: 37.95%</span>
-  <span class="badge" style="color: #2ea043; border-color: #2ea043; background: rgba(46,160,67,0.15);">Net Ret: +2729483.7%</span>
-  <span class="badge" style="color: #f85149; border-color: #f85149; background: rgba(234,179,8,0.15);">MDD: -13.18%</span>
+  <span class="badge" style="color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.15); font-weight: 700;">Net CAGR: 61.50%</span>
+  <span class="badge" style="color: #2ea043; border-color: #2ea043; background: rgba(46,160,67,0.15);">Net Ret: +405750188.6%</span>
+  <span class="badge" style="color: #f85149; border-color: #f85149; background: rgba(234,179,8,0.15);">MDD: -13.60%</span>
   <span class="badge" style="color: var(--muted); border-color: var(--border);">📅 1996-01-01 ~ 2026-08-31 (8,000일)</span>
+  <!-- Release R163: Net CAGR: 61.50% · 3.96 / 6.58 / 4.52 · MDD: -13.60% · Calmar: 4.52 -->
   <span id="benchmark-30year-icon" class="health-toggle-btn" style="color: var(--accent); font-size: 12px; font-weight: 700;">▼ 접기</span>
   </div>
   </div>
@@ -2894,27 +2895,27 @@ border-color: var(--accent);
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px;">
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
   <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">30년 누적 순수익률 (Net Return)</div>
-  <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+2729483.68%</div>
-  <div style="font-size: 11px; color: var(--muted);">총수익률 +2867844.5% · 최종 27,295.84억원</div>
+  <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+405750188.60%</div>
+  <div style="font-size: 11px; color: var(--muted);">총수익률 +418620431.8% · 최종 4,057,502.89억원</div>
   </div>
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
   <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">실질 연평균 복리수익률 (CAGR)</div>
-  <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-bottom: 2px;">37.95%</div>
+  <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-bottom: 2px;">61.50%</div>
   <div style="font-size: 11px; color: var(--muted);">KOSPI CAGR 6.10% · MDD -55.20%</div>
   </div>
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
   <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">역사적 최대 낙폭 (MDD)</div>
-  <div style="font-size: 20px; font-weight: 800; color: #f85149; margin-bottom: 2px;">-13.18%</div>
+  <div style="font-size: 20px; font-weight: 800; color: #f85149; margin-bottom: 2px;">-13.60%</div>
   <div style="font-size: 11px; color: var(--muted);">검증된 일별 수익률 기준</div>
   </div>
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
-  <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">위험조정수익비 (Sharpe / Sortino)</div>
-  <div style="font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 2px;">3.03 / 4.85</div>
-  <div style="font-size: 11px; color: var(--muted);">연간 변동성 11.85%</div>
+  <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">위험조정수익비 (Sharpe / Sortino / Calmar)</div>
+  <div style="font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 2px;">3.96 / 6.58 / 4.52</div>
+  <div style="font-size: 11px; color: var(--muted);">연간 변동성 13.10%</div>
   </div>
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
   <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">승률 / 프로핏 팩터 (Win Rate)</div>
-  <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">74.2% / 2.18</div>
+  <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">80.8% / 3.15</div>
   <div style="font-size: 11px; color: var(--muted);">검증 거래일 8,000일</div>
   </div>
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
@@ -3081,18 +3082,18 @@ border-color: var(--accent);
   <div style="display: flex; gap: 8px; flex-wrap: wrap;">
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2019년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+22.68%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -3.3% | SR 2.95</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+31.82%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -3.3% | SR 4.28</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2020년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+48.25%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -8.7% | SR 3.72</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+67.70%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -8.7% | SR 5.30</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2021년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+64.97%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -7.6% | SR 4.60</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+91.16%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -7.6% | SR 6.53</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2022년</div>
@@ -3101,23 +3102,23 @@ border-color: var(--accent);
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2023년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+84.42%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -6.0% | SR 7.01</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+118.45%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -6.0% | SR 9.93</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2024년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+48.06%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -7.7% | SR 4.22</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+67.44%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -7.7% | SR 6.02</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2025년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+67.97%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -7.2% | SR 6.04</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+95.37%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -7.2% | SR 8.57</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2026년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+22.53%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -6.2% | SR 1.80</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+31.61%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -6.2% | SR 2.61</div>
   </div>
   </div>
   </div>
@@ -3154,7 +3155,7 @@ border-color: var(--accent);
   </div>
   <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
   <span style="color: var(--muted);">최종 스냅샷:</span>
-  <strong style="color: var(--text); float: right;">2026-10-28 16:59:44</strong>
+  <strong style="color: var(--text); float: right;">2026-11-01 16:00:40</strong>
   </div>
   </div>
   </div>

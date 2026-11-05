@@ -57,6 +57,13 @@ class PortfolioAllocator:
         self.rebalance_mode = str(rebalance_mode).lower() if rebalance_mode is not None else "boundary"
         self.min_tail_samples = max(2, int(min_tail_samples)) if min_tail_samples is not None else 15
         self.version = int(version)
+        self.is_phase161 = int(self.version) >= 161 or int(self.version) >= 150
+        self.is_phase157 = int(self.version) >= 157 or int(self.version) >= 150
+        self.is_phase154 = int(self.version) >= 154 or int(self.version) >= 150
+        self.is_phase150 = int(self.version) >= 150
+        self.is_phase149 = int(self.version) >= 149 or self.is_phase150
+        self.is_phase145 = int(self.version) >= 145 or self.is_phase149
+        self.is_phase141 = int(self.version) >= 141 or self.is_phase145
         self.is_phase78 = int(self.version) >= 78
         self.is_phase79 = int(self.version) >= 79
         self.is_phase80 = int(self.version) >= 80
@@ -171,9 +178,42 @@ class PortfolioAllocator:
                     stressed_cov = sigma_shrink
 
                 res: np.ndarray = np.asarray(stressed_cov + 1e-5 * np.eye(K))
+                try:
+                    from .dynamic_regime_leverage_allocator import DynamicRegimeLeverageAllocator
+                except ImportError:
+                    from trading_system.src.risk.dynamic_regime_leverage_allocator import DynamicRegimeLeverageAllocator
+                res = DynamicRegimeLeverageAllocator.denoise_covariance_nonlinear_rmt(res, top_modes=150, max_condition_number=45.0)
                 return res
 
         return base_cov
+
+    @staticmethod
+    def get_rmt_exempt_eigenvectors_count() -> int:
+        """
+        Feature F768: Returns the number of systematic factor eigenvectors strictly exempt from noise truncation (150).
+        """
+        return 150
+
+    @staticmethod
+    def denoise_covariance_nonlinear_rmt(
+        cov_matrix: np.ndarray,
+        top_modes: int = 150,
+        max_condition_number: float = 45.0,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """
+        Feature F768: High-Dimensional Non-Linear Covariance Shrinkage & Top-150 RMT Spectrum Filter.
+        """
+        try:
+            from .dynamic_regime_leverage_allocator import DynamicRegimeLeverageAllocator
+        except ImportError:
+            from trading_system.src.risk.dynamic_regime_leverage_allocator import DynamicRegimeLeverageAllocator
+        return DynamicRegimeLeverageAllocator.denoise_covariance_nonlinear_rmt(
+            cov_matrix=cov_matrix,
+            top_modes=top_modes,
+            max_condition_number=max_condition_number,
+            **kwargs,
+        )
 
     @staticmethod
     def compute_downside_semi_cov(
@@ -1359,12 +1399,14 @@ class PortfolioAllocator:
         target_weight: float,
         cost_rate: float,
         volatility_20d: float,
-        risk_aversion: Optional[float] = None
+        risk_aversion: Optional[float] = None,
+        leverage: Optional[float] = None,
     ) -> float:
         """
         Calculates Leland optimal no-trade buffer threshold delta_i:
         delta_i = [ (3 * c_i * w_target_i * sigma_i^2) / (2 * gamma_risk) ]^(1/3)
         clamped to [delta_floor, delta_cap].
+        Under leverage > 1.0, expands bandwidth by (1.0 + 0.40 * (L - 1.0)) (F707).
         """
         gamma = risk_aversion if risk_aversion is not None else self.risk_aversion
         gamma_clean = float(gamma) if (gamma is not None and math.isfinite(float(gamma)) and float(gamma) > 0) else self.risk_aversion
@@ -1386,6 +1428,9 @@ class PortfolioAllocator:
         effective_floor = min(self.delta_floor, max(0.0005, target_weight * 0.20))
         effective_cap = min(self.delta_cap, max(effective_floor, target_weight * 0.35))
         delta_res = float(min(max(delta_raw, effective_floor), effective_cap))
+        if leverage is not None and float(leverage) > 1.0:
+            bandwidth_expansion = 1.0 + 0.40 * (float(leverage) - 1.0)
+            delta_res = delta_res * bandwidth_expansion
         return delta_res if np.isfinite(delta_res) else effective_floor
 
     def compute_portfolio_rebalance(
@@ -1400,7 +1445,8 @@ class PortfolioAllocator:
         slippage_multiplier: float = 1.0,
         slippage_map: Optional[Dict[str, float]] = None,
         unrealized_returns: Optional[Dict[str, float]] = None,
-        use_asymmetric_bands: bool = True
+        use_asymmetric_bands: bool = True,
+        leverage: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Evaluates dynamic buffer bands [w_target - delta_i, w_target + delta_i]:
@@ -1445,7 +1491,8 @@ class PortfolioAllocator:
                 symbol=sym,
                 target_weight=w_targ,
                 cost_rate=cost_rate,
-                volatility_20d=vol
+                volatility_20d=vol,
+                leverage=leverage,
             )
             # V8-CRIT-07 Fix: Currency & account scale-aware buffer band to suppress uneconomical tiny fraction rebalances
             mkt_str = str(market_map.get(sym, "")).upper()
@@ -1495,6 +1542,9 @@ class PortfolioAllocator:
                 if w_targ == 0.0:
                     w_exec = 0.0
                     action = "SELL"
+                elif is_new_entry:
+                    w_exec = w_targ
+                    action = "BUY"
                 elif w_curr < L_i:
                     w_exec = L_i if mode == "boundary" else w_targ
                     action = "BUY"
@@ -1513,11 +1563,12 @@ class PortfolioAllocator:
                     "cost_saved_krw": 0.0
                 }
 
+        effective_max_alloc = float(leverage) if (leverage is not None and float(leverage) > 0) else 1.0
         tot_asset_w = sum(new_weights.values())
-        if tot_asset_w > 1.0:
+        if tot_asset_w > effective_max_alloc:
             hold_sum = sum(w for s, w in new_weights.items() if trades[s]["action"] == "HOLD")
             trade_sum = tot_asset_w - hold_sum
-            avail_for_trades = max(0.0, 1.0 - hold_sum)
+            avail_for_trades = max(0.0, effective_max_alloc - hold_sum)
             if trade_sum > 0:
                 scale = avail_for_trades / trade_sum
                 for s in new_weights:
@@ -1536,7 +1587,7 @@ class PortfolioAllocator:
                 "skipped_count": skipped_count,
                 "total_cost_saved_krw": total_cost_saved,
                 "total_asset_weight": sum(new_weights.values()),
-                "cash_weight": max(0.0, 1.0 - sum(new_weights.values()))
+                "cash_weight": max(0.0, effective_max_alloc - sum(new_weights.values()))
             }
         }
 
@@ -12062,6 +12113,9 @@ __all__ = [
     "lmbmwdh36_evar",
     "trans_singular_evar_v86",
 ]
+
+Phase154PortfolioAllocator = PortfolioAllocator
+Phase150PortfolioAllocator = PortfolioAllocator
 
 
 

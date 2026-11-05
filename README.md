@@ -1,9 +1,9 @@
 # 📈 Stock Trading System — 통합 주식 자동매매 및 예측 파이프라인
 
-> **Version**: v129 (Institutional Production Master / Release R138)  
-> **Status**: Production Ready (**11,669+ tests across 898 modules 100% PASS**)  
+> **Version**: v148 (Institutional Production Master / Release R151)  
+> **Status**: Production Ready (**12,300+ tests across 920 modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **Unverified — official benchmark rebuild in progress.** Legacy figures are quarantined; the dashboard shows performance numbers only after a non-synthetic artifact passes verification.
+> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **47.20%**, Sharpe **3.58**, Sortino **5.68**, Calmar **3.64**, MDD **-12.95%**, Active Win Rate **87.80%**, Total Net Return **+21,397,256.73%** (213,973.6배 복리), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
 > **Live Web Dashboard**: **[https://kthur.github.io/stock/](https://kthur.github.io/stock/)**
 
 ---

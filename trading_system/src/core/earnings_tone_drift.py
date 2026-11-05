@@ -225,3 +225,10 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 res_df.loc[valid_mask, 'earnings_tone_drift_score'] = pd.to_numeric(pd.Series(enhanced, index=valid_scores.index), errors='coerce').fillna(0.50).clip(0.05, 0.98)
             res_df['tone_drift_score'] = res_df['earnings_tone_drift_score']
         return res_df
+
+
+# Complete Alias Trees
+Phase144EarningsToneDriftEngine = EarningsToneDriftEngine
+F702EarningsToneDriftEngine = EarningsToneDriftEngine
+Phase140EarningsToneDriftEngine = EarningsToneDriftEngine
+F682EarningsToneDriftEngine = EarningsToneDriftEngine

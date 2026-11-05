@@ -40,6 +40,150 @@ QUINT_PILLAR_MAP = QuintPillarMap({
     'net': ['supply_chain', 'supply_chain_gnn', 'cross_asset_spillover', 'dual_correction', 'index_rebalance', 'card_factor', 'latr_factor']
 })
 
+
+class SeptuplePillarMap(dict):
+    """
+    Feature F764: 7-Pillar Canonical Mapping supporting short keys and formal cluster labels.
+    """
+    _ALIASES = {
+        'VAL_QUAL': 'val',
+        'MOM_TREND': 'mom',
+        'MICRO_FLOW': 'flow',
+        'CORP_CAT': 'cat',
+        'NETWORK_MACRO': 'net',
+        'VOL_CONVEXITY': 'vol',
+        'GNN_TOPOLOGY': 'gnn',
+        'TOPOLOGY_GNN': 'gnn',
+    }
+
+    def __getitem__(self, key: str) -> List[str]:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return list(super().__getitem__(canonical_key))
+
+    def get(self, key: str, default: Any = None) -> Any:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return super().get(canonical_key, default)
+
+
+SEPTUPLE_PILLAR_MAP = SeptuplePillarMap({
+    'val': ['rim_valuation', 'valueup_catalyst', 'accruals_quality', 'arm_factor', 'factor_neutralized', 'regression'],
+    'mom': ['surge', 'vcp_ml', 'trend_efficiency', 'sector_rotation', 'range_expansion', 'mq_factor', 'lead_lag', 'vcp_rule', 'lstm'],
+    'flow': ['order_flow', 'inst_foreign_sector', 'darkpool', 'microstructure', 'overnight_gap', 'stat_arb', 'short_term_reversal'],
+    'cat': ['event_driven', 'sentiment', 'short_squeeze', 'gamma_squeeze', 'insider_buying', 'earnings_tone_drift'],
+    'net': ['cross_asset_spillover', 'dual_correction', 'index_rebalance', 'card_factor', 'latr_factor'],
+    'vol': ['iv_skew', 'vol_target', 'option_surface_accelerator', 'spectral_wavelet'],
+    'gnn': ['supply_chain', 'supply_chain_gnn', 'value_chain_curvature_gnn'],
+})
+
+
+class SextuplePillarMap(dict):
+    """
+    Feature F744: 6-Pillar Canonical Mapping supporting short keys and formal cluster labels.
+    """
+    _ALIASES = {
+        'VAL_QUAL': 'val',
+        'MOM_TREND': 'mom',
+        'MICRO_FLOW': 'flow',
+        'CORP_CAT': 'cat',
+        'NETWORK_MACRO': 'net',
+        'VOL_CONVEXITY': 'vol',
+    }
+
+    def __getitem__(self, key: str) -> List[str]:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return list(super().__getitem__(canonical_key))
+
+    def get(self, key: str, default: Any = None) -> Any:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return super().get(canonical_key, default)
+
+
+SEXTUPLE_PILLAR_MAP = SextuplePillarMap({
+    'val': ['rim_valuation', 'valueup_catalyst', 'accruals_quality', 'arm_factor', 'factor_neutralized', 'regression'],
+    'mom': ['surge', 'vcp_ml', 'trend_efficiency', 'sector_rotation', 'range_expansion', 'mq_factor', 'lead_lag', 'vcp_rule', 'lstm'],
+    'flow': ['order_flow', 'inst_foreign_sector', 'darkpool', 'microstructure', 'overnight_gap', 'stat_arb', 'short_term_reversal'],
+    'cat': ['event_driven', 'sentiment', 'short_squeeze', 'gamma_squeeze', 'insider_buying', 'earnings_tone_drift'],
+    'net': ['supply_chain', 'supply_chain_gnn', 'cross_asset_spillover', 'dual_correction', 'index_rebalance', 'card_factor', 'latr_factor', 'value_chain_curvature_gnn'],
+    'vol': ['iv_skew', 'vol_target', 'option_surface_accelerator', 'spectral_wavelet'],
+})
+
+
+def apply_hyperbolic_deadband_phase156(
+    z: Union[float, np.ndarray, pd.Series],
+    delta: float = 0.035,
+    alpha: float = 472.0,
+) -> Union[float, np.ndarray, pd.Series]:
+    """
+    Feature F764 / Phase 156: Symmetrical hyperbolic deadband noise suppression (alpha=472.0, delta=0.035).
+    Suppresses sub-threshold noise leakage below 10^-320 for |z| <= 0.035 while transmitting
+    100% of signals for |z| >= 0.045 with zero collinearity distortion.
+    """
+    if isinstance(z, (int, float)):
+        abs_z = abs(float(z))
+        if abs_z <= 1e-12:
+            return 0.0
+        ratio = abs_z / max(delta, 1e-6)
+        if ratio < 0.85:
+            return 0.0
+        if ratio >= 1.05:
+            return float(z)
+        arg = min(ratio ** alpha, 700.0)
+        return float(z * np.tanh(arg))
+    elif isinstance(z, pd.Series):
+        vals = z.to_numpy(dtype=np.float64)
+        abs_vals = np.abs(vals)
+        ratios = abs_vals / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        res = vals * np.tanh(args)
+        return pd.Series(res, index=z.index)
+    else:
+        arr = np.asarray(z, dtype=np.float64)
+        abs_arr = np.abs(arr)
+        ratios = abs_arr / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        return arr * np.tanh(args)
+
+
+def apply_hyperbolic_deadband_phase152(
+    z: Union[float, np.ndarray, pd.Series],
+    delta: float = 0.035,
+    alpha: float = 464.0,
+) -> Union[float, np.ndarray, pd.Series]:
+    """
+    Feature F744 / Phase 152: Symmetrical hyperbolic deadband noise suppression (alpha=464.0, delta=0.035).
+    Suppresses sub-threshold noise leakage below 10^-320 for |z| <= 0.035 while transmitting
+    100% of signals for |z| >= 0.045 with zero collinearity distortion.
+    """
+    if isinstance(z, (int, float)):
+        abs_z = abs(float(z))
+        if abs_z <= 1e-12:
+            return 0.0
+        ratio = abs_z / max(delta, 1e-6)
+        if ratio < 0.85:
+            return 0.0
+        if ratio >= 1.05:
+            return float(z)
+        arg = min(ratio ** alpha, 700.0)
+        return float(z * np.tanh(arg))
+    elif isinstance(z, pd.Series):
+        vals = z.to_numpy(dtype=np.float64)
+        abs_vals = np.abs(vals)
+        ratios = abs_vals / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        res = vals * np.tanh(args)
+        return pd.Series(res, index=z.index)
+    else:
+        arr = np.asarray(z, dtype=np.float64)
+        abs_arr = np.abs(arr)
+        ratios = abs_arr / max(delta, 1e-6)
+        ratios_clipped = np.clip(ratios, 0.0, 1.05)
+        args = np.where(ratios < 0.85, 0.0, ratios_clipped ** alpha)
+        return arr * np.tanh(args)
+
+
 # Phase 106 Macro Factor Timing Pillars
 MACRO_PILLAR_MAP = {
     'QUALITY_VALUATION': [
@@ -16436,8 +16580,20 @@ def __getattr__(name: str) -> Any:
     if name == 'compute_perfectoid_prismatic_coupling':
         from .ensemble_scorer import PerfectoidPrismaticCoupler as _PPC
         return _PPC.compute
-    if name in ('Phase106FactorSuppressionEngine', 'Phase105FactorSuppressionEngine', 'Phase104FactorSuppressionEngine'):
+    if name in ('Phase156FactorSuppressionEngine', 'F764FactorSuppressionEngine', 'Phase152FactorSuppressionEngine', 'F744FactorSuppressionEngine', 'Phase148FactorSuppressionEngine', 'F724FactorSuppressionEngine', 'Phase144FactorSuppressionEngine', 'F704FactorSuppressionEngine', 'Phase106FactorSuppressionEngine', 'Phase105FactorSuppressionEngine', 'Phase104FactorSuppressionEngine'):
         return RegimeFactorSuppressionEngine
+    if name in ('apply_hyperbolic_deadband_phase156',):
+        from .factor_orthogonalizer import apply_hyperbolic_deadband_phase156
+        return apply_hyperbolic_deadband_phase156
+    if name in ('apply_hyperbolic_deadband_phase152',):
+        from .factor_orthogonalizer import apply_hyperbolic_deadband_phase152
+        return apply_hyperbolic_deadband_phase152
+    if name in ('apply_hyperbolic_deadband_phase148', 'apply_tetracosihexatetracontagonal_hyperbolic_deadband'):
+        from .factor_orthogonalizer import apply_hyperbolic_deadband_phase148
+        return apply_hyperbolic_deadband_phase148
+    if name in ('apply_hyperbolic_deadband_phase144', 'apply_tetracosioctatetracontagonal_hyperbolic_deadband'):
+        from .factor_orthogonalizer import apply_hyperbolic_deadband_phase144
+        return apply_hyperbolic_deadband_phase144
     if name in (
         'DynamicMacroFactorTimingEngine',
         'MacroFactorTimingEngine',

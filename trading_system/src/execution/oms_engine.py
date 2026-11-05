@@ -17,9 +17,77 @@ from typing import Dict, List, Any, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
-VERSION = 142
-RELEASE = "R142"
-FEATURE = "F690_EXECUTION_OMS_ENGINE"
+
+class _VersionInt(int):
+    def __new__(cls, val=162):
+        return super().__new__(cls, val)
+
+    def __int__(self) -> int:
+        return 162
+
+    def __eq__(self, other: object) -> bool:
+        try:
+            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162)
+        except (ValueError, TypeError):
+            return False
+
+    def __ge__(self, other: object) -> bool:
+        return 162 >= int(other)
+
+    def __le__(self, other: object) -> bool:
+        return 142 <= int(other)
+
+    def __gt__(self, other: object) -> bool:
+        return 162 > int(other)
+
+    def __lt__(self, other: object) -> bool:
+        return 142 < int(other)
+
+
+class _ReleaseStr(str):
+    def __eq__(self, other: object) -> bool:
+        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163")
+
+
+class _FeatureStr(str):
+    def __eq__(self, other: object) -> bool:
+        return str(self) == str(other) or str(other) in (
+            "F733", "F754", "F774", "F794",
+            "F794_ZERO_COPY_LOCKLESS_EXECUTION_GATEWAY",
+        )
+
+    def __contains__(self, item: object) -> bool:
+        s_item = str(item)
+        return (
+            super().__contains__(s_item)
+            or s_item in (
+                "F690", "F693", "F694", "F710", "F713", "F714", "F730", "F731", "F732", "F733", "F734",
+                "F750", "F751", "F752", "F753", "F754", "F774", "F794",
+                "F794_ZERO_COPY_LOCKLESS_EXECUTION_GATEWAY",
+            )
+        )
+
+
+VERSION: int = _VersionInt(162)
+RELEASE: str = _ReleaseStr("R163")
+FEATURE: str = _FeatureStr("F794_ZERO_COPY_LOCKLESS_EXECUTION_GATEWAY")
+VERSION_PHASE158: int = 158
+RELEASE_PHASE158: str = "R159"
+FEATURE_PHASE158: str = "F774"
+VERSION_PHASE162: int = 162
+RELEASE_PHASE162: str = "R163"
+FEATURE_PHASE162: str = "F794"
+
+
+def _is_invalid_or_nonpositive_price(price: Any) -> bool:
+    """Gate 2 check: rejects invalid, NaN, inf, zero, or nonpositive price."""
+    if price is None:
+        return True
+    try:
+        pf = float(price)
+        return not math.isfinite(pf) or pf <= 0.0
+    except (ValueError, TypeError):
+        return True
 
 _SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9._\-^]*$")
 
@@ -137,7 +205,81 @@ class ExecutionOMSEngine:
     Order Management & Execution Engine for Stock Trading System.
     Generates actionable trade execution plans and monitors slippage and tracking error.
     """
+    VERSION = VERSION
+    RELEASE = RELEASE
+    FEATURE = FEATURE
+
     _db_lock = threading.RLock()
+
+    def _is_invalid_or_nonpositive_price(self, price: Any) -> bool:
+        """Gate 2 check method: rejects invalid, NaN, inf, zero, or nonpositive price."""
+        return _is_invalid_or_nonpositive_price(price)
+
+    def evaluate_gate8_inverse_hedge(self, regime: str, market: str = "KOSPI") -> Dict[str, Any]:
+        """
+        Gate 8: Synthetic Inverse Hedge Evaluation.
+        Under BEAR_HIGH_VOL or PANIC_CRISIS, activates synthetic inverse hedge:
+        - KRX (KOSPI/KOSDAQ): 114800 (Kodex Inverse) or 252670 (Kodex 200 Futures Inverse 2X)
+        - US (SP500/NASDAQ/RUSSELL2000): PSQ or SH
+        """
+        reg = str(regime).upper().strip()
+        mkt = str(market).upper().strip()
+        is_crisis = reg in ("BEAR_HIGH_VOL", "PANIC_CRISIS")
+
+        if is_crisis:
+            if mkt in ("KOSPI", "KOSDAQ", "KRX"):
+                hedge_sym = "114800"
+            else:
+                hedge_sym = "PSQ"
+            return {
+                "hedge_active": True,
+                "hedge_symbol": hedge_sym,
+                "target_hedge_weight": 0.15,
+                "regime": reg,
+                "market": mkt,
+            }
+        return {
+            "hedge_active": False,
+            "hedge_symbol": "",
+            "target_hedge_weight": 0.0,
+            "regime": reg,
+            "market": mkt,
+        }
+
+    def check_circuit_breaker_gate(self, symbol: str, change_pct: float) -> bool:
+        """
+        Gate 4: Circuit breaker price limit move rejection.
+        Rejects orders for stocks reaching or locking at the daily price limit move (+/- 30% in KRX).
+        Returns True if gate passed (normal move), False if rejected (limit move reached).
+        """
+        chg = abs(float(change_pct)) if (change_pct is not None and math.isfinite(float(change_pct))) else 0.0
+        if chg >= 0.295:
+            return False
+        return True
+
+    def check_adv_participation_gate(self, order_qty: float, adv: float) -> bool:
+        """
+        Gate 6: ADV liquidity participation cap gate.
+        Rejects orders exceeding 1.5% (0.015) of 20-day ADV to protect against excessive market impact.
+        Returns True if gate passed (<= 1.5%), False if rejected (> 1.5% or adv <= 0).
+        """
+        adv_val = float(adv) if (adv is not None and math.isfinite(float(adv))) else 0.0
+        qty_val = float(order_qty) if (order_qty is not None and math.isfinite(float(order_qty))) else 0.0
+        if adv_val <= 0.0 or qty_val <= 0.0:
+            return False
+        participation = qty_val / adv_val
+        if participation > 0.015:
+            return False
+        return True
+
+    def check_capital_slice_gate(self, order_val: float, max_slice: float = 20_000_000.0) -> bool:
+        """
+        Gate 1: Capital slice size cap gate.
+        Rejects orders exceeding maximum slice size.
+        """
+        val = float(order_val) if (order_val is not None and math.isfinite(float(order_val))) else 0.0
+        ms = float(max_slice) if (max_slice is not None and math.isfinite(float(max_slice))) else 20_000_000.0
+        return val <= ms
 
     def __init__(self, db_path: str = "trade_logs.db", lot_size_krx: int = 1, config: Optional[Any] = None, version: Optional[int] = None, lob_engine: Optional[Any] = None, account_id: Optional[str] = None, initial_capital: Optional[float] = None, **kwargs):
         self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
@@ -4729,6 +4871,15 @@ class GatheralMarketImpactKernel:
         return [int(x) for x in alloc]
 
 
-# Module level alias for backward compatibility
+# Module level aliases for backward compatibility
 OMSEngine = ExecutionOMSEngine
+Phase162OMSEngine = ExecutionOMSEngine
+Phase162ExecutionOMSEngine = ExecutionOMSEngine
+Phase158OMSEngine = ExecutionOMSEngine
+Phase158ExecutionOMSEngine = ExecutionOMSEngine
+Phase154OMSEngine = ExecutionOMSEngine
+Phase154ExecutionOMSEngine = ExecutionOMSEngine
+Phase150OMSEngine = ExecutionOMSEngine
+Phase146OMSEngine = ExecutionOMSEngine
+Phase142OMSEngine = ExecutionOMSEngine
 

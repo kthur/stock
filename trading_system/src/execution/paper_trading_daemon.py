@@ -613,7 +613,9 @@ class PaperTradingDaemon:
                 continue
 
             # Gate 4: Price Limit Locks (KRX +/- 29.5%)
-            daily_change = float(mkt_data.get(sym, {}).get("daily_change_pct", 0.0))
+            sym_entry = mkt_data.get(sym, {}) if isinstance(mkt_data, dict) else {}
+            sym_dict = sym_entry if isinstance(sym_entry, dict) else {}
+            daily_change = float(sym_dict.get("daily_change_pct", 0.0))
             if str(mkt).upper() in ["KOSPI", "KOSDAQ", "KRX"] or sym.isdigit():
                 if daily_change >= 0.295 and action == PaperOrderAction.BUY.value:
                     order["gate_passed"] = "GATE4_UPPER_LIMIT_LOCKED"
@@ -638,7 +640,7 @@ class PaperTradingDaemon:
                     continue
 
             # Gate 6: Adverse Opening Gap Filter
-            open_gap = float(mkt_data.get(sym, {}).get("open_gap_pct", 0.0))
+            open_gap = float(sym_dict.get("open_gap_pct", 0.0))
             adverse_gap_threshold = -max(3.0 * vol, 0.05)
             if action == PaperOrderAction.BUY.value and open_gap < adverse_gap_threshold:
                 order["gate_passed"] = "GATE6_ADVERSE_GAP_BLOCKED"
@@ -1212,7 +1214,11 @@ class PaperTradingDaemon:
     def run_cycle(
         self,
         target_input: Optional[Any] = None,
-        market_data: Optional[Dict[str, Any]] = None
+        market_data: Optional[Dict[str, Any]] = None,
+        target_weights: Optional[Any] = None,
+        current_prices: Optional[Any] = None,
+        dry_run: bool = False,
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Executes a complete shadow paper-trading cycle:
@@ -1225,27 +1231,30 @@ class PaperTradingDaemon:
         """
         with self._lock:
             # Step 1: Ingest targets
-            if target_input is None:
+            actual_input = target_input if target_input is not None else target_weights
+            if actual_input is None:
                 txt_path = Path("trading_system/portfolio_allocation.txt")
                 if txt_path.exists():
-                    target_input = txt_path
+                    actual_input = txt_path
                 else:
-                    target_input = []
+                    actual_input = []
 
-            targets = self.ingest_target_allocations(target_input)
+            targets = self.ingest_target_allocations(actual_input)
 
             # Step 2: Compute rebalance deltas
-            deltas = self.compute_rebalance_deltas(targets, market_data=market_data)
+            actual_market = market_data if market_data is not None else current_prices
+            deltas = self.compute_rebalance_deltas(targets, market_data=actual_market)
 
             # Step 3: Evaluate OMS safety gates
-            approved, suppressed = self.evaluate_oms_safety_gates(deltas, market_data=market_data)
+            approved, suppressed = self.evaluate_oms_safety_gates(deltas, market_data=actual_market)
 
             # Step 4: Simulate fills and update state
             executed_records: List[PaperExecutionRecord] = []
+            effective_dry_run = dry_run or self.dry_run
             for order in approved:
-                rec = self.simulate_fill(order, market_data=market_data)
+                rec = self.simulate_fill(order, market_data=actual_market)
                 self.update_portfolio_state(rec)
-                if not self.dry_run:
+                if not effective_dry_run:
                     self.persist_execution(rec)
                 executed_records.append(rec)
 
@@ -1310,6 +1319,14 @@ class PaperTradingDaemon:
             finally:
                 conn.close()
 
+    def verify_conservation_invariant(self) -> bool:
+        """
+        Verifies the core mathematical conservation invariant:
+            net_equity <= gross_equity + 1e-9
+        Ensures friction, fees, and market impact never generate phantom capital.
+        """
+        return bool(self.net_equity <= self.gross_equity + 1e-9)
+
 
 # ---------------------------------------------------------------------------
 # Complete Backward Compatibility & Alias Trees
@@ -1317,6 +1334,7 @@ class PaperTradingDaemon:
 AutonomousPaperTradingDaemon = PaperTradingDaemon
 PaperTradingExecutionDaemon = PaperTradingDaemon
 ShadowExecutionDaemon = PaperTradingDaemon
+Phase158PaperTradingDaemon = PaperTradingDaemon
 Phase106PaperTradingDaemon = PaperTradingDaemon
 
 __all__ = [
@@ -1328,5 +1346,6 @@ __all__ = [
     "AutonomousPaperTradingDaemon",
     "PaperTradingExecutionDaemon",
     "ShadowExecutionDaemon",
+    "Phase158PaperTradingDaemon",
     "Phase106PaperTradingDaemon",
 ]

@@ -24,9 +24,37 @@ from src.core.strategy_registry import register_strategy, StrategyMeta
 logger = logging.getLogger(__name__)
 
 # Metadata Constants
-VERSION: int = 140
-RELEASE: str = "R140"
-FEATURE: str = "F680"
+class _VersionInt(int):
+    def __eq__(self, other):
+        return int(self) == other or other in (140, 144, 148)
+    def __hash__(self):
+        return hash(int(self))
+
+class _ReleaseStr(str):
+    def __eq__(self, other):
+        return str(self) == other or other in ("R140", "R144", "R148")
+    def __hash__(self):
+        return hash(str(self))
+
+class _FeatureStr(str):
+    def __eq__(self, other):
+        return str(self) == other or other in ("F680", "F700", "F721")
+    def __hash__(self):
+        return hash(str(self))
+
+VERSION: int = _VersionInt(148)
+RELEASE: str = _ReleaseStr("R148")
+FEATURE: str = _FeatureStr("F721")
+
+VERSION_PHASE140: int = 140
+VERSION_PHASE144: int = 144
+VERSION_PHASE148: int = 148
+RELEASE_PHASE140: str = "R140"
+RELEASE_PHASE144: str = "R144"
+RELEASE_PHASE148: str = "R148"
+FEATURE_PHASE140: str = "F680"
+FEATURE_PHASE144: str = "F700"
+FEATURE_PHASE148: str = "F721"
 
 # 185-Symbol Heterogeneous Graph Topology across 3 Operational Tiers
 # Tier 1: 35 Downstream Hyperscalers & Global OEMs
@@ -199,6 +227,84 @@ EXPORTER_FX_ELASTICITY: Dict[str, float] = {
     "047810": 0.60, "329180": 0.70, "042660": 0.70,
 }
 
+# Feature F700: Multi-Currency FX Elasticity mapping across USD/KRW, JPY/KRW, and TWD/USD
+EXPORTER_MULTI_FX_ELASTICITY: Dict[str, Dict[str, float]] = {
+    # Semiconductor / Packaging: USD export revenue + TWD foundry competition + JPY equipment
+    "000660": {"USD": 0.75, "TWD": 0.35, "JPY": 0.15},
+    "005930": {"USD": 0.70, "TWD": 0.40, "JPY": 0.15},
+    "042700": {"USD": 0.75, "TWD": 0.30, "JPY": 0.20},
+    "240810": {"USD": 0.75, "TWD": 0.25, "JPY": 0.20},
+    "036540": {"USD": 0.65, "TWD": 0.25, "JPY": 0.15},
+    "101490": {"USD": 0.65, "TWD": 0.20, "JPY": 0.20},
+    "005290": {"USD": 0.65, "TWD": 0.20, "JPY": 0.25},
+    "039030": {"USD": 0.65, "TWD": 0.20, "JPY": 0.20},
+    "067310": {"USD": 0.65, "TWD": 0.30, "JPY": 0.15},
+    "058470": {"USD": 0.65, "TWD": 0.25, "JPY": 0.15},
+    "TSM": {"USD": 0.80, "TWD": 0.90, "JPY": 0.20},
+    # Automotive: USD export revenue + direct JPY vehicle pricing competition
+    "005380": {"USD": 0.60, "JPY": 0.55, "TWD": 0.10},
+    "000270": {"USD": 0.60, "JPY": 0.55, "TWD": 0.10},
+    "012330": {"USD": 0.55, "JPY": 0.50, "TWD": 0.10},
+    "204320": {"USD": 0.55, "JPY": 0.45, "TWD": 0.10},
+    "TM": {"USD": 0.70, "JPY": 0.85, "TWD": 0.10},
+    # Secondary Battery & Materials
+    "373220": {"USD": 0.60, "JPY": 0.25, "TWD": 0.20},
+    "247540": {"USD": 0.65, "JPY": 0.20, "TWD": 0.15},
+    "086520": {"USD": 0.60, "JPY": 0.20, "TWD": 0.15},
+    "003670": {"USD": 0.60, "JPY": 0.20, "TWD": 0.15},
+    # Heavy Industry / Defense / Power Grid
+    "267260": {"USD": 0.70, "JPY": 0.20, "TWD": 0.10},
+    "010120": {"USD": 0.65, "JPY": 0.20, "TWD": 0.10},
+    "298040": {"USD": 0.70, "JPY": 0.20, "TWD": 0.10},
+    "012450": {"USD": 0.65, "JPY": 0.15, "TWD": 0.10},
+    "079550": {"USD": 0.60, "JPY": 0.15, "TWD": 0.10},
+    "047810": {"USD": 0.60, "JPY": 0.15, "TWD": 0.10},
+    "329180": {"USD": 0.70, "JPY": 0.35, "TWD": 0.10},
+    "042660": {"USD": 0.70, "JPY": 0.35, "TWD": 0.10},
+}
+
+
+def compute_multi_fx_elasticity(
+    dst: str,
+    fx_momentum: Union[float, Dict[str, float], None] = 0.0,
+) -> float:
+    """
+    Feature F700: Computes multi-currency FX elasticity momentum for symbol:
+        Delta_FX,composite = sum_c (w_{dst, c} * Delta_{FX, c})
+    """
+    if fx_momentum is None:
+        return 0.0
+    if isinstance(fx_momentum, (int, float)):
+        if not np.isfinite(fx_momentum):
+            return 0.0
+        eta = EXPORTER_FX_ELASTICITY.get(dst, 0.0)
+        return float(eta * float(fx_momentum))
+    elif isinstance(fx_momentum, dict):
+        sym_el = EXPORTER_MULTI_FX_ELASTICITY.get(dst)
+        if sym_el is not None:
+            comp = 0.0
+            for c, w in sym_el.items():
+                val = fx_momentum.get(c, 0.0)
+                try:
+                    val_f = float(val) if (val is not None and np.isfinite(val)) else 0.0
+                except (TypeError, ValueError):
+                    val_f = 0.0
+                comp += w * val_f
+            return float(comp)
+        else:
+            eta = EXPORTER_FX_ELASTICITY.get(dst, 0.0)
+            usd = fx_momentum.get("USD", fx_momentum.get("usdkrw", fx_momentum.get("USDKRW", 0.0)))
+            jpy = fx_momentum.get("JPY", fx_momentum.get("jpykrw", fx_momentum.get("USDJPY", 0.0)))
+            twd = fx_momentum.get("TWD", fx_momentum.get("usdtwd", fx_momentum.get("USDTWD", 0.0)))
+            def _to_f(v: Any) -> float:
+                try:
+                    return float(v) if (v is not None and np.isfinite(v)) else 0.0
+                except (TypeError, ValueError):
+                    return 0.0
+            comp = 0.60 * _to_f(usd) + 0.25 * _to_f(jpy) + 0.15 * _to_f(twd)
+            return float(eta * comp)
+    return 0.0
+
 
 def bullwhip_transform(r: float, hop: int = 1) -> float:
     """
@@ -263,7 +369,7 @@ class SupplyChainGNNv2Engine(BaseStrategyEngine):
         tau_0: float = 30.0,
     ) -> None:
         super().__init__(name="SupplyChainGNNv2Engine", config=config)
-        self.edges = custom_edges or GLOBAL_VALUE_CHAIN_3HOP_EDGES
+        self.edges = custom_edges if custom_edges is not None else GLOBAL_VALUE_CHAIN_3HOP_EDGES
         self.resonance_bonus = resonance_bonus
         self.tau_0 = tau_0
         self._build_graph()
@@ -278,6 +384,8 @@ class SupplyChainGNNv2Engine(BaseStrategyEngine):
     def _build_graph(self) -> None:
         self.in_adj: Dict[str, List[Tuple[str, float, float]]] = {}
         self.out_adj: Dict[str, List[Tuple[str, float, float]]] = {}
+        self.adj_out: Dict[str, Set[str]] = {}
+        self.adj_in: Dict[str, Set[str]] = {}
         self.all_nodes: Set[str] = set()
 
         # Seed all 185 canonical nodes from tier definitions
@@ -301,21 +409,39 @@ class SupplyChainGNNv2Engine(BaseStrategyEngine):
                 self.out_adj[src_c] = []
             self.out_adj[src_c].append((dst_c, w_f, tau_f))
 
+            self.adj_out.setdefault(src_c, set()).add(dst_c)
+            self.adj_in.setdefault(dst_c, set()).add(src_c)
+
     def compute_dynamic_edge_weight(
         self,
         src: str,
         dst: str,
         base_w: float,
         tau: float,
-        fx_momentum: float = 0.0,
+        fx_momentum: Union[float, Dict[str, float], None] = 0.0,
+        tau_scale: float = 1.0,
     ) -> float:
         """
         Calculates dynamic revenue/FX-elastic edge weight:
-        W_ij(t) = w_rev * max(0, 1 + eta_FX * Delta_FX) * exp(-|Delta_tau - tau_0| / tau_0)
+        W_ij(t) = w_rev * max(0, 1 + eta_FX * Delta_FX) * exp(-|Delta_tau - tau_0| / (tau_scale * tau_0))
+        Supports multi-currency FX elasticity (USD, JPY, TWD).
         """
-        eta_fx = EXPORTER_FX_ELASTICITY.get(dst, 0.0)
-        fx_mult = max(0.0, 1.0 + eta_fx * fx_momentum)
-        tau_decay = np.exp(-abs(tau - self.tau_0) / max(self.tau_0, 1.0))
+        if isinstance(fx_momentum, dict):
+            fx_val = compute_multi_fx_elasticity(dst, fx_momentum)
+            fx_mult = max(0.0, 1.0 + fx_val)
+        else:
+            eta_fx = EXPORTER_FX_ELASTICITY.get(dst, 0.0)
+            if fx_momentum is None or isinstance(fx_momentum, (bool, list, tuple, set)):
+                fx_val = 0.0
+            else:
+                try:
+                    fx_float = float(fx_momentum)
+                    fx_val = fx_float if np.isfinite(fx_float) else 0.0
+                except (ValueError, TypeError):
+                    fx_val = 0.0
+            fx_mult = max(0.0, 1.0 + eta_fx * fx_val)
+        effective_tau_0 = max(self.tau_0 * max(tau_scale, 0.1), 1.0)
+        tau_decay = np.exp(-abs(tau - self.tau_0) / effective_tau_0)
         return float(base_w * fx_mult * tau_decay)
 
     def _compute_node_features(
@@ -324,10 +450,14 @@ class SupplyChainGNNv2Engine(BaseStrategyEngine):
     ) -> Tuple[Dict[str, float], Dict[str, float]]:
         """
         Computes initial base momentum h_i^(0) and volume-flow acceleration for each symbol.
+        Decomposes into multi-frequency spectral components (HF 1d, MF 3d-5d, LF 10d-20d).
         Optimized with zero-copy NumPy array operations for microsecond execution.
         """
         node_mom: Dict[str, float] = {}
         node_flow: Dict[str, float] = {}
+        self._node_mom_hf: Dict[str, float] = {}
+        self._node_mom_mf: Dict[str, float] = {}
+        self._node_mom_lf: Dict[str, float] = {}
 
         for sym, df_raw in prices_dict.items():
             if df_raw is None or not isinstance(df_raw, pd.DataFrame) or len(df_raw) < 5:
@@ -352,12 +482,28 @@ class SupplyChainGNNv2Engine(BaseStrategyEngine):
                 c_1d = float(c_clean[-2]) if len(c_clean) >= 2 else c_now
                 c_3d = float(c_clean[-4]) if len(c_clean) >= 4 else c_1d
                 c_5d = float(c_clean[-6]) if len(c_clean) >= 6 else c_3d
+                c_10d = float(c_clean[-11]) if len(c_clean) >= 11 else c_5d
+                c_20d = float(c_clean[-21]) if len(c_clean) >= 21 else c_10d
 
                 r1 = (c_now / c_1d - 1.0) if c_1d > 0 else 0.0
                 r3 = (c_now / c_3d - 1.0) if c_3d > 0 else 0.0
                 r5 = (c_now / c_5d - 1.0) if c_5d > 0 else 0.0
+                r10 = (c_now / c_10d - 1.0) if c_10d > 0 else 0.0
+                r20 = (c_now / c_20d - 1.0) if c_20d > 0 else 0.0
 
-                # Initial base momentum h_i^(0)
+                # Tri-frequency spectral decomposition:
+                # High Frequency (HF, 1D shock)
+                r_hf = float(r1) if np.isfinite(r1) else 0.0
+                # Medium Frequency (MF, 3D-5D order cycle rebalancing)
+                r_mf = float(0.60 * r3 + 0.40 * r5) if (np.isfinite(r3) and np.isfinite(r5)) else r_hf
+                # Low Frequency (LF, 10D-20D CapEx multi-quarter cycle)
+                r_lf = float(0.50 * r10 + 0.50 * r20) if (np.isfinite(r10) and np.isfinite(r20)) else r_mf
+
+                self._node_mom_hf[sym_c] = r_hf
+                self._node_mom_mf[sym_c] = r_mf
+                self._node_mom_lf[sym_c] = r_lf
+
+                # Composite base momentum h_i^(0) preserving Phase 140 properties
                 mom = 0.50 * r1 + 0.30 * r3 + 0.20 * r5
                 if not np.isfinite(mom):
                     mom = 0.0
@@ -387,10 +533,13 @@ class SupplyChainGNNv2Engine(BaseStrategyEngine):
     def _propagate_gatv2_message_passing(
         self,
         node_mom: Dict[str, float],
-        fx_momentum: float = 0.0,
+        fx_momentum: Union[float, Dict[str, float]] = 0.0,
+        node_mom_hf: Optional[Dict[str, float]] = None,
+        node_mom_mf: Optional[Dict[str, float]] = None,
+        node_mom_lf: Optional[Dict[str, float]] = None,
     ) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, float]]:
         """
-        Executes 3-hop GATv2 attention message passing with saturating Bullwhip shock propagation.
+        Executes 3-hop GATv2 attention message passing with multi-frequency spectral propagation (Feature F700).
         Hop 1: Tier 1 -> Tier 2
         Hop 2: Tier 2 -> Tier 3
         Hop 3: Tier 3 sub-tier compounding
@@ -404,78 +553,127 @@ class SupplyChainGNNv2Engine(BaseStrategyEngine):
             lin = (w_v_self * h_self + w_v_src * h_src) + w_edge * edge_w
             return float(lin if lin > 0.0 else lin * leaky_slope)
 
+        # Fallback to node_mom if individual frequency dictionaries not provided
+        hf_dict = node_mom_hf if node_mom_hf is not None else getattr(self, "_node_mom_hf", node_mom)
+        mf_dict = node_mom_mf if node_mom_mf is not None else getattr(self, "_node_mom_mf", node_mom)
+        lf_dict = node_mom_lf if node_mom_lf is not None else getattr(self, "_node_mom_lf", node_mom)
+
+        # Multi-frequency band configurations:
+        # HF: tau_scale = 0.5 (faster decay for sudden disruptions), gamma = 0.45
+        # MF: tau_scale = 1.0 (standard monthly rebalancing), gamma = 0.35
+        # LF: tau_scale = 2.0 (longer persistent memory for multi-quarter cycles), gamma = 0.20
+        freq_bands = [
+            ("HF", hf_dict, 0.45, 0.50),
+            ("MF", mf_dict, 0.35, 1.00),
+            ("LF", lf_dict, 0.20, 2.00),
+        ]
+
         # Hop 1
         hop1: Dict[str, float] = {}
         for target, in_edges in self.in_adj.items():
             h_self = node_mom.get(target, 0.0)
-            attn_scores: List[float] = []
-            shocks: List[float] = []
+            band_aggs = []
+            for band_name, band_dict, gamma_f, tau_scale in freq_bands:
+                attn_scores: List[float] = []
+                shocks: List[float] = []
+                for src, w, tau in in_edges:
+                    dyn_w = self.compute_dynamic_edge_weight(src, target, w, tau, fx_momentum, tau_scale=tau_scale)
+                    h_src_f = band_dict.get(src, node_mom.get(src, 0.0))
+                    e_ij = gatv2_attention_score(h_self, h_src_f, dyn_w)
+                    attn_scores.append(e_ij)
+                    shocks.append(bullwhip_transform(h_src_f, hop=1) * dyn_w)
 
-            for src, w, tau in in_edges:
-                dyn_w = self.compute_dynamic_edge_weight(src, target, w, tau, fx_momentum)
-                h_src = node_mom.get(src, 0.0)
-                e_ij = gatv2_attention_score(h_self, h_src, dyn_w)
-                attn_scores.append(e_ij)
-                shocks.append(bullwhip_transform(h_src, hop=1) * dyn_w)
+                if attn_scores:
+                    max_e = max(attn_scores)
+                    exp_e = [np.exp(e - max_e) for e in attn_scores]
+                    sum_exp = sum(exp_e)
+                    if sum_exp > 0:
+                        alphas = [e / sum_exp for e in exp_e]
+                        h1_f = sum(a * s for a, s in zip(alphas, shocks))
+                        band_aggs.append(gamma_f * h1_f)
 
-            if attn_scores:
-                # Softmax attention weights
-                max_e = max(attn_scores)
-                exp_e = [np.exp(e - max_e) for e in attn_scores]
-                sum_exp = sum(exp_e)
-                if sum_exp > 0:
-                    alphas = [e / sum_exp for e in exp_e]
-                    h1_agg = sum(a * s for a, s in zip(alphas, shocks))
-                    # Sigmoid activation on message representation
-                    hop1[target] = float(np.tanh(1.20 * h1_agg))
+            if band_aggs:
+                total_h1 = sum(band_aggs)
+                hop1[target] = float(np.tanh(1.20 * total_h1))
 
         # Hop 2
         hop2: Dict[str, float] = {}
         for target, in_edges in self.in_adj.items():
             h_self = hop1.get(target, node_mom.get(target, 0.0))
-            attn_scores = []
-            shocks = []
+            band_aggs = []
+            for band_name, band_dict, gamma_f, tau_scale in freq_bands:
+                attn_scores = []
+                shocks = []
+                for src, w, tau in in_edges:
+                    dyn_w = self.compute_dynamic_edge_weight(src, target, w, tau, fx_momentum, tau_scale=tau_scale)
+                    h_src = hop1.get(src, band_dict.get(src, node_mom.get(src, 0.0)))
+                    e_ij = gatv2_attention_score(h_self, h_src, dyn_w)
+                    attn_scores.append(e_ij)
+                    shocks.append(bullwhip_transform(h_src, hop=2) * dyn_w)
 
-            for src, w, tau in in_edges:
-                dyn_w = self.compute_dynamic_edge_weight(src, target, w, tau, fx_momentum)
-                h_src = hop1.get(src, node_mom.get(src, 0.0))
-                e_ij = gatv2_attention_score(h_self, h_src, dyn_w)
-                attn_scores.append(e_ij)
-                shocks.append(bullwhip_transform(h_src, hop=2) * dyn_w)
+                if attn_scores:
+                    max_e = max(attn_scores)
+                    exp_e = [np.exp(e - max_e) for e in attn_scores]
+                    sum_exp = sum(exp_e)
+                    if sum_exp > 0:
+                        alphas = [e / sum_exp for e in exp_e]
+                        h2_f = sum(a * s for a, s in zip(alphas, shocks))
+                        band_aggs.append(gamma_f * h2_f)
 
-            if attn_scores:
-                max_e = max(attn_scores)
-                exp_e = [np.exp(e - max_e) for e in attn_scores]
-                sum_exp = sum(exp_e)
-                if sum_exp > 0:
-                    alphas = [e / sum_exp for e in exp_e]
-                    h2_agg = sum(a * s for a, s in zip(alphas, shocks))
-                    hop2[target] = float(np.tanh(1.20 * h2_agg))
+            if band_aggs:
+                total_h2 = sum(band_aggs)
+                hop2[target] = float(np.tanh(1.20 * total_h2))
 
         # Hop 3
         hop3: Dict[str, float] = {}
         for target, in_edges in self.in_adj.items():
             h_self = hop2.get(target, hop1.get(target, node_mom.get(target, 0.0)))
-            attn_scores = []
-            shocks = []
+            band_aggs = []
+            for band_name, band_dict, gamma_f, tau_scale in freq_bands:
+                attn_scores = []
+                shocks = []
+                for src, w, tau in in_edges:
+                    dyn_w = self.compute_dynamic_edge_weight(src, target, w, tau, fx_momentum, tau_scale=tau_scale)
+                    h_src = hop2.get(src, hop1.get(src, band_dict.get(src, node_mom.get(src, 0.0))))
+                    e_ij = gatv2_attention_score(h_self, h_src, dyn_w)
+                    attn_scores.append(e_ij)
+                    shocks.append(bullwhip_transform(h_src, hop=3) * dyn_w)
 
-            for src, w, tau in in_edges:
-                dyn_w = self.compute_dynamic_edge_weight(src, target, w, tau, fx_momentum)
-                h_src = hop2.get(src, hop1.get(src, node_mom.get(src, 0.0)))
-                e_ij = gatv2_attention_score(h_self, h_src, dyn_w)
-                attn_scores.append(e_ij)
-                shocks.append(bullwhip_transform(h_src, hop=3) * dyn_w)
+                if attn_scores:
+                    max_e = max(attn_scores)
+                    exp_e = [np.exp(e - max_e) for e in attn_scores]
+                    sum_exp = sum(exp_e)
+                    if sum_exp > 0:
+                        alphas = [e / sum_exp for e in exp_e]
+                        h3_f = sum(a * s for a, s in zip(alphas, shocks))
+                        band_aggs.append(gamma_f * h3_f)
 
-            if attn_scores:
-                max_e = max(attn_scores)
-                exp_e = [np.exp(e - max_e) for e in attn_scores]
-                sum_exp = sum(exp_e)
-                if sum_exp > 0:
-                    alphas = [e / sum_exp for e in exp_e]
-                    h3_agg = sum(a * s for a, s in zip(alphas, shocks))
-                    hop3[target] = float(np.tanh(1.20 * h3_agg))
+            if band_aggs:
+                total_h3 = sum(band_aggs)
+                hop3[target] = float(np.tanh(1.20 * total_h3))
 
         return hop1, hop2, hop3
+
+    def compute_directed_forman_ricci_curvature(self, u: str, v: str) -> float:
+        """
+        Feature F721: Directed Combinatorial Forman-Ricci Curvature:
+        Ric_dir(u -> v) = 4 - d_out(u) - d_in(v) + 3 * |Triangles(u -> v)|.
+        """
+        u_c = self._canon_sym(u)
+        v_c = self._canon_sym(v)
+        out_u = self.adj_out.get(u_c, self.adj_out.get(u, set()))
+        in_v = self.adj_in.get(v_c, self.adj_in.get(v, set()))
+        d_out_u = len(out_u)
+        d_in_v = len(in_v)
+        triangles = out_u.intersection(in_v)
+        return 4.0 - float(d_out_u) - float(d_in_v) + 3.0 * float(len(triangles))
+
+    def compute_all_edge_curvatures(self) -> Dict[Tuple[str, str], float]:
+        """Returns directed Forman-Ricci curvature for all registered edges."""
+        curvs: Dict[Tuple[str, str], float] = {}
+        for src, dst, _, _ in self.edges:
+            curvs[(src, dst)] = self.compute_directed_forman_ricci_curvature(src, dst)
+        return curvs
 
     def calculate_scores(
         self,
@@ -521,21 +719,36 @@ class SupplyChainGNNv2Engine(BaseStrategyEngine):
         else:
             return make_score_dataframe({}, score_column="supply_chain_gnn_v2_score")
 
-        # Ingest FX momentum if available
-        fx_momentum = 0.0
+        # Ingest multi-currency FX momentum if available
+        fx_momentum: Union[float, Dict[str, float]] = 0.0
         if indicators_df is not None:
             try:
                 if isinstance(indicators_df, pd.DataFrame):
+                    fx_dict: Dict[str, float] = {}
                     for col in ["usdkrw", "USDKRW", "FX", "fx"]:
                         if col in indicators_df.columns:
                             fx_s = pd.to_numeric(indicators_df[col], errors="coerce").dropna()
                             if len(fx_s) >= 20 and fx_s.iloc[-20] > 0 and fx_s.iloc[-1] > 0:
-                                fx_momentum = float(np.log(fx_s.iloc[-1] / fx_s.iloc[-20]))
-                            else:
-                                fx_momentum = 0.0
+                                fx_dict["USD"] = float(np.log(fx_s.iloc[-1] / fx_s.iloc[-20]))
                             break
+                    for col in ["jpykrw", "JPYKRW", "JPY", "jpy"]:
+                        if col in indicators_df.columns:
+                            fx_s = pd.to_numeric(indicators_df[col], errors="coerce").dropna()
+                            if len(fx_s) >= 20 and fx_s.iloc[-20] > 0 and fx_s.iloc[-1] > 0:
+                                fx_dict["JPY"] = float(np.log(fx_s.iloc[-1] / fx_s.iloc[-20]))
+                            break
+                    for col in ["usdtwd", "USDTWD", "TWD", "twd"]:
+                        if col in indicators_df.columns:
+                            fx_s = pd.to_numeric(indicators_df[col], errors="coerce").dropna()
+                            if len(fx_s) >= 20 and fx_s.iloc[-20] > 0 and fx_s.iloc[-1] > 0:
+                                fx_dict["TWD"] = float(np.log(fx_s.iloc[-1] / fx_s.iloc[-20]))
+                            break
+                    if fx_dict:
+                        fx_momentum = fx_dict if len(fx_dict) > 1 else fx_dict.get("USD", 0.0)
             except Exception:
                 fx_momentum = 0.0
+        if "fx_momentum" in kwargs and kwargs["fx_momentum"] is not None:
+            fx_momentum = kwargs["fx_momentum"]
 
         node_mom, node_flow = self._compute_node_features(p_dict)
         hop1, hop2, hop3 = self._propagate_gatv2_message_passing(node_mom, fx_momentum=fx_momentum)
@@ -592,9 +805,12 @@ class SupplyChainGNNv2Engine(BaseStrategyEngine):
                     0.15 * h3 +
                     0.15 * flow_boost
                 )
-                # Multi-Hop Constructive Resonance Ignition: all hops positive and aligned
-                if h1 >= 0.020 and h2 >= 0.015 and h3 >= 0.010 and raw_self >= 0.0:
-                    graph_signal += self.resonance_bonus
+                # Multi-Hop Constructive Resonance Acceleration
+                if (h1 >= 0.015 and h2 >= 0.010 and h3 >= 0.008 and raw_self >= 0.0) or \
+                   (h1 >= 0.020 and h2 >= 0.015 and h3 >= 0.010 and raw_self >= 0.0):
+                    graph_signal += max(self.resonance_bonus, 0.035)
+                elif h1 <= -0.015 and h2 <= -0.010 and h3 <= -0.008 and raw_self <= 0.0:
+                    graph_signal -= 0.035
             else:
                 # Isolated / unmapped symbol fallback
                 graph_signal = 0.70 * raw_self + 0.30 * flow_boost
@@ -640,7 +856,51 @@ def compute_supply_chain_gnn_v2_scores(prices_dict: Any, **kwargs: Any) -> pd.Da
 supply_chain_gnn_v2_score = compute_supply_chain_gnn_v2_scores
 
 # Complete Alias Trees
-Phase140SupplyChainGNNv2Engine = SupplyChainGNNv2Engine
-F680SupplyChainGNNv2Engine = SupplyChainGNNv2Engine
+Phase148SupplyChainGNNv2Engine = SupplyChainGNNv2Engine
+F721SupplyChainGNNv2Engine = SupplyChainGNNv2Engine
+Phase144SupplyChainGNNv2Engine = SupplyChainGNNv2Engine
+F700SupplyChainGNNv2Engine = SupplyChainGNNv2Engine
+AdvancedSupplyChainGNNv2 = SupplyChainGNNv2Engine
+MultiFrequencyGATv2Engine = SupplyChainGNNv2Engine
+MultiFrequencyGATv2SupplyChainEngine = SupplyChainGNNv2Engine
 ThreeHopSupplyChainGNNEngine = SupplyChainGNNv2Engine
 GATv2SupplyChainEngine = SupplyChainGNNv2Engine
+Phase140SupplyChainGNNv2Engine = SupplyChainGNNv2Engine
+F680SupplyChainGNNv2Engine = SupplyChainGNNv2Engine
+
+__all__ = [
+    "VERSION",
+    "RELEASE",
+    "FEATURE",
+    "VERSION_PHASE140",
+    "VERSION_PHASE144",
+    "VERSION_PHASE148",
+    "RELEASE_PHASE140",
+    "RELEASE_PHASE144",
+    "RELEASE_PHASE148",
+    "FEATURE_PHASE140",
+    "FEATURE_PHASE144",
+    "FEATURE_PHASE148",
+    "TIER1_SYMBOLS",
+    "TIER2_SYMBOLS",
+    "TIER3_SYMBOLS",
+    "GLOBAL_VALUE_CHAIN_3HOP_EDGES",
+    "EXPORTER_FX_ELASTICITY",
+    "EXPORTER_MULTI_FX_ELASTICITY",
+    "bullwhip_transform",
+    "compute_multi_fx_elasticity",
+    "SupplyChainGNNv2Engine",
+    "compute_supply_chain_gnn_v2_scores",
+    "supply_chain_gnn_v2_score",
+    "Phase148SupplyChainGNNv2Engine",
+    "F721SupplyChainGNNv2Engine",
+    "Phase144SupplyChainGNNv2Engine",
+    "F700SupplyChainGNNv2Engine",
+    "AdvancedSupplyChainGNNv2",
+    "MultiFrequencyGATv2Engine",
+    "MultiFrequencyGATv2SupplyChainEngine",
+    "ThreeHopSupplyChainGNNEngine",
+    "GATv2SupplyChainEngine",
+    "Phase140SupplyChainGNNv2Engine",
+    "F680SupplyChainGNNv2Engine",
+]

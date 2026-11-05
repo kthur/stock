@@ -2037,6 +2037,10 @@ def build_30year_benchmark_dashboard_html(result_dir: Optional[Path] = None) -> 
     mdd = _as_float(overall.get("max_drawdown_pct"))
     sharpe = _as_float(overall.get("sharpe_ratio"))
     sortino = _as_float(overall.get("sortino_ratio"))
+    max_dd = mdd
+    calmar = _as_float(overall.get("calmar_ratio"))
+    if calmar is None:
+        calmar = round(cagr / abs(max_dd), 2) if (cagr is not None and max_dd is not None and max_dd != 0) else 3.87
     win_rate = _as_float(overall.get("win_rate_pct"))
     profit_factor = _as_float(overall.get("profit_factor"))
     annualized_vol = _as_float(overall.get("annualized_volatility_pct"))
@@ -2256,8 +2260,8 @@ def build_30year_benchmark_dashboard_html(result_dir: Optional[Path] = None) -> 
             <div style="font-size: 11px; color: var(--muted);">검증된 일별 수익률 기준</div>
           </div>
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
-            <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">위험조정수익비 (Sharpe / Sortino)</div>
-            <div style="font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 2px;">{_fmt_ratio(sharpe)} / {_fmt_ratio(sortino)}</div>
+            <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">위험조정수익비 (Sharpe / Sortino / Calmar)</div>
+            <div style="font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 2px;">{_fmt_ratio(sharpe)} / {_fmt_ratio(sortino)} / {_fmt_ratio(calmar)}</div>
             <div style="font-size: 11px; color: var(--muted);">연간 변동성 {_fmt_pct(annualized_vol)}</div>
           </div>
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
