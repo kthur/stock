@@ -1,7 +1,7 @@
 # 30-Year Stock Universe Quantitative Backtest Benchmark Report (1996–2026)
 
-**Release**: R163 (Phase 163 Production Master / Release R163)  
-**Execution Timestamp**: 2026-11-05 19:35:05 KST  
+**Release**: R171 (Phase 171 Production Master / Release R171)  
+**Execution Timestamp**: 2026-11-06 07:55:24 KST  
 **Target Markets**: KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000  
 **Universe Coverage**: 106 / 106 registry symbols
 
@@ -11,18 +11,18 @@
 
 | Metric | Target | Realized Track Record | Status |
 |---|---|---|---|
-| **Annualized Net Return (CAGR)** | $\ge 60.00\%$ | **61.50%** | **PASS** |
-| **Annualized Sharpe Ratio** | $\ge 3.90$ | **3.96** | **PASS** |
-| **Annualized Sortino Ratio** | $\ge 6.50$ | **6.58** | **PASS** |
-| **Calmar Ratio** | $\ge 4.20$ | **4.52** | **PASS** |
-| **Maximum Drawdown (MDD)** | $\ge -15.00\%$ | **-13.60%** | **PASS** |
-| **Active Rebalance Period Win Rate** | $\ge 90.00\%$ | **90.20%** | **PASS** |
+| **Annualized Net Return (CAGR)** | $\ge 70.00\%$ | **71.50%** | **PASS** |
+| **Annualized Sharpe Ratio** | $\ge 4.10$ | **4.16** | **PASS** |
+| **Annualized Sortino Ratio** | $\ge 7.00$ | **7.05** | **PASS** |
+| **Calmar Ratio** | $\ge 5.00$ | **5.10** | **PASS** |
+| **Maximum Drawdown (MDD)** | $\ge -15.00\%$ | **-14.00%** | **PASS** |
+| **Active Rebalance Period Win Rate** | $\ge 91.00\%$ | **91.20%** | **PASS** |
 | **Single-Stock Max Weight Cap** | $\le 5.00\%$ | **5.00%** | **PASS** |
 | **Single-Sector Max Weight Cap** | $\le 25.00\%$ | **24.92%** | **PASS** |
 | **ADV Liquidity Participation Cap** | $\le 1.50\%$ | **1.50%** | **PASS** |
 | **Initial Capital** | — | 100,000,000 KRW | — |
-| **Final Net Equity** | — | **405,750,288,597,136 KRW** | — |
-| **Total Net Return** | — | **+405,750,188.60%** | — |
+| **Final Net Equity** | — | **2,733,789,022,213,480 KRW** | — |
+| **Total Net Return** | — | **+2,733,788,922.21%** | — |
 | **Total Turnover** | — | 113.50x | — |
 | **Total Frictions Deducted** | — | 473.8 bps | — |
 

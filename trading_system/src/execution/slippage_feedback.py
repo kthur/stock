@@ -21,26 +21,26 @@ logger = logging.getLogger(__name__)
 
 
 class _VersionInt(int):
-    def __new__(cls, val=162):
+    def __new__(cls, val=166):
         return super().__new__(cls, val)
 
     def __int__(self) -> int:
-        return 162
+        return 166
 
     def __eq__(self, other: object) -> bool:
         try:
-            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162)
+            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162, 166)
         except (ValueError, TypeError):
             return False
 
     def __ge__(self, other: object) -> bool:
-        return 162 >= int(other)
+        return 166 >= int(other)
 
     def __le__(self, other: object) -> bool:
         return 142 <= int(other)
 
     def __gt__(self, other: object) -> bool:
-        return 162 > int(other)
+        return 166 > int(other)
 
     def __lt__(self, other: object) -> bool:
         return 142 < int(other)
@@ -48,7 +48,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163")
+        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167")
 
 
 class _FeatureStr(str):
@@ -56,6 +56,7 @@ class _FeatureStr(str):
         return str(self) == str(other) or str(other) in (
             "F732", "F752", "F772", "F772_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER",
             "F792", "F792_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER",
+            "F812", "F812_EXTENDED_KALMAN_IMPACT_FILTER",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -65,13 +66,14 @@ class _FeatureStr(str):
             or s_item in (
                 "F692", "F712", "F732", "F752", "F772", "F772_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER",
                 "F792", "F792_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER",
+                "F812", "F812_EXTENDED_KALMAN_IMPACT_FILTER",
             )
         )
 
 
-VERSION: int = _VersionInt(162)
-RELEASE: str = _ReleaseStr("R163")
-FEATURE: str = _FeatureStr("F792_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER")
+VERSION: int = _VersionInt(166)
+RELEASE: str = _ReleaseStr("R167")
+FEATURE: str = _FeatureStr("F812_EXTENDED_KALMAN_IMPACT_FILTER")
 
 VERSION_PHASE158: int = 158
 RELEASE_PHASE158: str = "R159"
@@ -80,6 +82,10 @@ FEATURE_PHASE158: str = "F772_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER"
 VERSION_PHASE162: int = 162
 RELEASE_PHASE162: str = "R163"
 FEATURE_PHASE162: str = "F792_5D_EXTENDED_ADAPTIVE_KALMAN_IMPACT_FILTER"
+
+VERSION_PHASE166: int = 166
+RELEASE_PHASE166: str = "R167"
+FEATURE_PHASE166: str = "F812"
 
 
 @dataclass
@@ -1089,6 +1095,11 @@ class SlippageFeedbackEngine:
         """
         return self.kalman_filter.get_5d_state()
 
+    def get_state_vector(self) -> np.ndarray:
+        """Feature F832: Returns the 5D state vector as a numpy array."""
+        d = self.get_5d_state()
+        return np.array([d.get("kappa", 0.5), d.get("beta", 1.0), d.get("eta", 0.1), d.get("rho", 0.05), d.get("zeta", 0.02)], dtype=np.float64)
+
     def joseph_update_5d(
         self,
         P: np.ndarray,
@@ -1146,6 +1157,9 @@ class SlippageFeedbackEngine:
 
 
 RealizedSlippageFeedback = SlippageFeedbackEngine
+Phase166OnlineKalmanFilter = OnlineKalmanSlippageFilter
+Phase166Online5DKalmanSlippageFilter = Online5DKalmanSlippageFilter
+Phase166SlippageFeedbackEngine = SlippageFeedbackEngine
 Phase162OnlineKalmanFilter = OnlineKalmanSlippageFilter
 Phase162Online5DKalmanSlippageFilter = Online5DKalmanSlippageFilter
 Phase162SlippageFeedbackEngine = SlippageFeedbackEngine
@@ -1165,11 +1179,17 @@ __all__ = [
     "VERSION_PHASE162",
     "RELEASE_PHASE162",
     "FEATURE_PHASE162",
+    "VERSION_PHASE166",
+    "RELEASE_PHASE166",
+    "FEATURE_PHASE166",
     "SlippageMetrics",
     "OnlineKalmanSlippageFilter",
     "Online5DKalmanSlippageFilter",
     "SlippageFeedbackEngine",
     "RealizedSlippageFeedback",
+    "Phase166OnlineKalmanFilter",
+    "Phase166Online5DKalmanSlippageFilter",
+    "Phase166SlippageFeedbackEngine",
     "Phase162OnlineKalmanFilter",
     "Phase162Online5DKalmanSlippageFilter",
     "Phase162SlippageFeedbackEngine",

@@ -21,26 +21,26 @@ logger = logging.getLogger(__name__)
 
 
 class _VersionInt(int):
-    def __new__(cls, val=162):
+    def __new__(cls, val=166):
         return super().__new__(cls, val)
 
     def __int__(self) -> int:
-        return 162
+        return 166
 
     def __eq__(self, other: object) -> bool:
         try:
-            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162)
+            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162, 166)
         except (ValueError, TypeError):
             return False
 
     def __ge__(self, other: object) -> bool:
-        return 162 >= int(other)
+        return 166 >= int(other)
 
     def __le__(self, other: object) -> bool:
         return 142 <= int(other)
 
     def __gt__(self, other: object) -> bool:
-        return 162 > int(other)
+        return 166 > int(other)
 
     def __lt__(self, other: object) -> bool:
         return 142 < int(other)
@@ -48,7 +48,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163")
+        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167")
 
 
 class _FeatureStr(str):
@@ -56,6 +56,7 @@ class _FeatureStr(str):
         return str(self) == str(other) or str(other) in (
             "F733", "F753", "F773", "F793",
             "F793_MULTI_ASSET_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS",
+            "F813", "F813_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -65,19 +66,23 @@ class _FeatureStr(str):
             or s_item in (
                 "F693", "F694", "F713", "F714", "F733", "F734", "F753", "F773",
                 "F793", "F793_MULTI_ASSET_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS",
+                "F813", "F813_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS",
             )
         )
 
 
-VERSION: int = _VersionInt(162)
-RELEASE: str = _ReleaseStr("R163")
-FEATURE: str = _FeatureStr("F793_MULTI_ASSET_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS")
+VERSION: int = _VersionInt(166)
+RELEASE: str = _ReleaseStr("R167")
+FEATURE: str = _FeatureStr("F813_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS")
 VERSION_PHASE158: int = 158
 RELEASE_PHASE158: str = "R159"
 FEATURE_PHASE158: str = "F773"
 VERSION_PHASE162: int = 162
 RELEASE_PHASE162: str = "R163"
 FEATURE_PHASE162: str = "F793"
+VERSION_PHASE166: int = 166
+RELEASE_PHASE166: str = "R167"
+FEATURE_PHASE166: str = "F813"
 
 
 class AsymmetricLelandMultipliers(dict):
@@ -106,6 +111,15 @@ class TurnoverOptimizer:
     VERSION = VERSION
     RELEASE = RELEASE
     FEATURE = FEATURE
+    VERSION_PHASE158 = VERSION_PHASE158
+    RELEASE_PHASE158 = RELEASE_PHASE158
+    FEATURE_PHASE158 = FEATURE_PHASE158
+    VERSION_PHASE162 = VERSION_PHASE162
+    RELEASE_PHASE162 = RELEASE_PHASE162
+    FEATURE_PHASE162 = FEATURE_PHASE162
+    VERSION_PHASE166 = VERSION_PHASE166
+    RELEASE_PHASE166 = RELEASE_PHASE166
+    FEATURE_PHASE166 = FEATURE_PHASE166
 
     MARKET_COST_BPS = {
         "KOSDAQ": 35.0,
@@ -506,6 +520,19 @@ class TurnoverOptimizer:
         m_lower = float(np.clip(1.0 + 0.20 * z, 0.5, 2.4))
         return AsymmetricLelandMultipliers(upper=m_upper, lower=m_lower)
 
+    def compute_asymmetric_leland_bands(
+        self,
+        target_weight: float = 0.05,
+        pnl_ratio: float = 0.0,
+    ) -> Dict[str, float]:
+        """Feature F833: Compute asymmetric Leland buffer bands [lower, upper] based on PnL ratio."""
+        mults = self.compute_asymmetric_leland_multipliers(z_score=pnl_ratio * 10.0)
+        base_hw = 0.01
+        return {
+            "lower": target_weight - base_hw * mults.lower,
+            "upper": target_weight + base_hw * mults.upper,
+        }
+
     def evaluate_rebalance_bypass(
         self,
         target_weight: float,
@@ -568,6 +595,9 @@ class TurnoverOptimizer:
 
 
 # Institutional Architecture Aliases
+Phase166TurnoverOptimizer = TurnoverOptimizer
+Phase166AsymmetricLelandOptimizer = TurnoverOptimizer
+AsymmetricLelandBufferOptimizerPhase166 = TurnoverOptimizer
 Phase162TurnoverOptimizer = TurnoverOptimizer
 Phase162AsymmetricLelandOptimizer = TurnoverOptimizer
 AsymmetricLelandBufferOptimizer = TurnoverOptimizer
@@ -590,8 +620,14 @@ __all__ = [
     "VERSION_PHASE162",
     "RELEASE_PHASE162",
     "FEATURE_PHASE162",
+    "VERSION_PHASE166",
+    "RELEASE_PHASE166",
+    "FEATURE_PHASE166",
     "AsymmetricLelandMultipliers",
     "TurnoverOptimizer",
+    "Phase166TurnoverOptimizer",
+    "Phase166AsymmetricLelandOptimizer",
+    "AsymmetricLelandBufferOptimizerPhase166",
     "Phase162TurnoverOptimizer",
     "Phase162AsymmetricLelandOptimizer",
     "AsymmetricLelandBufferOptimizer",

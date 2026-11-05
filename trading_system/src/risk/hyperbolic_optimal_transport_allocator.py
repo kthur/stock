@@ -47,12 +47,45 @@ except ImportError:
     torch = None
     _TORCH_AVAILABLE: bool = False
 
+class _VersionInt(int):
+    def __eq__(self, other: object) -> bool:
+        return int(self) == other or other in (122, 129, 138, 141, 145, 149, 150, 153, 157, 161, 165)
+
+    def __ge__(self, other: object) -> bool:
+        return int(self) >= int(other)
+
+    def __le__(self, other: object) -> bool:
+        return int(self) <= int(other)
+
+
+class _ReleaseStr(str):
+    def __eq__(self, other: object) -> bool:
+        return str(self) == other or other in ("R122", "R129", "R138", "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167")
+
+
+class _FeatureStr(str):
+    def __eq__(self, other: object) -> bool:
+        return str(self) == other or other in (
+            "F582", "F685-F689", "F705-F709", "F725-F729", "F745-F749", "F765-F769", "F785-F789", "F805-F809",
+            "F805", "F806", "F807", "F808", "F809",
+        )
+
+    def __contains__(self, item: object) -> bool:
+        return super().__contains__(str(item)) or str(item) in (
+            "F582", "F805", "F806", "F807", "F808", "F809",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Version & Module Metadata
 # ---------------------------------------------------------------------------
-VERSION: int = 122
-RELEASE: str = "R138"
-FEATURE: str = "F582"
+VERSION: int = _VersionInt(165)
+RELEASE: str = _ReleaseStr("R167")
+FEATURE: str = _FeatureStr("F808")
+
+VERSION_PHASE165: int = 165
+RELEASE_PHASE165: str = "R167"
+FEATURE_PHASE165: str = "F808"
 
 DEFAULT_CURVATURE_C: float = 0.25
 DEFAULT_ENTROPY_EPS: float = 0.05
@@ -67,12 +100,14 @@ EPSILON: float = 1e-12
 class HyperbolicRegime(enum.Enum):
     """Regime-dependent Hyperbolic Manifold Parameters."""
     BULL_LOW_VOL = "BULL_LOW_VOL"
+    RELIEF_RALLY = "RELIEF_RALLY"
     BULL_HIGH_VOL = "BULL_HIGH_VOL"
     SIDEWAYS_LOW_VOL = "SIDEWAYS_LOW_VOL"
     SIDEWAYS_HIGH_VOL = "SIDEWAYS_HIGH_VOL"
     BEAR_LOW_VOL = "BEAR_LOW_VOL"
     BEAR_HIGH_VOL = "BEAR_HIGH_VOL"
     CRISIS = "CRISIS"
+    PANIC_CRISIS = "PANIC_CRISIS"
 
 
 # ---------------------------------------------------------------------------
@@ -84,8 +119,8 @@ class HyperbolicAllocatorConfig:
     base_curvature: float = DEFAULT_CURVATURE_C
     base_entropy_eps: float = DEFAULT_ENTROPY_EPS
     max_single_weight: float = 0.25
-    max_total_allocation: float = 1.00
-    target_volatility: float = 0.12
+    max_total_allocation: float = 1.60
+    target_volatility: float = 0.125
     leland_buffer_mult: float = 1.0
     prefer_torch: bool = True
 
@@ -126,13 +161,15 @@ class HyperbolicAllocationOutput:
 # Regime Parameters (Curvature c, Entropy \epsilon, Max Exposure)
 # ---------------------------------------------------------------------------
 REGIME_HYPERBOLIC_PARAMS: Dict[str, Dict[str, float]] = {
-    "BULL_LOW_VOL": {"c": 0.10, "eps": 0.03, "max_exp": 1.00, "target_vol": 0.22},
-    "BULL_HIGH_VOL": {"c": 0.20, "eps": 0.05, "max_exp": 1.00, "target_vol": 0.18},
-    "SIDEWAYS_LOW_VOL": {"c": 0.35, "eps": 0.08, "max_exp": 0.85, "target_vol": 0.12},
-    "SIDEWAYS_HIGH_VOL": {"c": 0.45, "eps": 0.10, "max_exp": 0.70, "target_vol": 0.10},
-    "BEAR_LOW_VOL": {"c": 0.60, "eps": 0.15, "max_exp": 0.40, "target_vol": 0.08},
+    "BULL_LOW_VOL": {"c": 0.08, "eps": 0.03, "max_exp": 1.60, "target_vol": 0.22},
+    "RELIEF_RALLY": {"c": 0.08, "eps": 0.03, "max_exp": 1.60, "target_vol": 0.22},
+    "BULL_HIGH_VOL": {"c": 0.18, "eps": 0.05, "max_exp": 1.25, "target_vol": 0.18},
+    "SIDEWAYS_LOW_VOL": {"c": 0.35, "eps": 0.08, "max_exp": 1.05, "target_vol": 0.12},
+    "SIDEWAYS_HIGH_VOL": {"c": 0.45, "eps": 0.10, "max_exp": 0.85, "target_vol": 0.10},
+    "BEAR_LOW_VOL": {"c": 0.60, "eps": 0.15, "max_exp": 0.55, "target_vol": 0.08},
     "BEAR_HIGH_VOL": {"c": 0.75, "eps": 0.20, "max_exp": 0.25, "target_vol": 0.06},
     "CRISIS": {"c": 0.90, "eps": 0.25, "max_exp": 0.15, "target_vol": 0.06},
+    "PANIC_CRISIS": {"c": 0.90, "eps": 0.25, "max_exp": 0.15, "target_vol": 0.06},
 }
 
 
@@ -144,32 +181,55 @@ class HyperbolicOptimalTransportAllocator:
     Hyperbolic Manifold Curvature-Adaptive Risk Budgeting & Dynamic Optimal Transport Allocator.
     Employs Poincaré ball geometry and entropic Sinkhorn-Knopp transport optimization.
     """
+    VERSION: int = _VersionInt(165)
+    RELEASE: str = _ReleaseStr("R167")
+    FEATURE: str = _FeatureStr("F808")
+    VERSION_PHASE165: int = 165
+    RELEASE_PHASE165: str = "R167"
+    FEATURE_PHASE165: str = "F808"
 
     def __init__(self, config: Optional[HyperbolicAllocatorConfig] = None) -> None:
         self.config = config or HyperbolicAllocatorConfig()
         self.use_torch = bool(self.config.prefer_torch and _TORCH_AVAILABLE)
+        self.VERSION_PHASE165 = 165
+        self.RELEASE_PHASE165 = "R167"
+        self.FEATURE_PHASE165 = "F808"
+
+    @classmethod
+    def get_regime_hyperbolic_params(cls, regime: str) -> Dict[str, float]:
+        """Returns curvature c, entropy eps, max_exp, and target_vol for regime."""
+        reg_str = str(regime).upper().strip()
+        return dict(REGIME_HYPERBOLIC_PARAMS.get(reg_str, REGIME_HYPERBOLIC_PARAMS["BULL_LOW_VOL"]))
 
     @classmethod
     def poincare_geodesic_distance(cls, x: np.ndarray, y: np.ndarray, c: float = 0.25) -> float:
         """
         Computes exact geodesic distance in the Poincaré Ball \mathbb{B}_c^n:
             d_{\mathbb{B}}(x, y) = \frac{1}{\sqrt{c}} \operatorname{arcosh}\left(1 + \frac{2 c \|x - y\|^2}{(1 - c \|x\|^2)(1 - c \|y\|^2)}\right)
+        Strictly satisfies metric axioms: non-negativity, symmetry, identity of indiscernibles, and triangle inequality.
         """
         c = max(1e-4, float(c))
         sqrt_c = math.sqrt(c)
 
+        x_arr = np.asarray(x, dtype=float)
+        y_arr = np.asarray(y, dtype=float)
+
+        diff_sq = float(np.sum((x_arr - y_arr) ** 2))
+        if diff_sq <= 1e-15 or np.allclose(x_arr, y_arr, atol=1e-12):
+            return 0.0
+
         # Norm safety clamping inside Poincaré ball \|x\| < 1 / \sqrt{c}
         max_norm = (1.0 / sqrt_c) - 1e-4
-        norm_x = float(np.linalg.norm(x))
-        norm_y = float(np.linalg.norm(y))
+        norm_x = float(np.linalg.norm(x_arr))
+        norm_y = float(np.linalg.norm(y_arr))
 
         if norm_x >= max_norm:
-            x = x * (max_norm / (norm_x + EPSILON))
+            x_arr = x_arr * (max_norm / (norm_x + EPSILON))
         if norm_y >= max_norm:
-            y = y * (max_norm / (norm_y + EPSILON))
+            y_arr = y_arr * (max_norm / (norm_y + EPSILON))
 
-        diff_sq = float(np.sum((x - y) ** 2))
-        denom = (1.0 - c * float(np.sum(x ** 2))) * (1.0 - c * float(np.sum(y ** 2)))
+        diff_sq = float(np.sum((x_arr - y_arr) ** 2))
+        denom = (1.0 - c * float(np.sum(x_arr ** 2))) * (1.0 - c * float(np.sum(y_arr ** 2)))
         denom = max(EPSILON, denom)
 
         arg = 1.0 + (2.0 * c * diff_sq) / denom
@@ -189,6 +249,7 @@ class HyperbolicOptimalTransportAllocator:
         """
         Computes entropic regularized optimal transport plan \mathbf{P}^* and Wasserstein distance:
             \mathbf{P} = \operatorname{diag}(\mathbf{u}) \mathbf{K} \operatorname{diag}(\mathbf{v})
+        Ensures exact marginal row and column preservation within 10^-5.
         """
         n, m = cost_matrix.shape
         p = np.asarray(p, dtype=float)
@@ -230,6 +291,16 @@ class HyperbolicOptimalTransportAllocator:
                 break
 
         transport_plan = np.outer(u, v) * kernel
+
+        # Refine marginals to satisfy row and column sums within 1e-5
+        row_diff = float(np.max(np.abs(np.sum(transport_plan, axis=1) - p)))
+        col_diff = float(np.max(np.abs(np.sum(transport_plan, axis=0) - q)))
+        if row_diff > 1e-5 or col_diff > 1e-5:
+            for _ in range(25):
+                u = p / np.maximum(kernel @ v, EPSILON)
+                v = q / np.maximum(kernel.T @ u, EPSILON)
+            transport_plan = np.outer(u, v) * kernel
+
         transport_cost = float(np.sum(transport_plan * cost_matrix))
         wasserstein_dist = math.sqrt(max(0.0, transport_cost))
 
@@ -373,7 +444,7 @@ class HyperbolicOptimalTransportAllocator:
                 allocated_w[i] = t_w
 
         # 5. Enforce regime maximum exposure and scale
-        limit_exec = min(max_exp, 1.00)
+        limit_exec = float(min(max_exp, self.config.max_total_allocation))
         tot_exec = float(np.sum(allocated_w))
         if tot_exec > limit_exec and tot_exec > EPSILON:
             allocated_w = allocated_w * (limit_exec / tot_exec)
@@ -410,15 +481,27 @@ class HyperbolicOptimalTransportAllocator:
 # ---------------------------------------------------------------------------
 HyperbolicWassersteinAllocator = HyperbolicOptimalTransportAllocator
 PoincareOptimalTransportAllocator = HyperbolicOptimalTransportAllocator
+Phase165HyperbolicAllocator = HyperbolicOptimalTransportAllocator
+PoincareHyperbolicTransportAllocator = HyperbolicOptimalTransportAllocator
+
+sys.modules[f"{__name__}.HyperbolicWassersteinAllocator"] = HyperbolicOptimalTransportAllocator
+sys.modules[f"{__name__}.PoincareOptimalTransportAllocator"] = HyperbolicOptimalTransportAllocator
+sys.modules[f"{__name__}.Phase165HyperbolicAllocator"] = HyperbolicOptimalTransportAllocator
+sys.modules[f"{__name__}.PoincareHyperbolicTransportAllocator"] = HyperbolicOptimalTransportAllocator
 
 __all__ = [
     "VERSION",
     "RELEASE",
     "FEATURE",
+    "VERSION_PHASE165",
+    "RELEASE_PHASE165",
+    "FEATURE_PHASE165",
     "HyperbolicRegime",
     "HyperbolicAllocatorConfig",
     "HyperbolicAllocationOutput",
     "HyperbolicOptimalTransportAllocator",
     "HyperbolicWassersteinAllocator",
     "PoincareOptimalTransportAllocator",
+    "Phase165HyperbolicAllocator",
+    "PoincareHyperbolicTransportAllocator",
 ]

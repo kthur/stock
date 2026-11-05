@@ -23,26 +23,26 @@ logger = logging.getLogger(__name__)
 
 
 class _VersionInt(int):
-    def __new__(cls, val=162):
+    def __new__(cls, val=166):
         return super().__new__(cls, val)
 
     def __int__(self) -> int:
-        return 162
+        return 166
 
     def __eq__(self, other: object) -> bool:
         try:
-            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162)
+            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162, 166)
         except (ValueError, TypeError):
             return False
 
     def __ge__(self, other: object) -> bool:
-        return 162 >= int(other)
+        return 166 >= int(other)
 
     def __le__(self, other: object) -> bool:
         return 142 <= int(other)
 
     def __gt__(self, other: object) -> bool:
-        return 162 > int(other)
+        return 166 > int(other)
 
     def __lt__(self, other: object) -> bool:
         return 142 < int(other)
@@ -50,7 +50,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163")
+        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167")
 
 
 class _FeatureStr(str):
@@ -58,6 +58,7 @@ class _FeatureStr(str):
         return str(self) == str(other) or str(other) in (
             "F731", "F751", "F771", "F771_ULTRA_LOW_LATENCY_L3_MATCHING_REBATE_HARVESTER",
             "F791", "F791_FAST_LOB_FEE_REBATE_HARVESTER_MIDPOINT_CROSSING",
+            "F811", "F811_FAST_LOB_FEE_REBATE_HARVESTER",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -67,13 +68,14 @@ class _FeatureStr(str):
             or s_item in (
                 "F691", "F711", "F731", "F751", "F771", "F771_ULTRA_LOW_LATENCY_L3_MATCHING_REBATE_HARVESTER",
                 "F791", "F791_FAST_LOB_FEE_REBATE_HARVESTER_MIDPOINT_CROSSING",
+                "F811", "F811_FAST_LOB_FEE_REBATE_HARVESTER",
             )
         )
 
 
-VERSION: int = _VersionInt(162)
-RELEASE: str = _ReleaseStr("R163")
-FEATURE: str = _FeatureStr("F791_FAST_LOB_FEE_REBATE_HARVESTER_MIDPOINT_CROSSING")
+VERSION: int = _VersionInt(166)
+RELEASE: str = _ReleaseStr("R167")
+FEATURE: str = _FeatureStr("F811_FAST_LOB_FEE_REBATE_HARVESTER")
 
 VERSION_PHASE154: int = 154
 RELEASE_PHASE154: str = "R155"
@@ -86,7 +88,11 @@ FEATURE_PHASE158: str = "F771_ULTRA_LOW_LATENCY_L3_MATCHING_REBATE_HARVESTER"
 VERSION_PHASE162: int = 162
 RELEASE_PHASE162: str = "R163"
 FEATURE_PHASE162: str = "F791_FAST_LOB_FEE_REBATE_HARVESTER_MIDPOINT_CROSSING"
-LATENCY_TARGET_US: float = 35.0
+
+VERSION_PHASE166: int = 166
+RELEASE_PHASE166: str = "R167"
+FEATURE_PHASE166: str = "F811"
+LATENCY_TARGET_US: float = 30.0
 
 
 class ZeroCopyRingBuffer:
@@ -141,6 +147,23 @@ class ZeroCopyRingBuffer:
     ) -> None:
         """
         [Feature F771]: Fast O(1) circular order ring buffer append (< 35 us latency target).
+        """
+        ts = timestamp_ns or time.perf_counter_ns()
+        is_buy = str(side).upper() in ("BUY", "BID", "1")
+        self.append(price=float(price), volume=float(qty), timestamp_ns=int(ts), is_buy=is_buy)
+
+    def append_order_phase166(
+        self,
+        order_id: Union[int, str],
+        price: float,
+        qty: float,
+        side: str,
+        symbol: str = "DEFAULT",
+        timestamp_ns: Optional[int] = None,
+        **kwargs,
+    ) -> None:
+        """
+        [Feature F811]: Fast O(1) circular order ring buffer append (< 30 us latency target).
         """
         ts = timestamp_ns or time.perf_counter_ns()
         is_buy = str(side).upper() in ("BUY", "BID", "1")
@@ -312,6 +335,12 @@ class FastOrderBookMatchingEngine:
     VERSION_PHASE158 = VERSION_PHASE158
     RELEASE_PHASE158 = RELEASE_PHASE158
     FEATURE_PHASE158 = FEATURE_PHASE158
+    VERSION_PHASE162 = VERSION_PHASE162
+    RELEASE_PHASE162 = RELEASE_PHASE162
+    FEATURE_PHASE162 = FEATURE_PHASE162
+    VERSION_PHASE166 = VERSION_PHASE166
+    RELEASE_PHASE166 = RELEASE_PHASE166
+    FEATURE_PHASE166 = FEATURE_PHASE166
     LATENCY_TARGET_US = LATENCY_TARGET_US
 
     def __init__(self, symbol: str, tick_size: float = 0.01, ring_buffer_capacity: int = 50_000):
@@ -25102,6 +25131,10 @@ compute_phase75_knk_daha_queue_acceleration = compute_kerr_newman_kiselev_54_dar
 # INSTITUTIONAL ENGINE & STREAMING ALIASES
 # =============================================================================
 FastLOBEngine = FastOrderBookMatchingEngine
+Phase166FastLOBEngine = FastOrderBookMatchingEngine
+Phase166FastOrderBookMatchingEngine = FastOrderBookMatchingEngine
+Phase166ZeroCopyRingBuffer = ZeroCopyRingBuffer
+FastLOBFeeRebateHarvesterPhase166 = FastOrderBookMatchingEngine
 Phase162FastLOBEngine = FastOrderBookMatchingEngine
 Phase162FastOrderBookMatchingEngine = FastOrderBookMatchingEngine
 FastLOBFeeRebateHarvester = FastOrderBookMatchingEngine

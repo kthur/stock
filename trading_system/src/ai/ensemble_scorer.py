@@ -26584,9 +26584,106 @@ class EnsembleScoringEngine:
 
     apply_smooth_deadband_attenuation = apply_smooth_noise_deadband
 
+    @classmethod
+    def apply_distress_gatekeeper(
+        cls,
+        scores: Union[pd.Series, np.ndarray],
+        operating_margin: Optional[Union[pd.Series, np.ndarray]] = None,
+        roe: Optional[Union[pd.Series, np.ndarray]] = None,
+        tactical_exempt: Optional[Union[pd.Series, np.ndarray]] = None,
+        penalty: float = 0.70,
+    ) -> Union[pd.Series, np.ndarray]:
+        """
+        Feature F804 / Phase 164: Distress Gatekeeper applying 0.70x penalty to loss-making non-tactical equities.
+        Exempts tactical turnaround / deep value / squeeze catalysts from distress penalty.
+        """
+        is_series = isinstance(scores, pd.Series)
+        s_arr = scores.values.copy() if is_series else np.asarray(scores, dtype=np.float64).copy()
+        n = len(s_arr)
+
+        distress_cond = np.zeros(n, dtype=bool)
+        if operating_margin is not None:
+            op_arr = operating_margin.values if isinstance(operating_margin, pd.Series) else np.asarray(operating_margin)
+            distress_cond |= (op_arr < -0.10)
+        if roe is not None:
+            roe_arr = roe.values if isinstance(roe, pd.Series) else np.asarray(roe)
+            distress_cond |= (roe_arr < -0.10)
+
+        exempt_cond = np.zeros(n, dtype=bool)
+        if tactical_exempt is not None:
+            ex_arr = tactical_exempt.values if isinstance(tactical_exempt, pd.Series) else np.asarray(tactical_exempt)
+            exempt_cond |= ex_arr.astype(bool)
+
+        penalize_mask = distress_cond & (~exempt_cond)
+        s_arr[penalize_mask] = np.clip(s_arr[penalize_mask] * penalty, 0.0, 1.0)
+        return pd.Series(s_arr, index=scores.index) if is_series else s_arr
+
+    @classmethod
+    def apply_high_quality_compounder_bonus(
+        cls,
+        scores: Union[pd.Series, np.ndarray],
+        operating_margin: Optional[Union[pd.Series, np.ndarray]] = None,
+        roe: Optional[Union[pd.Series, np.ndarray]] = None,
+        bonus: float = 1.035,
+    ) -> Union[pd.Series, np.ndarray]:
+        """
+        Feature F804 / Phase 164: High-Quality Compounder 1.035x bonus for high-ROIC firms.
+        """
+        is_series = isinstance(scores, pd.Series)
+        s_arr = scores.values.copy() if is_series else np.asarray(scores, dtype=np.float64).copy()
+        n = len(s_arr)
+
+        quality_cond = np.zeros(n, dtype=bool)
+        has_op = operating_margin is not None
+        has_roe = roe is not None
+
+        if has_op and has_roe:
+            op_arr = operating_margin.values if isinstance(operating_margin, pd.Series) else np.asarray(operating_margin)
+            roe_arr = roe.values if isinstance(roe, pd.Series) else np.asarray(roe)
+            quality_cond = (op_arr >= 0.15) & (roe_arr >= 0.15)
+        elif has_op:
+            op_arr = operating_margin.values if isinstance(operating_margin, pd.Series) else np.asarray(operating_margin)
+            quality_cond = (op_arr >= 0.18)
+        elif has_roe:
+            roe_arr = roe.values if isinstance(roe, pd.Series) else np.asarray(roe)
+            quality_cond = (roe_arr >= 0.18)
+
+        s_arr[quality_cond] = np.clip(s_arr[quality_cond] * bonus, 0.0, 1.0)
+        return pd.Series(s_arr, index=scores.index) if is_series else s_arr
+
+    @classmethod
+    def evaluate_long_term_compounding_policies(
+        cls,
+        merged_df: pd.DataFrame,
+        blended_score: Optional[pd.Series] = None,
+    ) -> pd.Series:
+        """
+        Feature F804 / Phase 164: Evaluates both Distress Gatekeeper (0.70x) and High-Quality Compounder (1.035x)
+        rules for long-term compounding return consistency.
+        """
+        if blended_score is None:
+            base_s = merged_df.get('ensemble_score', pd.Series(0.50, index=merged_df.index))
+            s = base_s.copy()
+        else:
+            s = blended_score.copy()
+
+        op = merged_df.get('operating_margin')
+        roe = merged_df.get('roe')
+        tactical_exempt = pd.Series(False, index=merged_df.index)
+        for cat_col in ['short_squeeze_score', 'valueup_catalyst_score', 'reversal_score']:
+            if cat_col in merged_df.columns:
+                tactical_exempt |= (merged_df[cat_col] >= 0.65)
+
+        s = cls.apply_distress_gatekeeper(s, operating_margin=op, roe=roe, tactical_exempt=tactical_exempt, penalty=0.70)
+        s = cls.apply_high_quality_compounder_bonus(s, operating_margin=op, roe=roe, bonus=1.035)
+        return s
+
 
 apply_smooth_deadband_attenuation = EnsembleScoringEngine.apply_smooth_noise_deadband
 apply_smooth_noise_deadband = EnsembleScoringEngine.apply_smooth_noise_deadband
+evaluate_long_term_compounding_policies = EnsembleScoringEngine.evaluate_long_term_compounding_policies
+apply_distress_gatekeeper = EnsembleScoringEngine.apply_distress_gatekeeper
+apply_high_quality_compounder_bonus = EnsembleScoringEngine.apply_high_quality_compounder_bonus
 
 # Phase 104 (Release R120, Feature F494) Realistic Annualized CAGR Calibration Alias Trees
 calculate_realistic_annualized_cagr = EnsembleScoringEngine.calculate_realistic_annualized_cagr

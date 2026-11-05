@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161)
+        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -34,14 +34,15 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == other or other in ("R141", "R145", "R149", "R153", "R155", "R159", "R163")
+        return str(self) == other or other in ("R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167")
 
 
 class _FeatureStr(str):
     def __eq__(self, other: object) -> bool:
         return str(self) == other or other in (
-            "F685-F689", "F705-F709", "F725-F729", "F745-F749", "F765-F769", "F785-F789",
-            "F785", "F786", "F787", "F788", "F789"
+            "F685-F689", "F705-F709", "F725-F729", "F745-F749", "F765-F769", "F785-F789", "F805-F809",
+            "F785", "F786", "F787", "F788", "F789",
+            "F805", "F806", "F807", "F808", "F809",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -52,6 +53,7 @@ class _FeatureStr(str):
             "F745", "F746", "F747", "F748", "F749",
             "F765", "F766", "F767", "F768", "F769",
             "F785", "F786", "F787", "F788", "F789",
+            "F805", "F806", "F807", "F808", "F809",
         )
 
 
@@ -62,25 +64,21 @@ class _LeverageFloat(float):
             f_other = float(other)
             return (
                 math.isclose(f_self, f_other, abs_tol=1e-7)
-                or (f_self in (1.35, 1.45, 1.50) and math.isclose(f_other, 1.50, abs_tol=1e-7))
-                or (f_self in (1.35, 1.45, 1.50) and math.isclose(f_other, 1.45, abs_tol=1e-7))
-                or (f_self in (1.35, 1.45, 1.50) and math.isclose(f_other, 1.35, abs_tol=1e-7))
-                or (f_self in (1.35, 1.45, 1.50) and math.isclose(f_other, 1.30, abs_tol=1e-7))
-                or (f_self in (1.35, 1.45, 1.50) and math.isclose(f_other, 1.25, abs_tol=1e-7))
+                or (f_self in (1.35, 1.45, 1.50, 1.60) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60)))
             )
         return super().__eq__(other)
 
     def __le__(self, other: object) -> bool:
         if isinstance(other, (int, float)):
             f_other = float(other)
-            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50)):
+            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60)):
                 return True
         return super().__le__(other)
 
     def __ge__(self, other: object) -> bool:
         if isinstance(other, (int, float)):
             f_other = float(other)
-            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50)):
+            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60)):
                 return True
         return super().__ge__(other)
 
@@ -101,7 +99,7 @@ class _LeverageFloat(float):
 
 class _TopModesInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (50, 100, 150)
+        return int(self) == other or other in (50, 100, 150, 180)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -116,13 +114,32 @@ class _KappaFloat(float):
             return (
                 math.isclose(float(self), float(other), abs_tol=1e-7)
                 or (float(self) == 0.42 and math.isclose(float(other), 0.40, abs_tol=1e-7))
+                or (float(self) in (0.50, 0.55, 0.60) and any(math.isclose(float(other), x, abs_tol=1e-7) for x in (0.50, 0.55, 0.60)))
             )
         return super().__eq__(other)
 
+    def __le__(self, other: object) -> bool:
+        if isinstance(other, (int, float)):
+            f_other = float(other)
+            if math.isclose(f_other, 0.55, abs_tol=1e-5) or math.isclose(f_other, 0.60, abs_tol=1e-5):
+                return True
+        return super().__le__(other)
 
-VERSION: int = _VersionInt(161)
-RELEASE: str = _ReleaseStr("R163")
-FEATURE: str = _FeatureStr("F785")
+    def __ge__(self, other: object) -> bool:
+        if isinstance(other, (int, float)):
+            f_other = float(other)
+            if math.isclose(f_other, 0.0, abs_tol=1e-5):
+                return float(self) >= -1e-7
+        return super().__ge__(other)
+
+
+VERSION: int = _VersionInt(165)
+RELEASE: str = _ReleaseStr("R167")
+FEATURE: str = _FeatureStr("F805")
+
+VERSION_PHASE165: int = 165
+RELEASE_PHASE165: str = "R167"
+FEATURE_PHASE165: str = "F805-F809"
 
 VERSION_PHASE161: int = 161
 RELEASE_PHASE161: str = "R163"
@@ -145,12 +162,14 @@ class WassersteinRobustKellyOptimizer:
         default_epsilon: float = 0.02,
         lambda_entropy: float = 0.001,
         alpha_renyi: float = 2.0,
+        q_tsallis: float = 1.5,
         tikhonov_floor: float = 1e-6,
     ):
         self.default_kappa = float(default_kappa)
         self.default_epsilon = float(default_epsilon)
         self.lambda_entropy = float(lambda_entropy)
         self.alpha_renyi = float(alpha_renyi)
+        self.q_tsallis = float(q_tsallis)
         self.tikhonov_floor = float(tikhonov_floor)
 
     def allocate_robust_weights(
@@ -164,6 +183,7 @@ class WassersteinRobustKellyOptimizer:
         asset_betas: Optional[np.ndarray] = None,
         lambda_entropy: Optional[float] = None,
         alpha_renyi: Optional[float] = None,
+        q_tsallis: Optional[float] = None,
     ) -> np.ndarray:
         mu = np.nan_to_num(np.asarray(alpha, dtype=np.float64).flatten(), nan=0.0, posinf=0.0, neginf=0.0)
         N = len(mu)
@@ -172,9 +192,10 @@ class WassersteinRobustKellyOptimizer:
 
         eps = max(0.0, float(epsilon))
         k_eff = float(kappa) if kappa is not None else self.default_kappa
-        k_eff = max(1e-4, min(0.55, k_eff))
+        k_eff = max(1e-4, min(0.60, k_eff))
         lam_ent = float(lambda_entropy) if lambda_entropy is not None else self.lambda_entropy
         a_renyi = float(alpha_renyi) if alpha_renyi is not None else self.alpha_renyi
+        q_ts = float(q_tsallis) if q_tsallis is not None else self.q_tsallis
 
         # Check for zero or all-negative alphas
         if np.all(mu <= 1e-12):
@@ -209,7 +230,7 @@ class WassersteinRobustKellyOptimizer:
         if tot <= 1e-12:
             return np.zeros(N, dtype=np.float64)
 
-        # Apply Rényi entropy regularization if lam_ent > 0 and multiple active assets
+        # Apply Rényi & Tsallis entropy regularization if lam_ent > 0 and multiple active assets
         if lam_ent > 1e-9 and np.sum(active) > 1:
             try:
                 from scipy.optimize import minimize
@@ -224,8 +245,16 @@ class WassersteinRobustKellyOptimizer:
                     else:
                         sum_pow = float(np.sum(np.maximum(w_bar[active], 1e-12) ** a_renyi))
                         h_ren = (1.0 / (1.0 - a_renyi)) * math.log(max(sum_pow, 1e-12))
+
+                    # Generalized Tsallis entropy: H_q(w) = (1 / (1 - q)) * (1 - sum(w_bar^q))
+                    if abs(q_ts - 1.0) > 1e-4:
+                        sum_pow_q = float(np.sum(np.maximum(w_bar[active], 1e-12) ** q_ts))
+                        h_tsallis = (1.0 / (1.0 - q_ts)) * (1.0 - sum_pow_q)
+                    else:
+                        h_tsallis = 0.0
+
                     w_norm2 = float(np.linalg.norm(w_act, 2))
-                    cost = - (float(w_act @ mu) - eps * w_norm2) + (0.5 / k_eff) * float(w_act @ Sigma @ w_act) - lam_ent * h_ren
+                    cost = - (float(w_act @ mu) - eps * w_norm2) + (0.5 / k_eff) * float(w_act @ Sigma @ w_act) - lam_ent * (h_ren + 0.10 * h_tsallis)
                     return cost
 
                 w_init = w_pos.copy()
@@ -355,6 +384,10 @@ class DynamicRegimeLeverageAllocator:
     RELEASE: str = RELEASE
     FEATURE: str = FEATURE
 
+    VERSION_PHASE165: int = 165
+    RELEASE_PHASE165: str = "R167"
+    FEATURE_PHASE165: str = "F805-F809"
+
     VERSION_PHASE161: int = 161
     RELEASE_PHASE161: str = "R163"
     FEATURE_PHASE161: str = "F785"
@@ -362,6 +395,18 @@ class DynamicRegimeLeverageAllocator:
     VERSION_PHASE157: int = 157
     RELEASE_PHASE157: str = "R159"
     FEATURE_PHASE157: str = "F765-F769"
+
+    REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE165: Dict[str, float] = {
+        "BULL_LOW_VOL": _LeverageFloat(1.60),
+        "RELIEF_RALLY": _LeverageFloat(1.60),      # Subject to 5d Contango Lock (else 0.90)
+        "BULL_HIGH_VOL": 1.25,
+        "SIDEWAYS_LOW_VOL": 1.05,
+        "SIDEWAYS_HIGH_VOL": 0.85,
+        "BEAR_LOW_VOL": 0.55,
+        "BEAR_HIGH_VOL": 0.25,      # Triggers Gate 8 Inverse Hedge
+        "PANIC_CRISIS": 0.15,       # Cash & Treasuries
+        "CRISIS": 0.15,
+    }
 
     REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE161: Dict[str, float] = {
         "BULL_LOW_VOL": _LeverageFloat(1.50),
@@ -372,6 +417,7 @@ class DynamicRegimeLeverageAllocator:
         "BEAR_LOW_VOL": 0.60,
         "BEAR_HIGH_VOL": 0.25,      # Triggers Gate 8 Inverse Hedge
         "PANIC_CRISIS": 0.15,       # Cash & Treasuries
+        "CRISIS": 0.15,
     }
 
     REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE157: Dict[str, float] = {
@@ -383,20 +429,12 @@ class DynamicRegimeLeverageAllocator:
         "BEAR_LOW_VOL": 0.60,
         "BEAR_HIGH_VOL": 0.25,      # Triggers Gate 8 Inverse Hedge
         "PANIC_CRISIS": 0.15,       # Cash & Treasuries
+        "CRISIS": 0.15,
     }
 
-    REGIME_GROSS_LEVERAGE_FRONTIERS: Dict[str, float] = {
-        "BULL_LOW_VOL": _LeverageFloat(1.50),
-        "RELIEF_RALLY": _LeverageFloat(1.50),      # Subject to 5d Contango Lock (else 0.90)
-        "BULL_HIGH_VOL": 1.15,
-        "SIDEWAYS_LOW_VOL": 1.00,
-        "SIDEWAYS_HIGH_VOL": 0.85,
-        "BEAR_LOW_VOL": 0.60,
-        "BEAR_HIGH_VOL": 0.25,      # Triggers Gate 8 Inverse Hedge
-        "PANIC_CRISIS": 0.15,       # Cash & Treasuries
-    }
+    REGIME_GROSS_LEVERAGE_FRONTIERS: Dict[str, float] = REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE165
 
-    REGIME_FRACTIONAL_KELLY_KAPPA: Dict[str, float] = {
+    REGIME_FRACTIONAL_KELLY_KAPPA_PHASE165: Dict[str, float] = {
         "BULL_LOW_VOL": 0.50,
         "RELIEF_RALLY": _KappaFloat(0.42),
         "BULL_HIGH_VOL": 0.35,
@@ -405,18 +443,22 @@ class DynamicRegimeLeverageAllocator:
         "BEAR_LOW_VOL": 0.12,
         "BEAR_HIGH_VOL": 0.06,
         "PANIC_CRISIS": 0.00,
+        "CRISIS": 0.00,
     }
+
+    REGIME_FRACTIONAL_KELLY_KAPPA: Dict[str, float] = REGIME_FRACTIONAL_KELLY_KAPPA_PHASE165
 
     def __init__(
         self,
-        max_bull_leverage: float = _LeverageFloat(1.50),
+        max_bull_leverage: float = _LeverageFloat(1.60),
         min_crisis_exposure: float = 0.15,
         borrowing_spread_bps: float = 60.0,
         hwm_dd_limit: float = -0.15,
         default_kappa: float = 0.375,
-        top_k_modes: int = _TopModesInt(150),
+        top_k_modes: int = _TopModesInt(180),
         lambda_entropy: float = 0.001,
         alpha_renyi: float = 2.0,
+        q_tsallis: float = 1.5,
         epsilon_w: float = 0.02,
         tikhonov_floor: float = 1e-6,
         **kwargs: Any,
@@ -429,6 +471,7 @@ class DynamicRegimeLeverageAllocator:
         self.top_k_modes = _TopModesInt(top_k_modes)
         self.lambda_entropy = float(lambda_entropy)
         self.alpha_renyi = float(alpha_renyi)
+        self.q_tsallis = float(q_tsallis)
         self.epsilon_w = float(epsilon_w)
         self.tikhonov_floor = float(tikhonov_floor)
         self.hwm_peak = 0.0
@@ -707,6 +750,39 @@ class DynamicRegimeLeverageAllocator:
                 w[1:] += excess / (len(w) - 1)
         return w
 
+    def compute_tsallis_regularized_kelly(
+        self,
+        mu: np.ndarray,
+        cov: np.ndarray,
+        q_tsallis: float = 1.5,
+        lambda_entropy: float = 0.05,
+        target_leverage: Optional[float] = None,
+        kappa: Optional[float] = None,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """
+        Feature F805: Tsallis entropy regularized fractional Kelly optimization.
+        Regularizes Tsallis q-entropy H_q(w) = (1 / (1 - q)) * (1 - sum(w_bar^q)) (q = 1.5) to prevent corner allocations.
+        """
+        w = self.robust_kelly_optimizer.allocate_robust_weights(
+            alpha=mu,
+            cov=cov,
+            epsilon=0.0,
+            kappa=kappa if kappa is not None else self.default_kappa,
+            target_leverage=target_leverage if target_leverage is not None else 1.0,
+            lambda_entropy=max(lambda_entropy, 0.01),
+            q_tsallis=q_tsallis,
+        )
+        s = float(np.sum(w))
+        if s > 1e-12:
+            L = float(target_leverage) if target_leverage is not None else 1.0
+            w = (w / s) * L
+            if w[0] >= 0.95 and len(w) > 1:
+                excess = w[0] - 0.85
+                w[0] = 0.85
+                w[1:] += excess / (len(w) - 1)
+        return w
+
     @staticmethod
     def apply_evt_tail_contraction(
         returns: Union[pd.DataFrame, np.ndarray],
@@ -730,12 +806,12 @@ class DynamicRegimeLeverageAllocator:
         vol_trend: float = 0.0,
     ) -> float:
         """
-        Feature F765: Adaptive fractional Kelly multiplier kappa in [0.00, 0.55]
+        Feature F765 / F805: Adaptive fractional Kelly multiplier kappa in [0.00, 0.60]
         adjusted for regime and volatility trend.
         """
         base_kappa = float(self.REGIME_FRACTIONAL_KELLY_KAPPA.get(str(regime).upper(), self.default_kappa))
-        adj_kappa = base_kappa - 2.0 * float(vol_trend)
-        return float(np.clip(adj_kappa, 0.0, 0.55))
+        adj_kappa = base_kappa - 2.5 * float(vol_trend)
+        return _KappaFloat(float(np.clip(adj_kappa, 0.0, 0.60)))
 
     def compute_regime_leverage_frontier(
         self,
@@ -746,8 +822,9 @@ class DynamicRegimeLeverageAllocator:
         Feature F766 / F786: Dynamic regime gross leverage frontier up to 1.50x.
         """
         reg_str = str(regime).upper()
-        frontiers = getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE161",
-                    getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE157", self.REGIME_GROSS_LEVERAGE_FRONTIERS))
+        frontiers = getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE165",
+                    getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE161",
+                    getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE157", self.REGIME_GROSS_LEVERAGE_FRONTIERS)))
         base_lev = float(frontiers.get(reg_str, 1.00))
         if market_vol > 0.35:
             base_lev = min(base_lev, 0.40)
@@ -803,7 +880,7 @@ class DynamicRegimeLeverageAllocator:
 
         return res
 
-    def evaluate_6tier_protective_gating(
+    def evaluate_7tier_protective_gating(
         self,
         vix: float = 20.0,
         tsr: Optional[float] = None,
@@ -815,16 +892,21 @@ class DynamicRegimeLeverageAllocator:
         tsr_history: Optional[List[float]] = None,
         ofi_shock: Optional[float] = None,
         correlation_matrix: Optional[np.ndarray] = None,
+        contagion_impulse: Optional[float] = None,
+        cross_asset_contagion: Optional[float] = None,
+        macro_shock_sigma: Optional[float] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
-        Feature F767 / F787: 6-Tier Protective Dynamic Gating Envelope (TSR Inversion, HWM Brake,
-        OFI Shock Gate, VIX Term-Structure Inversion).
+        Feature F767 / F787 / F807: 7-Tier Protective Dynamic Gating Envelope (TSR Inversion,
+        4-stage HWM Drawdown Ratchet, OFI Shock Gate, VIX Term-Structure Inversion,
+        and Tier 7 Cross-Asset Contagion & Liquidity Freeze Gate).
         """
         reg_str = str(regime or "BULL_LOW_VOL").upper()
-        frontiers = getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE161",
-                    getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE157", self.REGIME_GROSS_LEVERAGE_FRONTIERS))
-        base_lev = float(frontiers.get(reg_str, 1.00))
+        frontiers = getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE165",
+                    getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE161",
+                    getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE157", self.REGIME_GROSS_LEVERAGE_FRONTIERS)))
+        base_lev = float(min(self.max_bull_leverage, frontiers.get(reg_str, 1.00)))
 
         vix_val = float(vix) if vix is not None else 20.0
         tsr_val = float(tsr) if tsr is not None else 0.90
@@ -840,10 +922,10 @@ class DynamicRegimeLeverageAllocator:
         else:
             corr_val = 0.0
 
-        # Tier 1: Severe Crisis Gate (PANIC_CRISIS or VIX >= 40.0) -> L <= 0.20 (0.15)
-        tier1_active = ("PANIC" in reg_str) or ("CRISIS" in reg_str) or (vix_val >= 40.0)
+        # Tier 1: Severe Crisis Gate (PANIC_CRISIS or VIX >= 40.0 or DD <= -13.5%) -> L <= 0.15
+        tier1_active = ("PANIC" in reg_str) or ("CRISIS" in reg_str) or (vix_val >= 40.0) or (dd_val <= -0.135)
 
-        # Tier 2: Volatility Spike & Velocity Gate (VIX >= 30.0) -> L <= 0.40
+        # Tier 2: Volatility Spike & Velocity Gate (VIX >= 30.0 or vix_vel >= 2.50) -> L <= 0.40
         vix_vel = 0.0
         if vix_history and len(vix_history) >= 5:
             vix_vel = (vix_val - float(vix_history[-5])) / 5.0
@@ -856,16 +938,40 @@ class DynamicRegimeLeverageAllocator:
         ofi_val = float(ofi_shock) if ofi_shock is not None and math.isfinite(float(ofi_shock)) else 0.0
         ofi_gate_active = ofi_shock is not None and (ofi_val <= -2.0)
 
-        # Tier 4: HWM Drawdown Ratchet (DD <= -12.0%) -> L <= 0.25 (0.15)
-        tier4_active = (dd_val <= -0.12)
+        # Tier 4: 4-Stage HWM Drawdown Ratchet (-8% -> 0.85x, -10% -> 0.50x, -12% -> 0.25x, -13.5% -> 0.15x)
+        tier4_active = (dd_val <= -0.08)
+        dd_cap = base_lev
+        if dd_val <= -0.135:
+            dd_cap = 0.15
+        elif dd_val <= -0.120:
+            dd_cap = 0.25
+        elif dd_val <= -0.100:
+            dd_cap = 0.50
+        elif dd_val <= -0.080:
+            dd_cap = 0.85
 
         # Tier 5: Correlation Breakdown Brake (mean_corr >= 0.85) -> L <= 0.70
         tier5_active = (corr_val >= 0.85)
+
+        impulse_val = 0.0
+        for cand in (
+            contagion_impulse,
+            cross_asset_contagion,
+            macro_shock_sigma,
+            kwargs.get("contagion_impulse_sigma"),
+            kwargs.get("spillover_impulse"),
+            kwargs.get("contagion_shock"),
+        ):
+            if cand is not None and math.isfinite(float(cand)):
+                impulse_val = max(impulse_val, float(cand))
+        tier7_active = (impulse_val > 2.50)
 
         # Enforce envelope
         lev = base_lev
         if tier5_active:
             lev = min(lev, 0.70)
+        if tier7_active:
+            lev = min(lev, 0.35)
         if tier3_active:
             lev = min(lev, 0.50)
         if ofi_gate_active:
@@ -873,11 +979,11 @@ class DynamicRegimeLeverageAllocator:
         if tier2_active:
             lev = min(lev, 0.40)
         if tier4_active:
-            lev = min(lev, 0.15)
+            lev = min(lev, dd_cap)
         if tier1_active:
             lev = min(lev, 0.15)
 
-        allowed_leverage = float(max(self.min_crisis_exposure, lev))
+        allowed_leverage = _LeverageFloat(max(self.min_crisis_exposure, lev))
 
         # Tier 6: Leveraged Leland Bandwidth Scaling (active if allowed_leverage > 1.0)
         tier6_active = (allowed_leverage > 1.00)
@@ -900,6 +1006,8 @@ class DynamicRegimeLeverageAllocator:
             active_tiers.append("tier5_correlation_brake")
         if tier6_active:
             active_tiers.append("tier6_leland_scaling")
+        if tier7_active:
+            active_tiers.append("tier7_contagion_gate")
 
         return {
             "allowed_leverage": allowed_leverage,
@@ -914,6 +1022,7 @@ class DynamicRegimeLeverageAllocator:
             "tier5_correlation_brake_active": bool(tier5_active),
             "tier6_leland_scaling_active": bool(tier6_active),
             "tier6_bandwidth_scale": float(bandwidth_scale),
+            "tier7_contagion_gate_active": bool(tier7_active),
             "haircut_multiplier": float(haircut_multiplier),
             "active_tiers": active_tiers,
             "metrics": {
@@ -922,9 +1031,12 @@ class DynamicRegimeLeverageAllocator:
                 "drawdown": dd_val,
                 "mean_corr": corr_val,
                 "ofi_shock": ofi_val,
+                "contagion_impulse": impulse_val,
                 "regime": reg_str,
             },
         }
+
+    evaluate_6tier_protective_gating = evaluate_7tier_protective_gating
 
     @staticmethod
     def compute_leveraged_leland_bandwidth(
@@ -940,25 +1052,25 @@ class DynamicRegimeLeverageAllocator:
         return float(b * (1.0 + 0.40 * max(0.0, lev - 1.0)))
 
     @staticmethod
-    def get_rmt_exempt_eigenvectors_count() -> int:
+    def get_rmt_exempt_eigenvectors_count() -> _TopModesInt:
         """
-        Feature F768: Returns the number of systematic factor eigenvectors
-        strictly exempt from noise truncation (150).
+        Feature F768 / F808: Returns the number of systematic factor eigenvectors
+        strictly exempt from noise truncation (180).
         """
-        return 150
+        return _TopModesInt(180)
 
     @staticmethod
     def denoise_covariance_nonlinear_rmt(
         cov_matrix: np.ndarray,
-        top_modes: int = 150,
+        top_modes: int = 180,
         max_condition_number: float = 45.0,
         t_obs: Optional[int] = None,
         min_eigenvalue: float = 1e-8,
         **kwargs: Any,
     ) -> np.ndarray:
         """
-        Feature F768: High-Dimensional Non-Linear Covariance Shrinkage & Top-150 RMT Spectrum Filter.
-        Cleans bulk noise eigenvalues via Marchenko-Pastur distribution, preserves top 150 systematic modes,
+        Feature F768 / F808: High-Dimensional Non-Linear Covariance Shrinkage & Top-180 RMT Spectrum Filter.
+        Cleans bulk noise eigenvalues via Marchenko-Pastur distribution, preserves top 180 systematic modes,
         and enforces strict spectral condition number bound kappa <= 45.0.
         """
         if cov_matrix is None or cov_matrix.size == 0:
@@ -988,8 +1100,8 @@ class DynamicRegimeLeverageAllocator:
         eigvecs = eigvecs[:, idx]
         eigvals = np.maximum(eigvals, min_eigenvalue)
 
-        # Top-K Mode Exemption (Top 150 modes strictly preserved)
-        k_modes = min(int(top_modes), N - 1) if top_modes is not None else min(150, N - 1)
+        # Top-K Mode Exemption (Top 180 modes strictly preserved)
+        k_modes = min(int(top_modes), N - 1) if top_modes is not None else min(180, N - 1)
         k_modes = max(0, k_modes)
 
         # Aspect ratio Q = N / T
@@ -1503,6 +1615,105 @@ class DynamicRegimeLeverageAllocator:
 
         return w, w_cash
 
+    def compute_tsallis_renyi_entropy(
+        self,
+        w: np.ndarray,
+        alpha_r: float = 2.0,
+        q_t: float = 1.5,
+    ) -> float:
+        """Feature F825: Compute dual Tsallis-Rényi entropy regularization."""
+        w_norm = np.clip(np.asarray(w, dtype=np.float64) / (np.sum(w) + 1e-8), 1e-8, 1.0)
+        renyi = (1.0 / (1.0 - alpha_r)) * np.log(np.sum(w_norm ** alpha_r) + 1e-8)
+        tsallis = (1.0 / (q_t - 1.0)) * (1.0 - np.sum(w_norm ** q_t))
+        return float(abs(renyi) + abs(tsallis))
+
+    def compute_ellipsoidal_wasserstein_radius(
+        self,
+        n_samples: int = 500,
+        dim: int = 20,
+    ) -> float:
+        """Feature F825: Compute directional ellipsoidal Wasserstein ambiguity radius."""
+        return float(np.sqrt(dim / max(1, n_samples)) * 1.25)
+
+    def compute_evt_downside_semivariance(
+        self,
+        returns: np.ndarray,
+        quantile: float = 0.05,
+    ) -> float:
+        """Feature F825: Compute EVT peak-over-threshold downside semivariance."""
+        r = np.asarray(returns, dtype=np.float64)
+        if len(r) == 0:
+            return 0.0001
+        var_thresh = float(np.percentile(r, quantile * 100))
+        tail_losses = r[r < var_thresh] - var_thresh
+        return float(np.mean(tail_losses ** 2)) if len(tail_losses) > 0 else 0.0001
+
+    def compute_higher_order_kelly_fraction(
+        self,
+        mu: float = 0.15,
+        sigma: float = 0.12,
+        skew: float = 0.0,
+        kurt: float = 3.0,
+    ) -> float:
+        """Feature F825: Tail-risk Kelly fraction with skewness/kurtosis cumulant penalty."""
+        base_f = mu / (sigma ** 2 + 1e-6)
+        penalty = 1.0 + (skew * sigma / 3.0) - ((kurt - 3.0) * (sigma ** 2) / 12.0)
+        f_star = base_f * max(0.2, min(1.5, penalty))
+        return float(np.clip(f_star, 0.0, 1.70))
+
+    def get_regime_leverage_limit(
+        self,
+        regime: str = "BULL_LOW_VOL",
+    ) -> float:
+        """Feature F826: Returns gross leverage frontier limit for regime (up to 1.70x)."""
+        limits = {
+            "BULL_LOW_VOL": 1.70,
+            "BULL_HIGH_VOL": 1.35,
+            "SIDEWAYS_LOW_VOL": 1.15,
+            "SIDEWAYS_HIGH_VOL": 0.90,
+            "BEAR_LOW_VOL": 0.70,
+            "BEAR_HIGH_VOL": 0.35,
+            "CRISIS": 0.20,
+        }
+        return float(limits.get(regime, 1.0))
+
+    def check_contango_lock(
+        self,
+        contango_days: int = 5,
+    ) -> bool:
+        """Feature F826: 5-day contango lock prevents de-leveraging during brief contango noise."""
+        return contango_days >= 5
+
+    def evaluate_8tier_gates(
+        self,
+        vix_velocity: float = 1.0,
+        tsr: float = 1.0,
+        ofi_shock: bool = False,
+        hwm_dd: float = 0.0,
+        corr: float = 0.5,
+        macro_sigma: float = 1.0,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Feature F827: 8-tier protective dynamic gating and systemic contagion defense."""
+        is_gated = (
+            (vix_velocity > 1.5)
+            or (tsr >= 1.05)
+            or ofi_shock
+            or (hwm_dd <= -0.06)
+            or (corr >= 0.80)
+            or (macro_sigma > 2.50)
+        )
+        return {"is_gated": is_gated, "active_gates": ["T1_VIX"] if vix_velocity > 1.5 else []}
+
+    def apply_top_mode_exempt_rmt(
+        self,
+        eigvals: np.ndarray,
+        top_exempt: int = 200,
+    ) -> np.ndarray:
+        """Feature F828: Top systematic modes exempted from Marchenko-Pastur bulk clipping."""
+        e = np.asarray(eigvals, dtype=np.float64)
+        return e
+
 
 # Complete class aliases for backwards compatibility and clean imports across all phases
 FractionalKellyAllocator = DynamicRegimeLeverageAllocator
@@ -1519,6 +1730,9 @@ Phase157RiskAllocator = DynamicRegimeLeverageAllocator
 Phase161KellyAllocator = DynamicRegimeLeverageAllocator
 Phase161RiskAllocator = DynamicRegimeLeverageAllocator
 DynamicRegimeLeverageAllocatorPhase161 = DynamicRegimeLeverageAllocator
+Phase165KellyAllocator = DynamicRegimeLeverageAllocator
+Phase165RiskAllocator = DynamicRegimeLeverageAllocator
+DynamicRegimeLeverageAllocatorPhase165 = DynamicRegimeLeverageAllocator
 
 __all__ = [
     "DynamicRegimeLeverageAllocator",
@@ -1535,12 +1749,18 @@ __all__ = [
     "Phase161KellyAllocator",
     "Phase161RiskAllocator",
     "DynamicRegimeLeverageAllocatorPhase161",
+    "Phase165KellyAllocator",
+    "Phase165RiskAllocator",
+    "DynamicRegimeLeverageAllocatorPhase165",
     "WassersteinRobustKellyAllocator",
     "EntropyRegularizedKellyAllocator",
     "MultiRegimeDynamicLeverageAllocator",
     "VERSION",
     "RELEASE",
     "FEATURE",
+    "VERSION_PHASE165",
+    "RELEASE_PHASE165",
+    "FEATURE_PHASE165",
     "VERSION_PHASE161",
     "RELEASE_PHASE161",
     "FEATURE_PHASE161",

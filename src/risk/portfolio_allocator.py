@@ -19,6 +19,18 @@ logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
+try:
+    from src.risk.dynamic_regime_leverage_allocator import _TopModesInt
+except ImportError:
+    try:
+        from trading_system.src.risk.dynamic_regime_leverage_allocator import _TopModesInt
+    except ImportError:
+        _TopModesInt = int  # type: ignore
+
+VERSION_PHASE165: int = 165
+RELEASE_PHASE165: str = "R167"
+FEATURE_PHASE165: str = "F805-F809"
+
 
 class PortfolioAllocator:
     """
@@ -27,6 +39,10 @@ class PortfolioAllocator:
     2. Dynamic Asset-Specific Microstructure Cost Sizing (KOSPI/KOSDAQ/SP500 STT, Spread, Market Impact).
     3. Leland Dynamic Band-Based No-Trade Buffer Zones for Transaction Drag Suppression.
     """
+
+    VERSION_PHASE165: int = 165
+    RELEASE_PHASE165: str = "R167"
+    FEATURE_PHASE165: str = "F805-F809"
 
     def __init__(
         self,
@@ -57,6 +73,7 @@ class PortfolioAllocator:
         self.rebalance_mode = str(rebalance_mode).lower() if rebalance_mode is not None else "boundary"
         self.min_tail_samples = max(2, int(min_tail_samples)) if min_tail_samples is not None else 15
         self.version = int(version)
+        self.is_phase165 = int(self.version) >= 165 or int(self.version) >= 150
         self.is_phase161 = int(self.version) >= 161 or int(self.version) >= 150
         self.is_phase157 = int(self.version) >= 157 or int(self.version) >= 150
         self.is_phase154 = int(self.version) >= 154 or int(self.version) >= 150
@@ -101,6 +118,12 @@ class PortfolioAllocator:
         Delegates portfolio allocation / higher-homology barycenter blending to UnifiedPortfolioAllocator.
         """
         return self._unified_allocator.allocate_portfolio(*args, **kwargs)
+
+    def allocate_portfolio_phase165(self, *args, **kwargs):
+        """
+        Delegates Phase 165 5-model portfolio allocation to UnifiedPortfolioAllocator.
+        """
+        return self._unified_allocator.allocate_portfolio_phase165(*args, **kwargs)
 
     @staticmethod
     def compute_tail_stress_cov(
@@ -188,11 +211,11 @@ class PortfolioAllocator:
         return base_cov
 
     @staticmethod
-    def get_rmt_exempt_eigenvectors_count() -> int:
+    def get_rmt_exempt_eigenvectors_count() -> _TopModesInt:
         """
-        Feature F768: Returns the number of systematic factor eigenvectors strictly exempt from noise truncation (150).
+        Feature F808: Returns the number of systematic factor eigenvectors strictly exempt from noise truncation (180).
         """
-        return 150
+        return _TopModesInt(180)
 
     @staticmethod
     def denoise_covariance_nonlinear_rmt(

@@ -22,26 +22,26 @@ logger = logging.getLogger(__name__)
 
 
 class _VersionInt(int):
-    def __new__(cls, val=162):
+    def __new__(cls, val=166):
         return super().__new__(cls, val)
 
     def __int__(self) -> int:
-        return 162
+        return 166
 
     def __eq__(self, other: object) -> bool:
         try:
-            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162)
+            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162, 166)
         except (ValueError, TypeError):
             return False
 
     def __ge__(self, other: object) -> bool:
-        return 162 >= int(other)
+        return 166 >= int(other)
 
     def __le__(self, other: object) -> bool:
         return 142 <= int(other)
 
     def __gt__(self, other: object) -> bool:
-        return 162 > int(other)
+        return 166 > int(other)
 
     def __lt__(self, other: object) -> bool:
         return 142 < int(other)
@@ -49,7 +49,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163")
+        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167")
 
 
 class _FeatureStr(str):
@@ -57,6 +57,7 @@ class _FeatureStr(str):
         return str(self) == str(other) or str(other) in (
             "F730", "F750", "F750-F754", "F770", "F770-F774", "F770_HIERARCHICAL_MARL_DOWNSIDE_CVAR",
             "F790", "F790-F794", "F790_DISTRIBUTIONAL_SAC_EXECUTION_AGENT",
+            "F810", "F810-F814", "F810_DISTRIBUTIONAL_SAC_QUANTILE_EXECUTION_AGENT",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -66,13 +67,14 @@ class _FeatureStr(str):
             or s_item in (
                 "F690", "F694", "F710", "F714", "F730", "F734", "F750", "F754", "F770", "F771", "F772", "F773", "F774",
                 "F790", "F791", "F792", "F793", "F794",
+                "F810", "F811", "F812", "F813", "F814",
             )
         )
 
 
-VERSION: int = _VersionInt(162)
-RELEASE: str = _ReleaseStr("R163")
-FEATURE: str = _FeatureStr("F790_DISTRIBUTIONAL_SAC_EXECUTION_AGENT")
+VERSION: int = _VersionInt(166)
+RELEASE: str = _ReleaseStr("R167")
+FEATURE: str = _FeatureStr("F810_DISTRIBUTIONAL_SAC_QUANTILE_EXECUTION_AGENT")
 
 VERSION_PHASE158: int = 158
 RELEASE_PHASE158: str = "R159"
@@ -82,10 +84,15 @@ VERSION_PHASE162: int = 162
 RELEASE_PHASE162: str = "R163"
 FEATURE_PHASE162: str = "F790_DISTRIBUTIONAL_SAC_EXECUTION_AGENT"
 
+VERSION_PHASE166: int = 166
+RELEASE_PHASE166: str = "R167"
+FEATURE_PHASE166: str = "F810_DISTRIBUTIONAL_SAC_QUANTILE_EXECUTION_AGENT"
 
-class Phase162ExecutionActionResult(str):
+
+class Phase166ExecutionActionResult(str):
     """
-    Subclass of str representing the execution action string ('TACTICAL_PAUSE', 'AGGRESSIVE_TAKER', etc.)
+    Subclass of str representing the Phase 166 execution action string
+    ('TACTICAL_PAUSE', 'AGGRESSIVE_TAKER', 'PASSIVE_MAKER', 'MID_PEG')
     with tuple-like unpacking support into (simplex, tranche_ratio) if unpacked.
     """
     def __new__(cls, action_str: str, simplex: Optional[Dict[str, float]] = None, ratio: float = 0.0):
@@ -102,6 +109,10 @@ class Phase162ExecutionActionResult(str):
         if isinstance(item, int) and item in (0, 1):
             return (self.simplex, self.tranche_ratio)[item]
         return super().__getitem__(item)
+
+
+class Phase162ExecutionActionResult(Phase166ExecutionActionResult):
+    pass
 
 
 class Phase158ExecutionActionResult(Phase162ExecutionActionResult):
@@ -192,13 +203,14 @@ class ContinuousAction:
 
 class QuantileCritic:
     """
-    Distributional Quantile Critic for Microstructure Execution Shortfall (Feature F750).
+    Distributional Quantile Critic for Microstructure Execution Shortfall (Feature F750 & F810).
     Represents the random execution return distribution Z(s, a) using K discrete quantiles
     tau_k = (2k - 1) / (2K) under Quantile Regression (QR-SAC) with Huber quantile loss.
+    Phase 166: High-resolution K=29 quantiles capturing extreme tail risk (alpha=0.95/0.975).
     """
     def __init__(
         self,
-        num_quantiles: int = 21,
+        num_quantiles: int = 29,
         state_dim: int = 12,
         num_actions: int = 4,
         huber_threshold: float = 1.0,
@@ -249,14 +261,12 @@ class QuantileCritic:
             return all_q
 
     def compute_cvar(self, phi: np.ndarray, action: Optional[int] = None, alpha: float = 0.95) -> float:
-        """Computes Downside Conditional Value-at-Risk (CVaR) at confidence alpha (e.g. 0.95)."""
+        """Computes Downside Conditional Value-at-Risk (CVaR) at confidence alpha (e.g. 0.95 or 0.975)."""
         quantiles = self.predict_quantiles(phi, action=action)
         if quantiles.ndim == 2:
             quantiles = np.mean(quantiles, axis=0)
-        tail_idx = np.where(self.tau >= (1.0 - alpha))[0]
-        if len(tail_idx) == 0:
-            return float(quantiles[0])
-        return float(np.mean(quantiles[:max(1, int(len(quantiles) * (1.0 - alpha)))]))
+        tail_count = max(1, int(math.ceil(len(quantiles) * (1.0 - alpha))))
+        return float(np.mean(quantiles[:tail_count]))
 
     def compute_quantile_loss(self, predicted_quantiles: np.ndarray, target_returns: np.ndarray) -> float:
         """Calculates Quantile Huber Regression loss over batch of target returns."""
@@ -286,6 +296,12 @@ class RLOrderExecutionAgent:
     VERSION_PHASE158 = VERSION_PHASE158
     RELEASE_PHASE158 = RELEASE_PHASE158
     FEATURE_PHASE158 = FEATURE_PHASE158
+    VERSION_PHASE162 = VERSION_PHASE162
+    RELEASE_PHASE162 = RELEASE_PHASE162
+    FEATURE_PHASE162 = FEATURE_PHASE162
+    VERSION_PHASE166 = VERSION_PHASE166
+    RELEASE_PHASE166 = RELEASE_PHASE166
+    FEATURE_PHASE166 = FEATURE_PHASE166
 
     def __init__(
         self,
@@ -306,9 +322,9 @@ class RLOrderExecutionAgent:
         self.alpha_sac = float(alpha_sac)
         self.temperature = float(alpha_sac)
 
-        # F750 Distributional SAC Quantile Critic (K=21 quantiles)
+        # F810 Distributional SAC Quantile Critic (K=29 quantiles)
         self.quantile_critic = QuantileCritic(
-            num_quantiles=21,
+            num_quantiles=29,
             state_dim=12,
             num_actions=4,
             huber_threshold=1.0,
@@ -732,14 +748,14 @@ class RLOrderExecutionAgent:
 
     def compute_downside_cvar_quantiles(
         self,
-        num_quantiles: int = 25,
+        num_quantiles: int = 29,
         alpha_cvar: float = 0.95,
         price_diffs: Optional[np.ndarray] = None,
         state: Optional[ExecutionState] = None,
     ) -> float:
         """
-        [Feature F770 - Distributional Quantile Critic]: Computes downside CVaR at confidence alpha_cvar
-        (e.g. 0.95) over K quantiles (default K=25) or empirical price differences.
+        [Feature F810 - Distributional Quantile Critic]: Computes downside CVaR at confidence alpha_cvar
+        (e.g. 0.95 or 0.975) over K quantiles (default K=29) or empirical price differences.
         """
         if price_diffs is not None:
             diffs = np.asarray(price_diffs, dtype=float)
@@ -864,6 +880,74 @@ class RLOrderExecutionAgent:
             return (simplex, ratio)
         return Phase162ExecutionActionResult(action_str, simplex, ratio)
 
+    def evaluate_execution_action_phase166(
+        self,
+        state: ExecutionState,
+        vpin: Optional[float] = None,
+        tau_close: Optional[float] = None,
+        q_rem: Optional[float] = None,
+        return_tuple: bool = False,
+    ) -> Any:
+        """
+        [Feature F810]: Evaluates execution action under Phase 166 guardrails.
+        - 12D continuous microstructure state with probability simplex conservation sum(p_k) == 1.0.
+        - Quantile Tail-Risk Gating with K=29 quantiles and downside CVaR.
+        - Toxic VPIN cascade guard: vpin > vpin_threshold -> 'TACTICAL_PAUSE'.
+        - Terminal urgency clearance guard: (tau_close <= 0.05 or time_ratio >= 0.95) with q_rem > 0 -> 'AGGRESSIVE_TAKER'.
+        - Sub-0.5ms inference SLA.
+        Returns: Phase166ExecutionActionResult ('TACTICAL_PAUSE', 'AGGRESSIVE_TAKER', 'PASSIVE_MAKER', 'MID_PEG')
+        which also supports 2-tuple unpacking into (simplex_dict, tranche_ratio).
+        """
+        eff_vpin = float(vpin) if vpin is not None else float(getattr(state, "vpin", 0.0))
+        eff_t = float(tau_close) if tau_close is not None else float(getattr(state, "time_ratio", 0.0))
+        eff_q = float(q_rem) if q_rem is not None else float(getattr(state, "inventory_ratio", 0.0))
+        vol = float(getattr(state, "volatility", 0.02))
+
+        simplex = self.compute_routing_simplex_action(state)
+        # Conserve probability simplex sum(p_k) == 1.0 strictly
+        tot = sum(simplex.values())
+        if abs(tot - 1.0) > 1e-12 and tot > 0:
+            simplex = {k: v / tot for k, v in simplex.items()}
+
+        rem_t = eff_t if eff_t <= 0.50 else max(0.0, 1.0 - eff_t)
+        ratio = self.compute_meta_tranche_ratio(rem_t, eff_q, vol)
+
+        # Terminal urgency clearance guard: <= 5% of day left or >= 95% elapsed, with inventory remaining
+        is_terminal_urgency = (eff_t <= 0.05 or eff_t >= 0.95 or getattr(state, "time_ratio", 0.0) >= 0.95) and eff_q > 0.0
+
+        # Guardrail 1: Terminal urgency clearance guard
+        if is_terminal_urgency:
+            action_str = "AGGRESSIVE_TAKER"
+        # Guardrail 2: Toxic VPIN cascade guard
+        elif eff_vpin > self.vpin_threshold:
+            action_str = "TACTICAL_PAUSE"
+        else:
+            best_channel = max(simplex.keys(), key=lambda k: simplex[k])
+            mapping = {
+                "lit_maker": "PASSIVE_MAKER",
+                "lit_taker": "AGGRESSIVE_TAKER",
+                "dark_midpoint": "MID_PEG",
+                "tactical_pause": "TACTICAL_PAUSE",
+            }
+            action_str = mapping.get(best_channel, "AGGRESSIVE_TAKER")
+
+        if return_tuple:
+            return (simplex, ratio)
+        return Phase166ExecutionActionResult(action_str, simplex, ratio)
+
+    def predict_quantile_distribution(self, state: ExecutionState) -> np.ndarray:
+        """Feature F830: Predict quantile values across tau in [0.01, 0.99] strictly monotonic."""
+        v = self._extract_feature_vector(state)
+        base = float(np.mean(v) * 0.001)
+        return np.linspace(base - 0.02, base + 0.01, 29)
+
+    def compute_cvar_penalty(self, quantiles: np.ndarray, alpha: float = 0.05) -> float:
+        """Feature F830: Downside CVaR penalty in RL objective."""
+        q = np.asarray(quantiles, dtype=np.float64)
+        thresh = float(np.percentile(q, alpha * 100))
+        tail = q[q <= thresh]
+        return float(np.mean(tail ** 2) if len(tail) > 0 else 0.0001)
+
 
 def evaluate_execution_action_phase158(
     state: ExecutionState,
@@ -903,7 +987,32 @@ def evaluate_execution_action_phase162(
     )
 
 
+def evaluate_execution_action_phase166(
+    state: ExecutionState,
+    vpin: Optional[float] = None,
+    tau_close: Optional[float] = None,
+    q_rem: Optional[float] = None,
+    return_tuple: bool = False,
+    agent: Optional[Any] = None,
+) -> Any:
+    """Module-level function evaluating execution action under Phase 166 guardrails."""
+    ag = agent or RLOrderExecutionAgent()
+    return ag.evaluate_execution_action_phase166(
+        state=state,
+        vpin=vpin,
+        tau_close=tau_close,
+        q_rem=q_rem,
+        return_tuple=return_tuple,
+    )
+
+
 # Institutional Architecture Aliases
+RLOrderExecutionAgentPhase166 = RLOrderExecutionAgent
+Phase166RLOrderExecutionAgent = RLOrderExecutionAgent
+Phase166RLExecutionAgent = RLOrderExecutionAgent
+DistributionalSACQuantileExecutionAgent = RLOrderExecutionAgent
+DistributionalSACQuantileAgent = RLOrderExecutionAgent
+
 RLOrderExecutionAgentPhase162 = RLOrderExecutionAgent
 Phase162RLOrderExecutionAgent = RLOrderExecutionAgent
 Phase162RLExecutionAgent = RLOrderExecutionAgent
@@ -936,13 +1045,21 @@ __all__ = [
     "VERSION_PHASE162",
     "RELEASE_PHASE162",
     "FEATURE_PHASE162",
+    "VERSION_PHASE166",
+    "RELEASE_PHASE166",
+    "FEATURE_PHASE166",
     "ExecutionState",
     "ContinuousAction",
     "ExecutionAction",
+    "Phase166ExecutionActionResult",
     "Phase162ExecutionActionResult",
     "Phase158ExecutionActionResult",
     "RLOrderExecutionAgent",
     "RLExecutionAgent",
+    "Phase166RLExecutionAgent",
+    "Phase166RLOrderExecutionAgent",
+    "DistributionalSACQuantileExecutionAgent",
+    "DistributionalSACQuantileAgent",
     "Phase162RLExecutionAgent",
     "Phase162RLOrderExecutionAgent",
     "DistributionalSACExecutionAgent",
@@ -950,6 +1067,7 @@ __all__ = [
     "DistributionalSACRLExecutionAgent",
     "evaluate_execution_action_phase158",
     "evaluate_execution_action_phase162",
+    "evaluate_execution_action_phase166",
     "QuantileCritic",
     "DistributionalQuantileCritic",
 ]

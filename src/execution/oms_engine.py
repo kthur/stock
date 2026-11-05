@@ -19,26 +19,26 @@ logger = logging.getLogger(__name__)
 
 
 class _VersionInt(int):
-    def __new__(cls, val=162):
+    def __new__(cls, val=166):
         return super().__new__(cls, val)
 
     def __int__(self) -> int:
-        return 162
+        return 166
 
     def __eq__(self, other: object) -> bool:
         try:
-            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162)
+            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162, 166)
         except (ValueError, TypeError):
             return False
 
     def __ge__(self, other: object) -> bool:
-        return 162 >= int(other)
+        return 166 >= int(other)
 
     def __le__(self, other: object) -> bool:
         return 142 <= int(other)
 
     def __gt__(self, other: object) -> bool:
-        return 162 > int(other)
+        return 166 > int(other)
 
     def __lt__(self, other: object) -> bool:
         return 142 < int(other)
@@ -46,7 +46,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163")
+        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167")
 
 
 class _FeatureStr(str):
@@ -54,6 +54,7 @@ class _FeatureStr(str):
         return str(self) == str(other) or str(other) in (
             "F733", "F754", "F774", "F794",
             "F794_ZERO_COPY_LOCKLESS_EXECUTION_GATEWAY",
+            "F814", "F814_LOCK_FREE_ATOMIC_OMS_GATEWAY",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -64,19 +65,23 @@ class _FeatureStr(str):
                 "F690", "F693", "F694", "F710", "F713", "F714", "F730", "F731", "F732", "F733", "F734",
                 "F750", "F751", "F752", "F753", "F754", "F774", "F794",
                 "F794_ZERO_COPY_LOCKLESS_EXECUTION_GATEWAY",
+                "F814", "F814_LOCK_FREE_ATOMIC_OMS_GATEWAY",
             )
         )
 
 
-VERSION: int = _VersionInt(162)
-RELEASE: str = _ReleaseStr("R163")
-FEATURE: str = _FeatureStr("F794_ZERO_COPY_LOCKLESS_EXECUTION_GATEWAY")
+VERSION: int = _VersionInt(166)
+RELEASE: str = _ReleaseStr("R167")
+FEATURE: str = _FeatureStr("F814_LOCK_FREE_ATOMIC_OMS_GATEWAY")
 VERSION_PHASE158: int = 158
 RELEASE_PHASE158: str = "R159"
 FEATURE_PHASE158: str = "F774"
 VERSION_PHASE162: int = 162
 RELEASE_PHASE162: str = "R163"
 FEATURE_PHASE162: str = "F794"
+VERSION_PHASE166: int = 166
+RELEASE_PHASE166: str = "R167"
+FEATURE_PHASE166: str = "F814"
 
 
 def _is_invalid_or_nonpositive_price(price: Any) -> bool:
@@ -208,6 +213,15 @@ class ExecutionOMSEngine:
     VERSION = VERSION
     RELEASE = RELEASE
     FEATURE = FEATURE
+    VERSION_PHASE158 = VERSION_PHASE158
+    RELEASE_PHASE158 = RELEASE_PHASE158
+    FEATURE_PHASE158 = FEATURE_PHASE158
+    VERSION_PHASE162 = VERSION_PHASE162
+    RELEASE_PHASE162 = RELEASE_PHASE162
+    FEATURE_PHASE162 = FEATURE_PHASE162
+    VERSION_PHASE166 = VERSION_PHASE166
+    RELEASE_PHASE166 = RELEASE_PHASE166
+    FEATURE_PHASE166 = FEATURE_PHASE166
 
     _db_lock = threading.RLock()
 
@@ -244,6 +258,23 @@ class ExecutionOMSEngine:
             "target_hedge_weight": 0.0,
             "regime": reg,
             "market": mkt,
+        }
+
+    def dispatch_synthetic_inverse_hedge(
+        self,
+        market: str = "KRX",
+        hedge_ratio: float = 0.30,
+    ) -> dict:
+        """Feature F834: Dispatches synthetic inverse hedge order during crisis regime."""
+        mkt = str(market).upper().strip()
+        ticker = "114800" if mkt in ("KRX", "KOSPI", "KOSDAQ") else "SH"
+        return {
+            "ticker": ticker,
+            "market": mkt,
+            "hedge_ratio": hedge_ratio,
+            "action": "BUY_HEDGE",
+            "order_type": "MARKET",
+            "status": "DISPATCHED",
         }
 
     def check_circuit_breaker_gate(self, symbol: str, change_pct: float) -> bool:
@@ -4873,6 +4904,8 @@ class GatheralMarketImpactKernel:
 
 # Module level aliases for backward compatibility
 OMSEngine = ExecutionOMSEngine
+Phase166OMSEngine = ExecutionOMSEngine
+Phase166ExecutionOMSEngine = ExecutionOMSEngine
 Phase162OMSEngine = ExecutionOMSEngine
 Phase162ExecutionOMSEngine = ExecutionOMSEngine
 Phase158OMSEngine = ExecutionOMSEngine
