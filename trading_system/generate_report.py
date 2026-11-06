@@ -4560,12 +4560,13 @@ def _prepare_report_context(
     bottom: 0;
     left: 0;
     right: 0;
-    height: 56px;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
     background: var(--surface);
     border-top: 1px solid var(--border);
     z-index: 999;
     box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.4);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
     justify-content: space-around;
     align-items: center;
   }}
@@ -4662,6 +4663,11 @@ def _prepare_report_context(
     cursor: pointer;
     padding: 2px 8px;
     line-height: 1;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }}
   .hub-body {{
     padding: 14px 16px;
@@ -4705,7 +4711,7 @@ def _prepare_report_context(
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-height: 38px;
+    min-height: 44px !important;
   }}
   .hub-item-btn:active {{
     background: var(--surface3);
@@ -4737,12 +4743,20 @@ def _prepare_report_context(
       height: 44px !important;
       min-width: 44px !important;
       min-height: 44px !important;
-      bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+      bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
       right: max(16px, env(safe-area-inset-right, 0px)) !important;
     }}
-    .filter-btn, .chip-btn, .theme-btn, .drawer-nav-btn, .drawer-copy-btn {{
+    .filter-btn, .chip-btn, .theme-btn, .drawer-nav-btn, .drawer-copy-btn, .drawer-close-btn {{
       min-height: 44px !important;
       min-width: 44px !important;
+    }}
+    .btn-watchlist {{
+      min-width: 40px !important;
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
     }}
 
     .header, .macro-strip, .tabs, .content, .row1-wrapper, .search-bar-wrap {{ padding-left: 14px !important; padding-right: 14px !important; }}
@@ -4758,7 +4772,7 @@ def _prepare_report_context(
 
 
     .tabs {{ padding: 0 8px; height: 44px; }}
-    .tab {{ padding: 11px 12px; font-size: 13px; }}
+    .tab {{ padding: 0 12px; font-size: 13px; min-height: 44px !important; display: inline-flex; align-items: center; box-sizing: border-box; }}
     thead th {{ top: 0; padding: 8px 6px; font-size: 12px; }}
     .table-wrap th.sticky-col {{ top: 0; }}
     tbody td {{ padding: 8px 6px; font-size: 12px; }}
@@ -4835,12 +4849,23 @@ def _prepare_report_context(
     #drawer-factors-grid {{
       padding-bottom: 20px;
     }}
+    .drawer-factor-tab {{
+      min-height: 44px !important;
+      padding: 0 14px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      box-sizing: border-box !important;
+    }}
     .ext-portal-btn {{
       flex: 1 !important;
       text-align: center !important;
       padding: 10px 8px !important;
       font-size: 12px !important;
-      min-height: 42px !important;
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
     }}
 
     /* Mobile Table Optimization: Override .col-strat suppression for market tables (R4) */
@@ -6359,7 +6384,19 @@ function switchTabById(tabId) {{
     targetBtn.click();
     targetBtn.scrollIntoView({{ behavior: 'smooth', block: 'nearest', inline: 'center' }});
   }} else {{
-    // If tab not present on current page (e.g. index.html), navigate to strategies.html deep-link
+    // If tab not present on current page, detect whether it belongs to index.html
+    const indexTabs = ['ensemble', 'portfolio', 'backtest', 'regime', 'tab-ensemble', 'tab-portfolio', 'tab-backtest', 'tab-regime'];
+    const path = window.location.pathname.toLowerCase();
+    const isIndex = path.endsWith('index.html') || path === '/' || path.endsWith('/') || (!path.includes('.html'));
+    if (indexTabs.includes(tabId)) {{
+      window.location.href = `index.html#panel-${{tabId}}`;
+      return;
+    }}
+    if (!isIndex && !document.getElementById(`panel-${{tabId}}`)) {{
+      window.location.href = `index.html#panel-${{tabId}}`;
+      return;
+    }}
+    // Otherwise navigate to strategies.html deep-link
     window.location.href = `strategies.html#panel-${{tabId}}`;
   }}
 }}
@@ -7683,8 +7720,14 @@ function switchMobileNav(tabId) {{
   }});
 
   if (tabId === 'ensemble' || tabId === 'portfolio' || tabId === 'backtest' || tabId === 'regime') {{
-    switchTabById(tabId);
+    const path = window.location.pathname.toLowerCase();
+    const isIndex = path.endsWith('index.html') || path === '/' || path.endsWith('/') || (!path.includes('.html'));
     const target = document.querySelector('.main-system-tabs') || document.querySelector('.search-bar-wrap');
+    if (!target && !isIndex) {{
+      window.location.href = `index.html#panel-${{tabId}}`;
+      return;
+    }}
+    switchTabById(tabId);
     if (target) {{
       target.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
     }}
@@ -7755,7 +7798,7 @@ function selectStrategyFromHub(stratId) {{
         <button class="drawer-nav-btn" onclick="navigateDrawerStock(-1)" title="이전 종목 (← 키)">◀</button>
         <button class="drawer-nav-btn" onclick="navigateDrawerStock(1)" title="다음 종목 (→ 키)">▶</button>
       </div>
-      <button onclick="closeStockDrawer()" aria-label="닫기" style="background:none; border:none; color:var(--muted); font-size:26px; cursor:pointer; padding:4px 8px; line-height:1;">&times;</button>
+      <button onclick="closeStockDrawer()" aria-label="닫기" class="drawer-close-btn" style="background:none; border:none; color:var(--muted); font-size:26px; cursor:pointer; padding:4px 8px; line-height:1; min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box;">&times;</button>
     </div>
   </div>
   

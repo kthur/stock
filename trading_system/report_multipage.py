@@ -1060,8 +1060,67 @@ def build_styles(base_styles: str = "") -> str:
       opacity: 0.7;
       cursor: pointer;
     }
-    .drawer-close-btn {
+    .drawer-close-btn, .hub-close-btn {
       min-height: 44px !important;
+      min-width: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .mobile-bottom-nav {
+      height: calc(56px + env(safe-area-inset-bottom, 0px));
+      padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+      box-sizing: border-box;
+    }
+    #btn-back-to-top {
+      bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+      right: max(16px, env(safe-area-inset-right, 0px)) !important;
+      width: 44px !important;
+      height: 44px !important;
+      min-width: 44px !important;
+      min-height: 44px !important;
+    }
+    .ext-portal-btn {
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
+    }
+    .hub-item-btn {
+      min-height: 44px !important;
+      display: flex !important;
+      align-items: center !important;
+      box-sizing: border-box !important;
+    }
+    .drawer-factor-tab {
+      min-height: 44px !important;
+      padding: 0 14px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      box-sizing: border-box !important;
+    }
+    .tab {
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      box-sizing: border-box !important;
+    }
+    .btn-watchlist {
+      min-width: 40px !important;
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
+    }
+    .theme-btn {
+      min-height: 44px !important;
+      min-width: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
     }
   }
 
@@ -2256,6 +2315,41 @@ window.addEventListener('keydown', (e) => {{
   }}
 }});
 
+// Cross-page and mobile navigation handlers for market pages
+function switchMobileNav(tabId) {{
+  if (tabId === 'home' || tabId === 'overview') {{
+    window.location.href = 'index.html';
+  }} else if (tabId === 'strategies') {{
+    window.location.href = 'strategies.html';
+  }} else if (tabId === 'presets') {{
+    const p = document.querySelector('.preset-buttons');
+    if (p) p.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+  }} else if (tabId === 'search') {{
+    const s = document.getElementById('market-search');
+    if (s) {{ s.focus(); s.scrollIntoView({{ behavior: 'smooth', block: 'center' }}); }}
+  }} else if (tabId === 'drawer') {{
+    const r = document.querySelector('.clickable-row');
+    if (r) r.click();
+  }} else if (tabId === 'top') {{
+    window.scrollTo({{ top: 0, behavior: 'smooth' }});
+  }} else {{
+    window.location.href = `index.html#panel-${{tabId}}`;
+  }}
+}}
+
+function openStrategyHub() {{
+  window.location.href = 'strategies.html';
+}}
+
+function switchTabById(tabId) {{
+  const indexTabs = ['ensemble', 'portfolio', 'backtest', 'regime', 'tab-ensemble', 'tab-portfolio', 'tab-backtest', 'tab-regime'];
+  if (indexTabs.includes(tabId)) {{
+    window.location.href = `index.html#panel-${{tabId}}`;
+  }} else {{
+    window.location.href = `strategies.html#panel-${{tabId}}`;
+  }}
+}}
+
 // Initialize Market Page UX State
 function initMarketPage() {{
   try {{
@@ -2273,6 +2367,33 @@ if (document.readyState === 'loading') {{
 }}
 </script>
 """
+
+def _build_market_mobile_bottom_nav_html() -> str:
+    """Builds the mobile fixed bottom navigation bar for dedicated market pages."""
+    return '''
+<!-- Mobile Ergonomic Bottom Navigation Bar for Market Pages -->
+<nav id="mobile-bottom-nav" class="mobile-bottom-nav">
+  <button class="mobile-nav-item active" id="mob-nav-ensemble" onclick="switchMobileNav('ensemble')" aria-label="앙상블 대시보드">
+    <span class="mob-nav-icon">🏆</span>
+    <span class="mob-nav-label">앙상블</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-portfolio" onclick="switchMobileNav('portfolio')" aria-label="포트폴리오 배분">
+    <span class="mob-nav-icon">💼</span>
+    <span class="mob-nav-label">포트폴리오</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-backtest" onclick="switchMobileNav('backtest')" aria-label="전략 백테스트">
+    <span class="mob-nav-icon">📊</span>
+    <span class="mob-nav-label">백테스트</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-regime" onclick="switchMobileNav('regime')" aria-label="시장 레짐 정보">
+    <span class="mob-nav-icon">🎯</span>
+    <span class="mob-nav-label">레짐/매크로</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-strategies" onclick="openStrategyHub()" aria-label="37대 전략 허브">
+    <span class="mob-nav-icon">⚡</span>
+    <span class="mob-nav-label">37전략</span>
+  </button>
+</nav>'''
 
 def build_market_html(market_name: str, ctx: dict) -> str:
     """Builds a dedicated 42-column ranking table page for the specified market."""
@@ -2292,6 +2413,7 @@ def build_market_html(market_name: str, ctx: dict) -> str:
     
     content_html = _render_market_page_body(mkt, mkt_data, ctx)
     drawer = ctx.get("rendered_drawer_body", "")
+    mobile_bottom_nav_html = _build_market_mobile_bottom_nav_html()
 
     return f"""<!DOCTYPE html>
 <html lang="ko">
@@ -2300,6 +2422,7 @@ def build_market_html(market_name: str, ctx: dict) -> str:
 {nav_html}
 {content_html}
 {drawer}
+{mobile_bottom_nav_html}
 <!-- Global Toast Container -->
 <div id="toast-container"></div>
 <!-- Back to Top FAB -->
