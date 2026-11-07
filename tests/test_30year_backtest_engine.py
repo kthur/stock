@@ -8,6 +8,7 @@ enforcement (KRX 45/90d, SEC 40/60d), Leland buffer bypass rules, realistic tran
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import sys
@@ -408,5 +409,47 @@ class TestQuantitativeAnalyticsFormulations(unittest.TestCase):
         self.assertTrue(math.isfinite(summary.get("annual_return", 0.0)))
 
 
+class TestReleaseR179BacktestEngineHurdles(unittest.TestCase):
+    """Verifies that the backtest engine output and artifacts recognize Release R179 hurdles alongside R175."""
+
+    def test_r179_backtest_engine_hurdle_recognition(self) -> None:
+        """Verify backtest summary and status artifacts satisfy R179 hurdle criteria."""
+        status_file = Path(__file__).resolve().parent.parent / "benchmarks" / "30year" / "status.json"
+        with open(status_file, "r", encoding="utf-8") as f:
+            st = json.load(f)
+
+        release = st.get("release")
+        version = st.get("version")
+        self.assertIn(release, ("R179", "R175"))
+        self.assertIn(version, ("v179", "v175"))
+
+        metrics = st["metrics"]
+        net_cagr = float(metrics["net_cagr_pct"])
+        mdd = float(metrics["max_drawdown_pct"])
+        sharpe = float(metrics["sharpe_ratio"])
+        sortino = float(metrics["sortino_ratio"])
+        calmar = float(metrics["calmar_ratio"])
+        active_win = float(metrics["active_win_rate_pct"])
+
+        self.assertGreaterEqual(mdd, -15.00)
+        self.assertEqual(st["synthetic_rows"], 0)
+        self.assertIsInstance(st["synthetic_rows"], int)
+        self.assertNotIsInstance(st["synthetic_rows"], bool)
+
+        if release == "R179":
+            self.assertGreaterEqual(net_cagr, 82.00)
+            self.assertGreaterEqual(sharpe, 4.30)
+            self.assertGreaterEqual(sortino, 7.50)
+            self.assertGreaterEqual(calmar, 5.60)
+            self.assertGreaterEqual(active_win, 92.00)
+        else:
+            self.assertGreaterEqual(net_cagr, 75.00)
+            self.assertGreaterEqual(sharpe, 4.20)
+            self.assertGreaterEqual(sortino, 7.20)
+            self.assertGreaterEqual(calmar, 5.30)
+            self.assertGreaterEqual(active_win, 91.50)
+
+
 if __name__ == "__main__":
     unittest.main()
+

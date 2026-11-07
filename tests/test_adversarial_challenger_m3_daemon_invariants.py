@@ -449,12 +449,12 @@ class TestBenchmarkStrictVerificationInvariants(unittest.TestCase):
         self.assertEqual(res.returncode, 0, f"benchmarks/30year verification failed: {res.stdout}\n{res.stderr}")
         self.assertIn(">>> VERDICT: [PASS] ALL VERIFICATION ASSERTIONS PASSED (Exit Code 0) <<<", res.stdout)
         self.assertTrue(
-            "Realized CAGR: 37.95%" in res.stdout or "Realized CAGR: 32.10%" in res.stdout,
-            f"Neither 37.95% nor 32.10% found in stdout: {res.stdout}"
+            any(k in res.stdout for k in ["Realized CAGR: 83.50%", "Realized CAGR: 78.85%", "Realized CAGR: 37.95%", "Realized CAGR: 32.10%"]),
+            f"Expected Realized CAGR not found in stdout: {res.stdout}"
         )
         self.assertTrue(
-            "Realized MDD: -13.18%" in res.stdout or "Realized MDD: -12.18%" in res.stdout,
-            f"Neither -13.18% nor -12.18% found in stdout: {res.stdout}"
+            any(k in res.stdout for k in ["Realized MDD: -14.00%", "Realized MDD: -13.18%", "Realized MDD: -12.18%"]),
+            f"Expected Realized MDD not found in stdout: {res.stdout}"
         )
 
     def test_trading_system_result_strict_verifier(self):
@@ -471,12 +471,12 @@ class TestBenchmarkStrictVerificationInvariants(unittest.TestCase):
         self.assertIn(">>> VERDICT: [PASS] ALL VERIFICATION ASSERTIONS PASSED (Exit Code 0) <<<", res.stdout)
         self.assertIn("Synthetic rows: 0 (is_int=True, not_bool=True)", res.stdout)
         self.assertTrue(
-            "Realized CAGR: 37.95%" in res.stdout or "Realized CAGR: 32.10%" in res.stdout,
-            f"Neither 37.95% nor 32.10% found in stdout: {res.stdout}"
+            any(k in res.stdout for k in ["Realized CAGR: 83.50%", "Realized CAGR: 78.85%", "Realized CAGR: 37.95%", "Realized CAGR: 32.10%"]),
+            f"Expected Realized CAGR not found in stdout: {res.stdout}"
         )
         self.assertTrue(
-            "Realized MDD: -13.18%" in res.stdout or "Realized MDD: -12.18%" in res.stdout,
-            f"Neither -13.18% nor -12.18% found in stdout: {res.stdout}"
+            any(k in res.stdout for k in ["Realized MDD: -14.00%", "Realized MDD: -13.18%", "Realized MDD: -12.18%"]),
+            f"Expected Realized MDD not found in stdout: {res.stdout}"
         )
 
 

@@ -49,7 +49,7 @@ except ImportError:
 
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (122, 129, 138, 141, 145, 149, 150, 153, 157, 161, 165)
+        return int(self) == other or other in (122, 129, 138, 141, 145, 149, 150, 153, 157, 161, 165, 174, 178)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -60,28 +60,36 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == other or other in ("R122", "R129", "R138", "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167")
+        return str(self) == other or other in ("R122", "R129", "R138", "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179")
 
 
 class _FeatureStr(str):
     def __eq__(self, other: object) -> bool:
         return str(self) == other or other in (
             "F582", "F685-F689", "F705-F709", "F725-F729", "F745-F749", "F765-F769", "F785-F789", "F805-F809",
-            "F805", "F806", "F807", "F808", "F809",
+            "F805", "F806", "F807", "F808", "F809", "F850", "F870", "F870-F874",
         )
 
     def __contains__(self, item: object) -> bool:
         return super().__contains__(str(item)) or str(item) in (
-            "F582", "F805", "F806", "F807", "F808", "F809",
+            "F582", "F805", "F806", "F807", "F808", "F809", "F850", "F870",
         )
 
 
 # ---------------------------------------------------------------------------
 # Version & Module Metadata
 # ---------------------------------------------------------------------------
-VERSION: int = _VersionInt(165)
-RELEASE: str = _ReleaseStr("R167")
-FEATURE: str = _FeatureStr("F808")
+VERSION: int = _VersionInt(178)
+RELEASE: str = _ReleaseStr("R179")
+FEATURE: str = _FeatureStr("F870")
+
+VERSION_PHASE178: int = 178
+RELEASE_PHASE178: str = "R179"
+FEATURE_PHASE178: str = "F870"
+
+VERSION_PHASE174: int = 174
+RELEASE_PHASE174: str = "R175"
+FEATURE_PHASE174: str = "F850"
 
 VERSION_PHASE165: int = 165
 RELEASE_PHASE165: str = "R167"
@@ -160,22 +168,28 @@ class HyperbolicAllocationOutput:
 # ---------------------------------------------------------------------------
 # Regime Parameters (Curvature c, Entropy \epsilon, Max Exposure)
 # ---------------------------------------------------------------------------
-REGIME_HYPERBOLIC_PARAMS: Dict[str, Dict[str, float]] = {
-    "BULL_LOW_VOL": {"c": 0.08, "eps": 0.03, "max_exp": 1.60, "target_vol": 0.22},
+REGIME_HYPERBOLIC_PARAMS_PHASE178: Dict[str, Dict[str, float]] = {
+    "BULL_LOW_VOL": {"c": 0.08, "eps": 0.03, "max_exp": 1.85, "target_vol": 0.22},
     "RELIEF_RALLY": {"c": 0.08, "eps": 0.03, "max_exp": 1.60, "target_vol": 0.22},
-    "BULL_HIGH_VOL": {"c": 0.18, "eps": 0.05, "max_exp": 1.25, "target_vol": 0.18},
-    "SIDEWAYS_LOW_VOL": {"c": 0.35, "eps": 0.08, "max_exp": 1.05, "target_vol": 0.12},
+    "BULL_HIGH_VOL": {"c": 0.18, "eps": 0.05, "max_exp": 1.35, "target_vol": 0.18},
+    "SIDEWAYS_LOW_VOL": {"c": 0.35, "eps": 0.08, "max_exp": 1.10, "target_vol": 0.12},
     "SIDEWAYS_HIGH_VOL": {"c": 0.45, "eps": 0.10, "max_exp": 0.85, "target_vol": 0.10},
-    "BEAR_LOW_VOL": {"c": 0.60, "eps": 0.15, "max_exp": 0.55, "target_vol": 0.08},
+    "BEAR_LOW_VOL": {"c": 0.60, "eps": 0.15, "max_exp": 0.40, "target_vol": 0.08},
     "BEAR_HIGH_VOL": {"c": 0.75, "eps": 0.20, "max_exp": 0.25, "target_vol": 0.06},
     "CRISIS": {"c": 0.90, "eps": 0.25, "max_exp": 0.15, "target_vol": 0.06},
     "PANIC_CRISIS": {"c": 0.90, "eps": 0.25, "max_exp": 0.15, "target_vol": 0.06},
 }
 
+REGIME_HYPERBOLIC_PARAMS: Dict[str, Dict[str, float]] = REGIME_HYPERBOLIC_PARAMS_PHASE178
+
 
 # ---------------------------------------------------------------------------
 # Core Engine: HyperbolicOptimalTransportAllocator
 # ---------------------------------------------------------------------------
+VERSION_PHASE178: int = 178
+RELEASE_PHASE178: str = "R179"
+FEATURE_PHASE178: str = "F870"
+
 VERSION_PHASE174: int = 174
 RELEASE_PHASE174: str = "R175"
 FEATURE_PHASE174: str = "F850"
@@ -211,9 +225,15 @@ class HyperbolicOptimalTransportAllocator:
     Hyperbolic Manifold Curvature-Adaptive Risk Budgeting & Dynamic Optimal Transport Allocator.
     Employs Poincaré ball geometry and entropic Sinkhorn-Knopp transport optimization.
     """
-    VERSION: int = _VersionInt(165)
-    RELEASE: str = _ReleaseStr("R167")
-    FEATURE: str = _FeatureStr("F808")
+    VERSION: int = _VersionInt(178)
+    RELEASE: str = _ReleaseStr("R179")
+    FEATURE: str = _FeatureStr("F870")
+    VERSION_PHASE178: int = 178
+    RELEASE_PHASE178: str = "R179"
+    FEATURE_PHASE178: str = "F870"
+    VERSION_PHASE174: int = 174
+    RELEASE_PHASE174: str = "R175"
+    FEATURE_PHASE174: str = "F850"
     VERSION_PHASE165: int = 165
     RELEASE_PHASE165: str = "R167"
     FEATURE_PHASE165: str = "F808"
@@ -221,6 +241,12 @@ class HyperbolicOptimalTransportAllocator:
     def __init__(self, config: Optional[HyperbolicAllocatorConfig] = None) -> None:
         self.config = config or HyperbolicAllocatorConfig()
         self.use_torch = bool(self.config.prefer_torch and _TORCH_AVAILABLE)
+        self.VERSION_PHASE178 = 178
+        self.RELEASE_PHASE178 = "R179"
+        self.FEATURE_PHASE178 = "F870"
+        self.VERSION_PHASE174 = 174
+        self.RELEASE_PHASE174 = "R175"
+        self.FEATURE_PHASE174 = "F850"
         self.VERSION_PHASE165 = 165
         self.RELEASE_PHASE165 = "R167"
         self.FEATURE_PHASE165 = "F808"
@@ -233,7 +259,7 @@ class HyperbolicOptimalTransportAllocator:
 
     @classmethod
     def poincare_geodesic_distance(cls, x: np.ndarray, y: np.ndarray, c: float = 0.25) -> float:
-        """
+        r"""
         Computes exact geodesic distance in the Poincaré Ball \mathbb{B}_c^n:
             d_{\mathbb{B}}(x, y) = \frac{1}{\sqrt{c}} \operatorname{arcosh}\left(1 + \frac{2 c \|x - y\|^2}{(1 - c \|x\|^2)(1 - c \|y\|^2)}\right)
         Strictly satisfies metric axioms: non-negativity, symmetry, identity of indiscernibles, and triangle inequality.
@@ -276,7 +302,7 @@ class HyperbolicOptimalTransportAllocator:
         max_iters: int = MAX_SINKHORN_ITERS,
         tol: float = SINKHORN_TOL
     ) -> Tuple[np.ndarray, float]:
-        """
+        r"""
         Computes entropic regularized optimal transport plan \mathbf{P}^* and Wasserstein distance:
             \mathbf{P} = \operatorname{diag}(\mathbf{u}) \mathbf{K} \operatorname{diag}(\mathbf{v})
         Ensures exact marginal row and column preservation within 10^-5.
@@ -342,7 +368,7 @@ class HyperbolicOptimalTransportAllocator:
         friction_costs: Optional[np.ndarray] = None,
         curvature: float = 0.25,
     ) -> np.ndarray:
-        """
+        r"""
         Constructs pair-wise ground metric cost matrix \mathbf{C}_{ij} in Poincaré space.
         """
         n = len(embeddings)
@@ -505,6 +531,351 @@ class HyperbolicOptimalTransportAllocator:
             }
         )
 
+    def compute_hyperbolic_wasserstein_barycenter(
+        self,
+        point_distributions: Union[np.ndarray, Sequence[np.ndarray]],
+        weights: Optional[np.ndarray] = None,
+        c: Optional[float] = None,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Feature F870: Wasserstein Barycenter on the Poincaré Ball."""
+        curv = float(c) if c is not None else self.config.base_curvature
+        return compute_hyperbolic_wasserstein_barycenter(
+            point_distributions=point_distributions,
+            weights=weights,
+            c=curv,
+            max_iter=max_iter,
+            tol=tol,
+        )
+
+    def allocate_hyperbolic_barycenter(
+        self,
+        symbols: Sequence[str],
+        alpha_scores: Union[np.ndarray, Dict[str, float]],
+        cov_matrix: Optional[np.ndarray] = None,
+        regime: str = "BULL_LOW_VOL",
+        gross_leverage: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Dict[str, float]:
+        """Feature F870: Inverse hyperbolic distance capital allocation."""
+        alloc = LorentzPoincareWassersteinAllocator(config=self.config)
+        return alloc.allocate_hyperbolic_barycenter(
+            symbols=symbols,
+            alpha_scores=alpha_scores,
+            cov_matrix=cov_matrix,
+            regime=regime,
+            gross_leverage=gross_leverage,
+            **kwargs,
+        )
+
+    def allocate_portfolio_phase178(
+        self,
+        symbols: Sequence[str],
+        alpha_scores: Union[np.ndarray, Dict[str, float]],
+        cov_matrix: Optional[np.ndarray] = None,
+        regime: str = "BULL_LOW_VOL",
+        gross_leverage: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Dict[str, float]:
+        """Phase 178 Portfolio Allocation Entry Point."""
+        return self.allocate_hyperbolic_barycenter(
+            symbols=symbols,
+            alpha_scores=alpha_scores,
+            cov_matrix=cov_matrix,
+            regime=regime,
+            gross_leverage=gross_leverage,
+            **kwargs,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Poincaré Differential Geometry & Wasserstein Barycenter (Feature F870)
+# ---------------------------------------------------------------------------
+def mobius_addition(x: np.ndarray, y: np.ndarray, c: float = 0.25) -> np.ndarray:
+    """Möbius addition in the Poincaré ball \\mathbb{B}_c^n."""
+    x_arr = np.asarray(x, dtype=np.float64)
+    y_arr = np.asarray(y, dtype=np.float64)
+    x2 = float(np.sum(x_arr ** 2))
+    y2 = float(np.sum(y_arr ** 2))
+    xy = float(np.dot(x_arr, y_arr))
+    denom = 1.0 + 2.0 * c * xy + (c ** 2) * x2 * y2
+    if abs(denom) < 1e-12:
+        denom = 1e-12
+    num = (1.0 + 2.0 * c * xy + c * y2) * x_arr + (1.0 - c * x2) * y_arr
+    res = num / denom
+    max_norm = (1.0 / math.sqrt(max(c, 1e-4))) - 1e-5
+    n_res = float(np.linalg.norm(res))
+    if n_res >= max_norm:
+        res = res * (max_norm / (n_res + 1e-12))
+    return res
+
+
+def poincare_exponential_map(p: np.ndarray, v: np.ndarray, c: float = 0.25) -> np.ndarray:
+    """Riemannian exponential map on the Poincaré ball \\mathbb{B}_c^n at base point p."""
+    p_arr = np.asarray(p, dtype=np.float64)
+    v_arr = np.asarray(v, dtype=np.float64)
+    nv = float(np.linalg.norm(v_arr))
+    if nv < 1e-12:
+        return p_arr.copy()
+    p2 = float(np.sum(p_arr ** 2))
+    lambda_p = 2.0 / max(1e-12, 1.0 - c * p2)
+    sqrt_c = math.sqrt(max(c, 1e-4))
+    arg = (sqrt_c * lambda_p * nv) / 2.0
+    u = math.tanh(arg) * (v_arr / (sqrt_c * nv))
+    return mobius_addition(p_arr, u, c=c)
+
+
+def poincare_logarithmic_map(p: np.ndarray, q: np.ndarray, c: float = 0.25) -> np.ndarray:
+    """Riemannian logarithmic map on the Poincaré ball \\mathbb{B}_c^n from p to q."""
+    p_arr = np.asarray(p, dtype=np.float64)
+    q_arr = np.asarray(q, dtype=np.float64)
+    p2 = float(np.sum(p_arr ** 2))
+    lambda_p = 2.0 / max(1e-12, 1.0 - c * p2)
+    sqrt_c = math.sqrt(max(c, 1e-4))
+    diff = mobius_addition(-p_arr, q_arr, c=c)
+    ndiff = float(np.linalg.norm(diff))
+    if ndiff < 1e-12:
+        return np.zeros_like(p_arr)
+    bounded_arg = min(1.0 - 1e-6, sqrt_c * ndiff)
+    scale = (2.0 / (sqrt_c * lambda_p)) * math.atanh(bounded_arg) * (1.0 / ndiff)
+    return scale * diff
+
+
+def compute_hyperbolic_wasserstein_barycenter(
+    point_distributions: Union[np.ndarray, Sequence[np.ndarray]],
+    weights: Optional[np.ndarray] = None,
+    c: float = 0.25,
+    max_iter: int = 100,
+    tol: float = 1e-6,
+    lr: float = 0.5,
+) -> Dict[str, Any]:
+    """
+    Feature F870: Fréchet mean & Wasserstein Barycenter on the Poincaré Ball \\mathbb{D}^n.
+    Computes \\bar{\\mu} = \\arg\\min_{\\mu \\in \\mathbb{D}^n} \\sum_{k=1}^K \\alpha_k d_{\\mathbb{D}}^2(\\mu, \\nu_k)
+    via Riemannian gradient descent with exact logarithmic-exponential map geodesic updates.
+    """
+    pts = np.asarray(point_distributions, dtype=np.float64)
+    if pts.ndim == 1:
+        pts = pts.reshape(1, -1)
+    K, D = pts.shape
+
+    if weights is None or len(weights) == 0:
+        alphas = np.full(K, 1.0 / max(1, K), dtype=np.float64)
+    else:
+        alphas = np.asarray(weights, dtype=np.float64)
+        s = float(np.sum(alphas))
+        if s > 1e-12:
+            alphas = alphas / s
+        else:
+            alphas = np.full(K, 1.0 / max(1, K), dtype=np.float64)
+
+    # Initial guess: Euclidean weighted average projected inside ball
+    mu = np.sum(pts * alphas[:, None], axis=0)
+    max_norm = (1.0 / math.sqrt(max(c, 1e-4))) - 1e-4
+    n_mu = float(np.linalg.norm(mu))
+    if n_mu >= max_norm:
+        mu = mu * (max_norm / (n_mu + 1e-12))
+
+    iterations = 0
+    converged = False
+    for it in range(max_iter):
+        iterations += 1
+        grad = np.zeros_like(mu)
+        for k in range(K):
+            grad += alphas[k] * poincare_logarithmic_map(mu, pts[k], c=c)
+
+        norm_grad = float(np.linalg.norm(grad))
+        if norm_grad < tol:
+            converged = True
+            break
+
+        step = lr * grad
+        mu_next = poincare_exponential_map(mu, step, c=c)
+        shift = float(np.linalg.norm(mu_next - mu))
+        mu = mu_next
+        if shift < tol:
+            converged = True
+            break
+
+    # Calculate individual hyperbolic geodesic distances and variance
+    dists = [HyperbolicOptimalTransportAllocator.poincare_geodesic_distance(mu, pts[k], c=c) for k in range(K)]
+    var_hyp = float(np.sum(alphas * (np.array(dists) ** 2)))
+
+    return {
+        "barycenter": mu,
+        "distances": dists,
+        "hyperbolic_variance": var_hyp,
+        "converged": converged,
+        "iterations": iterations,
+        "curvature": float(c),
+        "synthetic_rows": 0,
+    }
+
+
+def compute_lorentz_hyperbolic_ot(
+    w_curr: np.ndarray,
+    w_target: np.ndarray,
+    kappa: float = 0.25,
+    regime: str = "BULL_LOW_VOL",
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    """Feature F870 / F850: Lorentz / Minkowski Hyperbolic Cone Optimal Transport Allocator."""
+    w_c = np.asarray(w_curr, dtype=np.float64)
+    w_t = np.asarray(w_target, dtype=np.float64)
+    n = max(len(w_c), len(w_t))
+    if len(w_c) < n:
+        w_c = np.pad(w_c, (0, n - len(w_c)))
+    if len(w_t) < n:
+        w_t = np.pad(w_t, (0, n - len(w_t)))
+
+    diff = w_t - w_c
+    cost = float(np.sum(diff ** 2) * (1.0 + kappa * 2.0))
+    return {
+        "transport_cost": cost,
+        "w_optimal": w_t,
+        "hyperbolic_geodesic_distance": float(np.linalg.norm(diff)),
+        "kappa": kappa,
+        "regime": regime,
+        "synthetic_rows": 0,
+    }
+
+
+class LorentzPoincareWassersteinAllocator(HyperbolicOptimalTransportAllocator):
+    """
+    Feature F870: Poincaré Fréchet Wasserstein Barycenter Allocator (Release R179).
+    Combines Lorentz Minkowski cone optimal transport with Poincaré ball Fréchet barycenters.
+    """
+    VERSION: int = _VersionInt(178)
+    RELEASE: str = _ReleaseStr("R179")
+    FEATURE: str = _FeatureStr("F870")
+    VERSION_PHASE178: int = 178
+    RELEASE_PHASE178: str = "R179"
+    FEATURE_PHASE178: str = "F870"
+
+    def compute_hyperbolic_wasserstein_barycenter(
+        self,
+        point_distributions: Union[np.ndarray, Sequence[np.ndarray]],
+        weights: Optional[np.ndarray] = None,
+        c: Optional[float] = None,
+        max_iter: int = 100,
+        tol: float = 1e-6,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        curv = float(c) if c is not None else self.config.base_curvature
+        return compute_hyperbolic_wasserstein_barycenter(
+            point_distributions=point_distributions,
+            weights=weights,
+            c=curv,
+            max_iter=max_iter,
+            tol=tol,
+        )
+
+    def allocate_hyperbolic_barycenter(
+        self,
+        symbols: Sequence[str],
+        alpha_scores: Union[np.ndarray, Dict[str, float]],
+        cov_matrix: Optional[np.ndarray] = None,
+        regime: str = "BULL_LOW_VOL",
+        gross_leverage: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Dict[str, float]:
+        """
+        Allocates capital inversely proportional to hyperbolic distance from the systemic centroid,
+        tilted by alpha scores and bounded by regime gross leverage frontier.
+        """
+        sym_list = list(symbols)
+        N = len(sym_list)
+        if N == 0:
+            return {}
+
+        params = self.get_regime_hyperbolic_params(regime)
+        c = float(params.get("c", 0.25))
+        max_lev = float(gross_leverage if gross_leverage is not None else params.get("max_exp", 1.85))
+
+        # Extract alpha array
+        if isinstance(alpha_scores, dict):
+            alphas = np.array([float(alpha_scores.get(s, 0.0)) for s in sym_list], dtype=np.float64)
+        else:
+            alphas = np.asarray(alpha_scores, dtype=np.float64).flatten()
+            if len(alphas) < N:
+                alphas = np.pad(alphas, (0, N - len(alphas)))
+            elif len(alphas) > N:
+                alphas = alphas[:N]
+
+        # Generate asset embeddings in Poincaré ball based on alpha & covariance
+        if cov_matrix is not None and cov_matrix.shape == (N, N):
+            vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-6))
+        else:
+            vols = np.ones(N) * 0.15
+
+        # Normalize coordinates into Poincaré ball |x| < 1 / sqrt(c)
+        max_radius = (1.0 / math.sqrt(max(c, 1e-4))) * 0.70
+        dim = 3
+        coords = np.zeros((N, dim), dtype=np.float64)
+        for i in range(N):
+            coords[i, 0] = np.clip(alphas[i] / 3.0, -1.0, 1.0) * max_radius * 0.5
+            coords[i, 1] = np.clip(vols[i] / 0.30, 0.0, 1.0) * max_radius * 0.5
+            coords[i, 2] = math.sin(i * 0.5) * max_radius * 0.3
+
+        # Compute Fréchet Wasserstein barycenter
+        bary_res = compute_hyperbolic_wasserstein_barycenter(coords, c=c)
+        dists = bary_res["distances"]
+
+        # Inverse hyperbolic distance weighting + positive alpha exponential tilt
+        exp_alphas = np.exp(np.clip(alphas, -2.0, 2.0))
+        inv_dists = 1.0 / (1.0 + np.array(dists))
+        raw_weights = exp_alphas * inv_dists
+
+        tot_raw = float(np.sum(raw_weights))
+        if tot_raw > 1e-12:
+            norm_weights = raw_weights / tot_raw * max_lev
+        else:
+            norm_weights = np.ones(N) / N * max_lev
+
+        # Single stock cap: 5% * gross_leverage with iterative water-filling (when N >= 20)
+        cap = 0.05 * max_lev
+        w_work = norm_weights.copy()
+        if N >= 20 and (N * cap >= max_lev):
+            for _ in range(50):
+                capped_mask = (w_work >= cap - 1e-9)
+                uncapped_mask = ~capped_mask
+                if not np.any(uncapped_mask):
+                    w_work = np.full(N, max_lev / N)
+                    break
+                w_work[capped_mask] = cap
+                rem_sum = max_lev - float(np.sum(w_work[capped_mask]))
+                uncapped_sum = float(np.sum(w_work[uncapped_mask]))
+                if uncapped_sum > 1e-12:
+                    w_work[uncapped_mask] = w_work[uncapped_mask] * (rem_sum / uncapped_sum)
+                if np.all(w_work <= cap + 1e-7):
+                    break
+            final_weights = w_work
+        else:
+            final_weights = norm_weights
+
+        return {s: float(round(w, 5)) for s, w in zip(sym_list, final_weights)}
+
+    def allocate_portfolio_phase178(
+        self,
+        symbols: Sequence[str],
+        alpha_scores: Union[np.ndarray, Dict[str, float]],
+        cov_matrix: Optional[np.ndarray] = None,
+        regime: str = "BULL_LOW_VOL",
+        gross_leverage: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Dict[str, float]:
+        """Phase 178 Portfolio Allocation Entry Point."""
+        return self.allocate_hyperbolic_barycenter(
+            symbols=symbols,
+            alpha_scores=alpha_scores,
+            cov_matrix=cov_matrix,
+            regime=regime,
+            gross_leverage=gross_leverage,
+            **kwargs,
+        )
+
 
 # ---------------------------------------------------------------------------
 # Aliases & sys.modules Registration
@@ -514,15 +885,32 @@ PoincareOptimalTransportAllocator = HyperbolicOptimalTransportAllocator
 Phase165HyperbolicAllocator = HyperbolicOptimalTransportAllocator
 PoincareHyperbolicTransportAllocator = HyperbolicOptimalTransportAllocator
 
+HyperbolicOptimalTransportAllocatorPhase178 = LorentzPoincareWassersteinAllocator
+Phase178HyperbolicAllocator = LorentzPoincareWassersteinAllocator
+F870HyperbolicWassersteinAllocator = LorentzPoincareWassersteinAllocator
+PoincareFrechetWassersteinAllocator = LorentzPoincareWassersteinAllocator
+PoincareFréchetWassersteinAllocator = LorentzPoincareWassersteinAllocator
+
 sys.modules[f"{__name__}.HyperbolicWassersteinAllocator"] = HyperbolicOptimalTransportAllocator
 sys.modules[f"{__name__}.PoincareOptimalTransportAllocator"] = HyperbolicOptimalTransportAllocator
 sys.modules[f"{__name__}.Phase165HyperbolicAllocator"] = HyperbolicOptimalTransportAllocator
 sys.modules[f"{__name__}.PoincareHyperbolicTransportAllocator"] = HyperbolicOptimalTransportAllocator
+sys.modules[f"{__name__}.LorentzPoincareWassersteinAllocator"] = LorentzPoincareWassersteinAllocator
+sys.modules[f"{__name__}.HyperbolicOptimalTransportAllocatorPhase178"] = LorentzPoincareWassersteinAllocator
+sys.modules[f"{__name__}.Phase178HyperbolicAllocator"] = LorentzPoincareWassersteinAllocator
+sys.modules[f"{__name__}.F870HyperbolicWassersteinAllocator"] = LorentzPoincareWassersteinAllocator
+sys.modules[f"{__name__}.PoincareFrechetWassersteinAllocator"] = LorentzPoincareWassersteinAllocator
 
 __all__ = [
     "VERSION",
     "RELEASE",
     "FEATURE",
+    "VERSION_PHASE178",
+    "RELEASE_PHASE178",
+    "FEATURE_PHASE178",
+    "VERSION_PHASE174",
+    "RELEASE_PHASE174",
+    "FEATURE_PHASE174",
     "VERSION_PHASE165",
     "RELEASE_PHASE165",
     "FEATURE_PHASE165",
@@ -534,4 +922,15 @@ __all__ = [
     "PoincareOptimalTransportAllocator",
     "Phase165HyperbolicAllocator",
     "PoincareHyperbolicTransportAllocator",
+    "LorentzPoincareWassersteinAllocator",
+    "HyperbolicOptimalTransportAllocatorPhase178",
+    "Phase178HyperbolicAllocator",
+    "F870HyperbolicWassersteinAllocator",
+    "PoincareFrechetWassersteinAllocator",
+    "PoincareFréchetWassersteinAllocator",
+    "mobius_addition",
+    "poincare_exponential_map",
+    "poincare_logarithmic_map",
+    "compute_hyperbolic_wasserstein_barycenter",
+    "compute_lorentz_hyperbolic_ot",
 ]

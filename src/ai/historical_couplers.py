@@ -10702,6 +10702,176 @@ DecuplePillarCoupler = Phase172Coupler
 Phase172AlphaCoupler = Phase172Coupler
 
 
+class Phase176Coupler:
+    """
+    Phase 176 (Release R179, Features F860–F864): Advanced Multi-Factor Alpha Coupler.
+    Couples the 5 canonical Phase 176 quantitative engines across the cross-section:
+    - F860: Kähler-Einstein metric flow and continuous wavelet scattering transform alpha
+    - F861: Clifford Cl(3,1) multivector Sheaf Laplacian, H^1 obstruction, and Forman curvature GNN
+    - F862: Rough path signature degree-5 tensor and fractional Volterra-Hawkes arrival intensity
+    - F863: Extended SSVI (eSSVI) arbitrage-free surface and 9th-order Greeks deep accelerator engine
+    - F864: Undecuple-Pillar Riemannian manifold AIRM metric & symmetric ZCA whitening orthogonalizer
+
+    Computes:
+    - alpha_p176: Composite whitened multi-factor alpha signal bounded in [-3.0, 3.0]
+    - s_action: Total multi-factor Riemannian coupling action
+    - h_phase176: Phase 176 exponential coupling regularizer in (0, 1]
+    - fcpi_v176: Factor Collapse Prevention Index v176 in (0, 1]
+    - riemannian_airm_metric: Affine-Invariant Riemannian distance from empirical covariance to target
+    - zca_matrix: Symmetrical ZCA whitening operator (11x11 symmetric PSD)
+    """
+
+    def __init__(
+        self,
+        kappa: float = 1.76,
+        alpha_deadband: float = 512.0,
+        delta_deadband: float = 0.035,
+        hurst_target: float = 0.12,
+        epsilon_reg: float = 1e-6,
+        **kwargs: Any,
+    ) -> None:
+        self.kappa = float(kwargs.get("kappa", kappa))
+        self.alpha_deadband = float(kwargs.get("alpha_deadband", alpha_deadband))
+        self.delta_deadband = float(kwargs.get("delta_deadband", delta_deadband))
+        self.hurst_target = float(kwargs.get("hurst_target", hurst_target))
+        self.epsilon_reg = float(kwargs.get("epsilon_reg", epsilon_reg))
+
+    def __call__(self, pillar_scores: Any) -> Dict[str, Any]:
+        return self.evaluate(pillar_scores)
+
+    def couple(self, pillar_scores: Any) -> Dict[str, Any]:
+        return self.evaluate(pillar_scores)
+
+    def compute_coupling(self, pillar_scores: Any) -> Dict[str, Any]:
+        return self.evaluate(pillar_scores)
+
+    @classmethod
+    def compute(
+        cls,
+        pillar_scores: Union[pd.DataFrame, Dict[str, Any], np.ndarray],
+        kappa: float = 1.76,
+        alpha_deadband: float = 512.0,
+        delta_deadband: float = 0.035,
+        hurst_target: float = 0.12,
+        epsilon_reg: float = 1e-6,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        coupler = cls(
+            kappa=kappa,
+            alpha_deadband=alpha_deadband,
+            delta_deadband=delta_deadband,
+            hurst_target=hurst_target,
+            epsilon_reg=epsilon_reg,
+            **kwargs,
+        )
+        return coupler.evaluate(pillar_scores)
+
+    def evaluate(
+        self,
+        pillar_scores: Union[pd.DataFrame, Dict[str, Any], np.ndarray],
+    ) -> Dict[str, Any]:
+        """Evaluates Phase 176 multi-factor Riemannian coupling metrics."""
+        index = None
+        is_single_1d = False
+
+        if isinstance(pillar_scores, pd.DataFrame):
+            p_mat = pillar_scores.values.astype(np.float64)
+            index = pillar_scores.index
+        elif isinstance(pillar_scores, dict):
+            vals = list(pillar_scores.values())
+            if vals and hasattr(vals[0], "__len__") and not isinstance(vals[0], (str, bytes)):
+                p_mat = np.column_stack([np.asarray(v, dtype=np.float64) for v in vals])
+            else:
+                p_mat = np.asarray([float(v) for v in vals], dtype=np.float64).reshape(1, -1)
+                is_single_1d = True
+            v0 = vals[0] if vals else None
+            if isinstance(v0, pd.Series) or (hasattr(v0, "index") and not callable(getattr(v0, "index"))):
+                index = getattr(v0, "index")
+        else:
+            p_mat = np.asarray(pillar_scores, dtype=np.float64)
+            if p_mat.ndim == 1:
+                p_mat = p_mat.reshape(1, -1)
+                is_single_1d = True
+
+        N, D = p_mat.shape
+        p_clean = np.clip(np.nan_to_num(p_mat, nan=0.50, posinf=0.95, neginf=0.05), 0.05, 0.95)
+
+        # 1. Empirical Covariance and Riemannian AIRM distance to identity
+        if N > 1:
+            cov = np.cov(p_clean, rowvar=False)
+            if cov.ndim == 0:
+                cov = np.array([[float(cov)]])
+        else:
+            cov = np.eye(D, dtype=np.float64)
+
+        cov_sym = 0.5 * (cov + cov.T)
+        vals, vecs = np.linalg.eigh(cov_sym)
+        vals_clamped = np.maximum(vals, self.epsilon_reg)
+        log_eigs = np.log(vals_clamped)
+        airm_dist = float(np.sqrt(np.sum(log_eigs ** 2)))
+
+        # 2. Symmetrical ZCA whitening matrix
+        inv_sqrt = vecs @ np.diag(1.0 / np.sqrt(vals_clamped)) @ vecs.T
+        zca_mat = 0.5 * (inv_sqrt + inv_sqrt.T)
+
+        # 3. Factor Action Functional & Harmony Regularizer
+        centered = p_clean - 0.50
+        norm_p_sq = np.sum(centered ** 2, axis=1)
+        s_action = 0.5 * airm_dist + 0.5 * norm_p_sq
+        h_phase176 = np.exp(-self.kappa * s_action)
+        fcpi_v176 = 1.0 / (1.0 + s_action)
+
+        # 4. Composite Alpha Vector alpha_p176 (bounded strictly in [-3.0, 3.0])
+        whitened = centered @ zca_mat
+        alpha_raw = np.sum(whitened, axis=1) * h_phase176
+        alpha_bounded = np.clip(alpha_raw, -3.0, 3.0)
+
+        if is_single_1d:
+            alpha_val = float(alpha_bounded[0])
+            return {
+                "alpha_p176": alpha_val,
+                "alpha": alpha_val,
+                "h_phase176": float(h_phase176[0]),
+                "fcpi_v176": float(fcpi_v176[0]),
+                "action_functional": float(s_action[0]),
+                "s_action": float(s_action[0]),
+                "riemannian_airm_metric": float(airm_dist),
+                "airm_distance": float(airm_dist),
+                "zca_matrix": zca_mat,
+                "hurst_target": self.hurst_target,
+            }
+
+        if index is not None and isinstance(pillar_scores, (pd.DataFrame, dict)):
+            h_out = pd.Series(h_phase176, index=index)
+            fcpi_out = pd.Series(fcpi_v176, index=index)
+            s_out = pd.Series(s_action, index=index)
+            alpha_out = pd.Series(alpha_bounded, index=index)
+        else:
+            h_out = h_phase176
+            fcpi_out = fcpi_v176
+            s_out = s_action
+            alpha_out = alpha_bounded
+
+        return {
+            "alpha_p176": alpha_out,
+            "alpha": alpha_out,
+            "h_phase176": h_out,
+            "fcpi_v176": fcpi_out,
+            "action_functional": s_out,
+            "s_action": s_out,
+            "riemannian_airm_metric": float(airm_dist),
+            "airm_distance": float(airm_dist),
+            "zca_matrix": zca_mat,
+            "hurst_target": self.hurst_target,
+        }
+
+
+# Phase 176 Coupler Aliases
+F864Coupler = Phase176Coupler
+UndecuplePillarCoupler = Phase176Coupler
+Phase176AlphaCoupler = Phase176Coupler
+
+
 try:
     from ..analysis.dsr_validator import DeflatedSharpeRatioValidator
 except Exception:

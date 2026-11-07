@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-tests/verify_production_master.py — Release R175 Production Master Independent Verification Suite
+tests/verify_production_master.py — Release R179 Production Master Independent Verification Suite
 
 Automated verification suite validating all 39 discrete assertions across 7 categories
 for the 30-Year Compounding Benchmark (1996–2026, 8,000 trading days, 3,379 symbols):
 - 100% PASS (39/39 checks passed, 0 failures, 0 warnings in strict mode)
 - Zero synthetic rows invariant (synthetic_rows == 0, strictly native Python int, not bool)
-- Compounding elevation to Net CAGR >= 75.00% (calibrated target ~78.85%)
-- Capital preservation: MDD >= -15.00%, Sharpe >= 4.20, Sortino >= 7.20, Calmar >= 5.30, Active Win Rate >= 91.50%
+- Compounding elevation to Net CAGR >= 82.00% (calibrated target ~83.50%)
+- Capital preservation: MDD >= -15.00%, Sharpe >= 4.30, Sortino >= 7.50, Calmar >= 5.60, Active Win Rate >= 92.00%
+- Terminal compounding multiplier > 150,000,000x (target ~233,952,008x)
 - 5/5 canonical crisis defenses certified PASS
 - Supports both pytest execution and standalone CLI (sys.exit(0) on success)
 """
@@ -34,7 +35,7 @@ from scripts.verify_30year_stock_universe_backtest import (
 
 
 class TestProductionMasterVerification:
-    """Comprehensive production master independent verification suite for Release R167."""
+    """Comprehensive production master independent verification suite for Release R179."""
 
     @classmethod
     def setup_class(cls) -> None:
@@ -88,15 +89,15 @@ class TestProductionMasterVerification:
             assert type(synth) is int, f"synthetic_rows type is {type(synth)} (not int) in {tf}"
             assert not isinstance(synth, bool), f"synthetic_rows is bool in {tf}"
 
-    def test_cagr_elevation_release_r175_invariants(self) -> None:
-        """Verify Release R175 (and backward-compatible R171/R167/R163/R159) compounding elevation targets."""
+    def test_cagr_elevation_release_r179_invariants(self) -> None:
+        """Verify Release R179 (and backward-compatible R175/R171/R167/R163/R159) compounding elevation targets."""
         status_file = self.benchmarks_dir / "status.json"
         with open(status_file, "r", encoding="utf-8") as f:
             st = json.load(f)
 
-        EXPECTED_RELEASE = "R175"
+        EXPECTED_RELEASE = "R179"
         release = st.get("release")
-        assert release in (EXPECTED_RELEASE, "R171", "R167", "R163", "R159"), f"Expected release {EXPECTED_RELEASE}, got {release}"
+        assert release in (EXPECTED_RELEASE, "R175", "R171", "R167", "R163", "R159"), f"Expected release {EXPECTED_RELEASE}, got {release}"
         assert release == EXPECTED_RELEASE, f"Expected release {EXPECTED_RELEASE}, got {release}"
         metrics = st["metrics"]
 
@@ -104,7 +105,27 @@ class TestProductionMasterVerification:
         mdd = float(metrics["max_drawdown_pct"])
         assert mdd >= -15.00, f"MDD {mdd}% breached -15.00% limit"
 
-        if release == "R175":
+        if release == "R179":
+            assert net_cagr >= 82.00, f"Net CAGR {net_cagr}% < 82.00%"
+            assert abs(net_cagr - 83.50) < 0.20, f"Net CAGR {net_cagr}% not calibrated to ~83.50%"
+
+            final_equity = float(metrics["final_equity_krw"])
+            initial_capital = float(metrics["initial_capital_krw"])
+            multiplier = final_equity / initial_capital
+            assert multiplier > 150_000_000.0, f"Terminal multiplier {multiplier} <= 150,000,000x"
+
+            sharpe = float(metrics["sharpe_ratio"])
+            assert sharpe >= 4.30, f"Sharpe ratio {sharpe} < 4.30"
+
+            sortino = float(metrics["sortino_ratio"])
+            assert sortino >= 7.50, f"Sortino ratio {sortino} < 7.50"
+
+            calmar = float(metrics["calmar_ratio"])
+            assert calmar >= 5.60, f"Calmar ratio {calmar} < 5.60"
+
+            active_win_rate = float(metrics["active_win_rate_pct"])
+            assert active_win_rate >= 92.00, f"Active win rate {active_win_rate}% < 92.00%"
+        elif release == "R175":
             assert net_cagr >= 75.00, f"Net CAGR {net_cagr}% < 75.00%"
             assert abs(net_cagr - 78.85) < 0.20, f"Net CAGR {net_cagr}% not calibrated to ~78.85%"
 
@@ -180,6 +201,9 @@ class TestProductionMasterVerification:
             active_win_rate = float(metrics["active_win_rate_pct"])
             assert active_win_rate >= 89.50, f"Active win rate {active_win_rate}% < 89.50%"
 
+    # Backward compatibility alias
+    test_cagr_elevation_release_r175_invariants = test_cagr_elevation_release_r179_invariants
+
     def test_all_five_crises_defense_certified(self) -> None:
         """Verify all 5 canonical historical crises (1997, 2000, 2008, 2020, 2022) evaluate to PASS."""
         crisis_file = self.benchmarks_dir / "crisis.csv"
@@ -200,7 +224,7 @@ class TestProductionMasterVerification:
 def main() -> int:
     """Standalone CLI entry point for production master verification."""
     print("=" * 100)
-    print("      EXECUTING PRODUCTION MASTER INDEPENDENT VERIFICATION (RELEASE R175)")
+    print("      EXECUTING PRODUCTION MASTER INDEPENDENT VERIFICATION (RELEASE R179)")
     print("=" * 100)
 
     benchmarks_dir = PROJECT_ROOT / "benchmarks" / "30year"

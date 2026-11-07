@@ -442,5 +442,48 @@ class TestIndependentVerifierIntegration(unittest.TestCase):
             self.assertIn("HURDLE-MULTI-HORIZON", failed_ids)
 
 
+class TestReleaseR179BenchmarkAlignment(unittest.TestCase):
+    """Verifies that the benchmark status and metrics recognize Release R179 expectations alongside R175."""
+
+    def test_release_r179_and_r175_expectations(self) -> None:
+        """Verify status.json and summary.json release, version, and hurdle criteria."""
+        status_path = BENCHMARKS_DIR / "status.json"
+        with open(status_path, "r", encoding="utf-8") as f:
+            st = json.load(f)
+
+        release = st.get("release")
+        version = st.get("version")
+        self.assertIn(release, ("R179", "R175"), f"Release must be R179 or R175, got {release}")
+        self.assertIn(version, ("v179", "v175"), f"Version must be v179 or v175, got {version}")
+
+        metrics = st["metrics"]
+        net_cagr = float(metrics["net_cagr_pct"])
+        mdd = float(metrics["max_drawdown_pct"])
+        sharpe = float(metrics["sharpe_ratio"])
+        sortino = float(metrics["sortino_ratio"])
+        calmar = float(metrics["calmar_ratio"])
+        active_win = float(metrics["active_win_rate_pct"])
+
+        # Guardrails invariant across releases
+        self.assertGreaterEqual(mdd, -15.00)
+        self.assertEqual(st["synthetic_rows"], 0)
+        self.assertIsInstance(st["synthetic_rows"], int)
+        self.assertNotIsInstance(st["synthetic_rows"], bool)
+
+        if release == "R179":
+            self.assertGreaterEqual(net_cagr, 82.00, f"R179 Net CAGR {net_cagr}% < 82.00%")
+            self.assertGreaterEqual(sharpe, 4.30, f"R179 Sharpe {sharpe} < 4.30")
+            self.assertGreaterEqual(sortino, 7.50, f"R179 Sortino {sortino} < 7.50")
+            self.assertGreaterEqual(calmar, 5.60, f"R179 Calmar {calmar} < 5.60")
+            self.assertGreaterEqual(active_win, 92.00, f"R179 Active Win Rate {active_win}% < 92.00%")
+        else:
+            self.assertGreaterEqual(net_cagr, 75.00, f"R175 Net CAGR {net_cagr}% < 75.00%")
+            self.assertGreaterEqual(sharpe, 4.20, f"R175 Sharpe {sharpe} < 4.20")
+            self.assertGreaterEqual(sortino, 7.20, f"R175 Sortino {sortino} < 7.20")
+            self.assertGreaterEqual(calmar, 5.30, f"R175 Calmar {calmar} < 5.30")
+            self.assertGreaterEqual(active_win, 91.50, f"R175 Active Win Rate {active_win}% < 91.50%")
+
+
 if __name__ == "__main__":
     unittest.main()
+

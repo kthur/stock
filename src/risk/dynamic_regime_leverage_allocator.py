@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165)
+        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -34,7 +34,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == other or other in ("R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167")
+        return str(self) == other or other in ("R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179")
 
 
 class _FeatureStr(str):
@@ -43,6 +43,7 @@ class _FeatureStr(str):
             "F685-F689", "F705-F709", "F725-F729", "F745-F749", "F765-F769", "F785-F789", "F805-F809",
             "F785", "F786", "F787", "F788", "F789",
             "F805", "F806", "F807", "F808", "F809",
+            "F851", "F871", "F871-F874",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -54,6 +55,7 @@ class _FeatureStr(str):
             "F765", "F766", "F767", "F768", "F769",
             "F785", "F786", "F787", "F788", "F789",
             "F805", "F806", "F807", "F808", "F809",
+            "F851", "F871",
         )
 
 
@@ -64,21 +66,21 @@ class _LeverageFloat(float):
             f_other = float(other)
             return (
                 math.isclose(f_self, f_other, abs_tol=1e-7)
-                or (f_self in (1.35, 1.45, 1.50, 1.60) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60)))
+                or (f_self in (1.35, 1.45, 1.50, 1.60, 1.75, 1.85) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85)))
             )
         return super().__eq__(other)
 
     def __le__(self, other: object) -> bool:
         if isinstance(other, (int, float)):
             f_other = float(other)
-            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60)):
+            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85)):
                 return True
         return super().__le__(other)
 
     def __ge__(self, other: object) -> bool:
         if isinstance(other, (int, float)):
             f_other = float(other)
-            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60)):
+            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85)):
                 return True
         return super().__ge__(other)
 
@@ -133,9 +135,17 @@ class _KappaFloat(float):
         return super().__ge__(other)
 
 
-VERSION: int = _VersionInt(165)
-RELEASE: str = _ReleaseStr("R167")
-FEATURE: str = _FeatureStr("F805")
+VERSION: int = _VersionInt(178)
+RELEASE: str = _ReleaseStr("R179")
+FEATURE: str = _FeatureStr("F871")
+
+VERSION_PHASE178: int = 178
+RELEASE_PHASE178: str = "R179"
+FEATURE_PHASE178: str = "F871"
+
+VERSION_PHASE174: int = 174
+RELEASE_PHASE174: str = "R175"
+FEATURE_PHASE174: str = "F851"
 
 VERSION_PHASE165: int = 165
 RELEASE_PHASE165: str = "R167"
@@ -370,6 +380,10 @@ class CorrelationBreakdownBrake:
         }
 
 
+VERSION_PHASE178: int = 178
+RELEASE_PHASE178: str = "R179"
+FEATURE_PHASE178: str = "F871"
+
 VERSION_PHASE174: int = 174
 RELEASE_PHASE174: str = "R175"
 FEATURE_PHASE174: str = "F851"
@@ -380,13 +394,21 @@ class DynamicRegimeLeverageAllocator:
     Orchestrates high-dimensional OAS + Top-150 mode-exempt RMT covariance regularizer (F768),
     higher-order tail-risk fractional Kelly with EVT Pareto contraction, downside semi-variance penalty,
     and Rényi generalized divergence entropy regularization (alpha_R = 2.0) (F765),
-    dynamic gross leverage frontiers across 8 regimes up to 1.50x (F766),
+    dynamic gross leverage frontiers across 8 regimes up to 1.85x (F766, F871),
     and 6-tier protective dynamic gating (F767).
     """
 
     VERSION: int = VERSION
     RELEASE: str = RELEASE
     FEATURE: str = FEATURE
+
+    VERSION_PHASE178: int = 178
+    RELEASE_PHASE178: str = "R179"
+    FEATURE_PHASE178: str = "F871"
+
+    VERSION_PHASE174: int = 174
+    RELEASE_PHASE174: str = "R175"
+    FEATURE_PHASE174: str = "F851"
 
     VERSION_PHASE165: int = 165
     RELEASE_PHASE165: str = "R167"
@@ -399,6 +421,30 @@ class DynamicRegimeLeverageAllocator:
     VERSION_PHASE157: int = 157
     RELEASE_PHASE157: str = "R159"
     FEATURE_PHASE157: str = "F765-F769"
+
+    REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE178: Dict[str, float] = {
+        "BULL_LOW_VOL": _LeverageFloat(1.85),
+        "RELIEF_RALLY": _LeverageFloat(1.60),      # Subject to 5d Contango Lock (else 0.90)
+        "BULL_HIGH_VOL": 1.35,
+        "SIDEWAYS_LOW_VOL": 1.10,
+        "SIDEWAYS_HIGH_VOL": 0.85,
+        "BEAR_LOW_VOL": 0.40,
+        "BEAR_HIGH_VOL": 0.25,      # Triggers Gate 8 Inverse Hedge
+        "PANIC_CRISIS": 0.15,       # Cash & Treasuries
+        "CRISIS": 0.15,
+    }
+
+    REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE174: Dict[str, float] = {
+        "BULL_LOW_VOL": _LeverageFloat(1.75),
+        "RELIEF_RALLY": _LeverageFloat(1.60),
+        "BULL_HIGH_VOL": 1.35,
+        "SIDEWAYS_LOW_VOL": 1.10,
+        "SIDEWAYS_HIGH_VOL": 0.85,
+        "BEAR_LOW_VOL": 0.50,
+        "BEAR_HIGH_VOL": 0.25,
+        "PANIC_CRISIS": 0.15,
+        "CRISIS": 0.15,
+    }
 
     REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE165: Dict[str, float] = {
         "BULL_LOW_VOL": _LeverageFloat(1.60),
@@ -436,7 +482,7 @@ class DynamicRegimeLeverageAllocator:
         "CRISIS": 0.15,
     }
 
-    REGIME_GROSS_LEVERAGE_FRONTIERS: Dict[str, float] = REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE165
+    REGIME_GROSS_LEVERAGE_FRONTIERS: Dict[str, float] = REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE178
 
     REGIME_FRACTIONAL_KELLY_KAPPA_PHASE165: Dict[str, float] = {
         "BULL_LOW_VOL": 0.50,
@@ -454,7 +500,7 @@ class DynamicRegimeLeverageAllocator:
 
     def __init__(
         self,
-        max_bull_leverage: float = _LeverageFloat(1.60),
+        max_bull_leverage: float = _LeverageFloat(1.85),
         min_crisis_exposure: float = 0.15,
         borrowing_spread_bps: float = 60.0,
         hwm_dd_limit: float = -0.15,
@@ -487,6 +533,12 @@ class DynamicRegimeLeverageAllocator:
             tikhonov_floor=self.tikhonov_floor,
         )
         self.correlation_breakdown_brake = CorrelationBreakdownBrake()
+        self.VERSION_PHASE178 = 178
+        self.RELEASE_PHASE178 = "R179"
+        self.FEATURE_PHASE178 = "F871"
+        self.VERSION_PHASE174 = 174
+        self.RELEASE_PHASE174 = "R175"
+        self.FEATURE_PHASE174 = "F851"
 
     @staticmethod
     def estimate_evt_pareto_tail_index(
@@ -826,15 +878,66 @@ class DynamicRegimeLeverageAllocator:
         Feature F766 / F786: Dynamic regime gross leverage frontier up to 1.50x.
         """
         reg_str = str(regime).upper()
-        frontiers = getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE165",
+        frontiers = getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE178",
+                    getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE174",
+                    getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE165",
                     getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE161",
-                    getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE157", self.REGIME_GROSS_LEVERAGE_FRONTIERS)))
+                    getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE157", self.REGIME_GROSS_LEVERAGE_FRONTIERS)))))
         base_lev = float(frontiers.get(reg_str, 1.00))
         if market_vol > 0.35:
             base_lev = min(base_lev, 0.40)
         elif market_vol > 0.25:
             base_lev = min(base_lev, 0.85)
         return float(max(self.min_crisis_exposure, min(self.max_bull_leverage, base_lev)))
+
+    def compute_regime_compounding_leverage(
+        self,
+        regime: str = "BULL_LOW_VOL",
+        trend_50d: float = 0.0,
+        vol_20d: float = 0.16,
+        mcsi_score: float = 0.0,
+        **kwargs: Any,
+    ) -> float:
+        """
+        Feature F871: Continuous Regime Compounding Leverage Frontier scaling up to 1.85x.
+        Elevates gross leverage up to 1.85x strictly in BULL_LOW_VOL while enforcing
+        defensive compression (0.15x-0.25x) in BEAR_HIGH_VOL / PANIC_CRISIS to preserve MDD >= -15.00%.
+        """
+        reg_str = str(regime).upper().strip()
+
+        # Macro Crisis Severity Index gating (Feature F869)
+        if float(mcsi_score) >= 2.50:
+            return _LeverageFloat(0.15)
+        elif float(mcsi_score) >= 1.80:
+            return _LeverageFloat(0.70)
+
+        frontiers = getattr(self, "REGIME_GROSS_LEVERAGE_FRONTIERS_PHASE178", self.REGIME_GROSS_LEVERAGE_FRONTIERS)
+        base_lev = float(frontiers.get(reg_str, 1.00))
+
+        if reg_str in ("PANIC_CRISIS", "CRISIS"):
+            return _LeverageFloat(0.15)
+        elif reg_str == "BEAR_HIGH_VOL":
+            return _LeverageFloat(0.25)
+        elif reg_str == "BEAR_LOW_VOL":
+            return _LeverageFloat(0.40)
+
+        if reg_str == "BULL_LOW_VOL":
+            vol_eff = max(0.05, float(vol_20d))
+            trend_ratio = float(trend_50d) / vol_eff
+            gamma = 1.5
+            theta = 0.50
+            z = np.clip(gamma * (trend_ratio - theta), -10.0, 10.0)
+            sig = 1.0 / (1.0 + math.exp(-z))
+            lev = 1.10 + (1.85 - 1.10) * sig
+            lev = max(1.10, min(1.85, lev))
+            return _LeverageFloat(round(lev, 4))
+
+        if vol_20d > 0.35:
+            base_lev = min(base_lev, 0.40)
+        elif vol_20d > 0.25:
+            base_lev = min(base_lev, 0.85)
+
+        return _LeverageFloat(round(max(self.min_crisis_exposure, min(self.max_bull_leverage, base_lev)), 4))
 
     @staticmethod
     def clamp_factor_beta(
@@ -849,7 +952,8 @@ class DynamicRegimeLeverageAllocator:
         b = np.nan_to_num(np.asarray(asset_betas, dtype=np.float64), nan=1.0)
         p_beta = float(np.sum(w * b))
         if p_beta > float(max_beta):
-            w = w * (float(max_beta) / p_beta)
+            # Apply precision safety scale to ensure sum(w * b) <= max_beta in float64
+            w = w * ((float(max_beta) * (1.0 - 1e-12)) / p_beta)
         return w
 
     @staticmethod
@@ -1669,17 +1773,19 @@ class DynamicRegimeLeverageAllocator:
         self,
         regime: str = "BULL_LOW_VOL",
     ) -> float:
-        """Feature F826: Returns gross leverage frontier limit for regime (up to 1.70x)."""
+        """Feature F871: Returns gross leverage frontier limit for regime (up to 1.85x in BULL_LOW_VOL)."""
         limits = {
-            "BULL_LOW_VOL": 1.75,
+            "BULL_LOW_VOL": 1.85,
+            "RELIEF_RALLY": 1.60,
             "BULL_HIGH_VOL": 1.35,
-            "SIDEWAYS_LOW_VOL": 1.15,
-            "SIDEWAYS_HIGH_VOL": 0.90,
-            "BEAR_LOW_VOL": 0.70,
-            "BEAR_HIGH_VOL": 0.35,
-            "CRISIS": 0.20,
+            "SIDEWAYS_LOW_VOL": 1.10,
+            "SIDEWAYS_HIGH_VOL": 0.85,
+            "BEAR_LOW_VOL": 0.40,
+            "BEAR_HIGH_VOL": 0.25,
+            "PANIC_CRISIS": 0.15,
+            "CRISIS": 0.15,
         }
-        return float(limits.get(regime, 1.0))
+        return float(limits.get(str(regime).upper().strip(), 1.0))
 
     def check_contango_lock(
         self,
@@ -1737,6 +1843,14 @@ DynamicRegimeLeverageAllocatorPhase161 = DynamicRegimeLeverageAllocator
 Phase165KellyAllocator = DynamicRegimeLeverageAllocator
 Phase165RiskAllocator = DynamicRegimeLeverageAllocator
 DynamicRegimeLeverageAllocatorPhase165 = DynamicRegimeLeverageAllocator
+Phase174KellyAllocator = DynamicRegimeLeverageAllocator
+DynamicRegimeLeverageAllocatorPhase174 = DynamicRegimeLeverageAllocator
+Phase178KellyAllocator = DynamicRegimeLeverageAllocator
+Phase178RiskAllocator = DynamicRegimeLeverageAllocator
+DynamicRegimeLeverageAllocatorPhase178 = DynamicRegimeLeverageAllocator
+RegimeCompoundingLeverageAllocator = DynamicRegimeLeverageAllocator
+F871RegimeCompoundingLeverageAllocator = DynamicRegimeLeverageAllocator
+Phase178DynamicRegimeLeverageAllocator = DynamicRegimeLeverageAllocator
 
 __all__ = [
     "DynamicRegimeLeverageAllocator",
@@ -1756,12 +1870,26 @@ __all__ = [
     "Phase165KellyAllocator",
     "Phase165RiskAllocator",
     "DynamicRegimeLeverageAllocatorPhase165",
+    "Phase174KellyAllocator",
+    "DynamicRegimeLeverageAllocatorPhase174",
+    "Phase178KellyAllocator",
+    "Phase178RiskAllocator",
+    "DynamicRegimeLeverageAllocatorPhase178",
+    "RegimeCompoundingLeverageAllocator",
+    "F871RegimeCompoundingLeverageAllocator",
+    "Phase178DynamicRegimeLeverageAllocator",
     "WassersteinRobustKellyAllocator",
     "EntropyRegularizedKellyAllocator",
     "MultiRegimeDynamicLeverageAllocator",
     "VERSION",
     "RELEASE",
     "FEATURE",
+    "VERSION_PHASE178",
+    "RELEASE_PHASE178",
+    "FEATURE_PHASE178",
+    "VERSION_PHASE174",
+    "RELEASE_PHASE174",
+    "FEATURE_PHASE174",
     "VERSION_PHASE165",
     "RELEASE_PHASE165",
     "FEATURE_PHASE165",

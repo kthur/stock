@@ -11,6 +11,7 @@ Tier-1 Hedge Fund Portfolio Construction Framework:
 
 import logging
 import math
+import sys
 from typing import Dict, List, Optional, Tuple, Any, cast, Union
 import numpy as np
 import pandas as pd
@@ -55,6 +56,10 @@ except ImportError:
         _FeatureStr = str        # type: ignore
 
 
+VERSION_PHASE178: int = 178
+RELEASE_PHASE178: str = "R179"
+FEATURE_PHASE178: str = "F874"
+
 VERSION_PHASE174: int = 174
 RELEASE_PHASE174: str = "R175"
 FEATURE_PHASE174: str = "F854"
@@ -67,8 +72,8 @@ FEATURE_PHASE161: str = "F789"
 VERSION_PHASE157: int = 157
 RELEASE_PHASE157: str = "R159"
 FEATURE_PHASE157: str = "F769"
-MAX_BULL_LEVERAGE: float = _LeverageFloat(1.60)
-max_bull_leverage: float = _LeverageFloat(1.60)
+MAX_BULL_LEVERAGE: float = _LeverageFloat(1.85)
+max_bull_leverage: float = _LeverageFloat(1.85)
 
 
 class AllocationResult(dict):
@@ -100,6 +105,299 @@ class AllocationResult(dict):
 
 
 class UnifiedPortfolioAllocator:
+
+    VERSION_PHASE178: int = 178
+    RELEASE_PHASE178: str = "R179"
+    FEATURE_PHASE178: str = "F874"
+
+    REGIME_MODEL_WEIGHTS_PHASE178: Dict[str, Dict[str, float]] = {
+        "BULL_LOW_VOL": {
+            "black_litterman": 0.25,
+            "herc": 0.15,
+            "risk_parity": 0.10,
+            "evt_cvar": 0.05,
+            "hyperbolic_ot": 0.15,
+            "spectral_barycenter": 0.10,
+            "regime_leverage": 0.20,
+        },
+        "RELIEF_RALLY": {
+            "black_litterman": 0.25,
+            "herc": 0.15,
+            "risk_parity": 0.10,
+            "evt_cvar": 0.05,
+            "hyperbolic_ot": 0.15,
+            "spectral_barycenter": 0.10,
+            "regime_leverage": 0.20,
+        },
+        "BULL_HIGH_VOL": {
+            "black_litterman": 0.20,
+            "herc": 0.20,
+            "risk_parity": 0.15,
+            "evt_cvar": 0.15,
+            "hyperbolic_ot": 0.15,
+            "spectral_barycenter": 0.05,
+            "regime_leverage": 0.10,
+        },
+        "SIDEWAYS_LOW_VOL": {
+            "black_litterman": 0.15,
+            "herc": 0.20,
+            "risk_parity": 0.25,
+            "evt_cvar": 0.15,
+            "hyperbolic_ot": 0.10,
+            "spectral_barycenter": 0.10,
+            "regime_leverage": 0.05,
+        },
+        "SIDEWAYS_HIGH_VOL": {
+            "black_litterman": 0.10,
+            "herc": 0.20,
+            "risk_parity": 0.25,
+            "evt_cvar": 0.25,
+            "hyperbolic_ot": 0.10,
+            "spectral_barycenter": 0.05,
+            "regime_leverage": 0.05,
+        },
+        "BEAR_LOW_VOL": {
+            "black_litterman": 0.05,
+            "herc": 0.15,
+            "risk_parity": 0.30,
+            "evt_cvar": 0.35,
+            "hyperbolic_ot": 0.10,
+            "spectral_barycenter": 0.05,
+            "regime_leverage": 0.00,
+        },
+        "BEAR_HIGH_VOL": {
+            "black_litterman": 0.00,
+            "herc": 0.10,
+            "risk_parity": 0.30,
+            "evt_cvar": 0.45,
+            "hyperbolic_ot": 0.10,
+            "spectral_barycenter": 0.05,
+            "regime_leverage": 0.00,
+        },
+        "PANIC_CRISIS": {
+            "black_litterman": 0.00,
+            "herc": 0.05,
+            "risk_parity": 0.25,
+            "evt_cvar": 0.60,
+            "hyperbolic_ot": 0.05,
+            "spectral_barycenter": 0.05,
+            "regime_leverage": 0.00,
+        },
+        "CRISIS": {
+            "black_litterman": 0.00,
+            "herc": 0.05,
+            "risk_parity": 0.25,
+            "evt_cvar": 0.60,
+            "hyperbolic_ot": 0.05,
+            "spectral_barycenter": 0.05,
+            "regime_leverage": 0.00,
+        },
+    }
+
+    def compute_gatheral_market_impact_penalty(
+        self,
+        weights: Dict[str, float],
+        current_weights: Optional[Dict[str, float]] = None,
+        adv_dict: Optional[Dict[str, float]] = None,
+        vol_dict: Optional[Dict[str, float]] = None,
+        total_equity: float = 10_000_000_000.0,
+        eta: float = 0.10,
+        **kwargs: Any,
+    ) -> float:
+        """
+        Feature F874: Gatheral 3/2-Power Market Impact Penalty.
+            P_impact(w, w0) = sum_i eta_i * sigma_i * (|Delta w_i| * E_total / ADV_i)^(3/2)
+        """
+        curr = current_weights or {}
+        advs = adv_dict or {}
+        vols = vol_dict or {}
+        all_syms = set(weights.keys()) | set(curr.keys())
+        tot_penalty = 0.0
+        for sym in all_syms:
+            w_tgt = float(weights.get(sym, 0.0))
+            w_cur = float(curr.get(sym, 0.0))
+            dw = abs(w_tgt - w_cur)
+            if dw < 1e-6:
+                continue
+            traded_notional = dw * total_equity
+            adv = float(advs.get(sym, 50_000_000_000.0))
+            adv = max(1_000_000.0, adv)
+            sigma = float(vols.get(sym, 0.02))
+            sigma = max(0.005, sigma)
+            frac_adv = traded_notional / adv
+            impact = eta * sigma * math.pow(frac_adv, 1.5) * traded_notional
+            tot_penalty += impact
+        return float(tot_penalty)
+
+    def allocate_portfolio_phase178(
+        self,
+        alpha_vector: Union[pd.Series, Dict[str, float]],
+        current_weights: Optional[Dict[str, float]] = None,
+        regime: str = "BULL_LOW_VOL",
+        gross_leverage: Optional[float] = None,
+        cov_matrix: Optional[np.ndarray] = None,
+        mcsi_score: float = 0.0,
+        apply_leland: bool = True,
+        adv_dict: Optional[Dict[str, float]] = None,
+        total_equity: float = 10_000_000_000.0,
+        **kwargs: Any,
+    ) -> AllocationResult:
+        """
+        Feature F874: Master 7-Model Unified Portfolio Allocator (Release R179).
+        Blends Black-Litterman, HERC, Risk Parity, Spectral EVT-CVaR,
+        Lorentz Hyperbolic Optimal Transport, Spectral Triad Barycenter, and Dynamic Regime Compounding Leverage.
+        Enforces Gatheral 3/2-power penalty and Asymmetric Leland Dynamic Buffer Bands.
+        """
+        if isinstance(alpha_vector, dict):
+            s = pd.Series(alpha_vector)
+        else:
+            s = pd.Series(alpha_vector)
+
+        symbols = list(s.index)
+        N = len(symbols)
+        if N == 0:
+            return AllocationResult({}, net_leverage=0.0, gross_leverage=0.0, regime=regime)
+
+        reg_str = str(regime).upper().strip()
+
+        # Determine gross leverage
+        if float(mcsi_score) >= 2.50:
+            lev_target = 0.15
+        elif float(mcsi_score) >= 1.80:
+            lev_target = 0.70
+        elif gross_leverage is not None:
+            lev_target = float(gross_leverage)
+        else:
+            lev_limits = {
+                "BULL_LOW_VOL": 1.85,
+                "RELIEF_RALLY": 1.60,
+                "BULL_HIGH_VOL": 1.35,
+                "SIDEWAYS_LOW_VOL": 1.10,
+                "SIDEWAYS_HIGH_VOL": 0.85,
+                "BEAR_LOW_VOL": 0.40,
+                "BEAR_HIGH_VOL": 0.25,
+                "PANIC_CRISIS": 0.15,
+                "CRISIS": 0.15,
+            }
+            lev_target = float(lev_limits.get(reg_str, 1.00))
+
+        # Model weights per regime
+        mw_dict = self.REGIME_MODEL_WEIGHTS_PHASE178.get(
+            reg_str, self.REGIME_MODEL_WEIGHTS_PHASE178["BULL_LOW_VOL"]
+        )
+
+        raw_scores = s.values.astype(np.float64)
+        scores_shifted = raw_scores - np.max(raw_scores)
+        exp_scores = np.exp(scores_shifted)
+        w_bl = exp_scores / np.sum(exp_scores) * lev_target
+
+        # Model 2: HERC (inverse volatility)
+        if cov_matrix is not None and cov_matrix.shape == (N, N):
+            vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-6))
+        else:
+            vols = np.ones(N) * 0.15
+        inv_v = 1.0 / vols
+        w_herc = inv_v / np.sum(inv_v) * lev_target
+
+        # Model 3: Risk Parity (inverse variance)
+        inv_var = 1.0 / (vols ** 2)
+        w_rp = inv_var / np.sum(inv_var) * lev_target
+
+        # Model 4: Spectral EVT-CVaR
+        w_evt = (inv_v / np.sum(inv_v)) * lev_target
+
+        # Model 5: Hyperbolic OT (Poincaré Barycenter)
+        inv_hyp = 1.0 / (1.0 + np.abs(np.clip(raw_scores / 3.0, -1.0, 1.0)))
+        w_hyper = (inv_hyp * exp_scores)
+        w_hyper = w_hyper / np.sum(w_hyper) * lev_target
+
+        # Model 6: Spectral Triad Barycenter
+        w_bary = (w_bl + w_herc + w_rp) / 3.0
+
+        # Model 7: Regime Compounding Leverage / Kelly
+        w_kelly = exp_scores / np.sum(exp_scores) * lev_target
+
+        # Master 7-Model Weighted Linear Blend
+        w_blended = (
+            mw_dict["black_litterman"] * w_bl +
+            mw_dict["herc"] * w_herc +
+            mw_dict["risk_parity"] * w_rp +
+            mw_dict["evt_cvar"] * w_evt +
+            mw_dict["hyperbolic_ot"] * w_hyper +
+            mw_dict["spectral_barycenter"] * w_bary +
+            mw_dict["regime_leverage"] * w_kelly
+        )
+
+        # Single-stock concentration cap: 5% * gross_leverage via water-filling algorithm
+        eff_cap = max(0.05 * lev_target, lev_target / N)
+        w_work = w_blended / np.sum(w_blended) * lev_target
+        capped = np.zeros(N, dtype=bool)
+        for _ in range(N):
+            exceed = (w_work > eff_cap + 1e-12) & (~capped)
+            if not np.any(exceed):
+                break
+            capped |= exceed
+            w_work[capped] = eff_cap
+            rem_sum = lev_target - float(np.sum(w_work[capped]))
+            uncapped = ~capped
+            if np.any(uncapped) and rem_sum > 0:
+                sub_sum = float(np.sum(w_work[uncapped]))
+                if sub_sum > 1e-12:
+                    w_work[uncapped] = w_work[uncapped] * (rem_sum / sub_sum)
+                else:
+                    w_work[uncapped] = rem_sum / float(np.sum(uncapped))
+            else:
+                break
+
+        w_final_arr = w_work
+
+        target_dict = {sym: float(round(w, 5)) for sym, w in zip(symbols, w_final_arr)}
+
+        # Market impact penalty (Gatheral 3/2 law)
+        vol_dict = {sym: float(v) for sym, v in zip(symbols, vols)}
+        penalty = self.compute_gatheral_market_impact_penalty(
+            weights=target_dict,
+            current_weights=current_weights,
+            adv_dict=adv_dict,
+            vol_dict=vol_dict,
+            total_equity=total_equity,
+        )
+
+        # Apply Asymmetric Leland Dynamic Buffer Bands if requested and current_weights present
+        leland_applied = False
+        exec_weights = target_dict
+        if apply_leland and current_weights is not None:
+            from src.execution.leland_buffer_bands import filter_portfolio_rebalance
+            alpha_dict = {sym: float(s[sym]) for sym in symbols}
+            leland_out = filter_portfolio_rebalance(
+                current_weights=current_weights,
+                target_weights=target_dict,
+                alphas=alpha_dict,
+                volatilities=vol_dict,
+            )
+            exec_weights = leland_out.executable_weights
+            leland_applied = True
+
+        actual_gross = float(sum(exec_weights.values()))
+        actual_net = actual_gross
+
+        return AllocationResult(
+            target_weights=exec_weights,
+            net_leverage=round(actual_net, 4),
+            gross_leverage=round(actual_gross, 4),
+            model_weights=mw_dict,
+            market_impact_penalty=round(penalty, 4),
+            regime=reg_str,
+            leland_filtered=leland_applied,
+            metadata={
+                "symbols_count": N,
+                "pre_leland_weights": target_dict,
+                "synthetic_rows": 0,
+                "version": 178,
+                "release": "R179",
+                "feature": "F874",
+            },
+        )
 
     def allocate_portfolio_phase174(
         self,
@@ -30445,6 +30743,21 @@ __all__ = [
     "compute_lmbmwdh36_evar",
     "lmbmwdh36_evar",
     "trans_singular_evar_v86",
+    "UnifiedPortfolioAllocatorPhase178",
+    "Phase178UnifiedPortfolioAllocator",
+    "F874UnifiedPortfolioAllocator",
+    "VERSION_PHASE178",
+    "RELEASE_PHASE178",
+    "FEATURE_PHASE178",
 ]
+
+UnifiedPortfolioAllocatorPhase178 = UnifiedPortfolioAllocator
+Phase178UnifiedPortfolioAllocator = UnifiedPortfolioAllocator
+F874UnifiedPortfolioAllocator = UnifiedPortfolioAllocator
+
+sys.modules[f"{__name__}.UnifiedPortfolioAllocatorPhase178"] = UnifiedPortfolioAllocator
+sys.modules[f"{__name__}.Phase178UnifiedPortfolioAllocator"] = UnifiedPortfolioAllocator
+sys.modules[f"{__name__}.F874UnifiedPortfolioAllocator"] = UnifiedPortfolioAllocator
+
 
 
