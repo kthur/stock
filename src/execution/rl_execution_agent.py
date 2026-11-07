@@ -939,7 +939,7 @@ class RLOrderExecutionAgent:
         """Feature F830: Predict quantile values across tau in [0.01, 0.99] strictly monotonic."""
         v = self._extract_feature_vector(state)
         base = float(np.mean(v) * 0.001)
-        return np.linspace(base - 0.02, base + 0.01, 29)
+        return np.linspace(base - 0.02, base + 0.01, 33)
 
     def compute_cvar_penalty(self, quantiles: np.ndarray, alpha: float = 0.05) -> float:
         """Feature F830: Downside CVaR penalty in RL objective."""

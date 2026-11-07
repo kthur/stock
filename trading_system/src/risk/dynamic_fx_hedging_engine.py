@@ -29,6 +29,10 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+VERSION_PHASE173: int = 173
+RELEASE_PHASE173: str = "R175"
+FEATURE_PHASE173: str = "F846"
+
 
 # ---------------------------------------------------------------------------
 # Input & Output Dataclasses

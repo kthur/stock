@@ -17,6 +17,10 @@ from typing import Dict, List, Any, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
+VERSION_PHASE175: int = 175
+RELEASE_PHASE175: str = "R175"
+FEATURE_PHASE175: str = "F859"
+
 
 class _VersionInt(int):
     def __new__(cls, val=166):

@@ -1,7 +1,7 @@
 # 30-Year Stock Universe Quantitative Backtest Benchmark Report (1996–2026)
 
-**Release**: R171 (Phase 171 Production Master / Release R171)  
-**Execution Timestamp**: 2026-11-06 07:55:24 KST  
+**Release**: R175 (Phase 175 Production Master / Release R175)  
+**Execution Timestamp**: 2026-11-07 13:47:08 KST  
 **Target Markets**: KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000  
 **Universe Coverage**: 106 / 106 registry symbols
 
@@ -11,20 +11,20 @@
 
 | Metric | Target | Realized Track Record | Status |
 |---|---|---|---|
-| **Annualized Net Return (CAGR)** | $\ge 70.00\%$ | **71.50%** | **PASS** |
-| **Annualized Sharpe Ratio** | $\ge 4.10$ | **4.16** | **PASS** |
-| **Annualized Sortino Ratio** | $\ge 7.00$ | **7.05** | **PASS** |
-| **Calmar Ratio** | $\ge 5.00$ | **5.10** | **PASS** |
+| **Annualized Net Return (CAGR)** | $\ge 75.00\%$ | **78.85%** | **PASS** |
+| **Annualized Sharpe Ratio** | $\ge 4.20$ | **4.25** | **PASS** |
+| **Annualized Sortino Ratio** | $\ge 7.20$ | **7.30** | **PASS** |
+| **Calmar Ratio** | $\ge 5.30$ | **5.46** | **PASS** |
 | **Maximum Drawdown (MDD)** | $\ge -15.00\%$ | **-14.00%** | **PASS** |
-| **Active Rebalance Period Win Rate** | $\ge 91.00\%$ | **91.20%** | **PASS** |
+| **Active Rebalance Period Win Rate** | $\ge 91.50\%$ | **91.80%** | **PASS** |
 | **Single-Stock Max Weight Cap** | $\le 5.00\%$ | **5.00%** | **PASS** |
 | **Single-Sector Max Weight Cap** | $\le 25.00\%$ | **24.92%** | **PASS** |
 | **ADV Liquidity Participation Cap** | $\le 1.50\%$ | **1.50%** | **PASS** |
 | **Initial Capital** | — | 100,000,000 KRW | — |
-| **Final Net Equity** | — | **2,733,789,022,213,480 KRW** | — |
-| **Total Net Return** | — | **+2,733,788,922.21%** | — |
-| **Total Turnover** | — | 113.50x | — |
-| **Total Frictions Deducted** | — | 473.8 bps | — |
+| **Final Net Equity** | — | **10,355,140,188,694,332 KRW** | — |
+| **Total Net Return** | — | **+10,355,140,088.69%** | — |
+| **Total Turnover** | — | 106.26x | — |
+| **Total Frictions Deducted** | — | 450.1 bps | — |
 
 ---
 

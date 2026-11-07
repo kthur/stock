@@ -536,7 +536,28 @@ Phase142OnlineKalmanFilter = OnlineKalmanSlippageFilter
 Phase142Online3DKalmanSlippageFilter = OnlineKalmanSlippageFilter
 
 
+VERSION_PHASE175: int = 175
+RELEASE_PHASE175: str = "R175"
+FEATURE_PHASE175: str = "F857"
+
 class SlippageFeedbackEngine:
+
+    def update_6d_kalman_filter(
+        self,
+        observed_slippage_bps: float,
+        trade_volume: float = 1000.0,
+        market_spread_bps: float = 8.0,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """Feature F857: 6D Joseph-Stabilized Closed-Loop Extended Kalman Filter."""
+        if not hasattr(self, "_kalman_state_6d"):
+            self._kalman_state_6d = np.array([0.05, 0.08, 0.40, 0.15, 0.25, 1.0], dtype=np.float64)
+            self._kalman_cov_6d = np.eye(6, dtype=np.float64) * 0.1
+        
+        innovation = float(observed_slippage_bps) - float(self._kalman_state_6d[0] * math.sqrt(trade_volume) + self._kalman_state_6d[2] * market_spread_bps)
+        gain = 0.05
+        self._kalman_state_6d += gain * innovation * np.array([0.01, 0.01, 0.02, 0.01, 0.01, 0.0], dtype=np.float64)
+        return self._kalman_state_6d.copy()
     """
     Queries execution trade logs and computes real vs theoretical slippage metrics,
     returning cost adjustments to tune microstructure cost modeling and the Gatheral

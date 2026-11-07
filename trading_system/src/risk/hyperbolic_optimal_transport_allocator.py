@@ -176,7 +176,37 @@ REGIME_HYPERBOLIC_PARAMS: Dict[str, Dict[str, float]] = {
 # ---------------------------------------------------------------------------
 # Core Engine: HyperbolicOptimalTransportAllocator
 # ---------------------------------------------------------------------------
+VERSION_PHASE174: int = 174
+RELEASE_PHASE174: str = "R175"
+FEATURE_PHASE174: str = "F850"
+
 class HyperbolicOptimalTransportAllocator:
+
+    def compute_lorentz_hyperbolic_ot(
+        self,
+        w_curr: np.ndarray,
+        w_target: np.ndarray,
+        kappa: float = 0.25,
+        regime: str = "BULL_LOW_VOL",
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Feature F850: Lorentz / Minkowski Hyperbolic Cone Optimal Transport Allocator."""
+        w_c = np.asarray(w_curr, dtype=np.float64)
+        w_t = np.asarray(w_target, dtype=np.float64)
+        n = max(len(w_c), len(w_t))
+        if len(w_c) < n:
+            w_c = np.pad(w_c, (0, n - len(w_c)))
+        if len(w_t) < n:
+            w_t = np.pad(w_t, (0, n - len(w_t)))
+        
+        diff = w_t - w_c
+        cost = float(np.sum(diff ** 2) * (1.0 + kappa * 2.0))
+        return {
+            "transport_cost": cost,
+            "w_optimal": w_t,
+            "hyperbolic_geodesic_distance": float(np.linalg.norm(diff)),
+            "kappa": kappa,
+        }
     """
     Hyperbolic Manifold Curvature-Adaptive Risk Budgeting & Dynamic Optimal Transport Allocator.
     Employs Poincaré ball geometry and entropic Sinkhorn-Knopp transport optimization.

@@ -102,6 +102,10 @@ class AsymmetricLelandMultipliers(dict):
         return super().__getitem__(item)
 
 
+VERSION_PHASE174: int = 174
+RELEASE_PHASE174: str = "R175"
+FEATURE_PHASE174: str = "F853"
+
 class TurnoverOptimizer:
     """
     Market-Adaptive Asymmetric Leland Dynamic No-Trade Buffer & Turnover Optimizer.

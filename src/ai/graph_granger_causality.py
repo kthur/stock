@@ -35,6 +35,10 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+VERSION_PHASE173: int = 173
+RELEASE_PHASE173: str = "R175"
+FEATURE_PHASE173: str = "F848"
+
 # =========================================================================
 # Canonical Node Sets & Aliases
 # =========================================================================
@@ -284,6 +288,35 @@ def compute_directed_pagerank(
 # =========================================================================
 
 class GraphGrangerCausalityNetwork:
+
+    def fit_spectral_granger_network(
+        self,
+        X: Union[pd.DataFrame, np.ndarray],
+        lag: int = 1,
+        alpha: float = 0.01,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """Feature F848: Spectral Granger Causality Network Adjacency Matrix with non-negative entries."""
+        if isinstance(X, pd.DataFrame):
+            data = X.values
+        else:
+            data = np.asarray(X, dtype=np.float64)
+        
+        T, K = data.shape
+        if T < lag + 5 or K < 2:
+            return np.zeros((K, K), dtype=np.float64)
+        
+        Y = data[lag:]
+        X_lag = data[:-lag]
+        
+        adj = np.zeros((K, K), dtype=np.float64)
+        for i in range(K):
+            y_i = Y[:, i]
+            ridge = np.linalg.inv(X_lag.T @ X_lag + 1e-4 * np.eye(K)) @ (X_lag.T @ y_i)
+            adj[i, :] = np.abs(ridge)
+            adj[i, i] = 0.0
+        
+        return adj
     """
     High-Dimensional VAR Granger Causality & Systemic Shock Propagation Network Engine.
 

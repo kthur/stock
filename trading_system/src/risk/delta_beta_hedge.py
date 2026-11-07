@@ -14,6 +14,10 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+VERSION_PHASE173: int = 173
+RELEASE_PHASE173: str = "R175"
+FEATURE_PHASE173: str = "F847"
+
 
 class DeltaBetaHedgeEngine:
     """
@@ -22,6 +26,34 @@ class DeltaBetaHedgeEngine:
 
     def __init__(self, config=None):
         self.config = config
+
+    def fit_nss_yield_curve(
+        self,
+        maturities: np.ndarray,
+        yields: np.ndarray,
+        tau1: float = 1.5,
+        tau2: float = 5.0,
+    ) -> Dict[str, float]:
+        """Feature F847: Nelson-Siegel-Svensson (NSS) 4-Factor Yield Curve Fitting."""
+        m = np.asarray(maturities, dtype=np.float64)
+        y = np.asarray(yields, dtype=np.float64)
+        if len(m) < 4:
+            return {"beta0": float(y[-1] if len(y) > 0 else 0.04), "beta1": -0.01, "beta2": 0.02, "beta3": -0.01, "tau1": tau1, "tau2": tau2}
+        
+        x1 = (1.0 - np.exp(-m / tau1)) / (m / tau1 + 1e-8)
+        x2 = x1 - np.exp(-m / tau1)
+        x3 = (1.0 - np.exp(-m / tau2)) / (m / tau2 + 1e-8) - np.exp(-m / tau2)
+        X = np.column_stack([np.ones_like(m), x1, x2, x3])
+        
+        betas, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
+        return {
+            "beta0": float(betas[0]),
+            "beta1": float(betas[1]),
+            "beta2": float(betas[2]),
+            "beta3": float(betas[3]),
+            "tau1": float(tau1),
+            "tau2": float(tau2),
+        }
 
     def calculate_optimal_hedge_allocation(
         self,

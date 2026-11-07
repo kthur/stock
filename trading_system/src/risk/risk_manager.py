@@ -18,6 +18,10 @@ from src.risk.intraday_stop_loss import IntradayStopLossEngine, StopLossResult
 
 logger = logging.getLogger(__name__)
 
+VERSION_PHASE173: int = 173
+RELEASE_PHASE173: str = "R175"
+FEATURE_PHASE173: str = "F849"
+
 
 class CrisisLevel(Enum):
     """위기 단계"""
@@ -644,6 +648,23 @@ class RiskMetrics:
 
 
 class RiskManager:
+
+    def evaluate_crisis_severity_index(
+        self,
+        vix_velocity: float = 1.0,
+        vix_tsr: float = 1.0,
+        credit_spread_bps: float = 200.0,
+        contagion_eig: float = 0.8,
+        **kwargs: Any,
+    ) -> float:
+        """Feature F849: Systemic Crisis Severity Index Xi_crisis in [0.0, 1.0]."""
+        w_vix = min(1.0, max(0.0, (vix_velocity - 1.0) / 1.5))
+        w_tsr = min(1.0, max(0.0, (vix_tsr - 0.95) / 0.30))
+        w_spread = min(1.0, max(0.0, (credit_spread_bps - 150.0) / 300.0))
+        w_contagion = min(1.0, max(0.0, (contagion_eig - 0.90) / 0.50))
+        
+        xi = 0.35 * w_vix + 0.25 * w_tsr + 0.20 * w_spread + 0.20 * w_contagion
+        return float(np.clip(xi, 0.0, 1.0))
     def __init__(
         self,
         portfolio_value: float = 1000000,

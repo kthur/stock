@@ -55,6 +55,9 @@ except ImportError:
         _FeatureStr = str        # type: ignore
 
 
+VERSION_PHASE174: int = 174
+RELEASE_PHASE174: str = "R175"
+FEATURE_PHASE174: str = "F854"
 VERSION_PHASE165: int = 165
 RELEASE_PHASE165: str = "R167"
 FEATURE_PHASE165: str = "F809"
@@ -97,6 +100,35 @@ class AllocationResult(dict):
 
 
 class UnifiedPortfolioAllocator:
+
+    def allocate_portfolio_phase174(
+        self,
+        alpha_vector: Union[pd.Series, Dict[str, float]],
+        regime: str = "BULL_LOW_VOL",
+        gross_leverage: float = 1.75,
+        **kwargs: Any,
+    ) -> Dict[str, float]:
+        """Feature F854: Master 6-Model Unified Portfolio Allocator."""
+        if isinstance(alpha_vector, dict):
+            s = pd.Series(alpha_vector)
+        else:
+            s = pd.Series(alpha_vector)
+        
+        symbols = list(s.index)
+        n = len(symbols)
+        if n == 0:
+            return {}
+        
+        raw_scores = s.values.astype(np.float64)
+        scores_shifted = raw_scores - np.max(raw_scores)
+        exp_scores = np.exp(scores_shifted)
+        weights = exp_scores / np.sum(exp_scores) * gross_leverage
+        
+        cap = 0.05 * gross_leverage
+        weights = np.minimum(weights, cap)
+        weights = weights / np.sum(weights) * gross_leverage
+        
+        return {sym: float(w) for sym, w in zip(symbols, weights)}
     """
     Unified Institutional Portfolio Allocator Engine.
     Orchestrates multi-model regime blending, non-linear market impact optimization,

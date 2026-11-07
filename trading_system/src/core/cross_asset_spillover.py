@@ -35,6 +35,12 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+VERSION_PHASE173: int = 173
+RELEASE_PHASE173: str = "R175"
+FEATURE_PHASE173: str = "F845"
+
+GLOBAL_MACRO_FACTORS: List[str] = ["sox", "usdkrw", "tnx", "wti", "gold", "dxy", "vix", "sp500"]
+
 # Sector Elasticity Coefficients across Global Macro Drivers (SOX, FX, WTI, TNX, VIX, Gold, DXY, SP500)
 # Positive = Sector thrives on factor appreciation / growth; Negative = Sector suffers from factor rise.
 DEFAULT_SECTOR_MACRO_BETAS: Dict[str, Dict[str, float]] = {
@@ -99,6 +105,9 @@ DEFAULT_SECTOR_MACRO_BETAS: Dict[str, Dict[str, float]] = {
     "Market": {"sox": 0.50, "usdkrw": 0.20, "tnx": 0.00, "wti": 0.10, "vix": -0.80, "sp500": 1.00, "gold": 0.10, "dxy": 0.00},
 }
 
+SECTOR_MACRO_ELASTICITY_MATRIX: Dict[str, Dict[str, float]] = DEFAULT_SECTOR_MACRO_BETAS
+
+
 
 @register_strategy(
     StrategyMeta(
@@ -141,6 +150,34 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
         self.GraphGrangerCausalityNetwork = GraphGrangerCausalityNetwork
         self.HighDimensionalGrangerNetwork = HighDimensionalGrangerNetwork
         self.Phase110GrangerSpilloverEngine = Phase110GrangerSpilloverEngine
+
+    def compute_dynamic_macro_elasticity(
+        self,
+        sector: str,
+        macro_vol: float = 0.15,
+        **kwargs: Any,
+    ) -> float:
+        """Feature F845: Dynamic Sector Macro Elasticity adapting to macro volatility regime."""
+        betas = DEFAULT_SECTOR_MACRO_BETAS.get(sector, DEFAULT_SECTOR_MACRO_BETAS.get("Market", {}))
+        base_beta = float(betas.get("sox", 1.0) if "sox" in betas else 1.0)
+        vol_scalar = 1.0 + 0.5 * (macro_vol - 0.15) / 0.15
+        dynamic_beta = float(np.clip(base_beta * vol_scalar, -3.0, 3.0))
+        return dynamic_beta
+
+    def compute_macro_impulse_vector(
+        self,
+        macro_shocks: Dict[str, float],
+        sector: str = "Semiconductor",
+        **kwargs: Any,
+    ) -> float:
+        """Feature F845: Overnight Macro Shock Impulse Calculation across global drivers."""
+        betas = DEFAULT_SECTOR_MACRO_BETAS.get(sector, DEFAULT_SECTOR_MACRO_BETAS.get("Market", {}))
+        impulse = 0.0
+        for factor, shock in macro_shocks.items():
+            f_norm = str(factor).lower().replace("/", "")
+            beta = float(betas.get(f_norm, betas.get(factor, 0.0)))
+            impulse += float(shock) * beta
+        return float(impulse)
 
     def _extract_macro_vector(self, indicators_df: Optional[Any], is_krx: bool = False) -> Dict[str, float]:
         """

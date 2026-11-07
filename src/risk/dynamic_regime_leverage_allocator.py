@@ -370,6 +370,10 @@ class CorrelationBreakdownBrake:
         }
 
 
+VERSION_PHASE174: int = 174
+RELEASE_PHASE174: str = "R175"
+FEATURE_PHASE174: str = "F851"
+
 class DynamicRegimeLeverageAllocator:
     """
     Dynamic Regime Leverage & Multi-Asset Fractional Kelly Allocator.
@@ -1667,7 +1671,7 @@ class DynamicRegimeLeverageAllocator:
     ) -> float:
         """Feature F826: Returns gross leverage frontier limit for regime (up to 1.70x)."""
         limits = {
-            "BULL_LOW_VOL": 1.70,
+            "BULL_LOW_VOL": 1.75,
             "BULL_HIGH_VOL": 1.35,
             "SIDEWAYS_LOW_VOL": 1.15,
             "SIDEWAYS_HIGH_VOL": 0.90,

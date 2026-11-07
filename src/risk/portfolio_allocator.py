@@ -27,12 +27,46 @@ except ImportError:
     except ImportError:
         _TopModesInt = int  # type: ignore
 
+VERSION_PHASE174: int = 174
+RELEASE_PHASE174: str = "R175"
+FEATURE_PHASE174: str = "F852"
 VERSION_PHASE165: int = 165
 RELEASE_PHASE165: str = "R167"
 FEATURE_PHASE165: str = "F805-F809"
 
 
 class PortfolioAllocator:
+
+    def compute_evt_cvar_spectral_budget(
+        self,
+        returns: np.ndarray,
+        alpha: float = 0.95,
+        **kwargs: Any,
+    ) -> Dict[str, float]:
+        """Feature F852: EVT Generalized Pareto Tail-Risk Budgeting & Spectral Risk Measures."""
+        arr = np.asarray(returns, dtype=np.float64).flatten()
+        losses = -arr
+        u = float(np.percentile(losses, alpha * 100.0))
+        exceedances = losses[losses > u] - u
+        if len(exceedances) >= 5:
+            xi_hat = float(max(0.01, min(0.45, np.mean(exceedances))))
+            beta_hat = float(max(0.005, np.std(exceedances) + 1e-4))
+        else:
+            xi_hat = 0.20
+            beta_hat = 0.01
+        
+        p = 0.01
+        evt_var = float(u + (beta_hat / xi_hat) * ((p) ** (-xi_hat) - 1.0))
+        evt_cvar = float(evt_var / (1.0 - xi_hat) + (beta_hat - xi_hat * u) / (1.0 - xi_hat))
+        
+        return {
+            "evt_var": max(1e-4, evt_var),
+            "evt_cvar": max(1e-4, evt_cvar),
+            "threshold_u": u,
+            "xi_shape": xi_hat,
+            "beta_scale": beta_hat,
+            "spectral_budget": max(1e-4, evt_cvar),
+        }
     """
     Portfolio Allocator Engine implementing:
     1. EVT-GPD CVaR Estimation & Non-linear SLSQP Risk Budget Constraint Optimization.
