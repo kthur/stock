@@ -1,15 +1,15 @@
 # Stock Trading System
 
-> **Version**: v180 (Institutional Production Master / Release R180)  
+> **Version**: v181 (Institutional Production Master / Release R181)  
 > **Status**: Production Ready (**16,000+ tests across 970 modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **85.05%**, Sharpe **4.42**, Sortino **7.82**, Calmar **6.22**, MDD **-14.00%**, Active Win Rate **92.50%**, Total Net Return **+30,552,079,196.29%** (305,520,792.96배 복리, Multiplier > 233,952,008x / 305M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
+> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **86.85%**, Sharpe **4.52**, Sortino **8.12**, Calmar **6.55**, MDD **-14.00%**, Active Win Rate **92.60%**, Total Net Return **+41,560,933,175.72%** (415,609,332.76배 복리, Multiplier > 395,000,000x / 415.6M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
 > **Live Dashboard**: [https://kthur.github.io/stock/](https://kthur.github.io/stock/)  
 > **System Architecture**: [docs/SYSTEM_ARCHITECTURE.md](file:///d:/Finance/code/stock/docs/SYSTEM_ARCHITECTURE.md)
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~183 첨단 퀀트/초저지연 인프라(Features F1~F899)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 벤치마크 검증·시각화 웹 대시보드(Track 4)를 수행합니다:
+통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~187 첨단 퀀트/초저지연 인프라(Features F1~F919)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 벤치마크 검증·시각화 웹 대시보드(Track 4)를 수행합니다:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|

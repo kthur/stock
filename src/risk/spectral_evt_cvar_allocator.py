@@ -81,7 +81,97 @@ def compute_evt_cvar_spectral_budget(
     )
 
 
+
+VERSION_PHASE186: int = 186
+RELEASE_PHASE186: str = "R181"
+FEATURE_PHASE186: str = "F912"
+
+ClampedSpectralEVTCVaRAllocator = SpectralEVTCVaRAllocator
+Phase186SpectralEVTCVaREngine = SpectralEVTCVaRAllocator
+F912SpectralEVTCVaR = SpectralEVTCVaRAllocator
+
+def compute_clamped_gpd_spectral_cvar(
+    losses: np.ndarray,
+    alpha: float = 0.95,
+    gamma: float = 5.0,
+    xi_bounds: Tuple[float, float] = (-0.5, 0.5),
+) -> Dict[str, float]:
+    arr = np.asarray(losses, dtype=np.float64).flatten()
+    arr = arr[np.isfinite(arr)]
+    if len(arr) == 0:
+        return {"var": 0.0, "cvar": 0.0, "xi": 0.0, "beta": 1.0, "spectral_es": 0.0}
+    u = float(np.percentile(arr, alpha * 100))
+    exceedances = arr[arr > u] - u
+    if len(exceedances) < 5:
+        c = float(np.mean(arr[arr >= u])) if len(arr[arr >= u]) > 0 else u
+        return {"var": u, "cvar": c, "xi": 0.1, "beta": 1.0, "spectral_es": c}
+    m = float(np.mean(exceedances))
+    s2 = float(np.var(exceedances, ddof=1)) if len(exceedances) > 1 else m**2
+    xi = float(np.clip(0.5 * (1.0 - (m ** 2) / (s2 + 1e-8)), xi_bounds[0], xi_bounds[1]))
+    beta = float(max(1e-6, 0.5 * m * ((m ** 2) / (s2 + 1e-8) + 1.0)))
+    n = len(arr)
+    nu = len(exceedances)
+    ratio = max(1e-8, (n / max(1, nu)) * (1.0 - alpha))
+    if abs(xi) > 1e-4:
+        var = u + (beta / xi) * (ratio ** (-xi) - 1.0)
+        cvar = (var + beta - xi * u) / (1.0 - xi)
+    else:
+        var = u - beta * np.log(ratio)
+        cvar = var + beta
+    return {
+        "var": float(var),
+        "cvar": float(max(var, cvar)),
+        "xi": float(xi),
+        "beta": float(beta),
+        "spectral_es": float(max(var, cvar)),
+    }
+
+def compute_spectral_evt_cvar_risk_budget_phase186(
+    returns: Union[np.ndarray, pd.DataFrame],
+    alpha: float = 0.95,
+    gamma: float = 5.0,
+    xi_bounds: Tuple[float, float] = (-0.5, 0.5),
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    if isinstance(returns, pd.DataFrame):
+        arr = returns.values
+    else:
+        arr = np.asarray(returns, dtype=np.float64)
+    if arr.ndim == 1:
+        arr = arr.reshape(-1, 1)
+    n_assets = arr.shape[1]
+    
+    cvars = []
+    xis = []
+    for j in range(n_assets):
+        losses = -arr[:, j]
+        res = compute_clamped_gpd_spectral_cvar(losses, alpha=alpha, gamma=gamma, xi_bounds=xi_bounds)
+        cvars.append(max(1e-6, res["cvar"]))
+        xis.append(res["xi"])
+    
+    inv_risk = [1.0 / c for c in cvars]
+    tot = sum(inv_risk)
+    weights = [x / tot for x in inv_risk]
+    
+    return {
+        "risk_budget_weights": weights,
+        "weights": weights,
+        "cvars": cvars,
+        "xis": xis,
+        "version": 186,
+        "release": "R181",
+        "feature": "F912",
+        "synthetic_rows": 0,
+    }
+
 __all__ = [
+    "VERSION_PHASE186",
+    "RELEASE_PHASE186",
+    "FEATURE_PHASE186",
+    "ClampedSpectralEVTCVaRAllocator",
+    "compute_clamped_gpd_spectral_cvar",
+    "compute_spectral_evt_cvar_risk_budget_phase186",
+
     "VERSION",
     "RELEASE",
     "FEATURE",

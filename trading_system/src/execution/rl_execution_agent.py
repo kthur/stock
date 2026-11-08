@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any, Dict, List, Optional
 
+import sys
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -1952,7 +1953,35 @@ Phase146RLExecutionAgent = RLOrderExecutionAgent
 Phase142RLOrderExecutionAgent = RLOrderExecutionAgent
 Phase142RLExecutionAgent = RLOrderExecutionAgent
 
+
+VERSION_PHASE187: int = 187
+RELEASE_PHASE187: str = "R181"
+FEATURE_PHASE187: str = "F915"
+
+class DistributionalSAC85QuantileCritic(DistributionalSAC75QuantileCritic):
+    def __init__(self, state_dim: int = 12, num_actions: int = 4, num_quantiles: int = 85, **kwargs):
+        super().__init__(state_dim=state_dim, num_actions=num_actions, num_quantiles=num_quantiles, **kwargs)
+
+class DistributionalSAC85QuantileAgent(DistributionalSAC75QuantileAgent):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.num_quantiles = 85
+        self.critic = DistributionalSAC85QuantileCritic(risk_aversion=self.risk_aversion)
+
+RLExecutionAgentPhase187 = DistributionalSAC85QuantileAgent
+
+sys.modules[f"{__name__}.DistributionalSAC85QuantileCritic"] = DistributionalSAC85QuantileCritic
+sys.modules[f"{__name__}.DistributionalSAC85QuantileAgent"] = DistributionalSAC85QuantileAgent
+sys.modules[f"{__name__}.RLExecutionAgentPhase187"] = DistributionalSAC85QuantileAgent
+
 __all__ = [
+    "VERSION_PHASE187",
+    "RELEASE_PHASE187",
+    "FEATURE_PHASE187",
+    "DistributionalSAC85QuantileCritic",
+    "DistributionalSAC85QuantileAgent",
+    "RLExecutionAgentPhase187",
+
     "VERSION",
     "RELEASE",
     "FEATURE",

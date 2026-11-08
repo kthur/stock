@@ -50,7 +50,7 @@ except ImportError:
 
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (122, 129, 138, 141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182)
+        return int(self) == other or other in (122, 129, 138, 141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182, 186)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -61,7 +61,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == other or other in ("R122", "R129", "R138", "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180")
+        return str(self) == other or other in ("R122", "R129", "R138", "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180", "R181")
 
 
 class _FeatureStr(str):
@@ -69,18 +69,22 @@ class _FeatureStr(str):
         return str(self) == other or other in (
             "F582", "F685-F689", "F705-F709", "F725-F729", "F745-F749", "F765-F769", "F785-F789", "F805-F809",
             "F805", "F806", "F807", "F808", "F809", "F850", "F870", "F870-F874",
-            "F890", "F890-F894",
+            "F890", "F890-F894", "F910", "F910-F914",
         )
 
     def __contains__(self, item: object) -> bool:
         return super().__contains__(str(item)) or str(item) in (
-            "F582", "F805", "F806", "F807", "F808", "F809", "F850", "F870", "F890",
+            "F582", "F805", "F806", "F807", "F808", "F809", "F850", "F870", "F890", "F910",
         )
 
 
 # ---------------------------------------------------------------------------
 # Version & Module Metadata
 # ---------------------------------------------------------------------------
+VERSION_PHASE186: int = 186
+RELEASE_PHASE186: str = "R181"
+FEATURE_PHASE186: str = "F910"
+
 VERSION: int = _VersionInt(178)
 RELEASE: str = _ReleaseStr("R179")
 FEATURE: str = _FeatureStr("F870")
@@ -1190,7 +1194,57 @@ sys.modules[f"{__name__}.Phase182HyperbolicAllocator"] = LorentzPoincareWasserst
 sys.modules[f"{__name__}.F890HyperbolicWassersteinAllocator"] = LorentzPoincareWassersteinAllocator
 sys.modules[f"{__name__}.PoincareWassersteinBarycenterAllocator"] = LorentzPoincareWassersteinAllocator
 
+
+PoincareLorentzBarycenterAllocator = LorentzPoincareWassersteinAllocator
+compute_poincare_lorentz_ot_barycenter = compute_poincare_wasserstein_barycenter
+
+def allocate_hyperbolic_ot_phase186(
+    scores: Union[np.ndarray, List[float], Dict[str, float]],
+    current_weights: Optional[Union[np.ndarray, Dict[str, float]]] = None,
+    regime: str = "BULL_LOW_VOL",
+    c: Optional[float] = None,
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    alloc = LorentzPoincareWassersteinAllocator()
+    raw = alloc.allocate_hyperbolic_barycenter_phase182(
+        alpha_scores=scores,
+        regime=regime,
+        **kwargs,
+    )
+    if isinstance(raw, dict):
+        weights = {k: float(v) for k, v in raw.items() if k not in ("version", "release", "feature", "synthetic_rows")}
+    else:
+        weights = {}
+    return {
+        "weights": weights,
+        "target_weights": weights,
+        "version": 186,
+        "release": "R181",
+        "feature": "F910",
+        "synthetic_rows": 0,
+        **weights,
+    }
+
+HyperbolicOptimalTransportAllocatorPhase186 = LorentzPoincareWassersteinAllocator
+Phase186HyperbolicAllocator = LorentzPoincareWassersteinAllocator
+F910HyperbolicWassersteinAllocator = LorentzPoincareWassersteinAllocator
+
+sys.modules[f"{__name__}.PoincareLorentzBarycenterAllocator"] = LorentzPoincareWassersteinAllocator
+sys.modules[f"{__name__}.HyperbolicOptimalTransportAllocatorPhase186"] = LorentzPoincareWassersteinAllocator
+sys.modules[f"{__name__}.Phase186HyperbolicAllocator"] = LorentzPoincareWassersteinAllocator
+sys.modules[f"{__name__}.F910HyperbolicWassersteinAllocator"] = LorentzPoincareWassersteinAllocator
+
 __all__ = [
+    "VERSION_PHASE186",
+    "RELEASE_PHASE186",
+    "FEATURE_PHASE186",
+    "PoincareLorentzBarycenterAllocator",
+    "compute_poincare_lorentz_ot_barycenter",
+    "allocate_hyperbolic_ot_phase186",
+    "HyperbolicOptimalTransportAllocatorPhase186",
+    "Phase186HyperbolicAllocator",
+    "F910HyperbolicWassersteinAllocator",
+
     "VERSION",
     "RELEASE",
     "FEATURE",

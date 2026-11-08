@@ -7,6 +7,7 @@ of the Gatheral/Almgren-Chriss market impact coefficient (kappa) and spread frac
 """
 
 from __future__ import annotations
+import sys
 
 import logging
 import math
@@ -1685,7 +1686,41 @@ TenDimensionalJosephKalmanFilterPhase183 = TenDimensionalJosephKalmanFilter
 SlippageFeedbackEnginePhase183 = SlippageFeedbackEngine
 Phase183SlippageFeedbackEngine = SlippageFeedbackEngine
 
+
+VERSION_PHASE187: int = 187
+RELEASE_PHASE187: str = "R181"
+FEATURE_PHASE187: str = "F917"
+
+class TwelveDimensionalJosephKalmanFilter(TenDimensionalJosephKalmanFilter):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.state_dim = 12
+        self.x = np.zeros(12, dtype=np.float64)
+        self.P = np.eye(12, dtype=np.float64) * 0.1
+        self.Q = np.eye(12, dtype=np.float64) * 1e-4
+
+    def update(self, z: float, H: Optional[np.ndarray] = None, R: float = 0.05) -> np.ndarray:
+        if H is None:
+            H = np.zeros((1, 12), dtype=np.float64)
+            H[0, 0] = 1.0
+        pred = float(np.asarray(H @ self.x).item())
+        y = float(z - pred)
+        s_val = float(np.asarray(H @ self.P @ H.T).item())
+        S = float(s_val + R)
+        K = (self.P @ H.T) / max(1e-8, S)
+        self.x = self.x + (K * y).flatten()
+        I_KH = np.eye(12) - K @ H
+        self.P = I_KH @ self.P @ I_KH.T + (K * R) @ K.T
+        return self.x
+
+sys.modules[f"{__name__}.TwelveDimensionalJosephKalmanFilter"] = TwelveDimensionalJosephKalmanFilter
+
 __all__ = [
+    "VERSION_PHASE187",
+    "RELEASE_PHASE187",
+    "FEATURE_PHASE187",
+    "TwelveDimensionalJosephKalmanFilter",
+
     "VERSION",
     "RELEASE",
     "FEATURE",

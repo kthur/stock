@@ -508,6 +508,41 @@ class UnifiedPortfolioAllocator:
             },
         )
 
+    def allocate_portfolio_phase186(
+        self,
+        alpha_vector: Union[pd.Series, Dict[str, float]],
+        current_weights: Optional[Dict[str, float]] = None,
+        regime: str = "BULL_LOW_VOL",
+        gross_leverage: Optional[float] = None,
+        cov_matrix: Optional[np.ndarray] = None,
+        mcsi_score: float = 0.0,
+        apply_leland: bool = True,
+        adv_dict: Optional[Dict[str, float]] = None,
+        total_equity: float = 10_000_000_000.0,
+        kurtosis_dict: Optional[Dict[str, float]] = None,
+        contango_days: int = 5,
+        vts_ratio: float = 0.90,
+        **kwargs: Any,
+    ) -> AllocationResult:
+        """Feature F914: Master 8-Model Unified Portfolio Allocator (Release R181 / Phase 186)."""
+        if gross_leverage is None and regime == "BULL_LOW_VOL" and contango_days >= 5 and vts_ratio <= 0.92:
+            gross_leverage = 2.05
+        return self.allocate_portfolio_phase182(
+            alpha_vector=alpha_vector,
+            current_weights=current_weights,
+            regime=regime,
+            gross_leverage=gross_leverage,
+            cov_matrix=cov_matrix,
+            mcsi_score=mcsi_score,
+            apply_leland=apply_leland,
+            adv_dict=adv_dict,
+            total_equity=total_equity,
+            kurtosis_dict=kurtosis_dict,
+            contango_days=contango_days,
+            vts_ratio=vts_ratio,
+            **kwargs,
+        )
+
     def allocate_portfolio_phase182(
         self,
         alpha_vector: Union[pd.Series, Dict[str, float]],
@@ -30510,7 +30545,45 @@ compute_lurie_drinfeld_higher_homology_4_evar_risk_measure = compute_trans_singu
 compute_lurie_drinfeld_higher_homology_4_evar = compute_trans_singular_eternal_omni_cosmic_infinite_supreme_transcendent_clausen_scholze_deligne_beilinson_w_algebra_virasoro_kac_moody_borcherds_moonshine_monster_whittaker_drinfeld_higher_homology_4_evar_risk_measure
 
 
+
+VERSION_PHASE186: int = 186
+RELEASE_PHASE186: str = "R181"
+FEATURE_PHASE186: str = "F914"
+
+UnifiedPortfolioAllocatorPhase186 = UnifiedPortfolioAllocator
+Phase186UnifiedPortfolioAllocator = UnifiedPortfolioAllocator
+F914UnifiedPortfolioAllocator = UnifiedPortfolioAllocator
+
+def allocate_portfolio_phase186(
+    alpha_vector: Union[pd.Series, Dict[str, float]],
+    current_weights: Optional[Dict[str, float]] = None,
+    regime: str = "BULL_LOW_VOL",
+    gross_leverage: Optional[float] = None,
+    cov_matrix: Optional[np.ndarray] = None,
+    **kwargs: Any,
+) -> AllocationResult:
+    alloc = UnifiedPortfolioAllocator()
+    return alloc.allocate_portfolio_phase186(
+        alpha_vector=alpha_vector,
+        current_weights=current_weights,
+        regime=regime,
+        gross_leverage=gross_leverage,
+        cov_matrix=cov_matrix,
+        **kwargs,
+    )
+
+sys.modules[f"{__name__}.UnifiedPortfolioAllocatorPhase186"] = UnifiedPortfolioAllocator
+sys.modules[f"{__name__}.Phase186UnifiedPortfolioAllocator"] = UnifiedPortfolioAllocator
+
 __all__ = [
+    "VERSION_PHASE186",
+    "RELEASE_PHASE186",
+    "FEATURE_PHASE186",
+    "UnifiedPortfolioAllocatorPhase186",
+    "Phase186UnifiedPortfolioAllocator",
+    "F914UnifiedPortfolioAllocator",
+    "allocate_portfolio_phase186",
+
     "UnifiedPortfolioAllocator",
     "compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_53_fisher_rao_barycenter_blend",
     "compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_53_barycenter",

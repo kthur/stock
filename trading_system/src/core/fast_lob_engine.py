@@ -17,6 +17,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Any, Deque, Union
 
+import sys
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -174,6 +175,9 @@ FEATURE_PHASE179: str = "F876"
 VERSION_PHASE183: int = 183
 RELEASE_PHASE183: str = "R180"
 FEATURE_PHASE183: str = "F896"
+VERSION_PHASE187: int = 187
+RELEASE_PHASE187: str = "R181"
+FEATURE_PHASE187: str = "F916"
 
 LATENCY_TARGET_US: float = 30.0
 LATENCY_TARGET_US_PHASE179: float = 25.0
@@ -25446,3 +25450,6 @@ from src.core.streaming_feed_adapter import StreamingLOBManager, MultiSymbolLOBM
 
 
 
+
+MicrosecondL3HawkesMatchingCore = FastOrderBookMatchingEngine
+sys.modules[f"{__name__}.MicrosecondL3HawkesMatchingCore"] = FastOrderBookMatchingEngine

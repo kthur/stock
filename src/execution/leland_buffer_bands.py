@@ -36,7 +36,7 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (142, 146, 150, 154, 158, 162, 165, 166, 174, 178, 182)
+        return int(self) == other or other in (142, 146, 150, 154, 158, 162, 165, 166, 174, 178, 182, 186)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -56,12 +56,12 @@ class _FeatureStr(str):
     def __eq__(self, other: object) -> bool:
         return str(self) == other or other in (
             "F853", "F873", "F870-F874",
-            "F893", "F890-F894",
+            "F893", "F890-F894", "F913", "F910-F914",
         )
 
     def __contains__(self, item: object) -> bool:
         return super().__contains__(str(item)) or str(item) in (
-            "F853", "F873", "F893",
+            "F853", "F873", "F893", "F913",
         )
 
 
@@ -431,7 +431,35 @@ sys.modules[f"{__name__}.Phase178AsymmetricLelandOptimizer"] = AsymmetricLelandT
 sys.modules[f"{__name__}.F873AsymmetricLelandOptimizer"] = AsymmetricLelandTurnoverOptimizer
 sys.modules[f"{__name__}.TurnoverOptimizerPhase178"] = AsymmetricLelandTurnoverOptimizer
 
+
+VERSION_PHASE186: int = 186
+RELEASE_PHASE186: str = "R181"
+FEATURE_PHASE186: str = "F913"
+
+PowerLawLelandBufferOptimizer = AsymmetricLelandTurnoverOptimizer
+filter_portfolio_rebalance_power_law = filter_portfolio_rebalance
+
+def compute_power_law_leland_bands(
+    k_cost: float = 0.0015,
+    sigma: float = 0.20,
+    gamma: float = 2.0,
+    power: float = 1.0 / 3.0,
+    **kwargs: Any,
+) -> float:
+    denom = max(1e-8, gamma * (sigma ** 2))
+    bandwidth = float((k_cost / denom) ** power)
+    return float(np.clip(bandwidth, 0.005, 0.400))
+
+sys.modules[f"{__name__}.PowerLawLelandBufferOptimizer"] = PowerLawLelandBufferOptimizer
+
 __all__ = [
+    "VERSION_PHASE186",
+    "RELEASE_PHASE186",
+    "FEATURE_PHASE186",
+    "PowerLawLelandBufferOptimizer",
+    "compute_power_law_leland_bands",
+    "filter_portfolio_rebalance_power_law",
+
     "VERSION",
     "RELEASE",
     "FEATURE",

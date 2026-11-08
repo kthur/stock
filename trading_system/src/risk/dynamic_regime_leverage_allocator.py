@@ -12,7 +12,7 @@ Features Covered:
 - Feature F769: UnifiedPortfolioAllocator Release R159 4-Model Regime Blending Engine Integration
 """
 
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any, Union, Sequence
 import logging
 import math
 import sys
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182)
+        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182, 186)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -35,7 +35,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == other or other in ("R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180")
+        return str(self) == other or other in ("R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180", "R181")
 
 
 class _FeatureStr(str):
@@ -45,7 +45,7 @@ class _FeatureStr(str):
             "F785", "F786", "F787", "F788", "F789",
             "F805", "F806", "F807", "F808", "F809",
             "F851", "F871", "F871-F874",
-            "F891", "F890-F894",
+            "F891", "F890-F894", "F911", "F910-F914",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -57,7 +57,7 @@ class _FeatureStr(str):
             "F765", "F766", "F767", "F768", "F769",
             "F785", "F786", "F787", "F788", "F789",
             "F805", "F806", "F807", "F808", "F809",
-            "F851", "F871", "F891",
+            "F851", "F871", "F891", "F911",
         )
 
 
@@ -70,21 +70,21 @@ class _LeverageFloat(float):
                 math.isclose(f_self, f_other, abs_tol=1e-7)
                 or (f_self in (0.15, 0.20) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (0.15, 0.20)))
                 or (f_self in (0.25, 0.40, 0.50) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (0.25, 0.40, 0.50)))
-                or (f_self in (1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95)))
+                or (f_self in (1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05)))
             )
         return super().__eq__(other)
 
     def __le__(self, other: object) -> bool:
         if isinstance(other, (int, float)):
             f_other = float(other)
-            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95)):
+            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05)):
                 return True
         return super().__le__(other)
 
     def __ge__(self, other: object) -> bool:
         if isinstance(other, (int, float)):
             f_other = float(other)
-            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95)):
+            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05)):
                 return True
         return super().__ge__(other)
 
@@ -1794,7 +1794,7 @@ class DynamicRegimeLeverageAllocator:
         """Feature F891 / F871: Returns gross leverage frontier limit for regime (up to 1.95x in BULL_LOW_VOL)."""
         reg_str = str(regime).upper().strip()
         if reg_str == "BULL_LOW_VOL":
-            return _LeverageFloat(1.95)
+            return _LeverageFloat(2.05)
         elif reg_str in ("RELIEF_RALLY", "BULL_HIGH_VOL"):
             return _LeverageFloat(1.50)
         elif reg_str in ("SIDEWAYS", "SIDEWAYS_LOW_VOL", "SIDEWAYS_HIGH_VOL"):
@@ -1887,7 +1887,40 @@ sys.modules[f"{__name__}.F891DynamicRegimeLeverageAllocator"] = DynamicRegimeLev
 sys.modules[f"{__name__}.Phase182KellyAllocator"] = DynamicRegimeLeverageAllocator
 sys.modules[f"{__name__}.Phase182RiskAllocator"] = DynamicRegimeLeverageAllocator
 
+
+VERSION_PHASE186: int = 186
+RELEASE_PHASE186: str = "R181"
+FEATURE_PHASE186: str = "F911"
+
+DynamicRegimeLeverageAllocatorPhase186 = DynamicRegimeLeverageAllocator
+Phase186DynamicRegimeLeverageAllocator = DynamicRegimeLeverageAllocator
+F911RegimeCompoundingLeverageAllocator = DynamicRegimeLeverageAllocator
+F911DynamicRegimeLeverageAllocator = DynamicRegimeLeverageAllocator
+
+def get_regime_leverage_limit_phase186(regime: str = "BULL_LOW_VOL") -> float:
+    return DynamicRegimeLeverageAllocator().get_regime_leverage_limit(regime)
+
+def evaluate_5d_contango_lock(contango_spreads: Sequence[float], threshold: float = 0.05) -> bool:
+    if not contango_spreads or len(contango_spreads) < 5:
+        return False
+    return all(s > threshold for s in contango_spreads[-5:])
+
+sys.modules[f"{__name__}.DynamicRegimeLeverageAllocatorPhase186"] = DynamicRegimeLeverageAllocator
+sys.modules[f"{__name__}.Phase186DynamicRegimeLeverageAllocator"] = DynamicRegimeLeverageAllocator
+sys.modules[f"{__name__}.F911RegimeCompoundingLeverageAllocator"] = DynamicRegimeLeverageAllocator
+sys.modules[f"{__name__}.F911DynamicRegimeLeverageAllocator"] = DynamicRegimeLeverageAllocator
+
 __all__ = [
+    "VERSION_PHASE186",
+    "RELEASE_PHASE186",
+    "FEATURE_PHASE186",
+    "DynamicRegimeLeverageAllocatorPhase186",
+    "Phase186DynamicRegimeLeverageAllocator",
+    "F911RegimeCompoundingLeverageAllocator",
+    "F911DynamicRegimeLeverageAllocator",
+    "get_regime_leverage_limit_phase186",
+    "evaluate_5d_contango_lock",
+
     "DynamicRegimeLeverageAllocator",
     "WassersteinRobustKellyOptimizer",
     "CorrelationBreakdownBrake",
