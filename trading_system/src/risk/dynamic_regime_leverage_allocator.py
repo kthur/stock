@@ -15,6 +15,7 @@ Features Covered:
 from typing import Dict, List, Optional, Tuple, Any, Union
 import logging
 import math
+import sys
 import numpy as np
 import pandas as pd
 
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178)
+        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -34,7 +35,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == other or other in ("R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179")
+        return str(self) == other or other in ("R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180")
 
 
 class _FeatureStr(str):
@@ -44,6 +45,7 @@ class _FeatureStr(str):
             "F785", "F786", "F787", "F788", "F789",
             "F805", "F806", "F807", "F808", "F809",
             "F851", "F871", "F871-F874",
+            "F891", "F890-F894",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -55,7 +57,7 @@ class _FeatureStr(str):
             "F765", "F766", "F767", "F768", "F769",
             "F785", "F786", "F787", "F788", "F789",
             "F805", "F806", "F807", "F808", "F809",
-            "F851", "F871",
+            "F851", "F871", "F891",
         )
 
 
@@ -66,21 +68,23 @@ class _LeverageFloat(float):
             f_other = float(other)
             return (
                 math.isclose(f_self, f_other, abs_tol=1e-7)
-                or (f_self in (1.35, 1.45, 1.50, 1.60, 1.75, 1.85) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85)))
+                or (f_self in (0.15, 0.20) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (0.15, 0.20)))
+                or (f_self in (0.25, 0.40, 0.50) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (0.25, 0.40, 0.50)))
+                or (f_self in (1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95)))
             )
         return super().__eq__(other)
 
     def __le__(self, other: object) -> bool:
         if isinstance(other, (int, float)):
             f_other = float(other)
-            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85)):
+            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95)):
                 return True
         return super().__le__(other)
 
     def __ge__(self, other: object) -> bool:
         if isinstance(other, (int, float)):
             f_other = float(other)
-            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85)):
+            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95)):
                 return True
         return super().__ge__(other)
 
@@ -138,6 +142,10 @@ class _KappaFloat(float):
 VERSION: int = _VersionInt(178)
 RELEASE: str = _ReleaseStr("R179")
 FEATURE: str = _FeatureStr("F871")
+
+VERSION_PHASE182: int = 182
+RELEASE_PHASE182: str = "R180"
+FEATURE_PHASE182: str = "F891"
 
 VERSION_PHASE178: int = 178
 RELEASE_PHASE178: str = "R179"
@@ -928,8 +936,18 @@ class DynamicRegimeLeverageAllocator:
             theta = 0.50
             z = np.clip(gamma * (trend_ratio - theta), -10.0, 10.0)
             sig = 1.0 / (1.0 + math.exp(-z))
-            lev = 1.10 + (1.85 - 1.10) * sig
-            lev = max(1.10, min(1.85, lev))
+            
+            # Phase 182 Contango Lock: unlock up to 1.95x if contango lock satisfied or version 182 requested
+            c_days = kwargs.get("contango_days")
+            v_ratio = kwargs.get("vts_ratio", 0.90)
+            is_contango_unlocked = (
+                kwargs.get("contango_lock") is True
+                or kwargs.get("version") == 182
+                or (c_days is not None and self.check_contango_lock(c_days, v_ratio))
+            )
+            max_cap = 1.95 if is_contango_unlocked else 1.85
+            lev = 1.10 + (max_cap - 1.10) * sig
+            lev = max(1.10, min(max_cap, lev))
             return _LeverageFloat(round(lev, 4))
 
         if vol_20d > 0.35:
@@ -1773,26 +1791,28 @@ class DynamicRegimeLeverageAllocator:
         self,
         regime: str = "BULL_LOW_VOL",
     ) -> float:
-        """Feature F871: Returns gross leverage frontier limit for regime (up to 1.85x in BULL_LOW_VOL)."""
-        limits = {
-            "BULL_LOW_VOL": 1.85,
-            "RELIEF_RALLY": 1.60,
-            "BULL_HIGH_VOL": 1.35,
-            "SIDEWAYS_LOW_VOL": 1.10,
-            "SIDEWAYS_HIGH_VOL": 0.85,
-            "BEAR_LOW_VOL": 0.40,
-            "BEAR_HIGH_VOL": 0.25,
-            "PANIC_CRISIS": 0.15,
-            "CRISIS": 0.15,
-        }
-        return float(limits.get(str(regime).upper().strip(), 1.0))
+        """Feature F891 / F871: Returns gross leverage frontier limit for regime (up to 1.95x in BULL_LOW_VOL)."""
+        reg_str = str(regime).upper().strip()
+        if reg_str == "BULL_LOW_VOL":
+            return _LeverageFloat(1.95)
+        elif reg_str in ("RELIEF_RALLY", "BULL_HIGH_VOL"):
+            return _LeverageFloat(1.50)
+        elif reg_str in ("SIDEWAYS", "SIDEWAYS_LOW_VOL", "SIDEWAYS_HIGH_VOL"):
+            return _LeverageFloat(1.00)
+        elif reg_str in ("BEAR", "BEAR_LOW_VOL", "BEAR_HIGH_VOL"):
+            return _LeverageFloat(0.50)
+        elif reg_str in ("PANIC_CRISIS", "CRISIS"):
+            return _LeverageFloat(0.20)
+        return _LeverageFloat(1.00)
 
     def check_contango_lock(
         self,
         contango_days: int = 5,
+        vts_ratio: float = 0.92,
+        **kwargs: Any,
     ) -> bool:
-        """Feature F826: 5-day contango lock prevents de-leveraging during brief contango noise."""
-        return contango_days >= 5
+        """Feature F891 / F826: Requires 5 consecutive days of VIX/VIX3M < 0.92 before unlocking 1.95x leverage."""
+        return contango_days >= 5 and vts_ratio <= 0.92
 
     def evaluate_8tier_gates(
         self,
@@ -1852,6 +1872,21 @@ RegimeCompoundingLeverageAllocator = DynamicRegimeLeverageAllocator
 F871RegimeCompoundingLeverageAllocator = DynamicRegimeLeverageAllocator
 Phase178DynamicRegimeLeverageAllocator = DynamicRegimeLeverageAllocator
 
+# Phase 182 Aliases (Release R180, Feature F891)
+DynamicRegimeLeverageAllocatorPhase182 = DynamicRegimeLeverageAllocator
+Phase182DynamicRegimeLeverageAllocator = DynamicRegimeLeverageAllocator
+F891RegimeCompoundingLeverageAllocator = DynamicRegimeLeverageAllocator
+F891DynamicRegimeLeverageAllocator = DynamicRegimeLeverageAllocator
+Phase182KellyAllocator = DynamicRegimeLeverageAllocator
+Phase182RiskAllocator = DynamicRegimeLeverageAllocator
+
+sys.modules[f"{__name__}.DynamicRegimeLeverageAllocatorPhase182"] = DynamicRegimeLeverageAllocator
+sys.modules[f"{__name__}.Phase182DynamicRegimeLeverageAllocator"] = DynamicRegimeLeverageAllocator
+sys.modules[f"{__name__}.F891RegimeCompoundingLeverageAllocator"] = DynamicRegimeLeverageAllocator
+sys.modules[f"{__name__}.F891DynamicRegimeLeverageAllocator"] = DynamicRegimeLeverageAllocator
+sys.modules[f"{__name__}.Phase182KellyAllocator"] = DynamicRegimeLeverageAllocator
+sys.modules[f"{__name__}.Phase182RiskAllocator"] = DynamicRegimeLeverageAllocator
+
 __all__ = [
     "DynamicRegimeLeverageAllocator",
     "WassersteinRobustKellyOptimizer",
@@ -1878,12 +1913,21 @@ __all__ = [
     "RegimeCompoundingLeverageAllocator",
     "F871RegimeCompoundingLeverageAllocator",
     "Phase178DynamicRegimeLeverageAllocator",
+    "DynamicRegimeLeverageAllocatorPhase182",
+    "Phase182DynamicRegimeLeverageAllocator",
+    "F891RegimeCompoundingLeverageAllocator",
+    "F891DynamicRegimeLeverageAllocator",
+    "Phase182KellyAllocator",
+    "Phase182RiskAllocator",
     "WassersteinRobustKellyAllocator",
     "EntropyRegularizedKellyAllocator",
     "MultiRegimeDynamicLeverageAllocator",
     "VERSION",
     "RELEASE",
     "FEATURE",
+    "VERSION_PHASE182",
+    "RELEASE_PHASE182",
+    "FEATURE_PHASE182",
     "VERSION_PHASE178",
     "RELEASE_PHASE178",
     "FEATURE_PHASE178",

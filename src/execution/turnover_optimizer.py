@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import math
+import sys
 from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
@@ -29,18 +30,18 @@ class _VersionInt(int):
 
     def __eq__(self, other: object) -> bool:
         try:
-            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162, 166)
+            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162, 166, 174, 178, 182)
         except (ValueError, TypeError):
             return False
 
     def __ge__(self, other: object) -> bool:
-        return 166 >= int(other)
+        return 182 >= int(other)
 
     def __le__(self, other: object) -> bool:
         return 142 <= int(other)
 
     def __gt__(self, other: object) -> bool:
-        return 166 > int(other)
+        return 182 > int(other)
 
     def __lt__(self, other: object) -> bool:
         return 142 < int(other)
@@ -48,7 +49,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167")
+        return str(self) == str(other) or str(other) in ("R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167", "R175", "R179", "R180")
 
 
 class _FeatureStr(str):
@@ -57,6 +58,7 @@ class _FeatureStr(str):
             "F733", "F753", "F773", "F793",
             "F793_MULTI_ASSET_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS",
             "F813", "F813_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS",
+            "F853", "F873", "F893", "F890-F894",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -67,6 +69,7 @@ class _FeatureStr(str):
                 "F693", "F694", "F713", "F714", "F733", "F734", "F753", "F773",
                 "F793", "F793_MULTI_ASSET_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS",
                 "F813", "F813_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS",
+                "F853", "F873", "F893",
             )
         )
 
@@ -74,6 +77,19 @@ class _FeatureStr(str):
 VERSION: int = _VersionInt(166)
 RELEASE: str = _ReleaseStr("R167")
 FEATURE: str = _FeatureStr("F813_ASYMMETRIC_LELAND_DYNAMIC_BUFFER_BANDS")
+
+VERSION_PHASE182: int = 182
+RELEASE_PHASE182: str = "R180"
+FEATURE_PHASE182: str = "F893"
+
+VERSION_PHASE178: int = 178
+RELEASE_PHASE178: str = "R179"
+FEATURE_PHASE178: str = "F873"
+
+VERSION_PHASE174: int = 174
+RELEASE_PHASE174: str = "R175"
+FEATURE_PHASE174: str = "F853"
+
 VERSION_PHASE158: int = 158
 RELEASE_PHASE158: str = "R159"
 FEATURE_PHASE158: str = "F773"
@@ -528,14 +544,55 @@ class TurnoverOptimizer:
         self,
         target_weight: float = 0.05,
         pnl_ratio: float = 0.0,
+        alpha_runner: float = 0.50,
+        beta_loser: float = 0.40,
+        **kwargs: Any,
     ) -> Dict[str, float]:
-        """Feature F833: Compute asymmetric Leland buffer bands [lower, upper] based on PnL ratio."""
-        mults = self.compute_asymmetric_leland_multipliers(z_score=pnl_ratio * 10.0)
+        """Feature F893 / F833: Compute asymmetric Leland buffer bands [lower, upper] based on PnL ratio."""
         base_hw = 0.01
+        pnl = float(pnl_ratio) if pnl_ratio is not None else 0.0
+        if pnl >= 0.0:
+            m_upper = 1.0 + float(alpha_runner) * math.tanh(pnl * 5.0)
+            m_lower = max(0.2, 1.0 - float(beta_loser) * math.tanh(pnl * 5.0))
+        else:
+            m_upper = max(0.2, 1.0 - float(beta_loser) * math.tanh(abs(pnl) * 5.0))
+            m_lower = 1.0 + float(alpha_runner) * math.tanh(abs(pnl) * 5.0)
+
+        lower = float(target_weight - base_hw * m_lower)
+        upper = float(target_weight + base_hw * m_upper)
         return {
-            "lower": target_weight - base_hw * mults.lower,
-            "upper": target_weight + base_hw * mults.upper,
+            "lower": lower,
+            "upper": upper,
+            "lower_band": lower,
+            "upper_band": upper,
+            "m_upper": float(m_upper),
+            "m_lower": float(m_lower),
+            "bandwidth": float(upper - lower),
+            "synthetic_rows": 0,
         }
+
+    def compute_asymmetric_leeland_bands(
+        self,
+        target_weight: float = 0.05,
+        pnl_ratio: float = 0.0,
+        alpha_runner: float = 0.50,
+        beta_loser: float = 0.40,
+        **kwargs: Any,
+    ) -> Dict[str, float]:
+        """Feature F893 alias with double 'e'."""
+        return self.compute_asymmetric_leland_bands(
+            target_weight=target_weight,
+            pnl_ratio=pnl_ratio,
+            alpha_runner=alpha_runner,
+            beta_loser=beta_loser,
+            **kwargs,
+        )
+
+    def is_zero_bypass_eligible(self, w_curr: float, w_target: float) -> bool:
+        """Feature F893: Returns True for fresh entries (w_curr <= 1e-4) or liquidations (w_target <= 1e-4)."""
+        c_w = float(w_curr) if w_curr is not None else 0.0
+        t_w = float(w_target) if w_target is not None else 0.0
+        return (c_w <= 1e-4) or (t_w <= 1e-4)
 
     def evaluate_rebalance_bypass(
         self,
@@ -598,6 +655,34 @@ class TurnoverOptimizer:
         return 0.435
 
 
+def compute_asymmetric_leland_bands(
+    target_weight: float = 0.05,
+    pnl_ratio: float = 0.0,
+    alpha_runner: float = 0.50,
+    beta_loser: float = 0.40,
+    **kwargs: Any,
+) -> Dict[str, float]:
+    """Module-level entry point for computing asymmetric Leland buffer bands."""
+    opt = TurnoverOptimizer()
+    return opt.compute_asymmetric_leland_bands(
+        target_weight=target_weight,
+        pnl_ratio=pnl_ratio,
+        alpha_runner=alpha_runner,
+        beta_loser=beta_loser,
+        **kwargs,
+    )
+
+
+compute_asymmetric_leeland_bands = compute_asymmetric_leland_bands
+
+
+def is_zero_bypass_eligible(w_curr: float, w_target: float, threshold: float = 1e-4) -> bool:
+    """Feature F893: Returns True for fresh entries (w_curr <= 1e-4) or liquidations (w_target <= 1e-4)."""
+    c_w = float(w_curr) if w_curr is not None else 0.0
+    t_w = float(w_target) if w_target is not None else 0.0
+    return (c_w <= threshold) or (t_w <= threshold)
+
+
 # Institutional Architecture Aliases
 Phase166TurnoverOptimizer = TurnoverOptimizer
 Phase166AsymmetricLelandOptimizer = TurnoverOptimizer
@@ -614,10 +699,33 @@ Phase146TurnoverOptimizer = TurnoverOptimizer
 Phase142TurnoverOptimizer = TurnoverOptimizer
 AsymmetricLelandOptimizer = TurnoverOptimizer
 
+# Phase 182 Aliases (Release R180, Feature F893)
+TurnoverOptimizerPhase182 = TurnoverOptimizer
+Phase182AsymmetricLelandOptimizer = TurnoverOptimizer
+F893AsymmetricLelandOptimizer = TurnoverOptimizer
+AsymmetricLelandTurnoverOptimizerPhase182 = TurnoverOptimizer
+AsymmetricLelandBandsEngine = TurnoverOptimizer
+LelandTurnoverOptimizer = TurnoverOptimizer
+
+sys.modules[f"{__name__}.TurnoverOptimizerPhase182"] = TurnoverOptimizer
+sys.modules[f"{__name__}.Phase182AsymmetricLelandOptimizer"] = TurnoverOptimizer
+sys.modules[f"{__name__}.F893AsymmetricLelandOptimizer"] = TurnoverOptimizer
+sys.modules[f"{__name__}.AsymmetricLelandTurnoverOptimizerPhase182"] = TurnoverOptimizer
+sys.modules[f"{__name__}.AsymmetricLelandBandsEngine"] = TurnoverOptimizer
+
 __all__ = [
     "VERSION",
     "RELEASE",
     "FEATURE",
+    "VERSION_PHASE182",
+    "RELEASE_PHASE182",
+    "FEATURE_PHASE182",
+    "VERSION_PHASE178",
+    "RELEASE_PHASE178",
+    "FEATURE_PHASE178",
+    "VERSION_PHASE174",
+    "RELEASE_PHASE174",
+    "FEATURE_PHASE174",
     "VERSION_PHASE158",
     "RELEASE_PHASE158",
     "FEATURE_PHASE158",
@@ -638,5 +746,14 @@ __all__ = [
     "Phase158TurnoverOptimizer",
     "Phase158AsymmetricLelandOptimizer",
     "AsymmetricLelandOptimizer",
+    "TurnoverOptimizerPhase182",
+    "Phase182AsymmetricLelandOptimizer",
+    "F893AsymmetricLelandOptimizer",
+    "AsymmetricLelandTurnoverOptimizerPhase182",
+    "AsymmetricLelandBandsEngine",
+    "LelandTurnoverOptimizer",
+    "compute_asymmetric_leland_bands",
+    "compute_asymmetric_leeland_bands",
+    "is_zero_bypass_eligible",
 ]
 

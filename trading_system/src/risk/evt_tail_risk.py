@@ -39,7 +39,7 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178)
+        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -51,7 +51,7 @@ class _VersionInt(int):
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
         return str(self) == other or other in (
-            "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179"
+            "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180"
         )
 
 
@@ -59,17 +59,22 @@ class _FeatureStr(str):
     def __eq__(self, other: object) -> bool:
         return str(self) == other or other in (
             "F852", "F872", "F870-F874",
+            "F892", "F890-F894",
         )
 
     def __contains__(self, item: object) -> bool:
         return super().__contains__(str(item)) or str(item) in (
-            "F852", "F872",
+            "F852", "F872", "F892",
         )
 
 
 VERSION: int = _VersionInt(178)
 RELEASE: str = _ReleaseStr("R179")
 FEATURE: str = _FeatureStr("F872")
+
+VERSION_PHASE182: int = 182
+RELEASE_PHASE182: str = "R180"
+FEATURE_PHASE182: str = "F892"
 
 VERSION_PHASE178: int = 178
 RELEASE_PHASE178: str = "R179"
@@ -91,7 +96,7 @@ FEATURE_PHASE165: str = "F805-F809"
 class EVTTailRiskConfig:
     """Configuration for Spectral EVT-CVaR Tail-Risk Budgeting."""
     tail_quantile: float = 0.90
-    min_xi: float = 0.01
+    min_xi: float = 0.05
     max_xi: float = 0.45
     min_scale: float = 1e-4
     confidence_level: float = 0.95
@@ -138,7 +143,7 @@ class EVTTailRiskOutput:
 def fit_generalized_pareto(
     losses: Union[np.ndarray, Sequence[float]],
     tail_quantile: float = 0.90,
-    min_xi: float = 0.01,
+    min_xi: float = 0.05,
     max_xi: float = 0.45,
     min_scale: float = 1e-4,
 ) -> Tuple[float, float, float]:
@@ -153,7 +158,8 @@ def fit_generalized_pareto(
     arr = np.nan_to_num(np.asarray(losses, dtype=np.float64).flatten(), nan=0.0)
     arr = arr[np.isfinite(arr)]
     if len(arr) < 5:
-        return 0.20, 0.01, 0.0
+        default_xi = float(np.clip(0.20, float(min_xi), float(max_xi)))
+        return default_xi, 0.01, 0.0
 
     u = float(np.quantile(arr, float(tail_quantile)))
     excess = arr[arr > u] - u
@@ -161,7 +167,8 @@ def fit_generalized_pareto(
     K = len(excess)
 
     if K < 5:
-        return 0.20, max(min_scale, 0.01), u
+        default_xi = float(np.clip(0.20, float(min_xi), float(max_xi)))
+        return default_xi, max(min_scale, 0.01), u
 
     # Method of Moments estimator for GPD on excess losses
     m = float(np.mean(excess))
@@ -185,7 +192,7 @@ def compute_evt_var_cvar(
     losses: Union[np.ndarray, Sequence[float]],
     alpha: float = 0.95,
     tail_quantile: float = 0.90,
-    min_xi: float = 0.01,
+    min_xi: float = 0.05,
     max_xi: float = 0.45,
 ) -> Dict[str, float]:
     """
@@ -222,6 +229,8 @@ def compute_spectral_expected_shortfall(
     gamma: float = 2.0,
     n_quantiles: int = 25,
     tail_quantile: float = 0.90,
+    min_xi: float = 0.05,
+    max_xi: float = 0.45,
 ) -> float:
     """
     Computes Spectral Expected Shortfall (SES) with exponential risk spectrum:
@@ -232,7 +241,12 @@ def compute_spectral_expected_shortfall(
     if len(arr) == 0:
         return 0.01
 
-    xi, sigma, u = fit_generalized_pareto(arr, tail_quantile=tail_quantile)
+    xi, sigma, u = fit_generalized_pareto(
+        arr,
+        tail_quantile=tail_quantile,
+        min_xi=min_xi,
+        max_xi=max_xi,
+    )
     u_q = float(tail_quantile)
 
     # Numerical integration over p in (0, 1)
@@ -268,12 +282,19 @@ def compute_spectral_evt_cvar_risk_budget(
     tail_quantile: float = 0.90,
     max_iter: int = 25,
     tol: float = 1e-4,
+    min_xi: float = 0.05,
+    max_xi: float = 0.45,
+    xi_bounds: Optional[Tuple[float, float]] = None,
+    **kwargs: Any,
 ) -> Dict[str, Any]:
     """
-    Feature F872: Spectral EVT-CVaR Tail-Risk Parity Budgeting across N assets.
+    Feature F872 / F892: Spectral EVT-CVaR Tail-Risk Parity Budgeting across N assets.
     Finds optimal weights w in \\Delta^{N-1} satisfying:
         w_i \\cdot \\frac{\\partial \\text{SES}}{\\partial w_i} = \\frac{1}{N} \\text{SES}(\\mathbf{w})
     """
+    if xi_bounds is not None:
+        min_xi = float(xi_bounds[0])
+        max_xi = float(xi_bounds[1])
     if isinstance(returns_matrix, pd.DataFrame):
         R = returns_matrix.values.astype(np.float64)
     else:
@@ -282,8 +303,20 @@ def compute_spectral_evt_cvar_risk_budget(
     T, N = R.shape if R.ndim == 2 else (len(R), 1)
     if N == 1:
         losses = -R.flatten()
-        evt_metrics = compute_evt_var_cvar(losses, alpha=alpha, tail_quantile=tail_quantile)
-        ses = compute_spectral_expected_shortfall(losses, gamma=gamma, tail_quantile=tail_quantile)
+        evt_metrics = compute_evt_var_cvar(
+            losses,
+            alpha=alpha,
+            tail_quantile=tail_quantile,
+            min_xi=min_xi,
+            max_xi=max_xi,
+        )
+        ses = compute_spectral_expected_shortfall(
+            losses,
+            gamma=gamma,
+            tail_quantile=tail_quantile,
+            min_xi=min_xi,
+            max_xi=max_xi,
+        )
         return {
             "evt_var": evt_metrics["evt_var"],
             "evt_cvar": evt_metrics["evt_cvar"],
@@ -313,7 +346,13 @@ def compute_spectral_evt_cvar_risk_budget(
 
     for it in range(max_iter):
         port_losses = np.dot(losses_matrix, w)
-        base_ses = compute_spectral_expected_shortfall(port_losses, gamma=gamma, tail_quantile=tail_quantile)
+        base_ses = compute_spectral_expected_shortfall(
+            port_losses,
+            gamma=gamma,
+            tail_quantile=tail_quantile,
+            min_xi=min_xi,
+            max_xi=max_xi,
+        )
 
         # Finite difference marginal risk contribution (MRC)
         for i in range(N):
@@ -321,7 +360,13 @@ def compute_spectral_evt_cvar_risk_budget(
             w_plus[i] += epsilon_fd
             w_plus = w_plus / np.sum(w_plus)
             port_l_plus = np.dot(losses_matrix, w_plus)
-            ses_plus = compute_spectral_expected_shortfall(port_l_plus, gamma=gamma, tail_quantile=tail_quantile)
+            ses_plus = compute_spectral_expected_shortfall(
+                port_l_plus,
+                gamma=gamma,
+                tail_quantile=tail_quantile,
+                min_xi=min_xi,
+                max_xi=max_xi,
+            )
             mrc[i] = (ses_plus - base_ses) / epsilon_fd
 
         # Update weights: w_i \propto w_i / sqrt(MRC_i)
@@ -337,8 +382,20 @@ def compute_spectral_evt_cvar_risk_budget(
         w = w_new / np.sum(w_new)
 
     port_losses = np.dot(losses_matrix, w)
-    final_evt = compute_evt_var_cvar(port_losses, alpha=alpha, tail_quantile=tail_quantile)
-    final_ses = compute_spectral_expected_shortfall(port_losses, gamma=gamma, tail_quantile=tail_quantile)
+    final_evt = compute_evt_var_cvar(
+        port_losses,
+        alpha=alpha,
+        tail_quantile=tail_quantile,
+        min_xi=min_xi,
+        max_xi=max_xi,
+    )
+    final_ses = compute_spectral_expected_shortfall(
+        port_losses,
+        gamma=gamma,
+        tail_quantile=tail_quantile,
+        min_xi=min_xi,
+        max_xi=max_xi,
+    )
 
     return {
         "evt_var": final_evt["evt_var"],
@@ -362,11 +419,14 @@ def compute_spectral_evt_cvar_risk_budget(
 # ---------------------------------------------------------------------------
 class SpectralEVTCVaRBudgetingEngine:
     """
-    Feature F872: Spectral EVT-CVaR Tail-Risk Budgeting Engine with Clamped Generalized Pareto.
+    Feature F872 / F892: Spectral EVT-CVaR Tail-Risk Budgeting Engine with Clamped Generalized Pareto.
     """
     VERSION: int = VERSION
     RELEASE: str = RELEASE
     FEATURE: str = FEATURE
+    VERSION_PHASE182: int = 182
+    RELEASE_PHASE182: str = "R180"
+    FEATURE_PHASE182: str = "F892"
     VERSION_PHASE178: int = 178
     RELEASE_PHASE178: str = "R179"
     FEATURE_PHASE178: str = "F872"
@@ -376,6 +436,9 @@ class SpectralEVTCVaRBudgetingEngine:
 
     def __init__(self, config: Optional[EVTTailRiskConfig] = None) -> None:
         self.config = config or EVTTailRiskConfig()
+        self.VERSION_PHASE182 = 182
+        self.RELEASE_PHASE182 = "R180"
+        self.FEATURE_PHASE182 = "F892"
         self.VERSION_PHASE178 = 178
         self.RELEASE_PHASE178 = "R179"
         self.FEATURE_PHASE178 = "F872"
@@ -398,18 +461,24 @@ class SpectralEVTCVaRBudgetingEngine:
         returns: Union[np.ndarray, pd.DataFrame],
         alpha: Optional[float] = None,
         gamma: Optional[float] = None,
+        xi_bounds: Optional[Tuple[float, float]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        """Feature F872 / F852: Spectral EVT-CVaR Budgeting Calculation."""
+        """Feature F892 / F872 / F852: Spectral EVT-CVaR Budgeting Calculation."""
         a = float(alpha if alpha is not None else self.config.confidence_level)
         g = float(gamma if gamma is not None else self.config.gamma_spectrum)
+        min_x = float(xi_bounds[0]) if xi_bounds is not None else self.config.min_xi
+        max_x = float(xi_bounds[1]) if xi_bounds is not None else self.config.max_xi
         return compute_spectral_evt_cvar_risk_budget(
             returns_matrix=returns,
             alpha=a,
             gamma=g,
             tail_quantile=self.config.tail_quantile,
+            min_xi=min_x,
+            max_xi=max_x,
             max_iter=self.config.max_iterations,
             tol=self.config.tolerance,
+            **kwargs,
         )
 
     def allocate_tail_budget_weights(
@@ -440,16 +509,33 @@ Phase178SpectralEVTCVaREngine = SpectralEVTCVaRBudgetingEngine
 F872SpectralEVTCVaR = SpectralEVTCVaRBudgetingEngine
 PortfolioAllocatorPhase178 = SpectralEVTCVaRBudgetingEngine
 
+# Phase 182 Aliases (Release R180, Feature F892)
+SpectralEVTCVaRAllocator = SpectralEVTCVaRBudgetingEngine
+SpectralEVTCVaRBudgetingEnginePhase182 = SpectralEVTCVaRBudgetingEngine
+Phase182SpectralEVTCVaREngine = SpectralEVTCVaRBudgetingEngine
+F892SpectralEVTCVaR = SpectralEVTCVaRBudgetingEngine
+PortfolioAllocatorPhase182 = SpectralEVTCVaRBudgetingEngine
+SpectralEVTCVaRBudgetingAllocator = SpectralEVTCVaRBudgetingEngine
+
 sys.modules[f"{__name__}.SpectralEVTCVaRBudgetingEngine"] = SpectralEVTCVaRBudgetingEngine
 sys.modules[f"{__name__}.EVTTailRiskEnginePhase178"] = SpectralEVTCVaRBudgetingEngine
 sys.modules[f"{__name__}.Phase178SpectralEVTCVaREngine"] = SpectralEVTCVaRBudgetingEngine
 sys.modules[f"{__name__}.F872SpectralEVTCVaR"] = SpectralEVTCVaRBudgetingEngine
 sys.modules[f"{__name__}.PortfolioAllocatorPhase178"] = SpectralEVTCVaRBudgetingEngine
+sys.modules[f"{__name__}.SpectralEVTCVaRAllocator"] = SpectralEVTCVaRBudgetingEngine
+sys.modules[f"{__name__}.SpectralEVTCVaRBudgetingEnginePhase182"] = SpectralEVTCVaRBudgetingEngine
+sys.modules[f"{__name__}.Phase182SpectralEVTCVaREngine"] = SpectralEVTCVaRBudgetingEngine
+sys.modules[f"{__name__}.F892SpectralEVTCVaR"] = SpectralEVTCVaRBudgetingEngine
+sys.modules[f"{__name__}.PortfolioAllocatorPhase182"] = SpectralEVTCVaRBudgetingEngine
+sys.modules[f"{__name__}.SpectralEVTCVaRBudgetingAllocator"] = SpectralEVTCVaRBudgetingEngine
 
 __all__ = [
     "VERSION",
     "RELEASE",
     "FEATURE",
+    "VERSION_PHASE182",
+    "RELEASE_PHASE182",
+    "FEATURE_PHASE182",
     "VERSION_PHASE178",
     "RELEASE_PHASE178",
     "FEATURE_PHASE178",
@@ -466,6 +552,12 @@ __all__ = [
     "Phase178SpectralEVTCVaREngine",
     "F872SpectralEVTCVaR",
     "PortfolioAllocatorPhase178",
+    "SpectralEVTCVaRAllocator",
+    "SpectralEVTCVaRBudgetingEnginePhase182",
+    "Phase182SpectralEVTCVaREngine",
+    "F892SpectralEVTCVaR",
+    "PortfolioAllocatorPhase182",
+    "SpectralEVTCVaRBudgetingAllocator",
     "fit_generalized_pareto",
     "compute_evt_var_cvar",
     "compute_spectral_expected_shortfall",

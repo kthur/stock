@@ -27,6 +27,14 @@ except ImportError:
     except ImportError:
         _TopModesInt = int  # type: ignore
 
+VERSION_PHASE182: int = 182
+RELEASE_PHASE182: str = "R180"
+FEATURE_PHASE182: str = "F892"
+
+VERSION_PHASE178: int = 178
+RELEASE_PHASE178: str = "R179"
+FEATURE_PHASE178: str = "F872"
+
 VERSION_PHASE174: int = 174
 RELEASE_PHASE174: str = "R175"
 FEATURE_PHASE174: str = "F852"
@@ -37,35 +45,60 @@ FEATURE_PHASE165: str = "F805-F809"
 
 class PortfolioAllocator:
 
+    VERSION_PHASE182: int = 182
+    RELEASE_PHASE182: str = "R180"
+    FEATURE_PHASE182: str = "F892"
+
     def compute_evt_cvar_spectral_budget(
         self,
         returns: np.ndarray,
         alpha: float = 0.95,
+        gamma: float = 5.0,
+        xi_bounds: Tuple[float, float] = (0.05, 0.45),
         **kwargs: Any,
-    ) -> Dict[str, float]:
-        """Feature F852: EVT Generalized Pareto Tail-Risk Budgeting & Spectral Risk Measures."""
-        arr = np.asarray(returns, dtype=np.float64).flatten()
-        losses = -arr
+    ) -> Dict[str, Any]:
+        """Feature F892 / F852: EVT Generalized Pareto Tail-Risk Budgeting & Spectral Risk Measures."""
+        arr = np.asarray(returns, dtype=np.float64)
+        if arr.ndim > 1 and arr.shape[1] > 1:
+            from src.risk.evt_tail_risk import compute_spectral_evt_cvar_risk_budget
+            min_x = float(xi_bounds[0]) if xi_bounds is not None else 0.05
+            max_x = float(xi_bounds[1]) if xi_bounds is not None else 0.45
+            return compute_spectral_evt_cvar_risk_budget(
+                returns_matrix=arr,
+                alpha=alpha,
+                gamma=gamma,
+                min_xi=min_x,
+                max_xi=max_x,
+                **kwargs,
+            )
+        arr_flat = arr.flatten()
+        losses = -arr_flat
         u = float(np.percentile(losses, alpha * 100.0))
         exceedances = losses[losses > u] - u
+        min_xi = float(xi_bounds[0]) if xi_bounds is not None else 0.05
+        max_xi = float(xi_bounds[1]) if xi_bounds is not None else 0.45
         if len(exceedances) >= 5:
-            xi_hat = float(max(0.01, min(0.45, np.mean(exceedances))))
+            xi_hat = float(max(min_xi, min(max_xi, np.mean(exceedances))))
             beta_hat = float(max(0.005, np.std(exceedances) + 1e-4))
         else:
-            xi_hat = 0.20
+            xi_hat = float(np.clip(0.20, min_xi, max_xi))
             beta_hat = 0.01
-        
+
         p = 0.01
         evt_var = float(u + (beta_hat / xi_hat) * ((p) ** (-xi_hat) - 1.0))
         evt_cvar = float(evt_var / (1.0 - xi_hat) + (beta_hat - xi_hat * u) / (1.0 - xi_hat))
-        
+
+        phi_weight = float(gamma * math.exp(gamma * (1.0 - alpha)) / (math.exp(gamma) - 1.0)) if gamma > 0 else 1.0
+
         return {
             "evt_var": max(1e-4, evt_var),
             "evt_cvar": max(1e-4, evt_cvar),
             "threshold_u": u,
             "xi_shape": xi_hat,
             "beta_scale": beta_hat,
-            "spectral_budget": max(1e-4, evt_cvar),
+            "phi_spectral_weight": phi_weight,
+            "spectral_budget": max(1e-4, evt_cvar * phi_weight),
+            "synthetic_rows": 0,
         }
     """
     Portfolio Allocator Engine implementing:

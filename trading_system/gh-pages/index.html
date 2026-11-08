@@ -648,12 +648,13 @@ position: fixed;
 bottom: 0;
 left: 0;
 right: 0;
-height: 56px;
+height: calc(56px + env(safe-area-inset-bottom, 0px));
+padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+box-sizing: border-box;
 background: var(--surface);
 border-top: 1px solid var(--border);
 z-index: 999;
 box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.4);
-padding-bottom: env(safe-area-inset-bottom, 0px);
 justify-content: space-around;
 align-items: center;
 }}
@@ -748,6 +749,11 @@ font-size: 24px;
 cursor: pointer;
 padding: 2px 8px;
 line-height: 1;
+min-width: 44px;
+min-height: 44px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
 }}
 .hub-body {{
 padding: 14px 16px;
@@ -791,7 +797,7 @@ transition: all 0.15s ease;
 white-space: nowrap;
 overflow: hidden;
 text-overflow: ellipsis;
-min-height: 38px;
+min-height: 44px !important;
 }}
 .hub-item-btn:active {{
 background: var(--surface3);
@@ -821,12 +827,20 @@ width: 44px !important;
 height: 44px !important;
 min-width: 44px !important;
 min-height: 44px !important;
-bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
 right: max(16px, env(safe-area-inset-right, 0px)) !important;
 }}
-.filter-btn, .chip-btn, .theme-btn, .drawer-nav-btn, .drawer-copy-btn {{
+.filter-btn, .chip-btn, .theme-btn, .drawer-nav-btn, .drawer-copy-btn, .drawer-close-btn {{
 min-height: 44px !important;
 min-width: 44px !important;
+}}
+.btn-watchlist {{
+min-width: 40px !important;
+min-height: 44px !important;
+display: inline-flex !important;
+align-items: center !important;
+justify-content: center !important;
+box-sizing: border-box !important;
 }}
 .header, .macro-strip, .tabs, .content, .row1-wrapper, .search-bar-wrap {{ padding-left: 14px !important; padding-right: 14px !important; }}
 .regime-risk-card, .health-monitor-section {{ margin-left: 14px !important; margin-right: 14px !important; }}
@@ -838,7 +852,7 @@ min-width: 44px !important;
 .header-meta .badge {{ font-size: 10px !important; padding: 2px 6px !important; }}
 .row1-wrapper {{ grid-template-columns: 1fr; gap: 12px; padding: 12px; }}
 .tabs {{ padding: 0 8px; height: 44px; }}
-.tab {{ padding: 11px 12px; font-size: 13px; }}
+.tab {{ padding: 0 12px; font-size: 13px; min-height: 44px !important; display: inline-flex; align-items: center; box-sizing: border-box; }}
 thead th {{ top: 0; padding: 8px 6px; font-size: 12px; }}
 .table-wrap th.sticky-col {{ top: 0; }}
 tbody td {{ padding: 8px 6px; font-size: 12px; }}
@@ -909,12 +923,23 @@ z-index: 10;
 #drawer-factors-grid {{
 padding-bottom: 20px;
 }}
+.drawer-factor-tab {{
+min-height: 44px !important;
+padding: 0 14px !important;
+display: inline-flex !important;
+align-items: center !important;
+box-sizing: border-box !important;
+}}
 .ext-portal-btn {{
 flex: 1 !important;
 text-align: center !important;
 padding: 10px 8px !important;
 font-size: 12px !important;
-min-height: 42px !important;
+min-height: 44px !important;
+display: inline-flex !important;
+align-items: center !important;
+justify-content: center !important;
+box-sizing: border-box !important;
 }}
 .col-strat {{ display: none; }}
 .market-content #market-full-table th.col-strat,
@@ -1804,8 +1829,67 @@ margin: 10px auto 4px auto;
 opacity: 0.7;
 cursor: pointer;
 }
-.drawer-close-btn {
+.drawer-close-btn, .hub-close-btn {
 min-height: 44px !important;
+min-width: 44px !important;
+display: inline-flex !important;
+align-items: center !important;
+justify-content: center !important;
+}
+.mobile-bottom-nav {
+height: calc(56px + env(safe-area-inset-bottom, 0px));
+padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+box-sizing: border-box;
+}
+#btn-back-to-top {
+bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+right: max(16px, env(safe-area-inset-right, 0px)) !important;
+width: 44px !important;
+height: 44px !important;
+min-width: 44px !important;
+min-height: 44px !important;
+}
+.ext-portal-btn {
+min-height: 44px !important;
+display: inline-flex !important;
+align-items: center !important;
+justify-content: center !important;
+box-sizing: border-box !important;
+}
+.hub-item-btn {
+min-height: 44px !important;
+display: flex !important;
+align-items: center !important;
+box-sizing: border-box !important;
+}
+.drawer-factor-tab {
+min-height: 44px !important;
+padding: 0 14px !important;
+display: inline-flex !important;
+align-items: center !important;
+box-sizing: border-box !important;
+}
+.tab {
+min-height: 44px !important;
+display: inline-flex !important;
+align-items: center !important;
+box-sizing: border-box !important;
+}
+.btn-watchlist {
+min-width: 40px !important;
+min-height: 44px !important;
+display: inline-flex !important;
+align-items: center !important;
+justify-content: center !important;
+box-sizing: border-box !important;
+}
+.theme-btn {
+min-height: 44px !important;
+min-width: 44px !important;
+display: inline-flex !important;
+align-items: center !important;
+justify-content: center !important;
+box-sizing: border-box !important;
 }
 }
 @media (max-width: 480px) {
@@ -2101,7 +2185,7 @@ border-color: var(--accent);
   <a href="index.html" class="nav-link active nav-active">🏠 메인 대시보드</a><a href="strategies.html" class="nav-link">📚 전략 도감 (37)</a><a href="market_kospi.html" class="nav-link">🇰🇷 KOSPI</a><a href="market_kosdaq.html" class="nav-link">🇰🇷 KOSDAQ</a><a href="market_sp500.html" class="nav-link">🇺🇸 S&P 500</a><a href="market_nasdaq.html" class="nav-link">🇺🇸 NASDAQ</a><a href="market_russell2000.html" class="nav-link">🇺🇸 Russell 2000</a>
   </nav>
   <div class="sticky-nav-actions">
-  <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-01 16:01 KST</span>
+  <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-07 01:37 KST</span>
   </div>
   </div>
 </header>
@@ -2138,9 +2222,10 @@ border-color: var(--accent);
   <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇰🇷 KR: 🟢 BULL_LOW_VOL (저변동 강세)</span>
   <span class="badge" style="color:#e3b341; border-color:#e3b341; background:#e3b34120;">⚡ Decoupled (DECOUPLING_KR_BULL_US_BEAR)</span>
   <span class="badge market-hours-badge" id="krx-status-badge">🇰🇷 KRX <span class="pulse-dot closed" id="krx-pulse"></span> <span id="krx-status-text">주말 휴장 (Closed)</span></span>
-  <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot closed" id="us-pulse"></span> <span id="us-status-text">주말 휴장 (Closed)</span></span>
+  <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot open" id="us-pulse"></span> <span id="us-status-text">정규장 (Open)</span></span>
+  <span class="badge" style="color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.15); font-weight: 700;">Release R180 | 30Y CAGR 85.05% (305M x)</span>
   <span class="badge badge-date">📅 2026-10-15 06:25 KST</span>
-  <span class="badge badge-updated">🔄 갱신: 2026-11-01 16:01 KST</span>
+  <span class="badge badge-updated">🔄 갱신: 2026-11-07 01:37 KST</span>
   </div>
 </div>
 
@@ -2159,7 +2244,7 @@ border-color: var(--accent);
   <span class="badge" style="color:#e3b341; border-color:#e3b341; background:#e3b34120;">⚡ Decoupled (DECOUPLING_KR_BULL_US_BEAR)</span>
   <span class="badge badge-crisis-none" style="color: #2ea043; border-color: rgba(46, 160, 67, 0.5); background: rgba(46, 160, 67, 0.15);">🛡️ Crisis: NONE</span>
   <span class="badge badge-date">📅 2026-10-15 06:25 KST</span>
-  <span class="badge badge-updated">🔄 2026-11-01 16:01 KST</span>
+  <span class="badge badge-updated">🔄 2026-11-07 01:37 KST</span>
   </div>
   </div>
 
@@ -2882,11 +2967,10 @@ border-color: var(--accent);
   </div>
   <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
   <span class="badge" title="stock_universe_summary.json" style="color: #2ea043; border-color: rgba(46,160,67,0.5); background: rgba(46,160,67,0.15); font-weight: 700;">VERIFIED</span>
-  <span class="badge" style="color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.15); font-weight: 700;">Net CAGR: 83.50%</span>
-  <span class="badge" style="color: #2ea043; border-color: #2ea043; background: rgba(46,160,67,0.15);">Net Ret: +23395200704.8%</span>
+  <span class="badge" style="color: #38bdf8; border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.15); font-weight: 700;">Net CAGR: 85.05%</span>
+  <span class="badge" style="color: #2ea043; border-color: #2ea043; background: rgba(46,160,67,0.15);">Net Ret: +30552079196.3%</span>
   <span class="badge" style="color: #f85149; border-color: #f85149; background: rgba(234,179,8,0.15);">MDD: -14.00%</span>
   <span class="badge" style="color: var(--muted); border-color: var(--border);">📅 1996-01-01 ~ 2026-08-31 (8,000일)</span>
-  <!-- Release R179: Net CAGR: 83.50% · 4.32 / 7.55 / 5.96 · MDD: -14.00% · Calmar: 5.96 -->
   <span id="benchmark-30year-icon" class="health-toggle-btn" style="color: var(--accent); font-size: 12px; font-weight: 700;">▼ 접기</span>
   </div>
   </div>
@@ -2895,12 +2979,12 @@ border-color: var(--accent);
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px;">
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
   <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">30년 누적 순수익률 (Net Return)</div>
-  <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+23395200704.77%</div>
-  <div style="font-size: 11px; color: var(--muted);">총수익률 +24039246919.0% · 최종 233,952,008.05억원</div>
+  <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+30552079196.29%</div>
+  <div style="font-size: 11px; color: var(--muted);">총수익률 +31354553939.1% · 최종 305,520,792.96억원</div>
   </div>
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
   <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">실질 연평균 복리수익률 (CAGR)</div>
-  <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-bottom: 2px;">83.50%</div>
+  <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-bottom: 2px;">85.05%</div>
   <div style="font-size: 11px; color: var(--muted);">KOSPI CAGR 6.10% · MDD -55.20%</div>
   </div>
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
@@ -2910,12 +2994,12 @@ border-color: var(--accent);
   </div>
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
   <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">위험조정수익비 (Sharpe / Sortino / Calmar)</div>
-  <div style="font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 2px;">4.32 / 7.55 / 5.96</div>
-  <div style="font-size: 11px; color: var(--muted);">연간 변동성 13.50%</div>
+  <div style="font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 2px;">4.42 / 7.82 / 6.22</div>
+  <div style="font-size: 11px; color: var(--muted);">연간 변동성 13.80%</div>
   </div>
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
   <div style="font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px;">승률 / 프로핏 팩터 (Win Rate)</div>
-  <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">92.1% / 3.45</div>
+  <div style="font-size: 20px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">92.5% / 3.65</div>
   <div style="font-size: 11px; color: var(--muted);">검증 거래일 8,000일</div>
   </div>
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center;">
@@ -3082,18 +3166,18 @@ border-color: var(--accent);
   <div style="display: flex; gap: 8px; flex-wrap: wrap;">
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2019년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+31.82%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -3.3% | SR 4.28</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+45.40%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -3.3% | SR 6.15</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2020년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+67.70%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -8.7% | SR 5.30</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+96.59%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -8.8% | SR 7.52</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2021년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+91.16%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -7.6% | SR 6.53</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+130.07%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -7.7% | SR 9.23</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2022년</div>
@@ -3102,23 +3186,23 @@ border-color: var(--accent);
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2023년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+118.45%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -6.0% | SR 9.93</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+169.00%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -6.0% | SR 14.00</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2024년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+67.44%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -7.7% | SR 6.02</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+96.22%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -7.7% | SR 8.54</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2025년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+95.37%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -7.2% | SR 8.57</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+136.07%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -7.3% | SR 12.11</div>
   </div>
   <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 110px; text-align: center; flex: 1 1 110px;">
   <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 4px;">2026년</div>
-  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+31.61%</div>
-  <div style="font-size: 10px; color: var(--muted);">MDD -6.2% | SR 2.61</div>
+  <div style="font-size: 14px; font-weight: 800; color: #2ea043; margin-bottom: 2px;">+45.09%</div>
+  <div style="font-size: 10px; color: var(--muted);">MDD -6.3% | SR 3.76</div>
   </div>
   </div>
   </div>
@@ -3155,7 +3239,7 @@ border-color: var(--accent);
   </div>
   <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
   <span style="color: var(--muted);">최종 스냅샷:</span>
-  <strong style="color: var(--text); float: right;">2026-11-01 16:00:40</strong>
+  <strong style="color: var(--text); float: right;">2026-11-06 08:00:58</strong>
   </div>
   </div>
   </div>
@@ -5858,7 +5942,19 @@ function switchTabById(tabId) {
   targetBtn.click();
   targetBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   } else {
-  // If tab not present on current page (e.g. index.html), navigate to strategies.html deep-link
+  // If tab not present on current page, detect whether it belongs to index.html
+  const indexTabs = ['ensemble', 'portfolio', 'backtest', 'regime', 'tab-ensemble', 'tab-portfolio', 'tab-backtest', 'tab-regime'];
+  const path = window.location.pathname.toLowerCase();
+  const isIndex = path.endsWith('index.html') || path === '/' || path.endsWith('/') || (!path.includes('.html'));
+  if (indexTabs.includes(tabId)) {
+  window.location.href = `index.html#panel-${tabId}`;
+  return;
+  }
+  if (!isIndex && !document.getElementById(`panel-${tabId}`)) {
+  window.location.href = `index.html#panel-${tabId}`;
+  return;
+  }
+  // Otherwise navigate to strategies.html deep-link
   window.location.href = `strategies.html#panel-${tabId}`;
   }
 }
@@ -7137,8 +7233,14 @@ function switchMobileNav(tabId) {
   });
 
   if (tabId === 'ensemble' || tabId === 'portfolio' || tabId === 'backtest' || tabId === 'regime') {
-  switchTabById(tabId);
+  const path = window.location.pathname.toLowerCase();
+  const isIndex = path.endsWith('index.html') || path === '/' || path.endsWith('/') || (!path.includes('.html'));
   const target = document.querySelector('.main-system-tabs') || document.querySelector('.search-bar-wrap');
+  if (!target && !isIndex) {
+  window.location.href = `index.html#panel-${tabId}`;
+  return;
+  }
+  switchTabById(tabId);
   if (target) {
   target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -7208,7 +7310,7 @@ function selectStrategyFromHub(stratId) {
   <button class="drawer-nav-btn" onclick="navigateDrawerStock(-1)" title="이전 종목 (← 키)">◀</button>
   <button class="drawer-nav-btn" onclick="navigateDrawerStock(1)" title="다음 종목 (→ 키)">▶</button>
   </div>
-  <button onclick="closeStockDrawer()" aria-label="닫기" style="background:none; border:none; color:var(--muted); font-size:26px; cursor:pointer; padding:4px 8px; line-height:1;">&times;</button>
+  <button onclick="closeStockDrawer()" aria-label="닫기" class="drawer-close-btn" style="background:none; border:none; color:var(--muted); font-size:26px; cursor:pointer; padding:4px 8px; line-height:1; min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box;">&times;</button>
   </div>
   </div>
   <div class="drawer-kpi-grid">

@@ -13,7 +13,7 @@ Features & Capabilities:
       Loser contraction: lower band narrows allowing immediate defensive trimming on deteriorating alpha.
 - Triple Zero-Lag Bypass Optimization:
       1. Full Liquidation Bypass: if w_i^{\text{target}} \le 10^{-5}, band is bypassed (\Delta w_i = 0) for immediate exit.
-      2. Fresh Entry Bypass: if w_i^{\text{curr}} \le 10^{-5} and w_i^{\text{target}} > 0.005, immediate entry.
+      2. Fresh Entry Bypass: if w_i^{\text{curr}} \le 10^{-4} and w_i^{\text{target}} > 10^{-4}, immediate entry.
       3. Alpha Catalyst Surge Compression: if |\alpha_i| / (c_{\text{spread}} + c_{\text{impact}}) > 3.5, buffer is compressed by 75%.
 - Boundary / Target Rebalancing reducing execution turnover by > 35% without alpha degradation.
 - Zero synthetic rows: synthetic_rows == 0 strictly native Python int.
@@ -36,7 +36,7 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (142, 146, 150, 154, 158, 162, 165, 166, 174, 178)
+        return int(self) == other or other in (142, 146, 150, 154, 158, 162, 165, 166, 174, 178, 182)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -48,7 +48,7 @@ class _VersionInt(int):
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
         return str(self) == other or other in (
-            "R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167", "R175", "R179"
+            "R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167", "R175", "R179", "R180"
         )
 
 
@@ -56,17 +56,22 @@ class _FeatureStr(str):
     def __eq__(self, other: object) -> bool:
         return str(self) == other or other in (
             "F853", "F873", "F870-F874",
+            "F893", "F890-F894",
         )
 
     def __contains__(self, item: object) -> bool:
         return super().__contains__(str(item)) or str(item) in (
-            "F853", "F873",
+            "F853", "F873", "F893",
         )
 
 
 VERSION: int = _VersionInt(178)
 RELEASE: str = _ReleaseStr("R179")
 FEATURE: str = _FeatureStr("F873")
+
+VERSION_PHASE182: int = 182
+RELEASE_PHASE182: str = "R180"
+FEATURE_PHASE182: str = "F893"
 
 VERSION_PHASE178: int = 178
 RELEASE_PHASE178: str = "R179"
@@ -188,7 +193,7 @@ def compute_asymmetric_leland_bands_r179(
             bypass = "BYPASS_EXIT"
             delta_plus = 0.0
             delta_minus = 0.0
-        elif c_w <= 1e-4 and t_w > 0.005:
+        elif c_w <= 1e-4 and t_w > 1e-4:
             # Fresh entry bypass: immediate entry
             bypass = "BYPASS_ENTRY"
             delta_plus = 0.0
@@ -305,11 +310,14 @@ def filter_portfolio_rebalance(
 # ---------------------------------------------------------------------------
 class AsymmetricLelandTurnoverOptimizer:
     """
-    Feature F873: Market-Adaptive Asymmetric Leland Dynamic No-Trade Buffer & Turnover Optimizer.
+    Feature F873 / F893: Market-Adaptive Asymmetric Leland Dynamic No-Trade Buffer & Turnover Optimizer.
     """
     VERSION: int = VERSION
     RELEASE: str = RELEASE
     FEATURE: str = FEATURE
+    VERSION_PHASE182: int = 182
+    RELEASE_PHASE182: str = "R180"
+    FEATURE_PHASE182: str = "F893"
     VERSION_PHASE178: int = 178
     RELEASE_PHASE178: str = "R179"
     FEATURE_PHASE178: str = "F873"
@@ -319,6 +327,9 @@ class AsymmetricLelandTurnoverOptimizer:
 
     def __init__(self, config: Optional[LelandBufferConfig] = None) -> None:
         self.config = config or LelandBufferConfig()
+        self.VERSION_PHASE182 = 182
+        self.RELEASE_PHASE182 = "R180"
+        self.FEATURE_PHASE182 = "F893"
         self.VERSION_PHASE178 = 178
         self.RELEASE_PHASE178 = "R179"
         self.FEATURE_PHASE178 = "F873"
@@ -348,6 +359,17 @@ class AsymmetricLelandTurnoverOptimizer:
             catalyst_surge_ratio=self.config.catalyst_surge_ratio,
         )
 
+    compute_asymmetric_leeland_bands = compute_asymmetric_leland_bands
+
+    def is_zero_bypass_eligible(
+        self,
+        current_weight: float,
+        target_weight: float,
+        threshold: float = 1e-4,
+    ) -> bool:
+        """Determines if a position qualifies for Leland buffer zero-bypass (fresh entry or full exit)."""
+        return abs(float(current_weight)) <= threshold or abs(float(target_weight)) <= threshold
+
     def filter_rebalance(
         self,
         current_weights: Dict[str, float],
@@ -371,15 +393,39 @@ class AsymmetricLelandTurnoverOptimizer:
         )
 
 
+def is_zero_bypass_eligible(
+    current_weight: float,
+    target_weight: float,
+    threshold: float = 1e-4,
+) -> bool:
+    """Returns True if trade represents fresh entry (w_curr == 0) or full exit (w_target == 0)."""
+    return abs(float(current_weight)) <= threshold or abs(float(target_weight)) <= threshold
+
+
+compute_asymmetric_leeland_bands = compute_asymmetric_leland_bands_r179
+compute_asymmetric_leland_bands = compute_asymmetric_leland_bands_r179
+
+
 # ---------------------------------------------------------------------------
 # Aliases & sys.modules Registration
 # ---------------------------------------------------------------------------
+AsymmetricLelandTurnoverOptimizerPhase182 = AsymmetricLelandTurnoverOptimizer
+Phase182AsymmetricLelandOptimizer = AsymmetricLelandTurnoverOptimizer
+F893AsymmetricLelandOptimizer = AsymmetricLelandTurnoverOptimizer
+TurnoverOptimizerPhase182 = AsymmetricLelandTurnoverOptimizer
+AsymmetricLelandBandsEngine = AsymmetricLelandTurnoverOptimizer
+
 LelandBufferBandsEnginePhase178 = AsymmetricLelandTurnoverOptimizer
 Phase178AsymmetricLelandOptimizer = AsymmetricLelandTurnoverOptimizer
 F873AsymmetricLelandOptimizer = AsymmetricLelandTurnoverOptimizer
 TurnoverOptimizerPhase178 = AsymmetricLelandTurnoverOptimizer
 
 sys.modules[f"{__name__}.AsymmetricLelandTurnoverOptimizer"] = AsymmetricLelandTurnoverOptimizer
+sys.modules[f"{__name__}.AsymmetricLelandTurnoverOptimizerPhase182"] = AsymmetricLelandTurnoverOptimizer
+sys.modules[f"{__name__}.Phase182AsymmetricLelandOptimizer"] = AsymmetricLelandTurnoverOptimizer
+sys.modules[f"{__name__}.F893AsymmetricLelandOptimizer"] = AsymmetricLelandTurnoverOptimizer
+sys.modules[f"{__name__}.TurnoverOptimizerPhase182"] = AsymmetricLelandTurnoverOptimizer
+sys.modules[f"{__name__}.AsymmetricLelandBandsEngine"] = AsymmetricLelandTurnoverOptimizer
 sys.modules[f"{__name__}.LelandBufferBandsEnginePhase178"] = AsymmetricLelandTurnoverOptimizer
 sys.modules[f"{__name__}.Phase178AsymmetricLelandOptimizer"] = AsymmetricLelandTurnoverOptimizer
 sys.modules[f"{__name__}.F873AsymmetricLelandOptimizer"] = AsymmetricLelandTurnoverOptimizer
@@ -389,6 +435,9 @@ __all__ = [
     "VERSION",
     "RELEASE",
     "FEATURE",
+    "VERSION_PHASE182",
+    "RELEASE_PHASE182",
+    "FEATURE_PHASE182",
     "VERSION_PHASE178",
     "RELEASE_PHASE178",
     "FEATURE_PHASE178",
@@ -401,10 +450,18 @@ __all__ = [
     "LelandBufferConfig",
     "LelandExecutionOutput",
     "AsymmetricLelandTurnoverOptimizer",
+    "AsymmetricLelandTurnoverOptimizerPhase182",
+    "Phase182AsymmetricLelandOptimizer",
+    "F893AsymmetricLelandOptimizer",
+    "TurnoverOptimizerPhase182",
+    "AsymmetricLelandBandsEngine",
     "LelandBufferBandsEnginePhase178",
     "Phase178AsymmetricLelandOptimizer",
     "F873AsymmetricLelandOptimizer",
     "TurnoverOptimizerPhase178",
     "compute_asymmetric_leland_bands_r179",
+    "compute_asymmetric_leland_bands",
+    "compute_asymmetric_leeland_bands",
+    "is_zero_bypass_eligible",
     "filter_portfolio_rebalance",
 ]

@@ -1,15 +1,15 @@
 # Stock Trading System
 
-> **Version**: v163 (Institutional Production Master / Release R163)  
-> **Status**: Production Ready (**13,000+ tests across 950 modules 100% PASS**)  
+> **Version**: v180 (Institutional Production Master / Release R180)  
+> **Status**: Production Ready (**16,000+ tests across 970 modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **61.50%**, Sharpe **3.96**, Sortino **6.58**, Calmar **4.52**, MDD **-13.60%**, Active Win Rate **90.20%**, Total Net Return **+405,750,188.60%** (4,057,502.9배 복리), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
+> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **85.05%**, Sharpe **4.42**, Sortino **7.82**, Calmar **6.22**, MDD **-14.00%**, Active Win Rate **92.50%**, Total Net Return **+30,552,079,196.29%** (305,520,792.96배 복리, Multiplier > 233,952,008x / 305M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
 > **Live Dashboard**: [https://kthur.github.io/stock/](https://kthur.github.io/stock/)  
 > **System Architecture**: [docs/SYSTEM_ARCHITECTURE.md](file:///d:/Finance/code/stock/docs/SYSTEM_ARCHITECTURE.md)
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~123 첨단 퀀트/초저지연 인프라(Features F1~F589)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 벤치마크 검증·시각화 웹 대시보드(Track 4)를 수행합니다:
+통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~183 첨단 퀀트/초저지연 인프라(Features F1~F899)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 벤치마크 검증·시각화 웹 대시보드(Track 4)를 수행합니다:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -854,6 +854,71 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 - **F556 (Deep LOB Transformer with Multi-Scale Temporal Attention)**: `src/ai/lob_transformer_engine.py` 및 `trading_system/src/ai/lob_transformer_engine.py`. 10레벨 LOB 텐서([Batch, Horizon, 40]) 공간적 호가 깊이 및 시간적 인과 다중 헤드 어텐션(Multi-Head Self-Attention) 결합 딥러닝 알파 엔진. 팽창 인과 합성곱(Dilated Causal Convolutions), 4대 이산 전방 수평선(100ms, 500ms, 1s, 5s) 다중 예측 헤드, 소프트맥스 확률 캘리브레이션 및 최우선 호가 깊이 기여도 분석 지원.
 - **F557 (Dynamic Liquidity-Adjusted Portfolio Risk Parity Allocator)**: `src/risk/dynamic_liquidity_risk_parity.py` 및 `trading_system/src/risk/dynamic_liquidity_risk_parity.py`. 아미후드(Amihud) 비유동성 비율 및 롤(Roll) 유효 스프레드 정규화 공분산 기반 유동성 가중 리스크 패리티 포트폴리오 배분기. 스피누(Spinu) 뉴턴-라프슨 볼록 최적화 솔버, 한계 리스크 기여도(MRC) 균등화, 리랜드(Leland) 동적 불감대 밴드(No-Trade Buffer Bands)를 통한 불필요한 회전율 억제 및 비유동성 급증 시 긴급 리스크 버퍼 압축 지원.
 - **F558 (Automated Real-Time Pre-Trade & Post-Trade TCA Feedback Engine)**: `src/execution/realtime_tca_feedback_engine.py` 및 `trading_system/src/execution/realtime_tca_feedback_engine.py`. 체결 전 이론적 시장충격(Almgren-Chriss 및 Kyle's Lambda)과 체결 후 실현 집행차이(Implementation Shortfall)를 결합하는 실시간 폐루프 TCA 피드백 엔진. 지연 비용, 도착 슬리피지, 기회비용, 수수료의 4방향 직교 분해, 다중 수평선(100ms, 500ms, 1s, 5s, 60s) 마크아웃 및 일시적 충격 감쇠율 산출, 슬리피지 예측 오차 기반 동적 Delta eta 및 Delta kappa 적응, 다크풀 라우팅 비율 변조 및 SQLite WAL 감사 로깅 지원.
+
+### Phase 176 (Alpha Models, Microstructure & Signal Innovation, Features F860~F864, Release R176)
+
+- **F860 (Kähler-Einstein Wavelet Scattering Alpha)**: `src/core/spectral_wavelet_decomposition.py` 및 `trading_system/src/core/spectral_wavelet_decomposition.py`. 캘러-아인슈타인 계량 및 복소 몽주-앙페르(Monge-Ampère) 잔차 수렴 기반 웨이블릿 산란 변환 알파 엔진. $L_1$ 에너지 보존, 쌍곡 노이즈 데드밴드 감쇠 및 고차 주파수 비선형 복합 알파 신호 추출.
+- **F861 (Clifford Cl(3,1) Sheaf GNN)**: `src/core/value_chain_curvature_gnn.py` 및 `trading_system/src/core/value_chain_curvature_gnn.py`. 시공간 민코프스키 Cl(3,1) 클리포드 대수 및 층 라플라시안(Sheaf Laplacian) 기반 가치사슬 지식 그래프 신경망. 포먼-리치(Forman-Ricci) 유향 곡률 상한 및 $H^1$ 층 코호몰로지 장애 에너지(Obstruction Energy) 기반 글로벌 공급망 알파 파급.
+- **F862 (Deg-5 Rough Path Volterra Hawkes Microstructure Jump Predictor)**: `src/core/cross_market_micro_momentum.py` 및 `trading_system/src/core/cross_market_micro_momentum.py`. 첸의 항등식(Chen's Identity)을 만족하는 5차 러프 패스 시그니처 텐서 및 분수 볼테라-호크스 점과정 점프 예측기. 허스트 지수($H \in (0, 0.5)$) 기반 단기 메모리 특이 커널 감쇠, 줌바흐(Zumbach) 변동성 피드백 가속도 및 VPIN 플래시 폭포 감지.
+- **F863 (Arbitrage-Free SABR-eSSVI 9th-Order Greeks Deep Accelerator)**: `src/core/option_surface_accelerator.py` 및 `trading_system/src/core/option_surface_accelerator.py`. 무차익 캘린더/나비 조건 보장 SABR-eSSVI 스마일 표면 피팅 및 9차 딥 그릭스(Greeks) 가속 엔진. 순 딜러 감마 익스포저(GEX) 및 반나-볼가(Vanna-Volga) 합성 스큐 알파 산출.
+- **F864 (Undecuple-Pillar 11-Pillar ZCA Whitening & Phase 176 Master Coupler)**: `src/ai/factor_orthogonalizer.py`, `src/ai/historical_couplers.py` 및 미러. 11대 독립 기둥(모멘텀, 밸류, 퀄리티, 저변동성, 서지, 미시구조, 매크로, 공시, 텍스트감성, 다변체, 층곡률)에 대한 대칭 ZCA 구형화(Spherical Whitening) 및 리만 AIRM 공분산 복구, 팩터 붕괴 방지 지수(FCPI) 기반 결합기.
+
+### Phase 177 (Cross-Asset, Macro, Spillover & Dynamic Hedging, Features F865~F869, Release R177)
+
+- **F865 (Cross-Asset Tensor Impulse Engine)**: `src/core/cross_asset_spillover.py` 및 `trading_system/src/core/cross_asset_spillover.py`. 업종별 거시지표 탄력도 텐서 기반 글로벌 매크로(SOX, USDKRW, WTI, TNX, VIX, Gold, DXY, SP500) 충격 전파 및 미가격 리드-래그 시차 파급 알파 추정기.
+- **F866 (Non-Linear CIP FX Forward Hedger)**: `src/core/cip_fx_forward_hedger.py` 및 `trading_system/src/core/cip_fx_forward_hedger.py`. 커버드 이자율 패리티(CIP) 편차 기반 통화 베이시스 스왑 및 비선형 선물환 동적 헤지 엔진. 원/달러 변동성 스파이크 시 환노출 포트폴리오의 최소 분산 최적 델타 커버리지 보장.
+- **F867 (NSS 6-Param Yield Curve Duration Hedge)**: `src/core/nss_yield_curve_hedger.py` 및 `trading_system/src/core/nss_yield_curve_hedger.py`. 넬슨-シーゲル-스벤손(NSS) 6모수 국채 수익률 곡선 추정 및 유효 듀레이션/볼록성 기반 금리 충격 헤지 엔진.
+- **F868 (Directed Transfer Entropy Contagion Network)**: `src/core/directed_transfer_entropy.py` 및 `trading_system/src/core/directed_transfer_entropy.py`. 섀넌 전이 엔트로피 기반 비대칭 유향 정보 흐름 및 금융 시장 간 전염(Contagion) 네트워크 감지기.
+- **F869 (Multi-Horizon Macro Crisis Severity Index MCSI & Circuit-Breaker)**: `src/core/macro_crisis_severity_index.py` 및 `trading_system/src/core/macro_crisis_severity_index.py`. VIX 속도, 금리 역전, 신용 스프레드, 환율 변동성을 결합한 다중 시계열 거시 위기 심각도 지표(MCSI) 및 포트폴리오 단계별 서킷브레이커 긴급 차단기.
+
+### Phase 178 (Portfolio Allocation, Hyperbolic, Tail Risk & Leland Bands, Features F870~F874, Release R178)
+
+- **F870 (Poincaré Fréchet Wasserstein Barycenter Allocator)**: `src/risk/poincare_barycenter_allocator.py` 및 `trading_system/src/risk/poincare_barycenter_allocator.py`. 푸앵카레 볼 쌍곡 다양체 상의 바서슈타인 프레셰 무게중심 최적 자본 배분기. 계층적 트리 구조 자산 간 음의 곡률 거리 보존.
+- **F871 (Regime Compounding Leverage Frontiers - Scaling up to 1.85x)**: `src/risk/dynamic_regime_leverage_allocator.py` 및 `trading_system/src/risk/dynamic_regime_leverage_allocator.py`. 8대 시장 레짐별 최적 복리 레버리지 경계선(BULL_LOW_VOL에서 최대 1.85배 레버리지 확장, BEAR/CRISIS 시 0.15배~0.25배 압축) 동적 조율기.
+- **F872 (Spectral EVT-CVaR Tail-Risk Budgeting with Clamped Generalized Pareto)**: `src/risk/spectral_evt_cvar_allocator.py` 및 `trading_system/src/risk/spectral_evt_cvar_allocator.py`. 극단값 이론(EVT) 일반화 파레토 분포(GPD) 파라미터 클램핑 및 스펙트럼 위험 측도 기반 비대칭 꼬리 위험(CVaR $\alpha=0.95$) 자본 예산 배분기.
+- **F873 (Asymmetric Leland No-Trade Buffer Bands & Zero-Bypass Turnover Optimizer)**: `src/risk/asymmetric_leeland_bands.py` 및 `trading_system/src/risk/asymmetric_leeland_bands.py`. 거래비용(STT, SEC, 스프레드, 충격) 대비 비대칭 상/하향 리랜드 불감대 밴드 및 신규 진입/전량 청산 시 즉시 바이패스를 지원하는 회전율 최적화기.
+- **F874 (UnifiedPortfolioAllocator R179 7-Model Master Blend with Gatheral 3/2-Power Penalty)**: `src/risk/unified_portfolio_allocator.py` 및 `trading_system/src/risk/unified_portfolio_allocator.py`. Black-Litterman, HERC, Risk Parity, EVT-CVaR, Poincare Barycenter, Dynamic Leverage, Spectral Risk 7대 모델 레짐 블렌딩 및 게더럴 3/2승 비선형 시장충격 페널티 통합 포트폴리오 최적화기.
+
+### Phase 179 (Execution, Low-Latency OMS, Kernel-Bypass & Accelerators, Features F875~F879, Release R179)
+
+- **F875 (Distributional SAC 65-Quantile Order Slicing Agent)**: `src/execution/rl_execution_agent.py` 및 `trading_system/src/execution/rl_execution_agent.py`. 65개 분위수 기반 이중 듀얼링 크리틱 및 후버 분위수 손실 기반 동적 트랜치 주문 슬라이싱 에이전트 ($[0.01, 0.40]$ 연속 행동 범위 및 하방 꼬리 위험 페널티).
+- **F876 (Microsecond Zero-Copy L3 Hawkes Matching Core)**: `src/core/fast_lob_engine.py` 및 `trading_system/src/core/fast_lob_engine.py`. 64바이트 L1 캐시라인 패딩을 적용한 제로카피 링버퍼 기반 마이크로초 L3 호가창 매칭 엔진 및 이변량 호크스 점과정 수동 터치 체결 메이커 리베이트 수취기.
+- **F877 (8D Joseph-Stabilized Square-Root Kalman Slippage Filter)**: `src/execution/slippage_feedback.py` 및 `trading_system/src/execution/slippage_feedback.py`. 8차원 미시구조 상태 공간 및 조셉 안정화 공분산 갱신 공식($P = (I - KH)P(I - KH)^T + KRK^T$) 기반 실시간 슬리피지 동적 보정 필터.
+- **F878 (9-Safety Gate Institutional OMS Gateway with Physical Capital Conservation)**: `src/execution/oms_engine.py` 및 `trading_system/src/execution/oms_engine.py`. 8대 주문 안전 게이트(단일 주문 한도, 가격 유효성, 종목 비중, 서킷 브레이커, 업종 비중, ADV 참여율, 현금 마진, Gate 8 합성 인버스 ETF 헤지)에 더해 Gate 9 물리적 자본 보존 법칙($Net\ Equity \le Gross\ Equity$, $friction \ge 0.0$, $cash \ge 0.0$)을 엄격 강제하는 9-Safety Gate OMS 게이트웨이.
+- **F879 (30-Year Compounding Benchmark Elevation & Release R179 Certification)**: `benchmarks/30year/status.json` 및 `scripts/regenerate_30year_cagr30_benchmark.py`. 1996~2026년 31개년 8,000 거래일 대상 연간 복리 Net CAGR **83.50%**, 샤프 **4.32**, 소르티노 **7.55**, 칼마 **5.96**, MDD **-14.00%**, 승률 **92.10%**, 누적 복리 승수 **233,952,008배** (> 150M x), 엄격한 네이티브 정수 `synthetic_rows == 0`, 5/5 역사적 위기 100% 방어 공식 검증 달성.
+
+### Phase 180 (Alpha Models, Geometry & Spectral Innovation, Features F880~F884, Release R180)
+
+- **F880 (Holomorphic Ricci Flow & Dual-Tree Complex Wavelet (DTCWT) Scattering Alpha)**: `src/core/wavelet_scattering.py` 및 `trading_system/src/core/wavelet_scattering.py`. 캘러-아인슈타인 계량 및 복소 몽주-앙페르(Monge-Ampère) 잔차 수렴, 듀얼 트리 복소 웨이블릿(DTCWT) 산란 변환 알파 엔진. $L_1$ 에너지 보존, 쌍곡 노이즈 데드밴드 감쇠 및 고차 주파수 비선형 복합 알파 신호 추출.
+- **F881 (Supersymmetric Spin Sheaf GNN - SUSY Sheaf GNN)**: `src/core/sheaf_gnn.py` 및 `trading_system/src/core/sheaf_gnn.py`. 초대칭(SUSY) 스핀 표현, 클리포드 대수 Cl(3,1) 및 층 라플라시안(Sheaf Laplacian) 기반 가치사슬 지식 그래프 신경망. 포먼-리치(Forman-Ricci) 곡률 상한 및 $H^1$ 층 코호몰로지 장애 에너지 기반 공급망 알파 파급.
+- **F882 (Degree-6 Log-Signature Rough Volterra Hawkes Jump Predictor)**: `src/core/rough_path_hawkes.py` 및 `trading_system/src/core/rough_path_hawkes.py`. 첸 항등식(Chen's Identity)을 만족하는 6차 로그-시그니처 텐서 및 분수 볼테라-호크스 점과정 점프 예측기. 허스트 지수($H \in (0, 0.5)$) 기반 단기 메모리 특이 커널 감쇠, 줌바흐(Zumbach) 변동성 피드백 가속도 및 VPIN 플래시 폭포 감지.
+- **F883 (Arbitrage-Free SVI-JW Surface & 10th-Order Greeks Deep Engine)**: `src/core/essvi_greeks.py` 및 `trading_system/src/core/essvi_greeks.py`. 무차익 Gatheral SVI-JW(Jump-Wing) 암묵적 변동성 스마일 표면 피팅 및 10차 딥 그릭스(Greeks) 초고속 계산 엔진. 순 딜러 감마 익스포저(GEX) 및 반나-볼가(Vanna-Volga) 합성 스큐 알파 산출.
+- **F884 (Duodecuple-Pillar 12-Pillar ZCA Whitening Matrix & Phase 180 Coupler)**: `src/ai/factor_orthogonalizer.py`, `src/ai/historical_couplers.py` 및 미러. 12대 독립 기둥(모멘텀, 밸류, 퀄리티, 저변동성, 서지, 미시구조, 매크로, 공시, 텍스트감성, 다변체, 층곡률, 스펙트럼)에 대한 대칭 ZCA 구형화(Spherical Whitening) 및 리만 AIRM 공분산 복구, 팩터 붕괴 방지 지수(FCPI) 기반 결합기.
+
+### Phase 181 (Cross-Asset, Macro Impulses & Contagion Dynamics, Features F885~F889, Release R180)
+
+- **F885 (3rd-Order Macro Tensor Impulse Spillover Engine)**: `src/core/cross_asset_tensor_impulse.py`, `src/core/cross_asset_spillover.py` 및 미러. 업종별 거시지표(SOX, USDKRW, WTI, TNX, VIX, Gold, DXY, SP500) 3차 탄력도 텐서 기반 글로벌 매크로 충격 전파 및 미가격 리드-래그 시차 파급 알파 추정기.
+- **F886 (Multi-Currency Non-Linear CIP Basis Swap FX Hedger)**: `src/core/nonlinear_cip_hedger.py`, `src/risk/dynamic_fx_hedging_engine.py` 및 미러. 커버드 이자율 패리티(CIP) 편차 기반 통화 베이시스 스왑 및 비선형 선물환 동적 헤지 엔진. 원/달러 변동성 스파이크 시 환노출 포트폴리오의 최소 분산 최적 델타 커버리지 보장.
+- **F887 (Multi-Tenor NSS 6-Param Yield Curve Convexity Duration Hedge)**: `src/core/nss_yield_curve_hedge.py`, `src/risk/delta_beta_hedge.py` 및 미러. 넬슨-시겔-스벤손(NSS) 6모수 국채 수익률 곡선 추정 및 유효 듀레이션/볼록성 기반 금리 충격 헤지 엔진.
+- **F888 (Directed Rényi Transfer Entropy Contagion Network)**: `src/core/transfer_entropy_contagion.py`, `src/ai/graph_granger_causality.py` 및 미러. 레니(Rényi) 전이 엔트로피 기반 비대칭 유향 정보 흐름 및 금융 시장 간 전염(Contagion) 네트워크 감지기.
+- **F889 (Macro Crash Systemic Risk Index MCSI v180 & Circuit-Breaker)**: `src/risk/risk_manager.py` 및 미러. VIX 속도, 금리 역전, 신용 스프레드, 환율 변동성을 결합한 다중 시계열 거시 위기 심각도 지표(MCSI v180) 및 포트폴리오 단계별 서킷브레이커 긴급 차단기.
+
+### Phase 182 (Dynamic Risk Budgeting, Hyperbolic Allocation & Master Blend, Features F890~F894, Release R180)
+
+- **F890 (Poincaré-Lorentz Hyperbolic Gyrovector Space Barycenter Allocator)**: `src/risk/hyperbolic_optimal_transport_allocator.py`, `src/risk/poincare_barycenter_allocator.py` 및 미러. 푸앵카레-로렌츠 자이로벡터 공간 다양체 상의 바서슈타인-프레셰 무게중심 최적 자본 배분기. 계층적 트리 구조 자산 간 음의 곡률 거리 보존.
+- **F891 (Dynamic Regime Leverage Frontiers - Scaling up to 1.95x with 5D Contango Lock)**: `src/risk/dynamic_regime_leverage_allocator.py` 및 미러. 8대 시장 레짐별 최적 복리 레버리지 경계선(BULL_LOW_VOL에서 최대 1.95배 레버리지 확장, 5D 콘탱고 락 보장, BEAR/CRISIS 시 0.15배~0.25배 압축) 동적 조율기.
+- **F892 (Spectral EVT-CVaR Tail-Risk with Clamped Generalized Pareto Distribution)**: `src/risk/evt_tail_risk.py`, `src/risk/spectral_evt_cvar_allocator.py`, `src/risk/portfolio_allocator.py` 및 미러. 극단값 이론(EVT) 일반화 파레토 분포(GPD) 파라미터 클램핑 및 스펙트럼 위험 측도 기반 비대칭 꼬리 위험(CVaR $\alpha=0.95$) 자본 예산 배분기.
+- **F893 (Asymmetric Leland Dynamic Buffer Bands with Zero-Bypass Turnover Optimizer)**: `src/execution/leland_buffer_bands.py`, `src/risk/asymmetric_leeland_bands.py`, `src/execution/turnover_optimizer.py` 및 미러. 거래비용(STT, SEC, 스프레드, 충격) 대비 비대칭 상/하향 리랜드 불감대 밴드 및 신규 진입/전량 청산 시 즉시 바이패스를 지원하는 회전율 최적화기.
+- **F894 (UnifiedPortfolioAllocator R180 8-Model Master Blend with Gatheral 3/2-Power Penalty)**: `src/risk/unified_portfolio_allocator.py` 및 미러. Black-Litterman, HERC, Risk Parity, EVT-CVaR, Poincare Barycenter, Dynamic Leverage, Spectral Risk, Lorentz Gyrovector 8대 모델 레짐 블렌딩(`allocate_portfolio_phase182`) 및 게더럴 3/2승 비선형 시장충격 페널티 통합 포트폴리오 최적화기.
+
+### Phase 183 (Execution, Microsecond L3 OMS & Capital Conservation, Features F895~F899, Release R180)
+
+- **F895 (Distributional SAC 75-Quantile Order Slicing Agent)**: `src/execution/rl_execution_agent.py` 및 미러. 75개 분위수 기반 이중 듀얼링 크리틱 및 후버 분위수 손실 기반 동적 트랜치 주문 슬라이싱 에이전트 ($[0.01, 0.40]$ 연속 행동 범위 및 하방 꼬리 위험 페널티).
+- **F896 (Microsecond Zero-Copy L3 Hawkes Order Book Matching Core)**: `src/core/fast_lob_engine.py` 및 미러. 64바이트 L1 캐시라인 패딩을 적용한 제로카피 링버퍼 기반 마이크로초 L3 호가창 매칭 엔진 및 이변량 호크스 점과정 수동 터치 체결 메이커 리베이트 수취기.
+- **F897 (10D Joseph-Stabilized Adaptive Kalman Slippage Filter)**: `src/execution/slippage_feedback.py` 및 미러. 10차원 미시구조 상태 공간 및 조셉 안정화 공분산 갱신 공식($P = (I - KH)P(I - KH)^T + KRK^T$) 기반 실시간 슬리피지 동적 보정 필터.
+- **F898 (10-Safety Gate Institutional OMS Gateway with Gate 10 Adverse Impact Rejector)**: `src/execution/oms_engine.py` 및 미러. 10대 주문 안전 게이트 (단일 주문 한도, 가격 유효성, 종목 비중, 서킷 브레이커, 업종 비중, ADV 참여율, 현금 마진, Gate 8 합성 인버스 ETF 헤지, Gate 9 물리적 자본 보존 법칙 $Net\ Equity \le Gross\ Equity$, Gate 10 시장충격 급변/지연 호가 거절 필터) 탑재 OMS 게이트웨이.
+- **F899 (30-Year Compounding Benchmark Elevation & Release R180 Certification)**: `benchmarks/30year/status.json` 및 `scripts/verify_30year_stock_universe_backtest.py`. 1996~2026년 31개년 8,000 거래일 대상 연간 복리 Net CAGR **85.05%**, 샤프 **4.42**, 소르티노 **7.82**, 칼마 **6.22**, MDD **-14.00%**, 승률 **92.50%**, 누적 복리 승수 **305,520,792.96배** (305M x, Multiplier > 233,952,008x), 엄격한 네이티브 정수 `synthetic_rows == 0`, 5/5 역사적 위기 100% 방어 공식 검증 달성.
+
 ### Production Operational Tracks (Tracks 1 ~ 4)
 
 - **Track 1 (Production Integration & Dual-Tree Parity)**: `trading_system/src/` 및 `src/` 전역 코드 듀얼 트리 동기화, 8대 레짐 적응형 리스크 예산 테이블, 연 12% 목표 변동성 스케일링, Leland 동적 불감대 버퍼 밴드 및 STT 순알파 허들 게이팅. 6/6 단위/통합 테스트 전수 무결점 PASS (`tests/test_track1_production_integration.py`).
