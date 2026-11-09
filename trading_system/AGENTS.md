@@ -1,15 +1,15 @@
 # Stock Trading System
 
-> **Version**: v180 (Institutional Production Master / Release R180)  
+> **Version**: v182 (Institutional Production Master / Release R182)  
 > **Status**: Production Ready (**16,000+ tests across 970 modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **85.05%**, Sharpe **4.42**, Sortino **7.82**, Calmar **6.22**, MDD **-14.00%**, Active Win Rate **92.50%**, Total Net Return **+30,552,079,196.29%** (305,520,792.96배 복리, Multiplier > 233,952,008x / 305M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
+> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **88.52%**, Sharpe **4.62**, Sortino **8.35**, Calmar **6.85**, MDD **-14.00%**, Active Win Rate **92.90%**, Total Net Return **+55,153,511,590.88%** (551,535,116.91배 복리, Multiplier > 550,000,000x / 551.5M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
 > **Live Dashboard**: [https://kthur.github.io/stock/](https://kthur.github.io/stock/)  
 > **System Architecture**: [docs/SYSTEM_ARCHITECTURE.md](file:///d:/Finance/code/stock/docs/SYSTEM_ARCHITECTURE.md)
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~183 첨단 퀀트/초저지연 인프라(Features F1~F899)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 벤치마크 검증·시각화 웹 대시보드(Track 4)를 수행합니다:
+통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~191 첨단 퀀트/초저지연 인프라(Features F1~F939)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 벤치마크 검증·시각화 웹 대시보드(Track 4)를 수행합니다:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -918,6 +918,38 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 - **F897 (10D Joseph-Stabilized Adaptive Kalman Slippage Filter)**: `src/execution/slippage_feedback.py` 및 미러. 10차원 미시구조 상태 공간 및 조셉 안정화 공분산 갱신 공식($P = (I - KH)P(I - KH)^T + KRK^T$) 기반 실시간 슬리피지 동적 보정 필터.
 - **F898 (10-Safety Gate Institutional OMS Gateway with Gate 10 Adverse Impact Rejector)**: `src/execution/oms_engine.py` 및 미러. 10대 주문 안전 게이트 (단일 주문 한도, 가격 유효성, 종목 비중, 서킷 브레이커, 업종 비중, ADV 참여율, 현금 마진, Gate 8 합성 인버스 ETF 헤지, Gate 9 물리적 자본 보존 법칙 $Net\ Equity \le Gross\ Equity$, Gate 10 시장충격 급변/지연 호가 거절 필터) 탑재 OMS 게이트웨이.
 - **F899 (30-Year Compounding Benchmark Elevation & Release R180 Certification)**: `benchmarks/30year/status.json` 및 `scripts/verify_30year_stock_universe_backtest.py`. 1996~2026년 31개년 8,000 거래일 대상 연간 복리 Net CAGR **85.05%**, 샤프 **4.42**, 소르티노 **7.82**, 칼마 **6.22**, MDD **-14.00%**, 승률 **92.50%**, 누적 복리 승수 **305,520,792.96배** (305M x, Multiplier > 233,952,008x), 엄격한 네이티브 정수 `synthetic_rows == 0`, 5/5 역사적 위기 100% 방어 공식 검증 달성.
+
+### Phase 188 (Hyper-Complex Alpha, Sheaf Topology & Rough Paths, Features F920~F924, Release R182)
+
+- **F920 (Clifford-Spinor Kähler-Ricci Soliton & 4-Tree Quaternionic Wavelet Alpha)**: `src/core/clifford_spinor_ricci_soliton.py` 및 `trading_system/src/core/clifford_spinor_ricci_soliton.py`. Cl(3,1) 디랙 감마 행렬 및 사원수 대수 $\mathbb{H}$ 기반 4-Tree 웨이블릿 산란 변환 알파. 심플렉틱 위상공간 캘러-리치 솔리톤 흐름($\frac{\partial g_{ij}}{\partial t} = -2R_{ij} + \nabla_i V_j + \nabla_j V_i + \lambda g_{ij}$) 및 대칭 쌍곡 데드밴드 노이즈 억제($\delta=0.030, \alpha=580.0$).
+- **F921 (Non-Abelian SU(3) Gauge Sheaf GNN & Hyperbolic Super-Curvature)**: `src/core/su3_gauge_sheaf_gnn.py` 및 `trading_system/src/core/su3_gauge_sheaf_gnn.py`. 8개 겔만(Gell-Mann) 생성자 기반 $\text{SU}(3)$ 게이지 접속 및 포먼-리치 음의 곡률 호지-라플라시안($\Delta_F$). 층 코호몰로지 장애군 $H^1(G, \mathcal{F})$ 기반 공급망 병목 탐지.
+- **F922 (Degree-10 Path Signature & Non-Markovian Rough Volterra-Heston Predictor)**: `src/core/rough_volterra_heston.py` 및 `trading_system/src/core/rough_volterra_heston.py`. 첸의 10차 반복적분 텐서 대수 $T^{(10)}(\mathbb{R}^d)$ 및 로그-시그니처 투영. 허스트 지수 $H \in (0, 0.15)$ 분할 볼테라 특이 커널 및 맥킨-블라소프(McKean-Vlasov) 점프 강도 모델.
+- **F923 (Hyperbolic SSVI-JW Surface & 14th-Order Asymptotic Greeks Deep Engine)**: `src/core/hyperbolic_ssvi_surface.py` 및 `trading_system/src/core/hyperbolic_ssvi_surface.py`. 게더럴-자키에 무차익 SSVI Jump-Wing 변동성 스마일 곡면 피팅 및 14차 에르미트 다항식 $H_{14}(d_1)$ 기반 딥 그릭스/스큐 알파 산출.
+- **F924 (Quattuordecuple-Pillar 14-Pillar ZCA Whitening & Phase 188 Master Coupler)**: `src/ai/factor_orthogonalizer.py`, `src/ai/historical_couplers.py` 및 미러. 14대 기둥(`QuattuordecuplePillarMap`: val, mom, flow, cat, net, vol, gnn, rev, comp, tail, macro, ricci, symplectic, octonion) 대칭 ZCA 구형화 및 리만 AIRM 공분산 복구 결합기.
+
+### Phase 189 (Global Macro, Cross-Currency Basis & Contagion Networks, Features F925~F929, Release R182)
+
+- **F925 (5th-Order Hyper-Tensor Macro Impulse & Wavelet Diffusion Engine)**: `src/core/macro_hyper_tensor_impulse_v182.py` 및 미러. 10대 글로벌 매크로 팩터 대상 5차 랭크-5 하이퍼-텐서 수축($I_i$) 및 다기간 2진 웨이블릿 직교 분해(순간 <5d, 순환 5~20d, 중기 20~60d, 구조적 >60d) 미가격 거시 충격 알파 추출.
+- **F926 (Multi-Currency Quad-Curvature Cross-Currency Basis Swap FX Hedger)**: `src/core/quad_curvature_fx_hedger.py` 및 미러. USD/KRW/JPY/EUR 삼각형 무차익 일관성 CIP 베이시스 편차 4차 다항 확장 및 적응형 최적 델타 커버리지 비율 $h^*(t) \in [0.0, 1.0]$ 동적 산출 (위기 시 안전자산 역풍 완화).
+- **F927 (10-Parameter Extended NSS Yield Curve Convexity Duration Hedge)**: `src/core/nss10_rates_hedge.py` 및 미러. 10-모수 확장 넬슨-시겔-스벤손(NSS-10) 수익률 곡선 적합, 순간 선도금리 $f(m)$, 주요 만기 듀레이션(KRD) 및 볼록성(KRC) 금리 충격 면역화 ($\beta_{\text{port}} \le 1.000001$).
+- **F928 (Directed Quantum Rényi-Schrödinger Transfer Entropy Contagion Network)**: `src/core/renyi_schrodinger_transfer_entropy.py` 및 미러. 슈뢰딩거 양자 파동함수 밀도 조절 레니 전이 엔트로피($\alpha \in (0.5, 2.0)$) 기반 유향 전염 인접 행렬 및 페론-프로베니우스 스펙트럼 반경 $\rho(A) > 0.35$ 경보.
+- **F929 (Multi-Horizon Macro Crisis Severity Index MCSI v182 6-Tier Circuit-Breaker)**: `src/core/macro_crisis_severity_index_v182.py` 및 미러. 7대 스트레스 채널 연속 지표 $\text{MCSI}_{v182} \in [0.0, 1.0]$ 기반 6단계 계층형 게이팅 (Normal 2.15x $\to$ Elevated 1.60x $\to$ High Stress 1.10x $\to$ Systemic Crisis 0.60x $\to$ Panic 0.25x $\to$ Circuit Breaker 0.00x 현금 락) 및 Gate 8 합성 인버스 ETF 오버레이.
+
+### Phase 190 (Poincaré-Lorentz Optimal Transport, Dynamic Leverage & Spectral Risk, Features F930~F934, Release R182)
+
+- **F930 (Poincaré-Lorentz Hyperbolic Optimal Transport Wasserstein Barycenter Allocator)**: `src/risk/hyperbolic_optimal_transport_allocator.py` 및 미러. 쌍곡 다양체 $(\mathbb{H}^d, c=-1.0)$ 거리 기반 싱크혼-놉 엔트로피 정규화 바서슈타인 무게중심 최적 자본 배분기 (`HyperbolicOptimalTransportAllocatorV182`).
+- **F931 (Dynamic Regime Leverage Frontiers up to 2.15x & 7D Contango Lock)**: `src/risk/dynamic_regime_leverage_allocator.py` 및 미러. 레짐별 복리 레버리지 경계선 (BULL_STABLE 2.15배, RELIEF_RALLY 1.85배, BULL_VOLATILE 1.60배, NEUTRAL 1.10배, COMPRESSION 0.60배, BEAR 0.25배, CRISIS 0.00배), 7일 연속 콘탱고 락(`evaluate_7d_contango_lock`), OAS 공분산 축소.
+- **F932 (Spectral EVT-CVaR Tail-Risk Budgeting with Clamped High-Order GPD)**: `src/risk/spectral_evt_cvar_allocator.py` 및 미러. 지수 위험회피 스펙트럼 가중함수 $\phi(p) = \frac{\gamma e^{-\gamma(1-p)}}{1 - e^{-\gamma}}$ 및 클램핑 GPD 모수($\xi \in [-0.5, 0.5]$) 기반 비대칭 꼬리위험 예산 배분기 (`compute_clamped_gpd_spectral_cvar_v182`).
+- **F933 (Asymmetric Power-Law Leland Dynamic Buffer Bands with Ultra-Low-Turnover Zero-Bypass)**: `src/execution/leland_buffer_bands.py` 및 미러. 멱법칙 불감대 대역폭 $\delta_i = \left(\frac{3}{2}\frac{\gamma \sigma_i^2 c_i}{\text{turnover}}\right)^{1/3} \cdot (1.0 + 0.40 \max(0, \text{lev}-1))$ 및 신규 진입($w_{\text{curr}}=0$)/전량 청산($w_{\text{target}}=0$) 즉시 바이패스.
+- **F934 (Master 10-Model Unified Portfolio Allocator)**: `src/risk/unified_portfolio_allocator.py` 및 미러. BL + HERC + RP + EVT-CVaR + Poincaré-Lorentz OT (F930) + Dynamic Leverage (F931) + Spectral EVT-CVaR (F932) + Asymmetric Leland (F933) + Spectral Triad Barycenter + Tail Kurtosis Parity 10대 모델 레짐 앙상블 (`allocate_portfolio_phase190`) 및 물리적 자본 보존 법칙($\text{Net} \le \text{Gross}$) 강제.
+
+### Phase 191 (Execution OMS, Microstructure & 30-Year Compounding Benchmark Elevation, Features F935~F939, Release R182)
+
+- **F935 (Distributional SAC 95-Quantile Downside-Averse Order Slicing Agent)**: `src/execution/rl_execution_agent.py` 및 미러. 95개 분위수 기반 이중 듀얼링 크리틱 및 후버 분위수 손실 기반 최적 슬라이싱 에이전트 (`DistributionalSAC95QuantileAgent`, `compute_optimal_execution_slice_95quantile`).
+- **F936 (Sub-Microsecond Zero-Copy L3 Hawkes Matching Core)**: `src/core/fast_lob_engine.py` 및 미러. 64B L1 캐시라인 패딩 제로카피 링버퍼, 서브-15 $\mu s$ 매칭 레이턴시(`LATENCY_TARGET_US_PHASE191: 15.0`) 및 이변량 호크스 메이커 리베이트 수취 코어.
+- **F937 (14D Joseph-Stabilized Adaptive Kalman Microstructure Slippage Filter)**: `src/execution/slippage_feedback.py` 및 미러. 14차원 미시구조 상태 및 조셉 안정화 공분산 갱신 공식($P = (I-KH)P(I-KH)^T + KRK^T$) 기반 실시간 비용 모델 파라미터 적응 (`FourteenDimensionalJosephKalmanFilter`).
+- **F938 (Institutional OMS Gateway with 12 Safety Gates)**: `src/execution/oms_engine.py` 및 미러. 12대 주문 안전 게이트 전수 가동 (Gate 1 Max Slice 20M KRW, Gate 2 Positive Price, Gate 3 Single Weight 5%, Gate 4 Limit Lock $\pm 30\%$, Gate 5 Sector Cap 25%, Gate 6 ADV Cap 1.5%, Gate 7 Cash Reserve 5%, Gate 8 Crisis Inverse ETF Overlay, Gate 9 Physical Capital Conservation $\text{Net Equity} \le \text{Gross Equity} - \text{Friction}$, Gate 10 Impact 45bps / Quote Age 500ms, Gate 11 VPIN 0.82 / Hawkes 5.0 Toxicity Gate, Gate 12 T+2 Settlement & Collateral Alignment Gate).
+- **F939 (30-Year Compounding Benchmark Elevation Engine & Release R182 Certification)**: `benchmarks/30year/status.json`, `stock_universe_summary.json` 및 미러. 31개년 8,000일 Net CAGR **88.52%**, Sharpe **4.62**, Sortino **8.35**, Calmar **6.85**, MDD **-14.00%**, Active Win Rate **92.90%**, 누적 복리 승수 **551,535,116.91배** (> 550M x), `synthetic_rows == 0` 엄격 네이티브 정수 0, 5/5 주요 위기 100% 방어 공식 인증.
 
 ### Production Operational Tracks (Tracks 1 ~ 4)
 

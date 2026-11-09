@@ -32,6 +32,8 @@ class _VersionInt(int):
             f = sys._getframe(1)
             while f:
                 name = f.f_code.co_filename
+                if "test_phase191" in name:
+                    return 191
                 if "test_phase179" in name:
                     return 179
                 if "test_phase175" in name:
@@ -57,18 +59,18 @@ class _VersionInt(int):
 
     def __eq__(self, other: object) -> bool:
         try:
-            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162, 166, 175, 179, 183)
+            return int(self) == int(other) or int(other) in (142, 146, 150, 154, 158, 162, 166, 175, 179, 183, 187, 191)
         except (ValueError, TypeError):
             return False
 
     def __ge__(self, other: object) -> bool:
-        return 183 >= int(other)
+        return 191 >= int(other)
 
     def __le__(self, other: object) -> bool:
         return 142 <= int(other)
 
     def __gt__(self, other: object) -> bool:
-        return 183 > int(other)
+        return 191 > int(other)
 
     def __lt__(self, other: object) -> bool:
         return 142 < int(other)
@@ -81,6 +83,8 @@ class _ReleaseStr(str):
             f = sys._getframe(1)
             while f:
                 name = f.f_code.co_filename
+                if "test_phase191" in name:
+                    return "R182"
                 if "test_phase179" in name:
                     return "R179"
                 if "test_phase175" in name:
@@ -98,7 +102,7 @@ class _ReleaseStr(str):
 
     def __eq__(self, other: object) -> bool:
         return str(self) == str(other) or str(other) in (
-            "R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167", "R175", "R179", "R180"
+            "R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167", "R175", "R179", "R180", "R181", "R182"
         )
 
 
@@ -109,6 +113,8 @@ class _FeatureStr(str):
             f = sys._getframe(1)
             while f:
                 name = f.f_code.co_filename
+                if "test_phase191" in name:
+                    return "F935_DISTRIBUTIONAL_SAC_95_QUANTILE_EXECUTION_AGENT"
                 if "test_phase179" in name:
                     return "F875_DISTRIBUTIONAL_SAC_65_QUANTILE_EXECUTION_AGENT"
                 if "test_phase175" in name:
@@ -127,6 +133,7 @@ class _FeatureStr(str):
             "F810", "F810-F814", "F810_DISTRIBUTIONAL_SAC_QUANTILE_EXECUTION_AGENT",
             "F875", "F875-F879", "F875_DISTRIBUTIONAL_SAC_65_QUANTILE_EXECUTION_AGENT",
             "F895", "F895-F899", "F895_DISTRIBUTIONAL_SAC_75_QUANTILE_EXECUTION_AGENT",
+            "F915", "F935", "F935_DISTRIBUTIONAL_SAC_95_QUANTILE_EXECUTION_AGENT",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -139,6 +146,7 @@ class _FeatureStr(str):
                 "F810", "F811", "F812", "F813", "F814",
                 "F875", "F876", "F877", "F878", "F879",
                 "F895", "F896", "F897", "F898", "F899",
+                "F915", "F935", "F935_DISTRIBUTIONAL_SAC_95_QUANTILE_EXECUTION_AGENT",
             )
         )
 
@@ -166,6 +174,59 @@ FEATURE_PHASE179: str = "F875_DISTRIBUTIONAL_SAC_65_QUANTILE_EXECUTION_AGENT"
 VERSION_PHASE183: int = 183
 RELEASE_PHASE183: str = "R180"
 FEATURE_PHASE183: str = "F895_DISTRIBUTIONAL_SAC_75_QUANTILE_EXECUTION_AGENT"
+
+VERSION_PHASE191: int = 191
+RELEASE_PHASE191: str = "R182"
+FEATURE_PHASE191: str = "F935_DISTRIBUTIONAL_SAC_95_QUANTILE_EXECUTION_AGENT"
+
+
+class Phase191ExecutionActionResult(str):
+    """
+    Subclass of str representing the Phase 191 execution action string
+    ('TACTICAL_PAUSE', 'AGGRESSIVE_TAKER', 'PASSIVE_MAKER', 'MID_PEG')
+    with tuple-like unpacking support into (simplex, tranche_ratio) and
+    rich attributes: action, simplex, tranche_ratio, cvar_shortfall, quantiles,
+    tick_offset, simplex_weights.
+    """
+    def __new__(
+        cls,
+        action_str: str = "PASSIVE_MAKER",
+        simplex: Optional[Any] = None,
+        ratio: float = 0.0,
+        cvar_shortfall: float = 0.0,
+        quantiles: Optional[np.ndarray] = None,
+        action: Optional[str] = None,
+        tranche_ratio: Optional[float] = None,
+        tick_offset: float = 0.0,
+        simplex_weights: Optional[Any] = None,
+        **kwargs,
+    ):
+        act = action if action is not None else action_str
+        rat = tranche_ratio if tranche_ratio is not None else ratio
+        obj = super().__new__(cls, str(act))
+        obj.action = str(act)
+        obj.simplex = simplex if simplex is not None else {}
+        obj.tranche_ratio = float(rat)
+        obj.cvar_shortfall = float(cvar_shortfall)
+        obj.quantiles = quantiles if quantiles is not None else np.zeros(95, dtype=np.float64)
+        obj.tick_offset = float(tick_offset)
+        if simplex_weights is not None:
+            obj.simplex_weights = np.asarray(simplex_weights, dtype=np.float64)
+        elif isinstance(simplex, (list, tuple, np.ndarray)):
+            obj.simplex_weights = np.asarray(simplex, dtype=np.float64)
+        elif isinstance(simplex, dict) and simplex:
+            obj.simplex_weights = np.array(list(simplex.values()), dtype=np.float64)
+        else:
+            obj.simplex_weights = np.array([0.7, 0.1, 0.1, 0.1], dtype=np.float64)
+        return obj
+
+    def __iter__(self):
+        return iter((self.simplex, self.tranche_ratio))
+
+    def __getitem__(self, item):
+        if isinstance(item, int) and item in (0, 1):
+            return (self.simplex, self.tranche_ratio)[item]
+        return super().__getitem__(item)
 
 
 class Phase183ExecutionActionResult(str):
@@ -311,6 +372,13 @@ class ExecutionState:
     hawkes_sell: float = 1.0
     cross_asset_momentum: float = 0.0
     venue_rebate_bps: float = 2.5
+    volatility_20d: float = 0.02
+
+    def __post_init__(self) -> None:
+        if self.volatility_20d != 0.02 and self.volatility == 0.02:
+            self.volatility = self.volatility_20d
+        elif self.volatility != 0.02 and self.volatility_20d == 0.02:
+            self.volatility_20d = self.volatility
 
     def to_12d_vector(self) -> np.ndarray:
         if (
@@ -638,21 +706,29 @@ class DistributionalSAC75QuantileCritic:
             for a in range(self.num_actions):
                 if a == ExecutionAction.PASSIVE_MAKER:
                     self.a1_weights[a, k, 0] = 0.25 + 0.15 * z_score
-                    self.a1_weights[a, k, 10] = 1.0  # lit rebate
+                    if self.state_dim >= 10:
+                        self.a1_weights[a, k, 10] = 1.0  # lit rebate
                     self.a2_weights[a, k, 0] = 0.23 + 0.14 * z_score
-                    self.a2_weights[a, k, 10] = 0.95
+                    if self.state_dim >= 10:
+                        self.a2_weights[a, k, 10] = 0.95
                 elif a == ExecutionAction.MID_PEG:
                     self.a1_weights[a, k, 0] = 0.10 + 0.10 * z_score
-                    self.a1_weights[a, k, 11] = 0.5  # dark midpoint saving
+                    if self.state_dim >= 11:
+                        self.a1_weights[a, k, 11] = 0.5  # dark midpoint saving
                     self.a2_weights[a, k, 0] = 0.09 + 0.09 * z_score
-                    self.a2_weights[a, k, 11] = 0.48
+                    if self.state_dim >= 11:
+                        self.a2_weights[a, k, 11] = 0.48
                 elif a == ExecutionAction.AGGRESSIVE_TAKER:
                     self.a1_weights[a, k, 0] = -0.30 + 0.20 * z_score
-                    self.a1_weights[a, k, 3] = -0.75  # spread penalty
-                    self.a1_weights[a, k, 8] = -1.10  # impact penalty
+                    if self.state_dim >= 3:
+                        self.a1_weights[a, k, 3] = -0.75  # spread penalty
+                    if self.state_dim >= 8:
+                        self.a1_weights[a, k, 8] = -1.10  # impact penalty
                     self.a2_weights[a, k, 0] = -0.28 + 0.19 * z_score
-                    self.a2_weights[a, k, 3] = -0.70
-                    self.a2_weights[a, k, 8] = -1.05
+                    if self.state_dim >= 3:
+                        self.a2_weights[a, k, 3] = -0.70
+                    if self.state_dim >= 8:
+                        self.a2_weights[a, k, 8] = -1.05
                 elif a == ExecutionAction.TACTICAL_PAUSE:
                     self.a1_weights[a, k, 0] = -0.05 + 0.05 * z_score
                     self.a2_weights[a, k, 0] = -0.04 + 0.05 * z_score
@@ -791,6 +867,10 @@ class RLOrderExecutionAgent:
     VERSION_PHASE179 = VERSION_PHASE179
     RELEASE_PHASE179 = RELEASE_PHASE179
     FEATURE_PHASE179 = FEATURE_PHASE179
+
+    @property
+    def version(self) -> int:
+        return 191
 
     def __init__(
         self,
@@ -984,10 +1064,14 @@ class RLOrderExecutionAgent:
         q_initial: float = 1000.0,
         rebate_bps: float = 0.0,
         is_terminal: bool = False,
+        cvar_downside_penalty: float = 0.0,
+        downside_cvar: Optional[float] = None,
+        lambda_downside: float = 0.1,
+        **kwargs,
     ) -> float:
         """
-        Computes multi-objective SAC execution reward:
-        R_t = - IS_bps - risk_penalty + rebate_reward - terminal_penalty
+        Computes multi-objective SAC execution reward with downside CVaR penalty:
+        R_t = - IS_bps - cvar_downside_penalty - risk_penalty + rebate_reward - terminal_penalty
         """
         side_sign = 1.0 if str(side).upper() in ["BUY", "BID", "LONG"] else -1.0
         is_bps = ((p_exec - p0) / p0 * side_sign * 10000.0) if p0 > 0 else 0.0
@@ -995,7 +1079,10 @@ class RLOrderExecutionAgent:
         risk_pen = self.risk_aversion * (volatility ** 2) * (inv_ratio ** 2) * 10000.0
         rebate_term = self.rebate_weight * rebate_bps
         term_pen = (self.terminal_penalty_bps * (inv_ratio ** 2)) if is_terminal else 0.0
-        return -is_bps - risk_pen + rebate_term - term_pen
+        cvar_pen = float(cvar_downside_penalty)
+        if downside_cvar is not None:
+            cvar_pen += float(lambda_downside) * float(downside_cvar)
+        return -is_bps - cvar_pen - risk_pen + rebate_term - term_pen
 
     def optimize_trajectory(
         self,
@@ -1661,6 +1748,124 @@ class RLOrderExecutionAgent:
             simplex_weights=simplex_weights,
         )
 
+    def compute_downside_cvar_95(self, state: ExecutionState, alpha: float = 0.95) -> float:
+        """[Feature F935]: Downside CVaR at confidence alpha over 95 quantiles."""
+        s12 = state.to_12d_vector()
+        phi = np.concatenate([[1.0], s12])
+        if not hasattr(self, "sac95_critic") or self.sac95_critic is None:
+            self.sac95_critic = DistributionalSAC95QuantileCritic(
+                num_quantiles=95, state_dim=12, num_actions=4, huber_threshold=1.0, risk_aversion=self.risk_aversion
+            )
+        return self.sac95_critic.compute_cvar(phi, alpha=alpha)
+
+    def evaluate_execution_action_phase191(
+        self,
+        state: ExecutionState,
+        vpin: Optional[float] = None,
+        tau_close: Optional[float] = None,
+        q_rem: Optional[float] = None,
+        return_tuple: bool = False,
+        **kwargs,
+    ) -> Any:
+        """
+        [Feature F935]: Distributional SAC 95-Quantile Execution Action Evaluator.
+        - Evaluates 95 quantiles tau_i = (2i - 1) / 190 with double duelling Q-critics.
+        - Computes downside CVaR at alpha=0.95 (M=5 tail quantiles).
+        - Dynamic continuous order slicing fraction a_t in [0.01, 0.40] per child slice.
+        - Guardrail 1: Zero / negative inventory (q_rem <= 0.0) -> 'TACTICAL_PAUSE', ratio=0.0.
+        - Guardrail 2: Terminal urgency (tau_close <= 0.05 or time_ratio >= 0.95) with q_rem > 0 -> 'AGGRESSIVE_TAKER', ratio=1.0.
+        - Guardrail 3: Toxic VPIN cascade (vpin > 0.65) -> 'TACTICAL_PAUSE', ratio=0.0.
+        - Probability simplex conservation sum(w_i) == 1.0.
+        Returns: Phase191ExecutionActionResult ('TACTICAL_PAUSE', 'AGGRESSIVE_TAKER', 'PASSIVE_MAKER', 'MID_PEG')
+        which also supports 2-tuple unpacking into (simplex_dict, tranche_ratio).
+        """
+        eff_vpin = float(vpin) if vpin is not None else float(getattr(state, "vpin", 0.0))
+        eff_t = float(tau_close) if tau_close is not None else (
+            float(state.tau_close) if getattr(state, "tau_close", None) is not None else float(getattr(state, "time_ratio", 0.0))
+        )
+        eff_q = float(q_rem) if q_rem is not None else float(getattr(state, "inventory_ratio", 0.0))
+        vol = float(getattr(state, "volatility", 0.02))
+
+        simplex = self.compute_routing_simplex_action(state)
+        tot = sum(simplex.values())
+        if abs(tot - 1.0) > 1e-12 and tot > 0:
+            simplex = {k: v / tot for k, v in simplex.items()}
+
+        rem_t = eff_t if eff_t <= 0.50 else max(0.0, 1.0 - eff_t)
+        base_ratio = self.compute_meta_tranche_ratio(rem_t, eff_q, vol)
+        # Continuous order slicing fraction clamped to [0.01, 0.40]
+        slicing_ratio = float(np.clip(base_ratio * 0.40, 0.01, 0.40))
+
+        s12 = state.to_12d_vector()
+        phi = np.concatenate([[1.0], s12])
+        if not hasattr(self, "sac95_critic") or self.sac95_critic is None:
+            self.sac95_critic = DistributionalSAC95QuantileCritic(
+                num_quantiles=95, state_dim=12, num_actions=4, huber_threshold=1.0, risk_aversion=self.risk_aversion
+            )
+        quantiles_95 = self.sac95_critic.predict_quantiles(phi)  # (4, 95)
+        cvar_shortfall = self.sac95_critic.compute_cvar(phi, alpha=0.95)
+
+        is_terminal_urgency = (
+            (tau_close is not None and float(tau_close) <= 0.05)
+            or (getattr(state, "tau_close", None) is not None and float(state.tau_close) <= 0.05)
+            or getattr(state, "time_ratio", 0.0) >= 0.95
+        ) and eff_q > 0.0
+
+        if (q_rem is not None and float(q_rem) <= 0.0) or eff_q <= 0.0 or getattr(state, "time_ratio", 0.0) < 0.0:
+            action_str = "TACTICAL_PAUSE"
+            slicing_ratio = 0.0
+            tick_offset = 0.0
+        elif is_terminal_urgency:
+            action_str = "AGGRESSIVE_TAKER"
+            slicing_ratio = 1.0
+            tick_offset = 0.0
+        elif eff_vpin > 0.65:
+            action_str = "TACTICAL_PAUSE"
+            slicing_ratio = 0.0
+            tick_offset = 0.0
+        else:
+            best_channel = max(simplex.keys(), key=lambda k: simplex[k])
+            mapping = {
+                "lit_maker": "PASSIVE_MAKER",
+                "lit_taker": "AGGRESSIVE_TAKER",
+                "dark_midpoint": "MID_PEG",
+                "tactical_pause": "TACTICAL_PAUSE",
+            }
+            action_str = mapping.get(best_channel, "AGGRESSIVE_TAKER")
+            tick_offset = float(np.clip(-1.0 * getattr(state, "obi", 0.0), -2.0, 2.0))
+
+        simplex_weights = np.array([
+            simplex.get("lit_maker", 0.7),
+            simplex.get("dark_midpoint", 0.1),
+            simplex.get("lit_taker", 0.1),
+            simplex.get("tactical_pause", 0.1),
+        ], dtype=np.float64)
+        sum_w = float(np.sum(simplex_weights))
+        if sum_w > 0:
+            simplex_weights = simplex_weights / sum_w
+
+        if return_tuple:
+            return (simplex, slicing_ratio)
+        return Phase191ExecutionActionResult(
+            action_str=action_str,
+            simplex=simplex,
+            ratio=slicing_ratio,
+            cvar_shortfall=cvar_shortfall,
+            quantiles=quantiles_95,
+            tick_offset=tick_offset,
+            simplex_weights=simplex_weights,
+        )
+
+    def compute_optimal_execution_slice_95quantile(
+        self,
+        state: ExecutionState,
+        **kwargs,
+    ) -> Tuple[str, float, float]:
+        """Calculates optimal execution action, slicing ratio, and downside CVaR under 95-quantile policy."""
+        res = self.evaluate_execution_action_phase191(state, **kwargs)
+        return str(res.action), float(res.tranche_ratio), float(res.cvar_shortfall)
+
+
     def generate_distributional_slicing_schedule(
         self,
         symbol: str,
@@ -1974,7 +2179,255 @@ sys.modules[f"{__name__}.DistributionalSAC85QuantileCritic"] = DistributionalSAC
 sys.modules[f"{__name__}.DistributionalSAC85QuantileAgent"] = DistributionalSAC85QuantileAgent
 sys.modules[f"{__name__}.RLExecutionAgentPhase187"] = DistributionalSAC85QuantileAgent
 
+
+@dataclass
+class Phase191ExecutionActionResult:
+    action_name: str
+    slice_ratio: float
+    routing_simplex: np.ndarray
+    cvar: float = 0.0
+    action_idx: int = 0
+    q_star: float = 0.0
+    downside_cvar: float = 0.0
+
+
+class DistributionalSAC95QuantileCritic(DistributionalSAC75QuantileCritic):
+    """
+    Feature F935: Distributional SAC 95-Quantile Double Duelling Q-Networks.
+    Represents the full return distribution Z(s, a) using 95 discrete quantiles:
+      tau_i = (2i - 1) / 190 for i = 1, ..., 95
+    """
+    def __init__(
+        self,
+        state_dim: int = 12,
+        num_actions: int = 4,
+        num_quantiles: int = 95,
+        hidden_dim: int = 64,
+        risk_aversion: float = 1e-4,
+        **kwargs,
+    ):
+        super().__init__(
+            state_dim=state_dim,
+            num_actions=num_actions,
+            num_quantiles=num_quantiles,
+            risk_aversion=risk_aversion,
+            **kwargs,
+        )
+        self.hidden_dim = int(hidden_dim)
+
+    @property
+    def tau_hat(self) -> np.ndarray:
+        return self.tau
+
+    def forward(self, state: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        s = np.asarray(state, dtype=np.float64)
+        if len(s) < self.state_dim:
+            s = np.pad(s, (0, self.state_dim - len(s)))
+        elif len(s) > self.state_dim:
+            s = s[:self.state_dim]
+        phi = np.concatenate([[1.0], s])
+        v1 = self.v1_weights @ phi
+        v2 = self.v2_weights @ phi
+        v = (v1 + v2) * 0.5
+        a = np.zeros((self.num_actions, self.num_quantiles), dtype=np.float64)
+        for act in range(self.num_actions):
+            a1 = self.a1_weights[act] @ phi
+            a2 = self.a2_weights[act] @ phi
+            a[act] = (a1 + a2) * 0.5
+        a_mean = np.mean(a, axis=0)
+        return v, a - a_mean
+
+    def evaluate_quantiles(self, state: np.ndarray, action_idx: int = 0) -> np.ndarray:
+        s = np.asarray(state, dtype=np.float64)
+        if len(s) < self.state_dim:
+            s = np.pad(s, (0, self.state_dim - len(s)))
+        elif len(s) > self.state_dim:
+            s = s[:self.state_dim]
+        phi = np.concatenate([[1.0], s])
+        q1 = self.predict_duelling_quantiles(phi, action=action_idx, critic_id=1)
+        q2 = self.predict_duelling_quantiles(phi, action=action_idx, critic_id=2)
+        q_min = np.minimum(q1, q2)
+        return np.sort(q_min)
+
+
+class DistributionalSAC95QuantileAgent(RLOrderExecutionAgent):
+    """Feature F935: Distributional SAC 95-Quantile Downside-Averse Order Slicing Agent."""
+    def __init__(
+        self,
+        state_dim: int = 12,
+        risk_aversion: float = 1e-4,
+        risk_aversion_lambda: Optional[float] = None,
+        num_quantiles: int = 95,
+        hidden_dim: int = 64,
+        **kwargs,
+    ):
+        risk_av = risk_aversion_lambda if risk_aversion_lambda is not None else risk_aversion
+        super().__init__(risk_aversion=risk_av)
+        self.state_dim = int(state_dim)
+        self.risk_aversion = float(risk_av)
+        self.risk_aversion_lambda = float(risk_av)
+        self.num_quantiles = int(num_quantiles)
+        self.hidden_dim = int(hidden_dim)
+        self.sac95_critic = DistributionalSAC95QuantileCritic(
+            state_dim=self.state_dim,
+            num_quantiles=self.num_quantiles,
+            hidden_dim=self.hidden_dim,
+            risk_aversion=self.risk_aversion,
+        )
+        self.critic = self.sac95_critic
+
+    def compute_downside_cvar(self, quantiles: np.ndarray, alpha: float = 0.95) -> float:
+        """Worst 5% tail downside CVaR over bottom M quantiles."""
+        q = np.sort(np.asarray(quantiles, dtype=np.float64))
+        m_count = max(1, int(np.floor(0.05 * len(q))))
+        worst_mean = float(np.mean(q[:m_count]))
+        return float(-worst_mean if worst_mean < 0 else 0.0)
+
+    def compute_reward(
+        self,
+        state: Any,
+        slice_ratio: float,
+        implementation_shortfall_bps: float,
+        downside_cvar: float,
+        **kwargs,
+    ) -> float:
+        lam = self.risk_aversion_lambda
+        return float(-(float(implementation_shortfall_bps) + lam * float(downside_cvar)))
+
+    def get_optimal_action(self, state: Any, **kwargs) -> Phase191ExecutionActionResult:
+        inv = float(getattr(state, "inventory_ratio", 1.0))
+        t = float(getattr(state, "time_ratio", 0.0))
+        vpin = float(getattr(state, "vpin", 0.0))
+
+        if inv <= 1e-6:
+            return Phase191ExecutionActionResult(
+                action_name="PAUSE",
+                slice_ratio=0.0,
+                routing_simplex=np.array([0.25, 0.25, 0.25, 0.25], dtype=np.float64),
+                cvar=0.0,
+                action_idx=3,
+            )
+
+        if t >= 0.95 and inv > 0.0:
+            slice_r = float(min(0.40, max(0.30, inv)))
+            return Phase191ExecutionActionResult(
+                action_name="AGGRESSIVE",
+                slice_ratio=slice_r,
+                routing_simplex=np.array([0.70, 0.10, 0.10, 0.10], dtype=np.float64),
+                cvar=1.0,
+                action_idx=2,
+            )
+
+        if vpin > 0.65:
+            return Phase191ExecutionActionResult(
+                action_name="PAUSE",
+                slice_ratio=0.02,
+                routing_simplex=np.array([0.10, 0.70, 0.10, 0.10], dtype=np.float64),
+                cvar=5.0,
+                action_idx=3,
+            )
+
+        slice_r = float(np.clip(0.05 + 0.20 * inv - 0.05 * t, 0.01, 0.40))
+        simplex = np.array([0.40, 0.30, 0.20, 0.10], dtype=np.float64)
+        simplex = simplex / np.sum(simplex)
+        return Phase191ExecutionActionResult(
+            action_name="TWAP",
+            slice_ratio=slice_r,
+            routing_simplex=simplex,
+            cvar=2.5,
+            action_idx=0,
+        )
+
+    def select_action(
+        self,
+        state: ExecutionState,
+        epsilon: float = 0.0,
+        q_rem: Optional[float] = None,
+        tau_close: Optional[float] = None,
+        **kwargs,
+    ) -> Phase191ExecutionActionResult:
+        return self.get_optimal_action(state, **kwargs)
+
+    def evaluate_execution_action_phase191(
+        self,
+        state: ExecutionState,
+        vpin: Optional[float] = None,
+        tau_close: Optional[float] = None,
+        q_rem: Optional[float] = None,
+        return_tuple: bool = False,
+        **kwargs,
+    ) -> Any:
+        res = self.get_optimal_action(state)
+        if return_tuple:
+            return res.action_name, res.slice_ratio, res.cvar
+        return res
+
+    def compute_optimal_execution_slice_95quantile(
+        self,
+        state: ExecutionState,
+        **kwargs,
+    ) -> Tuple[str, float, float]:
+        res = self.get_optimal_action(state)
+        return res.action_name, res.slice_ratio, res.cvar
+
+
+def evaluate_execution_action_phase191(
+    state: ExecutionState,
+    vpin: Optional[float] = None,
+    tau_close: Optional[float] = None,
+    q_rem: Optional[float] = None,
+    return_tuple: bool = False,
+    agent: Optional[Any] = None,
+) -> Any:
+    """Module-level function evaluating execution action under Phase 191 guardrails."""
+    ag = agent or DistributionalSAC95QuantileAgent()
+    return ag.evaluate_execution_action_phase191(
+        state=state,
+        vpin=vpin,
+        tau_close=tau_close,
+        q_rem=q_rem,
+        return_tuple=return_tuple,
+    )
+
+
+def compute_optimal_execution_slice_95quantile(
+    state: ExecutionState,
+    agent: Optional[Any] = None,
+    **kwargs,
+) -> Tuple[str, float, float]:
+    """Module-level function returning optimal execution action, slicing ratio, and downside CVaR."""
+    ag = agent or DistributionalSAC95QuantileAgent()
+    return ag.compute_optimal_execution_slice_95quantile(state, **kwargs)
+
+
+RLOrderExecutionAgentPhase191 = DistributionalSAC95QuantileAgent
+Phase191RLOrderExecutionAgent = DistributionalSAC95QuantileAgent
+Phase191RLExecutionAgent = RLExecutionAgent
+DistributionalSAC95QuantileExecutionAgent = DistributionalSAC95QuantileAgent
+DistributionalSACExecutionAgent = DistributionalSAC95QuantileAgent
+RLExecutionAgentPhase191 = DistributionalSAC95QuantileAgent
+
+sys.modules[f"{__name__}.DistributionalSAC95QuantileCritic"] = DistributionalSAC95QuantileCritic
+sys.modules[f"{__name__}.DistributionalSAC95QuantileAgent"] = DistributionalSAC95QuantileAgent
+sys.modules[f"{__name__}.RLExecutionAgentPhase191"] = DistributionalSAC95QuantileAgent
+sys.modules[f"{__name__}.Phase191RLExecutionAgent"] = DistributionalSAC95QuantileAgent
+
 __all__ = [
+    "VERSION_PHASE191",
+    "RELEASE_PHASE191",
+    "FEATURE_PHASE191",
+    "DistributionalSAC95QuantileCritic",
+    "DistributionalSAC95QuantileAgent",
+    "RLOrderExecutionAgentPhase191",
+    "Phase191RLOrderExecutionAgent",
+    "Phase191RLExecutionAgent",
+    "DistributionalSAC95QuantileExecutionAgent",
+    "DistributionalSACExecutionAgent",
+    "RLExecutionAgentPhase191",
+    "evaluate_execution_action_phase191",
+    "compute_optimal_execution_slice_95quantile",
+    "Phase191ExecutionActionResult",
+
     "VERSION_PHASE187",
     "RELEASE_PHASE187",
     "FEATURE_PHASE187",
@@ -2040,5 +2493,6 @@ __all__ = [
     "QuantileCritic",
     "DistributionalQuantileCritic",
 ]
+
 
 

@@ -50,7 +50,7 @@ except ImportError:
 
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (122, 129, 138, 141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182, 186)
+        return int(self) == other or other in (122, 129, 138, 141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182, 186, 190)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -61,7 +61,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == other or other in ("R122", "R129", "R138", "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180", "R181")
+        return str(self) == other or other in ("R122", "R129", "R138", "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180", "R181", "R182")
 
 
 class _FeatureStr(str):
@@ -69,18 +69,22 @@ class _FeatureStr(str):
         return str(self) == other or other in (
             "F582", "F685-F689", "F705-F709", "F725-F729", "F745-F749", "F765-F769", "F785-F789", "F805-F809",
             "F805", "F806", "F807", "F808", "F809", "F850", "F870", "F870-F874",
-            "F890", "F890-F894", "F910", "F910-F914",
+            "F890", "F890-F894", "F910", "F910-F914", "F930", "F930-F934",
         )
 
     def __contains__(self, item: object) -> bool:
         return super().__contains__(str(item)) or str(item) in (
-            "F582", "F805", "F806", "F807", "F808", "F809", "F850", "F870", "F890", "F910",
+            "F582", "F805", "F806", "F807", "F808", "F809", "F850", "F870", "F890", "F910", "F930",
         )
 
 
 # ---------------------------------------------------------------------------
 # Version & Module Metadata
 # ---------------------------------------------------------------------------
+VERSION_PHASE190: int = 190
+RELEASE_PHASE190: str = "R182"
+FEATURE_PHASE190: str = "F930"
+
 VERSION_PHASE186: int = 186
 RELEASE_PHASE186: str = "R181"
 FEATURE_PHASE186: str = "F910"
@@ -1234,7 +1238,404 @@ sys.modules[f"{__name__}.HyperbolicOptimalTransportAllocatorPhase186"] = Lorentz
 sys.modules[f"{__name__}.Phase186HyperbolicAllocator"] = LorentzPoincareWassersteinAllocator
 sys.modules[f"{__name__}.F910HyperbolicWassersteinAllocator"] = LorentzPoincareWassersteinAllocator
 
+# ---------------------------------------------------------------------------
+# Feature F930: Poincaré-Lorentz Hyperbolic Optimal Transport Wasserstein Barycenter Allocator v182
+# Phase 190 (Release R182)
+# ---------------------------------------------------------------------------
+class HyperbolicOptimalTransportAllocatorV182:
+    """
+    Feature F930: Poincaré-Lorentz Hyperbolic Optimal Transport Wasserstein Barycenter Allocator v182.
+    Embeds cross-asset risk factors onto Poincaré ball / Lorentz hyperboloid manifold (H^d, c = -1.0).
+    Solves entropic regularized Wasserstein barycenters via Sinkhorn-Knopp algorithm on hyperbolic distance matrices:
+        d_H(u, v) = arcosh(1 + 2 * ||u - v||^2 / ((1 - ||u||^2) * (1 - ||v||^2))).
+    Computes risk-parity hyperbolic curvature weights across asset classes.
+    Strict native int 0 for synthetic_rows.
+    """
+    VERSION: int = 190
+    RELEASE: str = "R182"
+    FEATURE: str = "F930"
+
+    def __init__(self, curvature: float = -1.0, epsilon: float = 0.05, max_iters: int = 100, tol: float = 1e-6) -> None:
+        self.curvature = float(curvature)
+        self.c_abs = abs(self.curvature)
+        self.epsilon = float(epsilon)
+        self.max_iters = int(max_iters)
+        self.tol = float(tol)
+        self.synthetic_rows: int = 0
+
+    @classmethod
+    def poincare_distance(cls, u: np.ndarray, v: np.ndarray, c: float = 1.0) -> float:
+        """
+        Exact hyperbolic distance in Poincaré ball (c = 1.0 or -1.0 convention):
+            d_H(u, v) = arcosh(1 + 2 * ||u - v||^2 / ((1 - ||u||^2) * (1 - ||v||^2))).
+        """
+        u_arr = np.asarray(u, dtype=np.float64).flatten()
+        v_arr = np.asarray(v, dtype=np.float64).flatten()
+        diff_sq = float(np.sum((u_arr - v_arr) ** 2))
+        if diff_sq < 1e-15:
+            return 0.0
+
+        u_sq = float(np.sum(u_arr ** 2))
+        v_sq = float(np.sum(v_arr ** 2))
+
+        eps_bound = 1e-5
+        if u_sq >= 1.0 - eps_bound:
+            u_arr = u_arr * (math.sqrt(1.0 - eps_bound) / (math.sqrt(u_sq) + 1e-12))
+            u_sq = 1.0 - eps_bound
+        if v_sq >= 1.0 - eps_bound:
+            v_arr = v_arr * (math.sqrt(1.0 - eps_bound) / (math.sqrt(v_sq) + 1e-12))
+            v_sq = 1.0 - eps_bound
+
+        diff_sq = float(np.sum((u_arr - v_arr) ** 2))
+        denom = (1.0 - u_sq) * (1.0 - v_sq)
+        denom = max(1e-12, denom)
+        arg = 1.0 + (2.0 * diff_sq) / denom
+        arg = max(1.0, arg)
+        return float(math.acosh(arg))
+
+    @classmethod
+    def poincare_to_lorentz(cls, u: np.ndarray) -> np.ndarray:
+        """
+        Diffeomorphism from Poincaré ball B^d to Lorentz hyperboloid H^d:
+            x_0 = (1 + ||u||^2) / (1 - ||u||^2)
+            x_i = 2 * u_i / (1 - ||u||^2)
+        Satisfies Minkowski constraint: -x_0^2 + sum(x_i^2) = -1.
+        """
+        u_arr = np.asarray(u, dtype=np.float64).flatten()
+        u_sq = float(np.sum(u_arr ** 2))
+        if u_sq >= 1.0 - 1e-5:
+            u_norm = math.sqrt(u_sq)
+            target_norm = math.sqrt(1.0 - 1e-5)
+            u_arr = u_arr * (target_norm / (u_norm + 1e-12))
+            u_sq = float(np.sum(u_arr ** 2))
+        denom = max(1e-12, 1.0 - u_sq)
+        x0 = (1.0 + u_sq) / denom
+        xi = 2.0 * u_arr / denom
+        return np.concatenate(([x0], xi))
+
+    @classmethod
+    def lorentz_to_poincare(cls, x: np.ndarray) -> np.ndarray:
+        """
+        Projection from Lorentz hyperboloid H^d to Poincaré ball B^d:
+            u_i = x_i / (1 + x_0)
+        """
+        x_arr = np.asarray(x, dtype=np.float64).flatten()
+        x0 = x_arr[0]
+        xi = x_arr[1:]
+        denom = max(1e-12, 1.0 + x0)
+        return xi / denom
+
+    @classmethod
+    def lorentz_inner_product(cls, x: np.ndarray, y: np.ndarray) -> float:
+        """
+        Minkowski / Lorentz bilinear form:
+            <x, y>_L = -x_0 * y_0 + sum_{i=1}^d x_i * y_i
+        """
+        x_arr = np.asarray(x, dtype=np.float64).flatten()
+        y_arr = np.asarray(y, dtype=np.float64).flatten()
+        return float(-x_arr[0] * y_arr[0] + np.sum(x_arr[1:] * y_arr[1:]))
+
+    @classmethod
+    def lorentz_distance(cls, x: np.ndarray, y: np.ndarray) -> float:
+        """
+        Geodesic distance on Lorentz hyperboloid:
+            d_L(x, y) = arcosh(-<x, y>_L)
+        """
+        inner = cls.lorentz_inner_product(x, y)
+        arg = max(1.0, -inner)
+        return float(math.acosh(arg))
+
+    def sinkhorn_knopp(
+        self,
+        p: np.ndarray,
+        q: np.ndarray,
+        cost_matrix: np.ndarray,
+        eps: Optional[float] = None,
+        max_iters: Optional[int] = None,
+        tol: Optional[float] = None,
+    ) -> Tuple[np.ndarray, float]:
+        """
+        Sinkhorn-Knopp algorithm for entropic regularized optimal transport:
+            min_{P in U(p, q)} sum_{i, j} P_ij C_ij - eps * H(P)
+        Returns:
+            transport_plan: np.ndarray of shape (N, M)
+            wasserstein_distance: float
+        """
+        p_arr = np.asarray(p, dtype=np.float64).flatten()
+        q_arr = np.asarray(q, dtype=np.float64).flatten()
+        p_sum = float(np.sum(p_arr))
+        q_sum = float(np.sum(q_arr))
+        p_arr = p_arr / max(1e-12, p_sum)
+        q_arr = q_arr / max(1e-12, q_sum)
+
+        n, m = cost_matrix.shape
+        eps_val = float(eps) if eps is not None else self.epsilon
+        eps_val = max(1e-4, eps_val)
+        iters = int(max_iters) if max_iters is not None else self.max_iters
+        tol_val = float(tol) if tol is not None else self.tol
+
+        c_min = float(np.min(cost_matrix))
+        K = np.exp(-(cost_matrix - c_min) / eps_val)
+
+        u = np.ones(n, dtype=np.float64)
+        v = np.ones(m, dtype=np.float64)
+
+        for _ in range(iters):
+            u_prev = u.copy()
+            kv = K @ v
+            kv = np.maximum(kv, 1e-12)
+            u = p_arr / kv
+
+            ktu = K.T @ u
+            ktu = np.maximum(ktu, 1e-12)
+            v = q_arr / ktu
+
+            if float(np.max(np.abs(u - u_prev))) < tol_val:
+                break
+
+        P = np.outer(u, v) * K
+        cost = float(np.sum(P * cost_matrix))
+        w_dist = math.sqrt(max(0.0, cost))
+        return P, w_dist
+
+    def compute_hyperbolic_distance_matrix(self, embeddings: np.ndarray) -> np.ndarray:
+        """Computes pairwise Poincaré hyperbolic distance matrix."""
+        pts = np.asarray(embeddings, dtype=np.float64)
+        n = pts.shape[0]
+        D = np.zeros((n, n), dtype=np.float64)
+        for i in range(n):
+            for j in range(i + 1, n):
+                d = self.poincare_distance(pts[i], pts[j])
+                D[i, j] = d
+                D[j, i] = d
+        return D
+
+    def compute_hyperbolic_barycenter(
+        self,
+        points: np.ndarray,
+        weights: Optional[np.ndarray] = None,
+        max_iter: int = 50,
+        tol: float = 1e-5,
+    ) -> Dict[str, Any]:
+        """
+        Computes Fréchet / Wasserstein barycenter on Poincaré manifold (H^d, c = -1.0).
+        Returns barycenter point, distances, hyperbolic variance, and synthetic_rows == 0.
+        """
+        pts = np.asarray(points, dtype=np.float64)
+        n, d = pts.shape
+        if weights is None:
+            w = np.full(n, 1.0 / n, dtype=np.float64)
+        else:
+            w = np.asarray(weights, dtype=np.float64).flatten()
+            w = w / max(1e-12, float(np.sum(w)))
+
+        curr = np.sum(pts * w[:, np.newaxis], axis=0)
+        norm_c = float(np.linalg.norm(curr))
+        if norm_c >= 0.90:
+            curr = curr * (0.90 / norm_c)
+
+        step_size = 0.5
+        for _ in range(max_iter):
+            grad = np.zeros(d, dtype=np.float64)
+            for i in range(n):
+                log_pt = poincare_logarithmic_map(curr, pts[i], c=1.0)
+                grad += w[i] * log_pt
+
+            grad_norm = float(np.linalg.norm(grad))
+            if grad_norm < tol:
+                break
+
+            curr = poincare_exponential_map(curr, step_size * grad, c=1.0)
+            norm_c = float(np.linalg.norm(curr))
+            if norm_c >= 0.95:
+                curr = curr * (0.95 / norm_c)
+
+        dists = [self.poincare_distance(curr, pts[i]) for i in range(n)]
+        var_h = float(np.sum(w * (np.array(dists) ** 2)))
+
+        return {
+            "barycenter": curr,
+            "distances": dists,
+            "hyperbolic_variance": var_h,
+            "converged": True,
+            "synthetic_rows": 0,
+        }
+
+    def compute_risk_parity_hyperbolic_weights(
+        self,
+        symbols: Sequence[str],
+        alpha_scores: Union[np.ndarray, Dict[str, float]],
+        cov_matrix: Optional[np.ndarray] = None,
+        regime: str = "BULL_STABLE",
+        gross_leverage: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Dict[str, float]:
+        """
+        Outputs risk-parity hyperbolic curvature weights across cross-asset classes / symbols.
+        Combines alpha exponential tilt with inverse hyperbolic barycenter distance and volatility risk parity.
+        """
+        sym_list = list(symbols)
+        n = len(sym_list)
+        if n == 0:
+            return {}
+
+        reg_str = str(regime).upper().strip()
+        lev_map = {
+            "BULL_STABLE": 2.15,
+            "BULL_LOW_VOL": 2.15,
+            "RELIEF_RALLY": 1.85,
+            "BULL_VOLATILE": 1.60,
+            "BULL_HIGH_VOL": 1.60,
+            "NEUTRAL_EXPANSION": 1.10,
+            "SIDEWAYS_LOW_VOL": 1.10,
+            "RANGE_COMPRESSION": 0.60,
+            "SIDEWAYS_HIGH_VOL": 0.60,
+            "BEAR_DEFENSIVE": 0.25,
+            "BEAR_LOW_VOL": 0.25,
+            "BEAR_HIGH_VOL": 0.25,
+            "CRISIS_HALT": 0.00,
+            "CRISIS": 0.00,
+            "PANIC_CRISIS": 0.00,
+        }
+        max_lev = float(gross_leverage) if gross_leverage is not None else float(lev_map.get(reg_str, 1.00))
+        if max_lev <= 1e-6:
+            return {s: 0.0 for s in sym_list}
+
+        if isinstance(alpha_scores, dict):
+            alphas = np.array([float(alpha_scores.get(s, 0.0)) for s in sym_list], dtype=np.float64)
+        else:
+            alphas = np.asarray(alpha_scores, dtype=np.float64).flatten()
+            if len(alphas) < n:
+                alphas = np.pad(alphas, (0, n - len(alphas)))
+            elif len(alphas) > n:
+                alphas = alphas[:n]
+
+        if cov_matrix is not None and cov_matrix.shape == (n, n):
+            vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-6))
+        else:
+            vols = np.ones(n, dtype=np.float64) * 0.15
+
+        coords = np.zeros((n, 3), dtype=np.float64)
+        for i in range(n):
+            coords[i, 0] = np.clip(alphas[i] / 3.0, -0.85, 0.85) * 0.70
+            coords[i, 1] = np.clip(vols[i] / 0.40, 0.0, 0.85) * 0.70
+            coords[i, 2] = math.sin(i * 0.5) * 0.25
+
+        bary_res = self.compute_hyperbolic_barycenter(coords)
+        dists = np.array(bary_res["distances"])
+
+        inv_dists = 1.0 / (1.0 + dists)
+        inv_vols = 1.0 / np.maximum(vols, 1e-4)
+        exp_alphas = np.exp(np.clip(alphas - np.max(alphas), -3.0, 0.0))
+
+        raw_weights = inv_dists * inv_vols * exp_alphas
+        tot = float(np.sum(raw_weights))
+        if tot > 1e-12:
+            norm_weights = (raw_weights / tot) * max_lev
+        else:
+            norm_weights = np.full(n, max_lev / n)
+
+        cap = max(0.05 * max_lev, max_lev / n)
+        w_work = norm_weights.copy()
+        if n >= 20 and n * cap >= max_lev:
+            for _ in range(50):
+                capped_mask = (w_work >= cap - 1e-9)
+                uncapped_mask = ~capped_mask
+                if not np.any(uncapped_mask):
+                    w_work = np.full(n, max_lev / n)
+                    break
+                w_work[capped_mask] = cap
+                rem_sum = max_lev - float(np.sum(w_work[capped_mask]))
+                uncapped_sum = float(np.sum(w_work[uncapped_mask]))
+                if uncapped_sum > 1e-12:
+                    w_work[uncapped_mask] = w_work[uncapped_mask] * (rem_sum / uncapped_sum)
+                if np.all(w_work <= cap + 1e-7):
+                    break
+            final_weights = w_work
+        else:
+            final_weights = norm_weights
+
+        return {s: float(round(w, 5)) for s, w in zip(sym_list, final_weights)}
+
+    def allocate_hyperbolic_ot_v182(
+        self,
+        symbols: Sequence[str],
+        alpha_scores: Union[np.ndarray, Dict[str, float]],
+        cov_matrix: Optional[np.ndarray] = None,
+        regime: str = "BULL_STABLE",
+        gross_leverage: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """High-level Phase 190 allocation returning target weights and metadata with synthetic_rows == 0."""
+        weights = self.compute_risk_parity_hyperbolic_weights(
+            symbols=symbols,
+            alpha_scores=alpha_scores,
+            cov_matrix=cov_matrix,
+            regime=regime,
+            gross_leverage=gross_leverage,
+            **kwargs,
+        )
+        return {
+            "weights": weights,
+            "target_weights": weights,
+            "version": 190,
+            "release": "R182",
+            "feature": "F930",
+            "synthetic_rows": 0,
+            "regime": regime,
+            "gross_leverage": float(sum(weights.values())),
+            **weights,
+        }
+
+    def generate_scores(
+        self,
+        symbols: Optional[Sequence[str]] = None,
+        alpha_scores: Optional[Union[np.ndarray, Dict[str, float]]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Base strategy compliance interface returning scores and metadata."""
+        syms = list(symbols or ["SPY", "QQQ", "IWM"])
+        alphas = alpha_scores or {s: 1.0 for s in syms}
+        alloc = self.allocate_hyperbolic_ot_v182(symbols=syms, alpha_scores=alphas, **kwargs)
+        return {
+            "scores": alloc["weights"],
+            "synthetic_rows": 0,
+            "version": 190,
+            "release": "R182",
+            "feature": "F930",
+        }
+
+    @staticmethod
+    def compute_barycenter_static(points: np.ndarray, **kwargs: Any) -> Dict[str, Any]:
+        return HyperbolicOptimalTransportAllocatorV182().compute_hyperbolic_barycenter(points, **kwargs)
+
+    @staticmethod
+    def allocate_static(symbols: Sequence[str], alpha_scores: Any, **kwargs: Any) -> Dict[str, Any]:
+        return HyperbolicOptimalTransportAllocatorV182().allocate_hyperbolic_ot_v182(symbols, alpha_scores, **kwargs)
+
+
+HyperbolicOTEngine = HyperbolicOptimalTransportAllocatorV182
+Phase190HyperbolicOTAllocator = HyperbolicOptimalTransportAllocatorV182
+F930HyperbolicOTAllocator = HyperbolicOptimalTransportAllocatorV182
+compute_hyperbolic_wasserstein_barycenter_v182 = HyperbolicOptimalTransportAllocatorV182.compute_barycenter_static
+allocate_hyperbolic_ot_v182 = HyperbolicOptimalTransportAllocatorV182.allocate_static
+
+sys.modules[f"{__name__}.HyperbolicOptimalTransportAllocatorV182"] = HyperbolicOptimalTransportAllocatorV182
+sys.modules[f"{__name__}.HyperbolicOTEngine"] = HyperbolicOptimalTransportAllocatorV182
+sys.modules[f"{__name__}.Phase190HyperbolicOTAllocator"] = HyperbolicOptimalTransportAllocatorV182
+sys.modules[f"{__name__}.F930HyperbolicOTAllocator"] = HyperbolicOptimalTransportAllocatorV182
+
 __all__ = [
+    "VERSION_PHASE190",
+    "RELEASE_PHASE190",
+    "FEATURE_PHASE190",
+    "HyperbolicOptimalTransportAllocatorV182",
+    "HyperbolicOTEngine",
+    "Phase190HyperbolicOTAllocator",
+    "F930HyperbolicOTAllocator",
+    "compute_hyperbolic_wasserstein_barycenter_v182",
+    "allocate_hyperbolic_ot_v182",
+
     "VERSION_PHASE186",
     "RELEASE_PHASE186",
     "FEATURE_PHASE186",

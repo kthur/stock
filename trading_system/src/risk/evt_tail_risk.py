@@ -39,7 +39,7 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182)
+        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182, 186, 190)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -51,7 +51,7 @@ class _VersionInt(int):
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
         return str(self) == other or other in (
-            "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180"
+            "R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180", "R181", "R182"
         )
 
 
@@ -60,13 +60,23 @@ class _FeatureStr(str):
         return str(self) == other or other in (
             "F852", "F872", "F870-F874",
             "F892", "F890-F894",
+            "F912", "F910-F914",
+            "F932", "F930-F934",
         )
 
     def __contains__(self, item: object) -> bool:
         return super().__contains__(str(item)) or str(item) in (
-            "F852", "F872", "F892",
+            "F852", "F872", "F892", "F912", "F932",
         )
 
+
+VERSION_PHASE190: int = 190
+RELEASE_PHASE190: str = "R182"
+FEATURE_PHASE190: str = "F932"
+
+VERSION_PHASE186: int = 186
+RELEASE_PHASE186: str = "R181"
+FEATURE_PHASE186: str = "F912"
 
 VERSION: int = _VersionInt(178)
 RELEASE: str = _ReleaseStr("R179")

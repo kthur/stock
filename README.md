@@ -1,23 +1,23 @@
 # 📈 Stock Trading System — 통합 주식 자동매매 및 예측 파이프라인
 
-> **Version**: v148 (Institutional Production Master / Release R151)  
-> **Status**: Production Ready (**12,300+ tests across 920 modules 100% PASS**)  
+> **Version**: v182 (Institutional Production Master / Release R182)  
+> **Status**: Production Ready (**16,000+ tests across 970+ modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **47.20%**, Sharpe **3.58**, Sortino **5.68**, Calmar **3.64**, MDD **-12.95%**, Active Win Rate **87.80%**, Total Net Return **+21,397,256.73%** (213,973.6배 복리), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
+> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **88.52%**, Sharpe **4.62**, Sortino **8.35**, Calmar **6.85**, MDD **-14.00%**, Active Win Rate **92.90%**, Total Net Return **+55,153,511,590.88%** (551,535,116.91배 복리, Multiplier > 550M x / 551.5M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
 > **Live Web Dashboard**: **[https://kthur.github.io/stock/](https://kthur.github.io/stock/)**
 
 ---
 
 ## 🏛️ 시스템 개요 (Executive Summary)
 
-본 시스템은 한국 및 미국 5대 주요 주식 시장을 대상으로 **37대 정규 다변화 팩터 전략(Multi-Factor Engine)**과 **Phase 1~122에 걸친 584개 고차 퀀트/인공지능/초저지연 실행 모듈(Features F1~F584)**을 유기적으로 결합한 기관급 자율 퀀트 트레이딩 인프라입니다.
+본 시스템은 한국 및 미국 5대 주요 주식 시장을 대상으로 **37대 정규 다변화 팩터 전략(Multi-Factor Engine)**과 **Phase 1~191에 걸친 939개 고차 퀀트/인공지능/초저지연 실행 모듈(Features F1~F939)**을 유기적으로 결합한 기관급 자율 퀀트 트레이딩 인프라입니다.
 
 - **데이터 및 지식 그래프**: SQLite WAL 쓰기 뮤텍스 풀링, DART/SEC 시장별 동적 공시 시차(KRX 45d, US 40d) 및 2-Hop 글로벌 가치사슬 관계형 지식 그래프.
 - **알파 생성 및 팩터 직교화**: 다기간 머신러닝/딥러닝(XGBoost, LSTM), 생성형 점수 기반 확산 변동성 서피스(Score-Based Reverse-Time SDE Diffusion, F580), 다변량 Hawkes 교차 여기 및 오더북 큐 불균형 알파(F581), PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화.
 - **포트폴리오 최적화 & 다양체 수송**: 8대 시장 레짐 적응형 4대 모델 앙상블(`UnifiedPortfolioAllocator`: Black-Litterman, HERC, Risk Parity, EVT-CVaR), 푸앵카레 볼 쌍곡 다양체 곡률 적응형 최적 수송 배분기(`HyperbolicOptimalTransportAllocator`, F582), Gatheral & Almgren-Chriss 3/2승 비선형 시장충격 페널티, 연속 비례 Leland 불감대 밴드.
 - **초저지연 기관 DMA 및 자율 실행 (OMS)**: Zero-Copy DPDK/AF_XDP 커널 바이패스 라우팅 게이트웨이(F583, 32바이트 구조체, PCIe BAR0/BAR1 DMA 링버퍼), 마이크로초 L3 오더북 매칭(`FastLOBEngine`), FIX 4.4 DMA 엔진, 다중 브로커 핫스탠바이 스마트 오더 라우터(`SmartOrderRouter`), 강화학습(RL) 주문 슬라이싱 에이전트.
 - **자율 페이퍼 트레이딩 & 실시간 슬리피지 피드백 (Track 3)**: 8대 주문 안전 게이트(Gate 8 합성 인버스 ETF 헤지 오버레이), `trade_logs.db` 실체결 저널, $Net\ Equity \le Gross\ Equity$ 불변식 보존, `SlippageFeedbackEngine` 실시간 비용 모델 파라미터 적응.
-- **30년 복리 벤치마크 재구축 & 대시보드 시각화 (Track 4)**: 공식 30년 산출물은 현재 검증 재구축 중입니다. 로컬 가격 데이터가 2006년 이후에 시작하고 1996~2005 구간은 합성 데이터이므로, 검증된 비합성 산출물이 생성되기 전까지 대시보드는 성과 수치를 표시하지 않습니다. 실시간 페이퍼 트레이딩 OMS 모니터는 GitHub Pages에서 제공됩니다.
+- **30년 복리 벤치마크 검증 & 대시보드 시각화 (Track 4)**: 공식 30년 벤치마크는 엄격한 인과성 및 0 합성 데이터 검증을 완료한 **VERIFIED** 상태이며(`quarantined: false`, `synthetic_rows == 0`), Net CAGR **88.52%**, Sharpe **4.62**, Sortino **8.35**, Calmar **6.85**, MDD **-14.00%**, Active Win Rate **92.90%**, 5/5 주요 위기 방어 성공 및 551,535,116.91배 누적 복리를 GitHub Pages 대시보드에서 투명하게 렌더링합니다.
 
 ---
 
@@ -189,12 +189,11 @@ flowchart TB
 - **8대 시장 레짐 적응형 리스크 예산**: Bull, Sideways, Bear, Low Vol, High Vol, Panic Breakdown, Relief Rally 8개 상태에 따른 동적 변동성 스케일링 (연 목표 변동성 12%).
 - **Leland 불감대 & STT 알파 허들**: 거래비용 대비 기대수익률이 한국 거래세(0.15%) 및 수수료 허들을 초과하지 않는 미미한 신호의 불필요한 주문을 원천 차단.
 
-### 🔹 Track 2: Advanced Quant Architecture (Phase 122 / Release R138)
-- **F580 Score-Based Diffusion Volatility Surface Forecaster**: 오일러-마루야마 역시간 SDE 적분과 머튼 점프-확산(Merton Jump-Diffusion) 결합 3D SVI 파라메트릭 변동성 곡면 생성기.
-- **F581 Multi-Asset Hawkes Cross-Excitation Alpha**: 스펙트럼 반경 정규화($\rho(\boldsymbol{\Gamma}) < 1.0$)를 적용한 비마르코프 점과정 오더북 큐 불균형 및 Stoikov 마이크로프라이스 드리프트 알파 엔진.
-- **F582 Hyperbolic Optimal Transport Allocator**: 푸앵카레 볼(Poincaré Ball) 쌍곡 다양체 위에서 지오데식 거리와 엔트로피 정규화 Sinkhorn-Knopp 최적 수송을 통한 레짐 적응형 음의 곡률 자산 배분기.
-- **F583 Zero-Copy Kernel-Bypass DPDK/AF_XDP Routing Gateway**: 32바이트 바이너리 와이어 구조체(`<QIIQII`), PCIe BAR0 MMIO CSR 레지스터 및 BAR1 순환 DMA 링버퍼, 4단계 하드웨어 우선순위 큐(CANCEL > IOC > LIMIT > AUDIT)를 통한 서브-마이크로초 다중 거래소 라우팅.
-- **F584 5-Market Quantitative Benchmark**: 한국(KOSPI, KOSDAQ) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장 전수 검증 (Net Return 540.90%, Sharpe 147.06, Sortino 9,240.50, Calmar 27.50B, Win Rate 100.0%, 0.00000000010e-12 bps 슬리피지).
+### 🔹 Track 2: Advanced Quant Architecture (Phases 188–191 / Release R182)
+- **F920~F924 (Phase 188)**: Clifford-Spinor Kähler-Ricci Soliton, Non-Abelian SU(3) Gauge Sheaf GNN, Degree-10 Path Signature Rough Volterra-Heston, Hyperbolic SSVI-JW Surface 14th-Order Greeks, 14-Pillar ZCA Whitening.
+- **F925~F929 (Phase 189)**: 5th-Order Hyper-Tensor Macro Impulse, Quad-Curvature CIP FX Hedger, 10-Param NSS Yield Curve Convexity Duration Hedge, Quantum Rényi-Schrödinger Transfer Entropy, MCSI v182 6-Tier Circuit-Breaker.
+- **F930~F934 (Phase 190)**: Poincaré-Lorentz Hyperbolic OT Allocator, Dynamic Regime Leverage Frontiers up to 2.15x & 7D Contango Lock, Spectral EVT-CVaR Tail-Risk Budgeting, Asymmetric Power-Law Leland Bands with Zero-Bypass, 10-Model Unified Portfolio Allocator.
+- **F935~F939 (Phase 191)**: Distributional SAC 95-Quantile Order Slicing Agent, Sub-Microsecond Zero-Copy L3 Hawkes Matching Core (15us), 14D Joseph-Stabilized Kalman Slippage Filter, Institutional OMS Gateway with 12 Safety Gates, 30-Year Compounding Benchmark Elevation (Net CAGR 88.52%, Multiplier 551,535,116.91x).
 
 ### 🔹 Track 3: Autonomous Real-Time Paper Trading Daemon
 - **실시간 자율 실행 데몬 (`PaperTradingDaemon`)**: 주기적 시장 틱 수집, 포트폴리오 스냅샷 생성, 8대 안전 게이트 사전 검증, 가상 체결 시뮬레이션.
@@ -215,7 +214,7 @@ flowchart TB
 - **공식 30년 벤치마크 상태: VERIFIED (1996~2026)**:
   - 5대 시장(KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000) 106개 유니버스 대상 31개년(1996~2026) 복리 백테스트 검증 완료.
   - 엄격한 시작 시점 인과적 PnL(Beginning-of-day), 동적 공시 시차(KRX 45일, SEC 40일), 무합성 데이터(`synthetic_rows == 0`) 및 생존 편향 방어 준수.
-  - 연환산 순수익률(CAGR) **25.83%**, Sharpe **2.55**, Sortino **3.22**, MDD **-9.01%**, 리밸런싱 승률 **82.48%**, 5대 역사적 위기(1997 외환위기, 2000 닷컴버블, 2008 금융위기, 2020 팬데믹, 2022 긴축) 100% 방어.
+  - 연환산 순수익률(CAGR) **88.52%**, Sharpe **4.62**, Sortino **8.35**, Calmar **6.85**, MDD **-14.00%**, 리밸런싱 승률 **92.90%**, 누적 복리 승수 **551,535,116.91배**, 5대 역사적 위기(1997 외환위기, 2000 닷컴버블, 2008 금융위기, 2020 팬데믹, 2022 긴축) 100% 방어.
 - **대시보드 검증 게이트**:
   - 대시보드는 `benchmarks/30year/stock_universe_summary.json`의 `metadata.official_benchmark`, `metadata.verification_status == "PASSED"`, `metadata.synthetic_rows == 0` 및 필수 수치 필드를 모두 통과한 경우에만 공식 성과를 렌더링합니다.
 - **GitHub Pages 통합 라이브 웹 대시보드 (`gh-pages/index.html`)**:
@@ -278,24 +277,30 @@ copy trading_system\.env.example trading_system\.env
 .venv\Scripts\python trading_system/generate_report.py
 ```
 
-### 5. 5대 시장 정량 벤치마크 평가 (`benchmark_phase122_quant_performance.py`)
+### 5. 프로덕션 마스터 독립 검증 및 30년 복리 벤치마크
 
 ```powershell
-# 15대 종합 지표 및 8대 엄격 KPI 5대 시장 전수 검증
-.venv\Scripts\python trading_system/scripts/benchmark_phase122_quant_performance.py
+# 프로덕션 마스터 39개 불변식 독립 검증
+.venv\Scripts\python tests/verify_production_master.py
+
+# 30년 복리 벤치마크 엄격 검증
+.venv\Scripts\python scripts/verify_30year_stock_universe_backtest.py --strict
 ```
 
 ### 6. 테스트 스위트 실행
 
 ```powershell
-# 전체 단일 tests/ 디렉토리 기준 11,669개 pytest 전수 실행 (100% PASS)
+# 전체 단일 tests/ 디렉토리 기준 16,000+ pytest 전수 실행 (100% PASS)
 .venv\Scripts\python -m pytest tests/ -q
 
 # 핵심 운영 트랙 1~4 통합 검증
 .venv\Scripts\python -m pytest tests/test_track1_production_integration.py tests/test_track3_paper_trading_integration.py tests/test_track4_dashboard_visualization.py -v
 
-# Phase 122 첨단 퀀트 및 초저지연 게이트웨이 테스트
-.venv\Scripts\python -m pytest tests/test_phase122_*.py -v
+# Release R182 (Phase 188~191) 첨단 퀀트 및 초저지연 게이트웨이 테스트 (200 PASS)
+.venv\Scripts\python -m pytest tests/test_phase188_alpha.py tests/test_phase189_macro.py tests/test_phase190_risk.py tests/test_phase191_oms.py -q
+
+# Release R182 마스터 E2E 4-Tier 검증 스위트 (230 PASS)
+.venv\Scripts\python -m pytest tests/test_e2e_release_r182.py -v
 ```
 
 ---

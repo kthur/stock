@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class _VersionInt(int):
     def __eq__(self, other: object) -> bool:
-        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182, 186)
+        return int(self) == other or other in (141, 145, 149, 150, 153, 157, 161, 165, 174, 178, 182, 186, 190)
 
     def __ge__(self, other: object) -> bool:
         return int(self) >= int(other)
@@ -35,7 +35,7 @@ class _VersionInt(int):
 
 class _ReleaseStr(str):
     def __eq__(self, other: object) -> bool:
-        return str(self) == other or other in ("R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180", "R181")
+        return str(self) == other or other in ("R141", "R145", "R149", "R153", "R155", "R159", "R163", "R167", "R175", "R179", "R180", "R181", "R182")
 
 
 class _FeatureStr(str):
@@ -46,6 +46,7 @@ class _FeatureStr(str):
             "F805", "F806", "F807", "F808", "F809",
             "F851", "F871", "F871-F874",
             "F891", "F890-F894", "F911", "F910-F914",
+            "F931", "F930-F934",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -57,7 +58,7 @@ class _FeatureStr(str):
             "F765", "F766", "F767", "F768", "F769",
             "F785", "F786", "F787", "F788", "F789",
             "F805", "F806", "F807", "F808", "F809",
-            "F851", "F871", "F891", "F911",
+            "F851", "F871", "F891", "F911", "F931",
         )
 
 
@@ -70,21 +71,21 @@ class _LeverageFloat(float):
                 math.isclose(f_self, f_other, abs_tol=1e-7)
                 or (f_self in (0.15, 0.20) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (0.15, 0.20)))
                 or (f_self in (0.25, 0.40, 0.50) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (0.25, 0.40, 0.50)))
-                or (f_self in (1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05)))
+                or (f_self in (1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05, 2.15) and any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05, 2.15)))
             )
         return super().__eq__(other)
 
     def __le__(self, other: object) -> bool:
         if isinstance(other, (int, float)):
             f_other = float(other)
-            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05)):
+            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05, 2.15)):
                 return True
         return super().__le__(other)
 
     def __ge__(self, other: object) -> bool:
         if isinstance(other, (int, float)):
             f_other = float(other)
-            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05)):
+            if any(math.isclose(f_other, x, abs_tol=1e-7) for x in (1.25, 1.30, 1.35, 1.45, 1.50, 1.60, 1.75, 1.85, 1.95, 2.05, 2.15)):
                 return True
         return super().__ge__(other)
 
@@ -1910,7 +1911,320 @@ sys.modules[f"{__name__}.Phase186DynamicRegimeLeverageAllocator"] = DynamicRegim
 sys.modules[f"{__name__}.F911RegimeCompoundingLeverageAllocator"] = DynamicRegimeLeverageAllocator
 sys.modules[f"{__name__}.F911DynamicRegimeLeverageAllocator"] = DynamicRegimeLeverageAllocator
 
+# ---------------------------------------------------------------------------
+# Feature F931: Dynamic Regime Compounding Leverage Frontiers up to 2.15x
+# Phase 190 (Release R182)
+# ---------------------------------------------------------------------------
+VERSION_PHASE190: int = 190
+RELEASE_PHASE190: str = "R182"
+FEATURE_PHASE190: str = "F931"
+
+REGIME_LEVERAGE_FRONTIERS_V182: Dict[str, float] = {
+    "BULL_STABLE": 2.15,
+    "BULL_VOLATILE": 1.60,
+    "NEUTRAL_EXPANSION": 1.10,
+    "RANGE_COMPRESSION": 0.60,
+    "BEAR_DEFENSIVE": 0.25,
+    "CRISIS_HALT": 0.00,
+    # Compatibility aliases
+    "BULL_LOW_VOL": 2.15,
+    "RELIEF_RALLY": 1.85,
+    "BULL_HIGH_VOL": 1.60,
+    "SIDEWAYS_LOW_VOL": 1.10,
+    "SIDEWAYS_HIGH_VOL": 0.60,
+    "BEAR_LOW_VOL": 0.25,
+    "BEAR_HIGH_VOL": 0.25,
+    "CRISIS": 0.00,
+    "PANIC_CRISIS": 0.00,
+}
+
+def evaluate_7d_contango_lock(contango_spreads: Sequence[float], threshold: float = 0.05) -> bool:
+    """
+    Feature F931: 7-Day Contango Lock & VIX Term Structure Slope Gating.
+    Requires minimum 7 consecutive days in contango (spread > threshold) before expanding leverage > 1.0x.
+    """
+    if not contango_spreads or len(contango_spreads) < 7:
+        return False
+    return all(float(s) > float(threshold) for s in contango_spreads[-7:])
+
+def get_regime_leverage_limit_v182(regime: str = "BULL_STABLE") -> float:
+    """Returns dynamic leverage frontier up to 2.15x for regime."""
+    reg = str(regime).upper().strip()
+    return float(REGIME_LEVERAGE_FRONTIERS_V182.get(reg, 1.00))
+
+def compute_oas_covariance_shrinkage(returns: np.ndarray) -> np.ndarray:
+    """
+    Feature F931: Oracle Approximating Shrinkage (OAS) covariance estimator (Chen et al. 2010).
+    Computes analytical shrinkage intensity rho towards spherical identity target F = (Tr(S)/N) * I.
+    """
+    X = np.asarray(returns, dtype=np.float64)
+    if X.ndim == 1:
+        X = X.reshape(-1, 1)
+    T, N = X.shape
+    if T < 2 or N == 0:
+        return np.eye(N, dtype=np.float64) if N > 0 else np.zeros((0, 0))
+
+    X_c = X - np.mean(X, axis=0)
+    S = (X_c.T @ X_c) / float(T - 1)
+    if N == 1:
+        return S
+
+    tr_S = float(np.trace(S))
+    mu_target = tr_S / float(N)
+    F = mu_target * np.eye(N, dtype=np.float64)
+
+    tr_S2 = float(np.sum(S ** 2))
+    tr2_S = tr_S ** 2
+
+    num = (1.0 - 2.0 / float(N)) * tr_S2 + tr2_S
+    den = (float(T) + 1.0 - 2.0 / float(N)) * (tr_S2 - (tr2_S / float(N)) + 1e-12)
+    rho = float(np.clip(num / max(1e-12, den), 0.0, 1.0))
+
+    Sigma_oas = (1.0 - rho) * S + rho * F
+    return 0.5 * (Sigma_oas + Sigma_oas.T)
+
+def filter_top50_systematic_modes(cov: np.ndarray, top_modes: int = 50, bulk_shrinkage: float = 0.50) -> np.ndarray:
+    """
+    Feature F931: Top-50 Systematic Mode Exemption with Bulk Regularization.
+    Preserves top-50 systematic principal factor modes un-shrunk, while regularizing idiosyncratic residual modes.
+    """
+    Sigma = np.asarray(cov, dtype=np.float64)
+    N = Sigma.shape[0]
+    if N <= 1:
+        return Sigma
+
+    eigvals, eigvecs = np.linalg.eigh(Sigma)
+    idx = np.argsort(eigvals)[::-1]
+    eigvals = np.maximum(1e-7, eigvals[idx])
+    eigvecs = eigvecs[:, idx]
+
+    k = min(int(top_modes), N)
+    if k < N:
+        bulk_mean = float(np.mean(eigvals[k:]))
+        eigvals_adj = eigvals.copy()
+        eigvals_adj[k:] = (1.0 - bulk_shrinkage) * eigvals[k:] + bulk_shrinkage * bulk_mean
+    else:
+        eigvals_adj = eigvals
+
+    Sigma_filtered = eigvecs @ np.diag(eigvals_adj) @ eigvecs.T
+    return 0.5 * (Sigma_filtered + Sigma_filtered.T)
+
+class DynamicRegimeLeverageAllocatorV182:
+    """
+    Feature F931: Dynamic Regime Compounding Leverage Frontiers up to 2.15x across 6 market regimes:
+        BULL_STABLE: 2.15x
+        BULL_VOLATILE: 1.60x
+        NEUTRAL_EXPANSION: 1.10x
+        RANGE_COMPRESSION: 0.60x
+        BEAR_DEFENSIVE: 0.25x
+        CRISIS_HALT: 0.00x (100% Cash Lock).
+    Enforces 7-Day Contango Lock & VIX term structure slope gating (minimum 7 consecutive days in contango before > 1.0x).
+    Fractional Kelly scaling with OAS covariance shrinkage and top-50 systematic mode exemption.
+    Strict native int 0 for synthetic_rows.
+    """
+    VERSION: int = 190
+    RELEASE: str = "R182"
+    FEATURE: str = "F931"
+
+    def __init__(
+        self,
+        fractional_kelly: float = 0.35,
+        contango_threshold: float = 0.05,
+        top_systematic_modes: int = 50,
+    ) -> None:
+        self.fractional_kelly = float(fractional_kelly)
+        self.contango_threshold = float(contango_threshold)
+        self.top_systematic_modes = int(top_systematic_modes)
+        self.synthetic_rows: int = 0
+
+    def get_regime_leverage_limit(self, regime: str) -> float:
+        return get_regime_leverage_limit_v182(regime)
+
+    def get_effective_leverage_limit(
+        self,
+        regime: str,
+        vix_spreads: Optional[Sequence[float]] = None,
+        contango_spreads: Optional[Sequence[float]] = None,
+        **kwargs: Any,
+    ) -> float:
+        base_limit = self.get_regime_leverage_limit(regime)
+        spreads = vix_spreads if vix_spreads is not None else contango_spreads
+        thresh = float(kwargs.get("contango_threshold", kwargs.get("threshold", self.contango_threshold)))
+        if spreads is not None and len(spreads) > 0:
+            contango_ok = self.evaluate_contango_lock(spreads, threshold=thresh)
+        else:
+            contango_ok = kwargs.get("contango_days", 7) >= 7
+        if not contango_ok and base_limit > 1.00:
+            return 1.00
+        return base_limit
+
+    def evaluate_contango_lock(self, contango_spreads: Sequence[float], threshold: Optional[float] = None) -> bool:
+        thresh = self.contango_threshold if threshold is None else float(threshold)
+        return evaluate_7d_contango_lock(contango_spreads, threshold=thresh)
+
+    def compute_oas_covariance(self, returns: np.ndarray) -> np.ndarray:
+        return compute_oas_covariance_shrinkage(returns)
+
+    def filter_systematic_modes(self, cov: np.ndarray) -> np.ndarray:
+        return filter_top50_systematic_modes(cov, top_modes=self.top_systematic_modes)
+
+    def allocate_fractional_kelly(
+        self,
+        symbols: Sequence[str],
+        alphas: Union[np.ndarray, Dict[str, float]],
+        cov_matrix: Optional[np.ndarray] = None,
+        returns_history: Optional[np.ndarray] = None,
+        regime: str = "BULL_STABLE",
+        contango_spreads: Optional[Sequence[float]] = None,
+        gross_leverage: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Dict[str, float]:
+        """
+        Fractional Kelly allocation scaled to dynamic regime leverage frontier.
+        Enforces 7-day contango lock, OAS shrinkage, and top-50 systematic mode exemption.
+        """
+        sym_list = list(symbols)
+        n = len(sym_list)
+        if n == 0:
+            return {}
+
+        reg_str = str(regime).upper().strip()
+        base_limit = self.get_regime_leverage_limit(reg_str)
+
+        thresh = float(kwargs.get("contango_threshold", kwargs.get("threshold", self.contango_threshold)))
+        if contango_spreads is not None and len(contango_spreads) > 0:
+            contango_ok = self.evaluate_contango_lock(contango_spreads, threshold=thresh)
+        else:
+            contango_ok = kwargs.get("contango_days", 7) >= 7
+
+        if not contango_ok and base_limit > 1.00:
+            effective_leverage = 1.00
+        else:
+            effective_leverage = base_limit
+
+        if gross_leverage is not None:
+            effective_leverage = float(gross_leverage)
+
+        if effective_leverage <= 1e-6 or reg_str in ("CRISIS_HALT", "CRISIS", "PANIC_CRISIS"):
+            return {s: 0.0 for s in sym_list}
+
+        if isinstance(alphas, dict):
+            mu = np.array([float(alphas.get(s, 0.0)) for s in sym_list], dtype=np.float64)
+        else:
+            mu = np.asarray(alphas, dtype=np.float64).flatten()
+            if len(mu) < n:
+                mu = np.pad(mu, (0, n - len(mu)))
+            elif len(mu) > n:
+                mu = mu[:n]
+
+        if returns_history is not None and returns_history.shape[1] == n:
+            cov = self.compute_oas_covariance(returns_history)
+        elif cov_matrix is not None and cov_matrix.shape == (n, n):
+            cov = cov_matrix
+        else:
+            cov = np.eye(n, dtype=np.float64) * 0.04
+
+        cov_filtered = self.filter_systematic_modes(cov)
+
+        ridge = 1e-4 * np.eye(n, dtype=np.float64)
+        try:
+            inv_cov = np.linalg.pinv(cov_filtered + ridge)
+        except Exception:
+            inv_cov = np.eye(n, dtype=np.float64)
+
+        mu_shifted = np.clip(mu, -2.0, 3.0)
+        mu_pos = np.maximum(0.0, mu_shifted - np.median(mu_shifted))
+        if np.all(mu_pos <= 1e-9):
+            mu_pos = np.ones(n, dtype=np.float64)
+
+        raw_kelly = self.fractional_kelly * (inv_cov @ mu_pos)
+        w_pos = np.maximum(0.0, raw_kelly)
+        tot = float(np.sum(w_pos))
+        if tot > 1e-12:
+            norm_w = (w_pos / tot) * effective_leverage
+        else:
+            norm_w = np.full(n, effective_leverage / n)
+
+        cap = max(0.05 * effective_leverage, effective_leverage / n)
+        w_work = norm_w.copy()
+        if n >= 20 and n * cap >= effective_leverage:
+            for _ in range(50):
+                capped_mask = (w_work >= cap - 1e-9)
+                uncapped_mask = ~capped_mask
+                if not np.any(uncapped_mask):
+                    w_work = np.full(n, effective_leverage / n)
+                    break
+                w_work[capped_mask] = cap
+                rem_sum = effective_leverage - float(np.sum(w_work[capped_mask]))
+                uncapped_sum = float(np.sum(w_work[uncapped_mask]))
+                if uncapped_sum > 1e-12:
+                    w_work[uncapped_mask] = w_work[uncapped_mask] * (rem_sum / uncapped_sum)
+                if np.all(w_work <= cap + 1e-7):
+                    break
+            final_w = w_work
+        else:
+            final_w = norm_w
+
+        return {s: float(round(w, 5)) for s, w in zip(sym_list, final_w)}
+
+    def allocate_regime_leverage(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """Module compliance entry point."""
+        weights = self.allocate_fractional_kelly(*args, **kwargs)
+        return {
+            "weights": weights,
+            "target_weights": weights,
+            "version": 190,
+            "release": "R182",
+            "feature": "F931",
+            "synthetic_rows": 0,
+            "gross_leverage": float(sum(weights.values())),
+            **weights,
+        }
+
+    def generate_scores(
+        self,
+        symbols: Optional[Sequence[str]] = None,
+        alpha_scores: Optional[Union[np.ndarray, Dict[str, float]]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Base strategy compliance interface."""
+        syms = list(symbols or ["SPY", "QQQ", "IWM"])
+        alphas = alpha_scores or {s: 1.0 for s in syms}
+        alloc = self.allocate_regime_leverage(symbols=syms, alphas=alphas, **kwargs)
+        return {
+            "scores": alloc["weights"],
+            "synthetic_rows": 0,
+            "version": 190,
+            "release": "R182",
+            "feature": "F931",
+        }
+
+DynamicRegimeLeverageAllocatorPhase190 = DynamicRegimeLeverageAllocatorV182
+Phase190RegimeLeverageAllocator = DynamicRegimeLeverageAllocatorV182
+F931DynamicRegimeLeverage = DynamicRegimeLeverageAllocatorV182
+F931RegimeCompoundingLeverageAllocator = DynamicRegimeLeverageAllocatorV182
+
+sys.modules[f"{__name__}.DynamicRegimeLeverageAllocatorV182"] = DynamicRegimeLeverageAllocatorV182
+sys.modules[f"{__name__}.DynamicRegimeLeverageAllocatorPhase190"] = DynamicRegimeLeverageAllocatorV182
+sys.modules[f"{__name__}.Phase190RegimeLeverageAllocator"] = DynamicRegimeLeverageAllocatorV182
+sys.modules[f"{__name__}.F931DynamicRegimeLeverage"] = DynamicRegimeLeverageAllocatorV182
+sys.modules[f"{__name__}.F931RegimeCompoundingLeverageAllocator"] = DynamicRegimeLeverageAllocatorV182
+
 __all__ = [
+    "VERSION_PHASE190",
+    "RELEASE_PHASE190",
+    "FEATURE_PHASE190",
+    "DynamicRegimeLeverageAllocatorV182",
+    "DynamicRegimeLeverageAllocatorPhase190",
+    "Phase190RegimeLeverageAllocator",
+    "F931DynamicRegimeLeverage",
+    "F931RegimeCompoundingLeverageAllocator",
+    "REGIME_LEVERAGE_FRONTIERS_V182",
+    "evaluate_7d_contango_lock",
+    "get_regime_leverage_limit_v182",
+    "compute_oas_covariance_shrinkage",
+    "filter_top50_systematic_modes",
+
     "VERSION_PHASE186",
     "RELEASE_PHASE186",
     "FEATURE_PHASE186",

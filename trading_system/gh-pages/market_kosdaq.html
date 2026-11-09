@@ -712,12 +712,13 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 56px;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
     background: var(--surface);
     border-top: 1px solid var(--border);
     z-index: 999;
     box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.4);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
     justify-content: space-around;
     align-items: center;
   }}
@@ -814,6 +815,11 @@
     cursor: pointer;
     padding: 2px 8px;
     line-height: 1;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }}
   .hub-body {{
     padding: 14px 16px;
@@ -857,7 +863,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-height: 38px;
+    min-height: 44px !important;
   }}
   .hub-item-btn:active {{
     background: var(--surface3);
@@ -889,12 +895,20 @@
       height: 44px !important;
       min-width: 44px !important;
       min-height: 44px !important;
-      bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+      bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
       right: max(16px, env(safe-area-inset-right, 0px)) !important;
     }}
-    .filter-btn, .chip-btn, .theme-btn, .drawer-nav-btn, .drawer-copy-btn {{
+    .filter-btn, .chip-btn, .theme-btn, .drawer-nav-btn, .drawer-copy-btn, .drawer-close-btn {{
       min-height: 44px !important;
       min-width: 44px !important;
+    }}
+    .btn-watchlist {{
+      min-width: 40px !important;
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
     }}
 
     .header, .macro-strip, .tabs, .content, .row1-wrapper, .search-bar-wrap {{ padding-left: 14px !important; padding-right: 14px !important; }}
@@ -910,7 +924,7 @@
 
 
     .tabs {{ padding: 0 8px; height: 44px; }}
-    .tab {{ padding: 11px 12px; font-size: 13px; }}
+    .tab {{ padding: 0 12px; font-size: 13px; min-height: 44px !important; display: inline-flex; align-items: center; box-sizing: border-box; }}
     thead th {{ top: 0; padding: 8px 6px; font-size: 12px; }}
     .table-wrap th.sticky-col {{ top: 0; }}
     tbody td {{ padding: 8px 6px; font-size: 12px; }}
@@ -987,12 +1001,23 @@
     #drawer-factors-grid {{
       padding-bottom: 20px;
     }}
+    .drawer-factor-tab {{
+      min-height: 44px !important;
+      padding: 0 14px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      box-sizing: border-box !important;
+    }}
     .ext-portal-btn {{
       flex: 1 !important;
       text-align: center !important;
       padding: 10px 8px !important;
       font-size: 12px !important;
-      min-height: 42px !important;
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
     }}
 
     /* Mobile Table Optimization: Override .col-strat suppression for market tables (R4) */
@@ -1933,8 +1958,67 @@
       opacity: 0.7;
       cursor: pointer;
     }
-    .drawer-close-btn {
+    .drawer-close-btn, .hub-close-btn {
       min-height: 44px !important;
+      min-width: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .mobile-bottom-nav {
+      height: calc(56px + env(safe-area-inset-bottom, 0px));
+      padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+      box-sizing: border-box;
+    }
+    #btn-back-to-top {
+      bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+      right: max(16px, env(safe-area-inset-right, 0px)) !important;
+      width: 44px !important;
+      height: 44px !important;
+      min-width: 44px !important;
+      min-height: 44px !important;
+    }
+    .ext-portal-btn {
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
+    }
+    .hub-item-btn {
+      min-height: 44px !important;
+      display: flex !important;
+      align-items: center !important;
+      box-sizing: border-box !important;
+    }
+    .drawer-factor-tab {
+      min-height: 44px !important;
+      padding: 0 14px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      box-sizing: border-box !important;
+    }
+    .tab {
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      box-sizing: border-box !important;
+    }
+    .btn-watchlist {
+      min-width: 40px !important;
+      min-height: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
+    }
+    .theme-btn {
+      min-height: 44px !important;
+      min-width: 44px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
     }
   }
 
@@ -2249,7 +2333,7 @@
       <a href="index.html" class="nav-link">🏠 메인 대시보드</a><a href="strategies.html" class="nav-link">📚 전략 도감 (37)</a><a href="market_kospi.html" class="nav-link">🇰🇷 KOSPI</a><a href="market_kosdaq.html" class="nav-link active nav-active">🇰🇷 KOSDAQ</a><a href="market_sp500.html" class="nav-link">🇺🇸 S&P 500</a><a href="market_nasdaq.html" class="nav-link">🇺🇸 NASDAQ</a><a href="market_russell2000.html" class="nav-link">🇺🇸 Russell 2000</a>
     </nav>
     <div class="sticky-nav-actions">
-      <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-01 04:31 KST</span>
+      <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-09 19:58 KST</span>
     </div>
   </div>
 </header>
@@ -2284,7 +2368,7 @@
     <span class="badge badge-quant-edition">🇰🇷 KOSDAQ Dedicated Market</span>
     <span class="badge badge-date">총 분석 종목: 15개</span>
     <span class="badge badge-updated">📅 2026-10-15 06:25 KST</span>
-    <span class="badge badge-updated">🔄 갱신: 2026-11-01 04:31 KST</span>
+    <span class="badge badge-updated">🔄 갱신: 2026-11-09 19:58 KST</span>
   </div>
 </div>
 
@@ -3463,6 +3547,41 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// Cross-page and mobile navigation handlers for market pages
+function switchMobileNav(tabId) {
+  if (tabId === 'home' || tabId === 'overview') {
+    window.location.href = 'index.html';
+  } else if (tabId === 'strategies') {
+    window.location.href = 'strategies.html';
+  } else if (tabId === 'presets') {
+    const p = document.querySelector('.preset-buttons');
+    if (p) p.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } else if (tabId === 'search') {
+    const s = document.getElementById('market-search');
+    if (s) { s.focus(); s.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  } else if (tabId === 'drawer') {
+    const r = document.querySelector('.clickable-row');
+    if (r) r.click();
+  } else if (tabId === 'top') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    window.location.href = `index.html#panel-${tabId}`;
+  }
+}
+
+function openStrategyHub() {
+  window.location.href = 'strategies.html';
+}
+
+function switchTabById(tabId) {
+  const indexTabs = ['ensemble', 'portfolio', 'backtest', 'regime', 'tab-ensemble', 'tab-portfolio', 'tab-backtest', 'tab-regime'];
+  if (indexTabs.includes(tabId)) {
+    window.location.href = `index.html#panel-${tabId}`;
+  } else {
+    window.location.href = `strategies.html#panel-${tabId}`;
+  }
+}
+
 // Initialize Market Page UX State
 function initMarketPage() {
   try {
@@ -3497,7 +3616,7 @@ if (document.readyState === 'loading') {
         <button class="drawer-nav-btn" onclick="navigateDrawerStock(-1)" title="이전 종목 (← 키)">◀</button>
         <button class="drawer-nav-btn" onclick="navigateDrawerStock(1)" title="다음 종목 (→ 키)">▶</button>
       </div>
-      <button onclick="closeStockDrawer()" aria-label="닫기" style="background:none; border:none; color:var(--muted); font-size:26px; cursor:pointer; padding:4px 8px; line-height:1;">&times;</button>
+      <button onclick="closeStockDrawer()" aria-label="닫기" class="drawer-close-btn" style="background:none; border:none; color:var(--muted); font-size:26px; cursor:pointer; padding:4px 8px; line-height:1; min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box;">&times;</button>
     </div>
   </div>
   
@@ -3547,6 +3666,30 @@ if (document.readyState === 'loading') {
 </div>
 
 
+
+<!-- Mobile Ergonomic Bottom Navigation Bar for Market Pages -->
+<nav id="mobile-bottom-nav" class="mobile-bottom-nav">
+  <button class="mobile-nav-item active" id="mob-nav-ensemble" onclick="switchMobileNav('ensemble')" aria-label="앙상블 대시보드">
+    <span class="mob-nav-icon">🏆</span>
+    <span class="mob-nav-label">앙상블</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-portfolio" onclick="switchMobileNav('portfolio')" aria-label="포트폴리오 배분">
+    <span class="mob-nav-icon">💼</span>
+    <span class="mob-nav-label">포트폴리오</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-backtest" onclick="switchMobileNav('backtest')" aria-label="전략 백테스트">
+    <span class="mob-nav-icon">📊</span>
+    <span class="mob-nav-label">백테스트</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-regime" onclick="switchMobileNav('regime')" aria-label="시장 레짐 정보">
+    <span class="mob-nav-icon">🎯</span>
+    <span class="mob-nav-label">레짐/매크로</span>
+  </button>
+  <button class="mobile-nav-item" id="mob-nav-strategies" onclick="openStrategyHub()" aria-label="37대 전략 허브">
+    <span class="mob-nav-icon">⚡</span>
+    <span class="mob-nav-label">37전략</span>
+  </button>
+</nav>
 <!-- Global Toast Container -->
 <div id="toast-container"></div>
 <!-- Back to Top FAB -->

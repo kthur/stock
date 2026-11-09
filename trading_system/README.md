@@ -14,7 +14,7 @@
 | [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | V8 시스템 정밀 감사(43개 결함 해결) 및 고도화 내역 |
 | [IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md) | 시스템 아키텍처 및 성능 최적화 개선 계획 |
 | [OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md) | 실거래 운영 절차, 8대 주문 안전 게이트 (Gate 8 합성 인버스 헤지 포함), Almgren-Chriss 트랜치, 킬 스위치(Kill Switch) 및 장애 대응 런북 |
-| [TEST_GUIDE.md](docs/TEST_GUIDE.md) | 통합 테스트 스위트(`tests/`) 및 2,182+ pytest 실행 가이드 |
+| [TEST_GUIDE.md](docs/TEST_GUIDE.md) | 통합 테스트 스위트(`tests/`) 및 16,000+ pytest 실행 가이드 |
 
 ---
 
