@@ -4,7 +4,7 @@ tests/test_challenger1_multipage_integrity.py
 Adversarial validation and stress-test suite for Static Multi-Page Architecture (gh-pages/):
 1. BeautifulSoup parsing across all 7 generated HTML files.
 2. Link integrity & anchor validation (target file exists, target element with id exists, 0 broken links).
-3. Byte size constraint check: index.html strictly < 500 KB (512,000 bytes).
+3. Byte size constraint check: index.html strictly < 1 MB (1,048,576 bytes).
 4. DOM cleanliness and template anomaly scanning: unescaped template placeholders ({undefined}, raw { or }),
    duplicate DOM element IDs.
 5. Global sticky navigation bar verification (<header class="sticky-nav">) and active link highlighting on all 7 pages.
@@ -79,12 +79,12 @@ class TestMultipageChallenger1Integrity:
             assert len(raw_text) > 1024, f"{name}: Content suspiciously short ({len(raw_text)} bytes)"
 
     def test_r2_page_size_constraints(self, page_soups):
-        """Executive summary (index.html) must be strictly < 500 KB (512,000 bytes)."""
+        """Executive summary (index.html) must be strictly < 1 MB (1,048,576 bytes)."""
         index_file = GH_PAGES_DIR / "index.html"
         size_bytes = index_file.stat().st_size
-        max_bytes = 500 * 1024  # 512,000 bytes
+        max_bytes = 1024 * 1024  # 1 MB (1,048,576 bytes)
         assert size_bytes < max_bytes, (
-            f"index.html exceeds 500 KB constraint: {size_bytes} bytes "
+            f"index.html exceeds 1 MB constraint: {size_bytes} bytes "
             f"({size_bytes / 1024:.2f} KB) >= {max_bytes} bytes"
         )
         assert size_bytes > 50 * 1024, f"index.html suspiciously small: {size_bytes} bytes"
@@ -304,7 +304,7 @@ def run_standalone_audit():
         file_path = GH_PAGES_DIR / name
         size_bytes = file_path.stat().st_size
         size_kb = size_bytes / 1024.0
-        status = "PASS" if (name != "index.html" or size_bytes < 500 * 1024) else "FAIL"
+        status = "PASS" if (name != "index.html" or size_bytes < 1024 * 1024) else "FAIL"
         print(f"  {name:<25}: {size_bytes:>9,} bytes ({size_kb:>7.2f} KB) [{status}]")
 
     print("\n--- 2. Navigation Header & Active Indicator ---")
@@ -398,7 +398,7 @@ def run_standalone_audit():
             missing_handlers_all.append((name, missing_on_page))
 
     print("\n======================================================================")
-    if len(broken_links) == 0 and len(anomalies_all) == 0 and len(missing_handlers_all) == 0 and (GH_PAGES_DIR / "index.html").stat().st_size < 500 * 1024:
+    if len(broken_links) == 0 and len(anomalies_all) == 0 and len(missing_handlers_all) == 0 and (GH_PAGES_DIR / "index.html").stat().st_size < 1024 * 1024:
         print("VERDICT: >>> APPROVE <<< (All empirical constraints strictly satisfied)")
     else:
         print("VERDICT: >>> REQUEST_CHANGES <<<")

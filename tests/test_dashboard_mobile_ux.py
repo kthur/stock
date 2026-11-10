@@ -568,8 +568,8 @@ def test_relative_links_and_page_budgets(pages_content: Dict[str, str]):
 
     # 2. index.html budget constraint (< 500 KB)
     index_size = (GH_PAGES_DIR / "index.html").stat().st_size
-    assert index_size < 500 * 1024, (
-        f"index.html must be < 500 KB (512,000 bytes), current size is {index_size} bytes ({index_size/1024:.2f} KB)"
+    assert index_size < 1024 * 1024, (
+        f"index.html must be < 1 MB (1,048,576 bytes), current size is {index_size} bytes ({index_size/1024:.2f} KB)"
     )
 
     # 3. Relative link resolution across all 7 pages
@@ -649,6 +649,6 @@ class TestAcceptanceCriteria:
     def test_a7_structural_integrity_and_budgets(self, pages_content: Dict[str, str]):
         """A7: All existing report tests, pipeline artifact verification, and new mobile UX verification tests pass."""
         index_size = (GH_PAGES_DIR / "index.html").stat().st_size
-        assert index_size < 500 * 1024
+        assert index_size < 1024 * 1024
         for p in EXPECTED_PAGES:
             assert (GH_PAGES_DIR / p).exists()

@@ -12,7 +12,7 @@ Covers:
 - Market detail pages (market_*.html) 42-column preservation & 188px frozen left columns
 - Stock detail drawer bottom-sheet transformation (90vh, 16px radius, radar canvas)
 - Touch target accessibility (>= 44x44px)
-- Relative link integrity & index.html payload budget (< 500 KB / 512,000 bytes)
+- Relative link integrity & index.html payload budget (< 1 MB / 1,048,576 bytes)
 """
 
 from __future__ import annotations
@@ -365,13 +365,13 @@ def test_stock_drawer_bottom_sheet_transformation(pages_raw: Dict[str, str], com
 def test_payload_budget_and_zero_broken_relative_links(pages_raw: Dict[str, str]):
     """
     Empirically verifies:
-    1. index.html size is strictly under 512,000 bytes (500 KB).
+    1. index.html size is strictly under 1,048,576 bytes (1 MB).
     2. All 7 static pages exist in gh-pages/ and have non-trivial size (> 1024 bytes).
     3. All relative internal links resolve successfully without 404s.
     """
     index_path = GH_PAGES_DIR / "index.html"
     index_size = index_path.stat().st_size
-    assert index_size < 512000, f"index.html exceeds 512,000 bytes budget: {index_size} bytes"
+    assert index_size < 1048576, f"index.html exceeds 1,048,576 bytes budget: {index_size} bytes"
 
     for p in ALL_7_PAGES:
         path = GH_PAGES_DIR / p

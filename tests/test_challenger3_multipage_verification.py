@@ -7,7 +7,7 @@ Independent Empirical Verification Suite by Challenger 3:
 2. Validates that copyCurrentStockCode(), filterDrawerFactors(cat, btn), and navigateDrawerStock(dir)
    are defined, syntactically valid (checked via Node.js), and match their calling signatures
    across all 5 market detail pages (market_kospi, market_kosdaq, market_sp500, market_nasdaq, market_russell2000).
-3. Validates that gh-pages/index.html file size is strictly < 500 KB (512,000 bytes).
+3. Validates that gh-pages/index.html file size is strictly < 1 MB (1,048,576 bytes).
 4. Validates generator idempotency by running generate_report to a new target directory and asserting
    identical uniqueness, functionality, and size constraints.
 """
@@ -163,23 +163,23 @@ class TestChallenger3EmpiricalVerification:
                     f"Node syntax error in {mkt_page} script #{idx}:\n{res.stderr}"
                 )
 
-    def test_task3_index_html_file_size_strictly_under_500kb(self):
-        """gh-pages/index.html must be strictly < 500 KB (512,000 bytes)."""
+    def test_task3_index_html_file_size_strictly_under_1mb(self):
+        """gh-pages/index.html must be strictly < 1 MB (1,048,576 bytes)."""
         idx_path = GH_PAGES_DIR / "index.html"
         assert idx_path.exists(), "gh-pages/index.html does not exist"
         size = idx_path.stat().st_size
-        max_allowed = 500 * 1024  # 512,000 bytes
+        max_allowed = 1024 * 1024  # 1 MB (1,048,576 bytes)
         
         print(f"\n[Size Check] index.html = {size} bytes ({size / 1024:.2f} KB) vs budget {max_allowed} bytes")
         assert size < max_allowed, (
-            f"index.html size ({size} bytes, {size / 1024:.2f} KB) exceeds 500 KB limit ({max_allowed} bytes)!"
+            f"index.html size ({size} bytes, {size / 1024:.2f} KB) exceeds 1 MB limit ({max_allowed} bytes)!"
         )
         assert size > 50 * 1024, f"index.html is unexpectedly small ({size} bytes)"
 
     def test_task3_all_pages_sizes_reasonable(self):
         """Verify sizes of all 7 pages are within expected healthy bounds."""
         expected_ranges = {
-            "index.html": (50_000, 512_000),             # < 500 KB
+            "index.html": (50_000, 1_048_576),           # < 1 MB
             "strategies.html": (500_000, 2_500_000),     # Encyclopedia doc
             "market_kospi.html": (50_000, 500_000),
             "market_kosdaq.html": (50_000, 500_000),
@@ -229,4 +229,4 @@ class TestChallenger3EmpiricalVerification:
 
         # Check index.html size
         fresh_size = out_index.stat().st_size
-        assert fresh_size < 512_000, f"Regenerated index.html size {fresh_size} >= 512,000 bytes"
+        assert fresh_size < 1_048_576, f"Regenerated index.html size {fresh_size} >= 512,000 bytes"

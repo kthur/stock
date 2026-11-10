@@ -2970,10 +2970,12 @@ def _prepare_report_context(
         rows_html_summary = ""
         cards_html_summary = ""
         if mkt_data and mkt_data.rows:
-            is_large_universe = len(mkt_data.rows) > 5
-            display_rows = mkt_data.rows[:5] if is_large_universe else mkt_data.rows
-            for row_idx, erow in enumerate(display_rows):
+            display_limit = 12
+            is_large_universe = len(mkt_data.rows) > display_limit
+            display_rows = mkt_data.rows[:display_limit] if is_large_universe else mkt_data.rows
+            for erow in mkt_data.rows[:25]:
                 summary_syms.add(erow.symbol)
+            for row_idx, erow in enumerate(display_rows):
                 rc = ret_class(erow.expected_return)
                 ret_disp = f"▲ {erow.expected_return}" if erow.expected_return.startswith('+') else (f"▼ {erow.expected_return}" if erow.expected_return.startswith('-') else erow.expected_return)
                 symbol_link = make_stock_link(erow.symbol, mkt)

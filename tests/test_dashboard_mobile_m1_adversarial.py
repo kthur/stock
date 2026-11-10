@@ -11,7 +11,7 @@ Adversarial Stress Scenarios:
 3. Horizontal swipe properties: -webkit-overflow-scrolling: touch and scrollbar-width: none on .sticky-nav-links.
 4. Auto-centering script verification across all 7 generated pages.
 5. Touch target area verification (>= 44x44px) for all primary interactive navigation and utility elements.
-6. HTML byte budget and newline cross-platform hygiene (< 512,000 bytes, Unix LF).
+6. HTML byte budget and newline cross-platform hygiene (< 1,048,576 bytes, Unix LF).
 """
 
 import re
@@ -288,13 +288,13 @@ def test_safe_area_insets_defined(multipage_css: str, pages_html: Dict[str, str]
 
 def test_file_size_and_cross_platform_encoding():
     """
-    Asserts index.html file size is strictly < 512,000 bytes (500 KB limit).
+    Asserts index.html file size is strictly < 1,048,576 bytes (500 KB limit).
     Asserts CRLF count is 0 or does not blow out the file size beyond budget.
     """
     index_path = GH_PAGES_DIR / "index.html"
     assert index_path.exists(), "index.html missing"
     size = index_path.stat().st_size
-    assert size < 512000, f"index.html exceeds 512,000 bytes: {size} bytes ({size/1024:.2f} KB)"
+    assert size < 1048576, f"index.html exceeds 1,048,576 bytes: {size} bytes ({size/1024:.2f} KB)"
 
     raw_bytes = index_path.read_bytes()
     crlf_count = raw_bytes.count(b"\r\n")

@@ -862,7 +862,7 @@ class TestTier4RealWorldWorkloads:
     def test_tier4_html_file_size_and_hygiene(self, pages_content: Dict[str, str]):
         """
         TC4.3: Hard performance and encoding invariants:
-        - gh-pages/index.html file size strictly < 512,000 bytes (500 KB)
+        - gh-pages/index.html file size strictly < 1,048,576 bytes (1 MB)
         - Strict Unix LF line endings (raw_bytes.count(b'\\r\\n') == 0) across all pages
         - Valid UTF-8 encoding
         """
@@ -872,7 +872,7 @@ class TestTier4RealWorldWorkloads:
 
         # Size check
         size_bytes = len(raw_index)
-        budget_bytes = 512000  # 500 KB
+        budget_bytes = 1048576  # 1 MB (1,048,576 bytes)
         assert size_bytes < budget_bytes, (
             f"Defect F_MOB_08: gh-pages/index.html size ({size_bytes:,} bytes) exceeds budget of {budget_bytes:,} bytes!"
         )

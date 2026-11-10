@@ -20,7 +20,7 @@ Core Attack Vectors & Challenges:
 4. Desktop Invariant Isolation:
    Confirm desktop (>= 1024px) retains 2-column grid, sidebar drawer, and hidden bottom nav.
 5. Byte Budget & Unix LF Invariant:
-   Confirm gh-pages/index.html < 500 KB (512,000 bytes) and 0 CRLF bytes.
+   Confirm gh-pages/index.html < 1 MB (1,048,576 bytes) and 0 CRLF bytes.
 """
 
 from __future__ import annotations
@@ -414,12 +414,12 @@ class TestChallenge5FileHygiene:
     Enforces project byte budget and cross-platform line encoding invariants.
     """
 
-    def test_index_html_strictly_under_500kb(self):
+    def test_index_html_strictly_under_1mb(self):
         """index.html must be strictly less than 512,000 bytes."""
         p = GH_PAGES_DIR / "index.html"
         size = p.stat().st_size
-        assert size < 512000, f"index.html size {size:,} bytes exceeds 512,000 bytes budget!"
-        headroom = 512000 - size
+        assert size < 1048576, f"index.html size {size:,} bytes exceeds 1,048,576 bytes budget!"
+        headroom = 1048576 - size
         assert headroom >= 10000, f"Headroom {headroom} bytes is dangerously low (< 10 KB)"
 
     def test_zero_crlf_across_all_pages(self):

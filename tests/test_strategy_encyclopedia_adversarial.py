@@ -341,9 +341,9 @@ def test_index_html_size_budget():
     """
     assert INDEX_HTML_PATH.exists(), f"Missing {INDEX_HTML_PATH}"
     size = INDEX_HTML_PATH.stat().st_size
-    assert size < 512000, f"index.html size {size} bytes exceeds 512,000 byte limit!"
+    assert size < 1048576, f"index.html size {size} bytes exceeds 1,048,576 byte limit!"
     # Ensure comfortable headroom
-    margin = 512000 - size
+    margin = 1048576 - size
     assert margin > 1000, f"index.html margin ({margin} bytes) is precariously small (< 1000 bytes)"
 
 

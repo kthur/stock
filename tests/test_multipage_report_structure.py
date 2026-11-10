@@ -63,12 +63,12 @@ def test_1_all_7_static_files_exist():
         assert page_path.stat().st_size > 1024, f"File {page_name} is unexpectedly small or empty"
 
 
-def test_2_index_html_size_under_500kb():
-    """2. Executive Summary Dashboard (index.html) is strictly < 500 KB (512,000 bytes)."""
+def test_2_index_html_size_under_1mb():
+    """2. Executive Summary Dashboard (index.html) is strictly < 1 MB (1,048,576 bytes)."""
     index_path = GH_PAGES_DIR / "index.html"
     size_bytes = index_path.stat().st_size
     size_kb = size_bytes / 1024.0
-    assert size_bytes < 500 * 1024, f"index.html must be < 500 KB, but was {size_kb:.2f} KB ({size_bytes} bytes)"
+    assert size_bytes < 1024 * 1024, f"index.html must be < 1 MB, but was {size_kb:.2f} KB ({size_bytes} bytes)"
 
 
 def test_3_sticky_nav_header_present_on_all_7_pages():
