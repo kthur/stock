@@ -1344,8 +1344,64 @@
     line-height: 1.4;
   }}
 
+  /* Tactile Touch / Press Micro-Interactions & Fast Click */
+  button, .btn, .tab, .filter-btn, .quick-filter-chip, .theme-btn, .mobile-nav-item,
+  .btn-watchlist, .btn-back-to-top, .clickable-row, .drawer-close-btn, .drawer-nav-btn,
+  .drawer-copy-btn, .drawer-factor-tab, .ext-portal-btn {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-nav-item:active,
+  .filter-btn:active,
+  .quick-filter-chip:active,
+  .theme-btn:active,
+  .btn-watchlist:active,
+  .btn-back-to-top:active,
+  .drawer-close-btn:active,
+  .drawer-nav-btn:active,
+  .drawer-copy-btn:active,
+  .drawer-factor-tab:active,
+  .ext-portal-btn:active,
+  .tab:active {
+    transform: scale(0.96) !important;
+    opacity: 0.88;
+    transition: transform 0.08s ease, opacity 0.08s ease;
+  }
+  tr.clickable-row {
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+  }
+  tr.clickable-row:active {
+    background-color: var(--surface3, rgba(255, 255, 255, 0.08)) !important;
+  }
+
+  /* Watchlist Star Pop Animation */
+  @keyframes starPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.4); }
+    100% { transform: scale(1); }
+  }
+  .btn-watchlist.star-pop {
+    animation: starPop 0.32s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  /* Theme Smooth Transition */
+  body, .card, .table-wrap, table, tr, th, td, .header, .sticky-nav, .filter-btn, .mobile-bottom-nav {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
   /* Toast Notifications */
   #toast-container {{ position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }}
+  @media (max-width: 768px) {{
+    #toast-container {{
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+      left: 50% !important;
+      right: auto !important;
+      transform: translateX(-50%) !important;
+      width: calc(100% - 32px);
+      max-width: 380px;
+    }}
+  }}
   .toast {{ padding: 10px 16px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 12.5px; font-weight: 600; box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 8px; transform: translateY(20px); opacity: 0; transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1), opacity .25s ease; pointer-events: auto; }}
   .toast.show {{ transform: translateY(0); opacity: 1; }}
 
@@ -2270,6 +2326,70 @@
   #market-full-table th.sticky-symbol { z-index: 14; }
   #market-full-table th.sticky-name { z-index: 13; }
 
+  /* Tactile Touch / Press Micro-Interactions & Fast Click */
+  button, .btn, .tab, .filter-btn, .quick-filter-chip, .theme-btn, .mobile-nav-item,
+  .btn-watchlist, .btn-back-to-top, .clickable-row, .drawer-close-btn, .drawer-nav-btn,
+  .drawer-copy-btn, .drawer-factor-tab, .ext-portal-btn {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-nav-item:active,
+  .filter-btn:active,
+  .quick-filter-chip:active,
+  .theme-btn:active,
+  .btn-watchlist:active,
+  .btn-back-to-top:active,
+  .drawer-close-btn:active,
+  .drawer-nav-btn:active,
+  .drawer-copy-btn:active,
+  .drawer-factor-tab:active,
+  .ext-portal-btn:active,
+  .tab:active {
+    transform: scale(0.96) !important;
+    opacity: 0.88;
+    transition: transform 0.08s ease, opacity 0.08s ease;
+  }
+  tr.clickable-row {
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+  }
+  tr.clickable-row:active {
+    background-color: var(--surface3, rgba(255, 255, 255, 0.08)) !important;
+  }
+
+  /* Watchlist Star Pop Animation */
+  @keyframes starPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.4); }
+    100% { transform: scale(1); }
+  }
+  .btn-watchlist.star-pop {
+    animation: starPop 0.32s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  /* Theme Smooth Transition */
+  body, .card, .table-wrap, table, tr, th, td, .header, .sticky-nav, .filter-btn, .mobile-bottom-nav {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Mobile Toast Container Positioning */
+  @media (max-width: 768px) {
+    #toast-container {
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+      left: 50% !important;
+      right: auto !important;
+      transform: translateX(-50%) !important;
+      width: calc(100% - 32px);
+      max-width: 380px;
+    }
+  }
+
+  /* Table Sort Active Header Indicator */
+  th.sort-active {
+    color: var(--accent) !important;
+    background: var(--surface2) !important;
+  }
+
   /* Dedicated Market Pages Toolbar */
   .market-toolbar {
     margin: 16px 32px;
@@ -2333,7 +2453,7 @@
       <a href="index.html" class="nav-link">🏠 메인 대시보드</a><a href="strategies.html" class="nav-link active nav-active">📚 전략 도감 (37)</a><a href="market_kospi.html" class="nav-link">🇰🇷 KOSPI</a><a href="market_kosdaq.html" class="nav-link">🇰🇷 KOSDAQ</a><a href="market_sp500.html" class="nav-link">🇺🇸 S&P 500</a><a href="market_nasdaq.html" class="nav-link">🇺🇸 NASDAQ</a><a href="market_russell2000.html" class="nav-link">🇺🇸 Russell 2000</a>
     </nav>
     <div class="sticky-nav-actions">
-      <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-09 19:58 KST</span>
+      <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-11 12:29 KST</span>
     </div>
   </div>
 </header>
@@ -2366,7 +2486,7 @@
   <div class="header-meta">
     <span class="badge badge-quant-edition">37 Strategies Encyclopedia</span>
     <span class="badge badge-date">📅 2026-10-15 06:25 KST</span>
-    <span class="badge badge-updated">🔄 갱신: 2026-11-09 19:58 KST</span>
+    <span class="badge badge-updated">🔄 갱신: 2026-11-11 12:29 KST</span>
   </div>
 </div>
 
@@ -22538,7 +22658,14 @@ function setWatchlist(list) {
 }
 
 function toggleWatchlist(sym, event) {
-  if (event) event.stopPropagation();
+  if (event) {
+    event.stopPropagation();
+    const btn = event.currentTarget || (event.target && event.target.closest('.btn-watchlist'));
+    if (btn) {
+      btn.classList.add('star-pop');
+      setTimeout(() => btn.classList.remove('star-pop'), 350);
+    }
+  }
   let list = getWatchlist();
   const idx = list.indexOf(sym);
   if (idx >= 0) {
@@ -23151,6 +23278,7 @@ function closeStockDrawer() {
   const drawer = document.getElementById('stock-drawer');
   const overlay = document.getElementById('stock-drawer-overlay');
   if (drawer) {
+    drawer.style.transform = '';
     drawer.style.right = '-500px';
     drawer.style.bottom = '-100%';
     drawer.classList.remove('drawer-open-mobile');
@@ -23169,25 +23297,51 @@ function initDrawerTouchSwipe() {
   let startY = 0;
   let currentX = 0;
   let currentY = 0;
+  let isDragging = false;
   
   drawer.addEventListener('touchstart', function(e) {
+    if (e.touches.length !== 1) return;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
     currentX = startX;
     currentY = startY;
+    isDragging = (drawer.scrollTop <= 5);
   }, { passive: true });
   
   drawer.addEventListener('touchmove', function(e) {
+    if (!isDragging) return;
     currentX = e.touches[0].clientX;
     currentY = e.touches[0].clientY;
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+      const diffY = currentY - startY;
+      const diffX = Math.abs(currentX - startX);
+      if (diffY > 0 && diffY > diffX && drawer.scrollTop <= 0) {
+        drawer.style.transform = `translateY(${Math.min(diffY, 260)}px)`;
+        drawer.style.transition = 'none';
+      }
+    }
   }, { passive: true });
   
   drawer.addEventListener('touchend', function() {
     const isMobile = window.innerWidth <= 768;
+    drawer.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
+    
     if (isMobile) {
       const diffY = currentY - startY;
+      const diffX = currentX - startX;
       if (diffY > 70 && drawer.scrollTop <= 10) {
-        closeStockDrawer();
+        drawer.style.transform = 'translateY(100%)';
+        setTimeout(() => {
+          drawer.style.transform = '';
+          closeStockDrawer();
+        }, 220);
+      } else {
+        drawer.style.transform = '';
+        if (startY < 220 && Math.abs(diffX) > 65 && Math.abs(diffY) < 45) {
+          if (diffX < -65) navigateDrawerStock(1);
+          else if (diffX > 65) navigateDrawerStock(-1);
+        }
       }
     } else {
       const diffX = currentX - startX;
@@ -23195,6 +23349,7 @@ function initDrawerTouchSwipe() {
         closeStockDrawer();
       }
     }
+    isDragging = false;
   });
 }
 

@@ -420,8 +420,8 @@ class TestReleaseR179BacktestEngineHurdles(unittest.TestCase):
 
         release = st.get("release")
         version = st.get("version")
-        self.assertIn(release, ("R179", "R175"))
-        self.assertIn(version, ("v179", "v175"))
+        self.assertIn(release, ("R183", "R182", "R181", "R179", "R175"))
+        self.assertIn(version, ("v183", "v182", "v181", "v179", "v175"))
 
         metrics = st["metrics"]
         net_cagr = float(metrics["net_cagr_pct"])

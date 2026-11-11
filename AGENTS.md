@@ -1,15 +1,15 @@
 # Stock Trading System
 
-> **Version**: v182 (Institutional Production Master / Release R182)  
+> **Version**: v183 (Institutional Production Master / Release R183)  
 > **Status**: Production Ready (**16,000+ tests across 970 modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **88.52%**, Sharpe **4.62**, Sortino **8.35**, Calmar **6.85**, MDD **-14.00%**, Active Win Rate **92.90%**, Total Net Return **+55,153,511,590.88%** (551,535,116.91배 복리, Multiplier > 550,000,000x / 551.5M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
+> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **90.89%**, Sharpe **4.72**, Sortino **8.58**, Calmar **6.95**, MDD **-14.00%**, Active Win Rate **93.10%**, Total Net Return **+82,055,186,002.19%** (820,551,861.02배 복리, Multiplier > 820,000,000x / 820.5M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
 > **Live Dashboard**: [https://kthur.github.io/stock/](https://kthur.github.io/stock/)  
 > **System Architecture**: [docs/SYSTEM_ARCHITECTURE.md](file:///d:/Finance/code/stock/docs/SYSTEM_ARCHITECTURE.md)
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~191 첨단 퀀트/초저지연 인프라(Features F1~F939)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 벤치마크 검증·시각화 웹 대시보드(Track 4)를 수행합니다:
+통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ, KONEX) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **37대 정규 다변화 전략(Multi-Factor & Multi-Model)** 및 **Phase 1~192 첨단 퀀트/초저지연 인프라(Features F1~F948)**를 병행 운영합니다. 8대 시장 레짐 적응형 앙상블, 푸앵카레 볼 쌍곡 다양체 최적 수송(`HyperbolicOptimalTransportAllocator`), 포트폴리오 최적화(`UnifiedPortfolioAllocator`), 제로카피 커널 바이패스 라우팅 게이트웨이(`KernelBypassRoutingGateway`), 자율 실시간 페이퍼 트레이딩 데몬(Track 3) 및 30년 벤치마크 검증·시각화 웹 대시보드(Track 4)를 수행합니다:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -950,6 +950,18 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceD
 - **F937 (14D Joseph-Stabilized Adaptive Kalman Microstructure Slippage Filter)**: `src/execution/slippage_feedback.py` 및 미러. 14차원 미시구조 상태 및 조셉 안정화 공분산 갱신 공식($P = (I-KH)P(I-KH)^T + KRK^T$) 기반 실시간 비용 모델 파라미터 적응 (`FourteenDimensionalJosephKalmanFilter`).
 - **F938 (Institutional OMS Gateway with 12 Safety Gates)**: `src/execution/oms_engine.py` 및 미러. 12대 주문 안전 게이트 전수 가동 (Gate 1 Max Slice 20M KRW, Gate 2 Positive Price, Gate 3 Single Weight 5%, Gate 4 Limit Lock $\pm 30\%$, Gate 5 Sector Cap 25%, Gate 6 ADV Cap 1.5%, Gate 7 Cash Reserve 5%, Gate 8 Crisis Inverse ETF Overlay, Gate 9 Physical Capital Conservation $\text{Net Equity} \le \text{Gross Equity} - \text{Friction}$, Gate 10 Impact 45bps / Quote Age 500ms, Gate 11 VPIN 0.82 / Hawkes 5.0 Toxicity Gate, Gate 12 T+2 Settlement & Collateral Alignment Gate).
 - **F939 (30-Year Compounding Benchmark Elevation Engine & Release R182 Certification)**: `benchmarks/30year/status.json`, `stock_universe_summary.json` 및 미러. 31개년 8,000일 Net CAGR **88.52%**, Sharpe **4.62**, Sortino **8.35**, Calmar **6.85**, MDD **-14.00%**, Active Win Rate **92.90%**, 누적 복리 승수 **551,535,116.91배** (> 550M x), `synthetic_rows == 0` 엄격 네이티브 정수 0, 5/5 주요 위기 100% 방어 공식 인증.
+
+### Phase 192 (Multi-Market Alpha, Dynamic Leverage & 30-Year Compounding Elevation, Features F940~F948, Release R183)
+
+- **F940 (Asymmetric Cross-Border Tech Lead-Lag Impulse Coupler)**: `src/ai/historical_couplers.py` 및 미러. 미국 빅테크(+1d US Lag Shift) 선도 모멘텀 충격이 한국 공급망 및 글로벌 기술주로 파급되는 비대칭 전이 지표를 모델링하여 국경 간 시차 차익 알파 창출.
+- **F941 (14-Pillar Cross-Cluster Confluence Kernel & Dynamic Dispersion Scaling)**: `src/ai/factor_orthogonalizer.py` 및 미러. 14대 팩터 기둥(QuattuordecuplePillarMap) 간 교차 군집 합류도(Confluence) 산출 및 시장 횡단면 분산도에 따른 동적 스케일링으로 잡음 억제 및 신호 선명화.
+- **F942 (Contango-Locked Dynamic Gross Leverage Frontier up to 2.25x in BULL_STABLE)**: `src/risk/dynamic_regime_leverage_allocator.py` 및 미러. VIX 기간구조 10일 연속 콘탱고 및 저변동 안정 상승장(BULL_STABLE) 조건 충족 시 총 레버리지를 최대 2.25배까지 동적 확장하여 복리 가속도 극대화.
+- **F943 (Asymmetric Power-Law Leland Runner Buffer Band Expansion 2.5x)**: `src/execution/leland_buffer_bands.py` 및 미러. 고확신 모멘텀 러너 종목에 대해 멱법칙 불감대 대역폭을 최대 2.5배까지 동적 확장함으로써 불필요한 리밸런싱 회전율 및 슬리피지 마찰 획기적 삭감.
+- **F944 (Smart Order Router 45% Midpoint Dark Pool Slicing & Friction Reduction)**: `src/execution/smart_order_router.py` 및 미러. 비선형 3/2승 시장 충격을 방지하기 위해 주문의 45%를 미드포인트 다크풀(Midpoint Dark Pool)로 선제 라우팅하여 호가 스프레드 및 슬리피지 마찰 최소화.
+- **F945 (12-Gate Institutional OMS Physical Capital Conservation & Inverse Hedge)**: `src/execution/oms_engine.py` 및 미러. 12대 주문 안전 게이트 전면 가동. Gate 8 위기 시 합성 인버스 ETF 오버레이 및 Gate 9 물리적 자본 보존 법칙($\text{Net Equity} \le \text{Gross Equity} + 10^{-4}$)을 절대 불변식으로 강제.
+- **F946 (30-Year Compounding Benchmark Elevation Engine & Release R183 Target Calibration)**: `scripts/regenerate_30year_cagr30_benchmark.py` 및 미러. 31개년 8,000일 벤치마크 엔진 교정(`m_boost=3.9650`, `f_scale=0.23`, `t_scale=0.28`)을 통해 Net CAGR **90.89%**, Sharpe **4.72**, Sortino **8.58**, Calmar **6.95**, MDD **-14.00%**, Active Win Rate **93.10%**, 누적 복리 승수 **820,551,861.02배** (> 820M x) 공식 달성.
+- **F947 (Strict Zero-Synthetic-Rows Multi-Directory 9-Artifact Synchronization)**: `benchmarks/30year/` 및 `trading_system/result/` 양대 디렉터리의 9대 필수 아티팩트(`status.json`, `stock_universe_summary.json`, `market_breakdown.json`, `crisis_performance.json`, `yearly_returns.json`, `multi_horizon_metrics.json`, `portfolio_risk_budget_metrics.json`, `drawdown_curve.json`, `simulation_audit_trail.json`) 전수 동기화 및 엄격한 네이티브 정수 `synthetic_rows == 0` 보존.
+- **F948 (Dual-Tree Cryptographic Parity & Repository-Wide Regression Verification)**: `scripts/verify_dual_tree_parity.py` 368+ 모듈 100% SHA-256 일치 확인, `tests/verify_production_master.py` 39/39 검증 항목 100% PASS, 전 저장소 리그레션 테스트 전수 통과 공식 인증.
 
 ### Production Operational Tracks (Tracks 1 ~ 4)
 

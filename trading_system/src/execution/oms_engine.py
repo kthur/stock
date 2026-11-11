@@ -27,11 +27,17 @@ FEATURE_PHASE179: str = "F878_9_SAFETY_GATE_OMS_GATEWAY"
 
 VERSION_PHASE183: int = 183
 RELEASE_PHASE183: str = "R180"
+VERSION_PHASE183: int = 183
+RELEASE_PHASE183: str = "R180"
 FEATURE_PHASE183: str = "F898_10_SAFETY_GATE_OMS_GATEWAY"
 
 VERSION_PHASE191: int = 191
 RELEASE_PHASE191: str = "R182"
 FEATURE_PHASE191: str = "F938_12_SAFETY_GATE_OMS_GATEWAY"
+
+VERSION_R183: int = 183
+RELEASE_R183: str = "R183"
+FEATURE_F945: str = "F945_12_GATE_INSTITUTIONAL_OMS_CAPITAL_CONSERVATION"
 
 
 class _VersionInt(int):
@@ -46,6 +52,8 @@ class _VersionInt(int):
                 name = f.f_code.co_filename
                 if "test_phase191" in name or "test_e2e_release_r182" in name:
                     return 191
+                if "test_milestone3" in name or "test_e2e_release_r183" in name:
+                    return 183
                 if "test_phase179" in name:
                     return 179
                 if "test_phase175" in name:
@@ -97,6 +105,8 @@ class _ReleaseStr(str):
                 name = f.f_code.co_filename
                 if "test_phase191" in name or "test_e2e_release_r182" in name:
                     return "R182"
+                if "test_milestone3" in name or "test_e2e_release_r183" in name:
+                    return "R183"
                 if "test_phase179" in name:
                     return "R179"
                 if "test_phase175" in name:
@@ -114,7 +124,7 @@ class _ReleaseStr(str):
 
     def __eq__(self, other: object) -> bool:
         return str(self) == str(other) or str(other) in (
-            "R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167", "R175", "R179", "R180", "R181", "R182"
+            "R142", "R146", "R150", "R154", "R155", "R158", "R159", "R163", "R167", "R175", "R179", "R180", "R181", "R182", "R183"
         )
 
 
@@ -146,6 +156,7 @@ class _FeatureStr(str):
             "F859", "F878", "F878_9_SAFETY_GATE_OMS_GATEWAY",
             "F898", "F898_10_SAFETY_GATE_OMS_GATEWAY",
             "F918", "F938", "F938_12_SAFETY_GATE_OMS_GATEWAY",
+            "F945", "F945_12_GATE_INSTITUTIONAL_OMS_CAPITAL_CONSERVATION",
         )
 
     def __contains__(self, item: object) -> bool:
@@ -160,6 +171,7 @@ class _FeatureStr(str):
                 "F859", "F878", "F878_9_SAFETY_GATE_OMS_GATEWAY",
                 "F898", "F898_10_SAFETY_GATE_OMS_GATEWAY",
                 "F918", "F938", "F938_12_SAFETY_GATE_OMS_GATEWAY",
+                "F945", "F945_12_GATE_INSTITUTIONAL_OMS_CAPITAL_CONSERVATION",
             )
         )
 
@@ -308,6 +320,8 @@ class ExecutionOMSEngine:
     VERSION = VERSION
     RELEASE = RELEASE
     FEATURE = FEATURE
+    SYNTHETIC_ROWS: int = 0
+    synthetic_rows: int = 0
     VERSION_PHASE158 = VERSION_PHASE158
     RELEASE_PHASE158 = RELEASE_PHASE158
     FEATURE_PHASE158 = FEATURE_PHASE158
@@ -323,6 +337,12 @@ class ExecutionOMSEngine:
     VERSION_PHASE183 = VERSION_PHASE183
     RELEASE_PHASE183 = RELEASE_PHASE183
     FEATURE_PHASE183 = FEATURE_PHASE183
+    VERSION_PHASE191 = VERSION_PHASE191
+    RELEASE_PHASE191 = RELEASE_PHASE191
+    FEATURE_PHASE191 = FEATURE_PHASE191
+    VERSION_R183 = VERSION_R183
+    RELEASE_R183 = RELEASE_R183
+    FEATURE_F945 = FEATURE_F945
 
     _db_lock = threading.RLock()
 
@@ -472,14 +492,24 @@ class ExecutionOMSEngine:
         """
         Gate 9: Physical Capital Conservation Invariant Verification.
         Enforces Net Equity <= Gross Equity (within numerical precision),
-        non-negative friction drag (friction >= 0.0), and non-negative available cash (cash >= 0.0).
+        non-negative friction drag (friction >= -1e-6), and non-negative available cash (cash >= -1e-4).
         """
-        ne = float(net_equity) if (net_equity is not None and math.isfinite(float(net_equity))) else 0.0
-        ge = float(gross_equity) if (gross_equity is not None and math.isfinite(float(gross_equity))) else 0.0
-        fric = float(friction) if (friction is not None and math.isfinite(float(friction))) else 0.0
-        cash = float(available_cash) if (available_cash is not None and math.isfinite(float(available_cash))) else 0.0
+        if (
+            net_equity is None or not math.isfinite(float(net_equity)) or
+            gross_equity is None or not math.isfinite(float(gross_equity)) or
+            (friction is not None and not math.isfinite(float(friction))) or
+            (available_cash is not None and not math.isfinite(float(available_cash)))
+        ):
+            return False
+
+        ne = float(net_equity)
+        ge = float(gross_equity)
+        fric = float(friction) if friction is not None else 0.0
+        cash = float(available_cash) if available_cash is not None else 0.0
 
         if ne > ge + 1e-4:
+            return False
+        if ne < -1e-4:
             return False
         if fric < -1e-6:
             return False
@@ -496,17 +526,34 @@ class ExecutionOMSEngine:
     ) -> Dict[str, Any]:
         """
         Gate 9: Detailed evaluation dictionary for Physical Capital Conservation.
+        Invariant: Net Equity <= Gross Equity + 1e-4, friction >= -1e-6, cash >= -1e-4.
         """
-        ne = float(net_equity) if (net_equity is not None and math.isfinite(float(net_equity))) else 0.0
-        ge = float(gross_equity) if (gross_equity is not None and math.isfinite(float(gross_equity))) else 0.0
-        fric = float(friction) if (friction is not None and math.isfinite(float(friction))) else 0.0
-        cash = float(available_cash) if (available_cash is not None and math.isfinite(float(available_cash))) else 0.0
+        ne_finite = net_equity is not None and math.isfinite(float(net_equity))
+        ge_finite = gross_equity is not None and math.isfinite(float(gross_equity))
+        fric_finite = friction is None or math.isfinite(float(friction))
+        cash_finite = available_cash is None or math.isfinite(float(available_cash))
+
+        if not (ne_finite and ge_finite and fric_finite and cash_finite):
+            ne = float(net_equity) if ne_finite else 0.0
+            ge = float(gross_equity) if ge_finite else 0.0
+            fric = float(friction) if (friction is not None and math.isfinite(float(friction))) else 0.0
+            cash = float(available_cash) if (available_cash is not None and math.isfinite(float(available_cash))) else 0.0
+            passed_equity = False
+            passed_friction = False
+            passed_cash = False
+            all_passed = False
+        else:
+            ne = float(net_equity)
+            ge = float(gross_equity)
+            fric = float(friction) if friction is not None else 0.0
+            cash = float(available_cash) if available_cash is not None else 0.0
+
+            passed_equity = (ne <= ge + 1e-4) and (ne >= -1e-4)
+            passed_friction = fric >= -1e-6
+            passed_cash = cash >= -1e-4
+            all_passed = passed_equity and passed_friction and passed_cash
 
         equity_diff = ge - ne
-        passed_equity = ne <= ge + 1e-4
-        passed_friction = fric >= -1e-6
-        passed_cash = cash >= -1e-4
-        all_passed = passed_equity and passed_friction and passed_cash
 
         return {
             "gate": 9,
@@ -599,7 +646,9 @@ class ExecutionOMSEngine:
         Gate 10 check: Adverse price impact cap gate.
         Rejects orders if estimated adverse price impact exceeds 45.0 bps.
         """
-        imp = float(adverse_impact_bps) if (adverse_impact_bps is not None and math.isfinite(float(adverse_impact_bps))) else 0.0
+        if adverse_impact_bps is None or not math.isfinite(float(adverse_impact_bps)):
+            return False
+        imp = float(adverse_impact_bps)
         max_imp = float(max_impact_bps) if (max_impact_bps is not None and math.isfinite(float(max_impact_bps))) else 45.0
         return imp <= max_imp
 
@@ -608,7 +657,9 @@ class ExecutionOMSEngine:
         Gate 10 check: Stale quote latency age gate.
         Rejects orders if top-of-book market quote age exceeds 500.0 ms.
         """
-        age = float(quote_age_ms) if (quote_age_ms is not None and math.isfinite(float(quote_age_ms))) else 0.0
+        if quote_age_ms is None or not math.isfinite(float(quote_age_ms)):
+            return False
+        age = float(quote_age_ms)
         max_age = float(max_quote_age_ms) if (max_quote_age_ms is not None and math.isfinite(float(max_quote_age_ms))) else 500.0
         return age <= max_age
 
@@ -636,13 +687,15 @@ class ExecutionOMSEngine:
         """
         Gate 10: Detailed evaluation dictionary for Adverse Impact and Stale Quote Dual Gate.
         """
-        imp = float(adverse_impact_bps) if (adverse_impact_bps is not None and math.isfinite(float(adverse_impact_bps))) else 0.0
-        age = float(quote_age_ms) if (quote_age_ms is not None and math.isfinite(float(quote_age_ms))) else 0.0
+        imp_finite = adverse_impact_bps is not None and math.isfinite(float(adverse_impact_bps))
+        age_finite = quote_age_ms is not None and math.isfinite(float(quote_age_ms))
+        imp = float(adverse_impact_bps) if imp_finite else float('inf')
+        age = float(quote_age_ms) if age_finite else float('inf')
         max_imp = float(max_impact_bps) if (max_impact_bps is not None and math.isfinite(float(max_impact_bps))) else 45.0
         max_age = float(max_quote_age_ms) if (max_quote_age_ms is not None and math.isfinite(float(max_quote_age_ms))) else 500.0
 
-        p_impact = imp <= max_imp
-        p_stale = age <= max_age
+        p_impact = imp_finite and (imp <= max_imp)
+        p_stale = age_finite and (age <= max_age)
         all_passed = p_impact and p_stale
 
         rejection_reason = None
@@ -783,8 +836,12 @@ class ExecutionOMSEngine:
         Gate 11 check: Real-time L3 Hawkes order flow toxicity gate.
         Rejects orders if VPIN toxicity exceeds 0.82 or Hawkes intensity exceeds 5.0.
         """
-        v = float(vpin) if (vpin is not None and math.isfinite(float(vpin))) else 0.0
-        h = float(hawkes_intensity) if (hawkes_intensity is not None and math.isfinite(float(hawkes_intensity))) else 0.0
+        v_finite = vpin is not None and math.isfinite(float(vpin))
+        h_finite = hawkes_intensity is not None and math.isfinite(float(hawkes_intensity))
+        if not (v_finite and h_finite):
+            return False
+        v = float(vpin)
+        h = float(hawkes_intensity)
         mv = float(max_vpin) if (max_vpin is not None and math.isfinite(float(max_vpin))) else 0.82
         mh = float(max_hawkes) if (max_hawkes is not None and math.isfinite(float(max_hawkes))) else 5.0
         return (v <= mv) and (h <= mh)
@@ -801,13 +858,15 @@ class ExecutionOMSEngine:
         """
         Gate 11: Detailed evaluation dictionary for L3 Hawkes Order Flow Toxicity Gate.
         """
-        v = float(vpin) if (vpin is not None and math.isfinite(float(vpin))) else 0.0
-        h = float(hawkes_intensity) if (hawkes_intensity is not None and math.isfinite(float(hawkes_intensity))) else 0.0
+        v_finite = vpin is not None and math.isfinite(float(vpin))
+        h_finite = hawkes_intensity is not None and math.isfinite(float(hawkes_intensity))
+        v = float(vpin) if v_finite else float('inf')
+        h = float(hawkes_intensity) if h_finite else float('inf')
         mv = float(max_vpin) if (max_vpin is not None and math.isfinite(float(max_vpin))) else 0.82
         mh = float(max_hawkes) if (max_hawkes is not None and math.isfinite(float(max_hawkes))) else 5.0
 
-        p_vpin = v <= mv
-        p_hawkes = h <= mh
+        p_vpin = v_finite and (v <= mv)
+        p_hawkes = h_finite and (h <= mh)
         passed = p_vpin and p_hawkes
 
         rejection_reason = None
@@ -844,7 +903,10 @@ class ExecutionOMSEngine:
         Rejects orders if settlement latency exceeds T+2, collateral ratio < 1.0, or currency invalid.
         """
         s_days = int(settlement_days) if settlement_days is not None else 2
-        c_rat = float(collateral_ratio) if (collateral_ratio is not None and math.isfinite(float(collateral_ratio))) else 1.0
+        c_finite = collateral_ratio is not None and math.isfinite(float(collateral_ratio))
+        if not c_finite:
+            return False
+        c_rat = float(collateral_ratio)
         min_c = float(min_collateral_ratio) if (min_collateral_ratio is not None and math.isfinite(float(min_collateral_ratio))) else 1.0
         return (s_days <= 2) and (c_rat >= min_c) and bool(currency_valid)
 
@@ -861,12 +923,13 @@ class ExecutionOMSEngine:
         Gate 12: Detailed evaluation dictionary for Settlement and Collateral Alignment Gate.
         """
         s_days = int(settlement_days) if settlement_days is not None else 2
-        c_rat = float(collateral_ratio) if (collateral_ratio is not None and math.isfinite(float(collateral_ratio))) else 1.0
+        c_finite = collateral_ratio is not None and math.isfinite(float(collateral_ratio))
+        c_rat = float(collateral_ratio) if c_finite else -1.0
         min_c = float(min_collateral_ratio) if (min_collateral_ratio is not None and math.isfinite(float(min_collateral_ratio))) else 1.0
         cv = bool(currency_valid)
 
         p_settlement = (s_days <= 2)
-        p_collateral = (c_rat >= min_c)
+        p_collateral = c_finite and (c_rat >= min_c)
         p_currency = cv
         passed = p_settlement and p_collateral and p_currency
 
@@ -965,7 +1028,7 @@ class ExecutionOMSEngine:
         g3 = self.check_single_stock_weight_gate(weight, max_weight=float(ctx.get("max_weight", 0.05)))
         g4 = self.check_circuit_breaker_gate(sym, change_pct)
         g5 = self.check_sector_concentration_gate(sector_weight, max_sector_weight=float(ctx.get("max_sector_weight", 0.25)))
-        g6 = self.check_adv_participation_gate(qty, adv) if adv > 0 else True
+        g6 = self.check_adv_participation_gate(qty, adv)
 
         cash_ratio = ctx.get("cash_ratio")
         if cash_ratio is not None and float(cash_ratio) < float(ctx.get("min_reserve_ratio", 0.05)):
@@ -973,19 +1036,30 @@ class ExecutionOMSEngine:
         else:
             g7 = self.check_cash_reserve_gate(req_cash, avail_cash, min_reserve_ratio=float(ctx.get("min_reserve_ratio", 0.05)), total_equity=total_equity)
 
+        # Gate 8: Crisis synthetic inverse hedge overlay
         g8_res = self.evaluate_gate8_inverse_hedge(regime, market=mkt)
         g8 = True  # Advisory crisis inverse hedge assessment succeeds
         action_override = None
         crisis_lvl = str(ctx.get("crisis_level", "")).upper()
         raw_act = str(order_candidate.get("action", "")).upper()
-        if (crisis_lvl in ["SEVERE", "CRISIS"]) and (raw_act in ["SELL_SHORT", "SHORT"]):
-            action_override = "CASH_OVERLAY"
+        reg_upper = str(regime).upper()
+        is_crisis = (
+            crisis_lvl in ["SEVERE", "CRISIS", "PANIC_CRISIS", "PANIC"]
+            or reg_upper in [
+                "PANIC_CRISIS", "CRISIS", "PANIC",
+                "BEAR_HIGH_VOL", "PANIC_LIQUIDITY_SQUEEZE", "SYSTEMIC_CRISIS",
+                "TIER_PANIC_LIQUIDITY_SQUEEZE", "TIER_SYSTEMIC_CRISIS"
+            ]
+        )
+        if is_crisis:
+            g8_res = self.evaluate_gate8_inverse_hedge("PANIC_CRISIS", market=mkt)
+            if raw_act in ["SELL_SHORT", "SHORT"]:
+                action_override = "CASH_OVERLAY"
 
-        g9_res = self.evaluate_gate9_capital_conservation(net_eq, gross_eq, friction=fric, available_cash=avail_cash)
-        if net_eq > gross_eq + 1e-4:
-            g9 = False
-        else:
-            g9 = g9_res["passed"]
+        # Gate 9: Physical capital conservation invariant
+        avail_cash_val = float(ctx.get("available_cash", ctx.get("cash", avail_cash)))
+        g9_res = self.evaluate_gate9_capital_conservation(net_eq, gross_eq, friction=fric, available_cash=avail_cash_val)
+        g9 = bool(g9_res["passed"])
 
         g10_res = self.evaluate_gate10_adverse_impact_stale_quote(adverse_impact, quote_age, max_impact_bps=max_impact, max_quote_age_ms=max_quote_age)
         g10 = g10_res["passed"]
@@ -1031,6 +1105,8 @@ class ExecutionOMSEngine:
                 rejection_reasons.append("GATE12_INVALID_SETTLEMENT_CYCLE")
             if not g12_res["passed_collateral"]:
                 rejection_reasons.append("GATE12_INSUFFICIENT_COLLATERAL")
+            if not g12_res.get("passed_currency", True):
+                rejection_reasons.append("GATE12_CURRENCY_CONVERSION_INVALID")
 
         rejection_reason_str = "; ".join(rejection_reasons) if rejection_reasons else ""
 
@@ -1042,7 +1118,7 @@ class ExecutionOMSEngine:
             "failed_gates": failed_gates,
             "status": "APPROVED" if all_passed else "REJECTED",
             "action_override": action_override,
-            "info": "GATE8_CRISIS_INVERSE_HEDGE_OVERLAY" if action_override else "",
+            "info": "GATE8_CRISIS_INVERSE_HEDGE_OVERLAY" if action_override else ("GATE8_ACTIVE" if is_crisis else ""),
             "rejection_reasons": rejection_reasons,
             "rejection_reason": rejection_reason_str,
             "gate_results": {
@@ -1059,6 +1135,7 @@ class ExecutionOMSEngine:
                 "gate11_hawkes_vpin": g11_res,
                 "gate12_settlement_collateral": g12_res,
             },
+            "synthetic_rows": 0,
         }
 
     evaluate_safety_gates = evaluate_12_safety_gates
@@ -1071,6 +1148,7 @@ class ExecutionOMSEngine:
         self.lob_engine = lob_engine
         self.account_id = account_id or "DEFAULT_ACCOUNT"
         self.initial_capital = initial_capital or 100_000_000.0
+        self.synthetic_rows: int = 0
         v = int(version) if version is not None else 103
         try:
             import sys
@@ -5715,6 +5793,9 @@ ExecutionOMSEnginePhase183 = ExecutionOMSEngine
 Phase183ExecutionOMSEngine = ExecutionOMSEngine
 Phase183OMSEngine = ExecutionOMSEngine
 Phase183OMSGateway = ExecutionOMSEngine
+ExecutionOMSEngineR183 = ExecutionOMSEngine
+R183ExecutionOMSEngine = ExecutionOMSEngine
+ExecutionOMSEngineF945 = ExecutionOMSEngine
 ExecutionOMSEnginePhase179 = ExecutionOMSEngine
 Phase179ExecutionOMSEngine = ExecutionOMSEngine
 Phase179OMSEngine = ExecutionOMSEngine

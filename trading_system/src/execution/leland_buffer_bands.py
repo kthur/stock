@@ -408,9 +408,21 @@ def is_zero_bypass_eligible(
     current_weight: float,
     target_weight: float,
     threshold: float = 1e-4,
+    exit_threshold: float = 1e-5,
 ) -> bool:
-    """Returns True if trade represents fresh entry (w_curr == 0) or full exit (w_target == 0)."""
-    return abs(float(current_weight)) <= threshold or abs(float(target_weight)) <= threshold
+    """
+    Feature F943: Evaluates whether a portfolio adjustment qualifies for zero-bypass:
+    - Full liquidation: target_weight <= exit_threshold (or abs(target_weight) <= 1e-5), immediate exit.
+    - Fresh entry: current_weight <= threshold and target_weight > threshold, immediate entry.
+    Otherwise False.
+    """
+    c_w = abs(float(current_weight))
+    t_w = float(target_weight)
+    if t_w <= max(exit_threshold, 1e-5) or abs(t_w) <= 1e-5:
+        return True
+    if c_w <= threshold and t_w > threshold:
+        return True
+    return False
 
 
 compute_asymmetric_leeland_bands = compute_asymmetric_leland_bands_r179
@@ -725,13 +737,321 @@ LelandBufferBandsPhase190 = LelandBufferBandsV182
 PowerLawLelandBufferBandsV182 = LelandBufferBandsV182
 compute_power_law_leland_bands_v182 = compute_asymmetric_power_law_leland_bands_v182
 
-sys.modules[f"{__name__}.LelandBufferBandsV182"] = LelandBufferBandsV182
-sys.modules[f"{__name__}.Phase190LelandBufferBands"] = LelandBufferBandsV182
-sys.modules[f"{__name__}.F933LelandBufferBands"] = LelandBufferBandsV182
-sys.modules[f"{__name__}.LelandBufferBandsPhase190"] = LelandBufferBandsV182
-sys.modules[f"{__name__}.PowerLawLelandBufferBandsV182"] = LelandBufferBandsV182
+# ---------------------------------------------------------------------------
+# Feature F943: Asymmetric Power-Law Leland Dynamic Buffer Bands with Runner Expansion (2.5x)
+# Phase 191 (Release R183)
+# ---------------------------------------------------------------------------
+VERSION_PHASE191: int = 191
+RELEASE_PHASE191: str = "R183"
+FEATURE_PHASE191: str = "F943"
+
+VERSION_V183: int = 191
+RELEASE_V183: str = "R183"
+FEATURE_V183: str = "F943"
+
+def compute_asymmetric_leland_bands_r183(
+    current_weights: Optional[Dict[str, float]] = None,
+    target_weights: Optional[Dict[str, float]] = None,
+    alphas: Optional[Dict[str, float]] = None,
+    volatilities: Optional[Dict[str, float]] = None,
+    spread_bps: float = 10.0,
+    impact_coef: float = 0.05,
+    risk_aversion: float = 1.0,
+    min_bandwidth: float = 0.005,
+    max_bandwidth: float = 0.400,
+    catalyst_surge_ratio: float = 3.5,
+    leverage: float = 1.0,
+    volatility: Optional[float] = None,
+    cost_rate: Optional[float] = None,
+    gamma: Optional[float] = None,
+    conviction: Optional[float] = None,
+    turnover: Optional[float] = None,
+    **kwargs: Any,
+) -> Union[Dict[str, Dict[str, Any]], float]:
+    r"""
+    Feature F943: Asymmetric Power-Law Leland Dynamic Buffer Bands with Runner Expansion (2.5x)
+    and Catalyst Surge Compression (75%).
+    
+    Formula:
+        \Delta w_{base} = (0.75 * \sigma^2 * c / \gamma)^(1/3)
+        Winner expansion (conviction > 0 or \delta_{asym} \in [0.0, 1.0]):
+            \Delta w^+ = \Delta w_{base} * (1.0 + 1.5 * \delta_{asym}), expanding up to 2.5x \Delta w_{base}.
+        Laggard contraction:
+            \Delta w^+ tightens down to 0.6x \Delta w_{base}.
+        Catalyst surge compression:
+            When \alpha / c > 3.5, compresses buffer band width by 75% (multiply by 0.25x).
+        Zero-bypass:
+            Immediate entry (curr <= 1e-4, target > 1e-4) and exit (target <= 1e-5).
+    """
+    c_cost = float(cost_rate if cost_rate is not None else kwargs.get("c", kwargs.get("k_cost", (float(spread_bps) / 10000.0) + float(impact_coef) * 0.01)))
+    g_val = float(gamma if gamma is not None else max(0.1, float(risk_aversion)))
+
+    # Scalar mode
+    if current_weights is None and target_weights is None:
+        sigma_val = float(volatility if volatility is not None else kwargs.get("sigma", 0.20))
+        sigma_val = max(0.001, abs(sigma_val))
+        base_term = 0.75 * (sigma_val ** 2) * max(1e-12, c_cost) / max(1e-12, g_val)
+        delta_base = math.pow(max(1e-12, base_term), 1.0 / 3.0)
+        delta_base = min(max_bandwidth, max(min_bandwidth, delta_base))
+
+        conv = float(conviction if conviction is not None else kwargs.get("delta_asym", kwargs.get("alpha", 0.0)))
+        conv = max(-1.0, min(1.0, conv))
+        if conv >= 0.0:
+            delta_plus = delta_base * (1.0 + 1.5 * conv)
+        else:
+            delta_plus = delta_base * max(0.6, 1.0 + 0.4 * conv)
+
+        alpha_val = float(kwargs.get("alpha_val", kwargs.get("alpha", 0.0)))
+        is_surge = (c_cost > 0 and abs(alpha_val) / c_cost > catalyst_surge_ratio) or kwargs.get("surge", False)
+        if is_surge:
+            delta_plus *= 0.25
+
+        return float(delta_plus)
+
+    # Dict mode
+    curr_dict = current_weights or {}
+    targ_dict = target_weights or {}
+    all_syms = sorted(list(set(curr_dict.keys()) | set(targ_dict.keys())))
+
+    bands = {}
+    for sym in all_syms:
+        c_w = float(curr_dict.get(sym, 0.0))
+        t_w = float(targ_dict.get(sym, 0.0))
+        alpha_val = float(alphas.get(sym, 0.0)) if alphas else 0.0
+        sigma_val = float(volatilities.get(sym, 0.20)) if volatilities else 0.20
+        sigma_val = max(0.001, abs(sigma_val))
+
+        base_term = 0.75 * (sigma_val ** 2) * max(1e-12, c_cost) / max(1e-12, g_val)
+        delta_base = math.pow(max(1e-12, base_term), 1.0 / 3.0)
+        delta_base = min(max_bandwidth, max(min_bandwidth, delta_base))
+
+        delta_asym = math.tanh(alpha_val / (sigma_val + 1e-6))
+        delta_asym = max(-1.0, min(1.0, delta_asym))
+
+        if delta_asym >= 0.0:
+            delta_plus = delta_base * (1.0 + 1.5 * delta_asym)
+            delta_minus = delta_base * max(0.6, 1.0 - 0.4 * delta_asym)
+        else:
+            delta_plus = delta_base * max(0.6, 1.0 + 0.4 * delta_asym)
+            delta_minus = delta_base * max(0.6, 1.0 + 0.4 * delta_asym)
+
+        bypass = None
+        if is_zero_bypass_eligible(c_w, t_w):
+            if t_w <= 1e-5:
+                bypass = "BYPASS_EXIT"
+                delta_plus = 0.0
+                delta_minus = 0.0
+            elif c_w <= 1e-4 and t_w > 1e-4:
+                bypass = "BYPASS_ENTRY"
+                delta_plus = 0.0
+                delta_minus = 0.0
+        elif (c_cost > 0 and abs(alpha_val) / c_cost > catalyst_surge_ratio) or (abs(alpha_val) / max(1e-6, c_cost * 100.0) >= catalyst_surge_ratio):
+            bypass = "SURGE_COMPRESSION"
+            delta_plus *= 0.25
+            delta_minus *= 0.25
+
+        lower_bound = max(0.0, c_w - delta_minus)
+        upper_bound = c_w + delta_plus
+
+        bands[sym] = {
+            "lower_band": round(lower_bound, 6),
+            "upper_band": round(upper_bound, 6),
+            "half_width_plus": round(delta_plus, 6),
+            "half_width_minus": round(delta_minus, 6),
+            "asymmetry_delta": round(delta_asym, 4),
+            "delta_base": round(delta_base, 6),
+            "bypass_flag": bypass,
+            "c_cost": c_cost,
+        }
+
+    return bands
+
+def filter_portfolio_rebalance_r183(
+    current_weights: Dict[str, float],
+    target_weights: Dict[str, float],
+    alphas: Optional[Dict[str, float]] = None,
+    volatilities: Optional[Dict[str, float]] = None,
+    spread_bps: float = 10.0,
+    impact_coef: float = 0.05,
+    risk_aversion: float = 1.0,
+    catalyst_surge_ratio: float = 3.5,
+    **kwargs: Any,
+) -> LelandExecutionOutput:
+    bands_dict = compute_asymmetric_leland_bands_r183(
+        current_weights=current_weights,
+        target_weights=target_weights,
+        alphas=alphas,
+        volatilities=volatilities,
+        spread_bps=spread_bps,
+        impact_coef=impact_coef,
+        risk_aversion=risk_aversion,
+        catalyst_surge_ratio=catalyst_surge_ratio,
+        **kwargs,
+    )
+
+    all_syms = sorted(list(set(current_weights.keys()) | set(target_weights.keys())))
+    executable_weights = {}
+    actions = {}
+    bands_tuples = {}
+
+    for sym in all_syms:
+        c_w = float(current_weights.get(sym, 0.0))
+        t_w = float(target_weights.get(sym, 0.0))
+        b_info = bands_dict[sym]
+        low_b = b_info["lower_band"]
+        high_b = b_info["upper_band"]
+        bands_tuples[sym] = (low_b, high_b)
+
+        bypass = b_info["bypass_flag"]
+        if bypass == "BYPASS_EXIT":
+            executable_weights[sym] = 0.0
+            actions[sym] = "BYPASS_EXIT"
+        elif bypass == "BYPASS_ENTRY":
+            executable_weights[sym] = t_w
+            actions[sym] = "BYPASS_ENTRY"
+        elif low_b <= t_w <= high_b:
+            executable_weights[sym] = c_w
+            actions[sym] = "HOLD"
+        elif t_w > high_b:
+            executable_weights[sym] = t_w
+            actions[sym] = "BUY"
+        else:
+            executable_weights[sym] = t_w
+            actions[sym] = "SELL"
+
+    raw_to = 0.5 * sum(abs(target_weights.get(s, 0.0) - current_weights.get(s, 0.0)) for s in all_syms)
+    exec_to = 0.5 * sum(abs(executable_weights.get(s, 0.0) - current_weights.get(s, 0.0)) for s in all_syms)
+    to_reduction = max(0.0, (1.0 - exec_to / (raw_to + 1e-12)) * 100.0) if raw_to > 1e-6 else 0.0
+    zero_bypass = any(b_info.get("bypass_flag") in ("BYPASS_ENTRY", "BYPASS_EXIT") for b_info in bands_dict.values())
+    trades_filtered = sum(1 for a in actions.values() if a == "HOLD")
+
+    return LelandExecutionOutput(
+        executable_weights=executable_weights,
+        target_weights=target_weights,
+        current_weights=current_weights,
+        actions=actions,
+        bands=bands_tuples,
+        raw_turnover=round(float(raw_to), 6),
+        filtered_turnover=round(float(exec_to), 6),
+        turnover_reduction_pct=round(float(to_reduction), 2),
+        synthetic_rows=0,
+        zero_bypass_applied=zero_bypass,
+        trades_filtered_count=trades_filtered,
+        telemetry={
+            "version": 191,
+            "release": "R183",
+            "feature": "F943",
+            "hold_count": trades_filtered,
+            "buy_count": sum(1 for a in actions.values() if "BUY" in a),
+            "sell_count": sum(1 for a in actions.values() if "SELL" in a or "EXIT" in a),
+            "bypass_count": sum(1 for a in actions.values() if "BYPASS" in a),
+        },
+    )
+
+class LelandBufferBandsV183(LelandBufferBandsV182):
+    """
+    Feature F943: Asymmetric Power-Law Leland Dynamic Buffer Bands with Runner Expansion (2.5x)
+    and Catalyst Surge Compression (75%).
+    Release R183 Institutional Production Master.
+    """
+    VERSION: int = 191
+    RELEASE: str = "R183"
+    FEATURE: str = "F943"
+
+    def __init__(
+        self,
+        spread_bps: float = 10.0,
+        impact_coef: float = 0.05,
+        risk_aversion: float = 1.0,
+        catalyst_surge_ratio: float = 3.5,
+    ) -> None:
+        super().__init__(spread_bps=spread_bps, impact_coef=impact_coef, risk_aversion=risk_aversion)
+        self.catalyst_surge_ratio = float(catalyst_surge_ratio)
+        self.synthetic_rows: int = 0
+
+    def compute_bands(
+        self,
+        current_weights: Dict[str, float],
+        target_weights: Dict[str, float],
+        alphas: Optional[Dict[str, float]] = None,
+        volatilities: Optional[Dict[str, float]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Dict[str, Any]]:
+        return compute_asymmetric_leland_bands_r183(
+            current_weights=current_weights,
+            target_weights=target_weights,
+            alphas=alphas,
+            volatilities=volatilities,
+            spread_bps=self.spread_bps,
+            impact_coef=self.impact_coef,
+            risk_aversion=self.risk_aversion,
+            catalyst_surge_ratio=self.catalyst_surge_ratio,
+            **kwargs,
+        )
+
+    def filter_rebalance(
+        self,
+        current_weights: Dict[str, float],
+        target_weights: Dict[str, float],
+        alphas: Optional[Dict[str, float]] = None,
+        volatilities: Optional[Dict[str, float]] = None,
+        **kwargs: Any,
+    ) -> LelandExecutionOutput:
+        return filter_portfolio_rebalance_r183(
+            current_weights=current_weights,
+            target_weights=target_weights,
+            alphas=alphas,
+            volatilities=volatilities,
+            spread_bps=self.spread_bps,
+            impact_coef=self.impact_coef,
+            risk_aversion=self.risk_aversion,
+            catalyst_surge_ratio=self.catalyst_surge_ratio,
+            **kwargs,
+        )
+
+    def generate_scores(
+        self,
+        current_weights: Optional[Dict[str, float]] = None,
+        target_weights: Optional[Dict[str, float]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        curr = current_weights or {"SPY": 0.5, "QQQ": 0.5}
+        targ = target_weights or {"SPY": 0.6, "QQQ": 0.4}
+        out = self.filter_rebalance(curr, targ, **kwargs)
+        return {
+            "scores": out.executable_weights,
+            "synthetic_rows": 0,
+            "version": 191,
+            "release": "R183",
+            "feature": "F943",
+        }
+
+Phase191LelandBufferBands = LelandBufferBandsV183
+F943LelandBufferBands = LelandBufferBandsV183
+PowerLawLelandBufferBandsV183 = LelandBufferBandsV183
+AsymmetricPowerLawLelandBufferBandsV183 = LelandBufferBandsV183
+
+sys.modules[f"{__name__}.LelandBufferBandsV183"] = LelandBufferBandsV183
+sys.modules[f"{__name__}.Phase191LelandBufferBands"] = LelandBufferBandsV183
+sys.modules[f"{__name__}.F943LelandBufferBands"] = LelandBufferBandsV183
+sys.modules[f"{__name__}.PowerLawLelandBufferBandsV183"] = LelandBufferBandsV183
+sys.modules[f"{__name__}.AsymmetricPowerLawLelandBufferBandsV183"] = LelandBufferBandsV183
 
 __all__ = [
+    "VERSION_PHASE191",
+    "RELEASE_PHASE191",
+    "FEATURE_PHASE191",
+    "VERSION_V183",
+    "RELEASE_V183",
+    "FEATURE_V183",
+    "LelandBufferBandsV183",
+    "Phase191LelandBufferBands",
+    "F943LelandBufferBands",
+    "PowerLawLelandBufferBandsV183",
+    "AsymmetricPowerLawLelandBufferBandsV183",
+    "compute_asymmetric_leland_bands_r183",
+    "filter_portfolio_rebalance_r183",
+
     "VERSION_PHASE190",
     "RELEASE_PHASE190",
     "FEATURE_PHASE190",

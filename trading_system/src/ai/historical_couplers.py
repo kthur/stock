@@ -11382,6 +11382,647 @@ QuattuordecuplePillarCoupler = Phase188Coupler
 Phase188AlphaCoupler = Phase188Coupler
 
 
+# Re-exports for F941
+try:
+    from .factor_orthogonalizer import (
+        CrossClusterConfluenceKernel,
+        DynamicDispersionScaler,
+        dynamic_dispersion_scale,
+        compute_quattuordecuple_pillar_confluence_kernel,
+        apply_hyperbolic_deadband_phase192,
+    )
+except ImportError:
+    try:
+        from src.ai.factor_orthogonalizer import (
+            CrossClusterConfluenceKernel,
+            DynamicDispersionScaler,
+            dynamic_dispersion_scale,
+            compute_quattuordecuple_pillar_confluence_kernel,
+            apply_hyperbolic_deadband_phase192,
+        )
+    except ImportError:
+        CrossClusterConfluenceKernel = None  # type: ignore[assignment, misc]
+        DynamicDispersionScaler = None  # type: ignore[assignment, misc]
+        dynamic_dispersion_scale = None  # type: ignore[assignment, misc]
+        compute_quattuordecuple_pillar_confluence_kernel = None  # type: ignore[assignment, misc]
+        apply_hyperbolic_deadband_phase192 = None  # type: ignore[assignment, misc]
+
+
+class CrossBorderTechLeadLagCoupler:
+    """
+    Feature F940 (Release R183, Milestone 1): Asymmetric Cross-Border Tech Lead-Lag Impulse Coupler.
+    Couples US tech mega-cap performance (SOX, NVDA, AAPL, MSFT, AVGO, TSM, ASML, MU, AMAT, LRCX, QCOM)
+    with KRX semiconductor, memory, and supply chain equities (005930.KS Samsung, 000660.KS SK Hynix,
+    042700.KQ Hanmi Semi, 058470.KQ Leeno, 240810.KQ Wonik IPS, 036540.KQ SFA, 091160.KS KODEX Semicon ETF, etc.)
+    with strict +1d US lag shift.
+
+    Key Structural Mechanics:
+    1. Zero Lookahead Bias:
+       US market close (16:00 EST day t-1 = 06:00 KST day t) occurs 3 hours before KRX market open
+       (09:00 KST day t). With +1d lag shift, yesterday's finalized US returns strictly drive today's KRX
+       open/intraday returns with zero lookahead bias.
+    2. Asymmetric Downside Impulse Transmission:
+       Negative US tech shocks (R^- = min(R, 0)) propagate faster and more intensely to KRX tech peers
+       than positive shocks (R^+ = max(R, 0)) due to panic margin selling and global risk-off liquidity contagion.
+       Elasticity: Impulse_k = sum_m w_m * gamma_{m,k} * (R^+_m + kappa_asym * R^-_m) where kappa_asym >= 1.0 (default 1.40).
+    3. Hyperbolic Noise Deadband:
+       Sub-threshold micro-fluctuations (|R| < delta_noise) are smoothly suppressed via hyperbolic deadband
+       to avoid false churning on noise.
+    4. Stock-Specific Supply Chain Elasticity:
+       Custom transmission matrix gamma_{m, k} linking specific US leaders to KRX suppliers/competitors
+       (e.g., NVDA -> SK Hynix & Hanmi Semi for HBM; AMAT/LRCX -> Wonik IPS for etch/ALD; AAPL -> Samsung/Leeno).
+    5. Continuous Bounded Output:
+       - alpha_f940: continuous alpha signal strictly bounded in [-3.0, 3.0]
+       - normalized_score: smooth dispersion-scaled probability score in (0.0, 1.0)
+    """
+
+    DEFAULT_LEADER_WEIGHTS: Dict[str, float] = {
+        "^SOX": 0.25,
+        "NVDA": 0.20,
+        "AAPL": 0.10,
+        "MSFT": 0.10,
+        "TSM": 0.10,
+        "ASML": 0.08,
+        "MU": 0.07,
+        "AVGO": 0.05,
+        "AMAT": 0.03,
+        "LRCX": 0.02,
+    }
+
+    # Stock-specific elasticity matrix gamma_{leader, follower}
+    DEFAULT_KRX_ELASTICITIES: Dict[str, Dict[str, float]] = {
+        # SK Hynix: Heavy NVDA (HBM3e/HBM4) + MU (Memory peer) + SOX
+        "000660.KS": {"^SOX": 0.80, "NVDA": 0.85, "MU": 0.75, "MSFT": 0.50, "AVGO": 0.45},
+        # Samsung Electronics: Broad semiconductor, mobile AP, and foundry
+        "005930.KS": {"^SOX": 0.65, "NVDA": 0.55, "AAPL": 0.45, "MSFT": 0.40, "TSM": 0.40},
+        # Hanmi Semiconductor: TC Bonder equipment for NVDA/TSM advanced packaging
+        "042700.KQ": {"^SOX": 0.80, "NVDA": 0.90, "TSM": 0.70, "ASML": 0.50},
+        # Leeno Industrial: IC test sockets for Qualcomm/Nvidia/Apple mobile & AI chips
+        "058470.KQ": {"^SOX": 0.60, "QCOM": 0.65, "NVDA": 0.50, "AAPL": 0.45},
+        # Wonik IPS: ALD/CVD deposition equipment peer to AMAT & LRCX
+        "240810.KQ": {"^SOX": 0.70, "AMAT": 0.65, "LRCX": 0.60, "ASML": 0.45},
+        # SFA Engineering: Display & semiconductor automated material handling
+        "036540.KQ": {"^SOX": 0.50, "AAPL": 0.40, "AMAT": 0.40},
+        # KODEX Semiconductor ETF: broad semiconductor proxy
+        "091160.KS": {"^SOX": 0.90, "NVDA": 0.70, "TSM": 0.60, "ASML": 0.55},
+        # KODEX Secondary Battery ETF
+        "305720.KS": {"^SOX": 0.35, "TSLA": 0.75, "AAPL": 0.30},
+        # Default KRX tech fallback
+        "DEFAULT": {"^SOX": 0.50, "NVDA": 0.40, "TSM": 0.35, "ASML": 0.30},
+    }
+
+    def __init__(
+        self,
+        leader_weights: Optional[Dict[str, float]] = None,
+        elasticities: Optional[Dict[str, Dict[str, float]]] = None,
+        asymmetric_downside_ratio: float = 1.40,
+        noise_deadband: float = 0.0020,
+        saturation_scale: float = 0.030,
+        lag_days: int = 1,
+        deadband_threshold: Optional[float] = None,
+        **kwargs: Any,
+    ):
+        if deadband_threshold is not None:
+            noise_deadband = float(deadband_threshold)
+        elif "deadband_threshold" in kwargs:
+            noise_deadband = float(kwargs.pop("deadband_threshold"))
+
+        self.asymmetric_downside_ratio = float(asymmetric_downside_ratio)
+        self.noise_deadband = float(noise_deadband)
+        self.deadband_threshold = float(self.noise_deadband)
+        self.saturation_scale = float(saturation_scale)
+        self.lag_days = int(lag_days)
+
+        raw_weights = leader_weights or self.DEFAULT_LEADER_WEIGHTS
+        total_w = sum(abs(v) for v in raw_weights.values())
+        self.leader_weights = {k: v / total_w for k, v in raw_weights.items()} if total_w > 0 else dict(raw_weights)
+        self.elasticities = dict(self.DEFAULT_KRX_ELASTICITIES)
+        if elasticities:
+            self.elasticities.update(elasticities)
+
+    def _apply_hyperbolic_noise_deadband(self, r: float) -> float:
+        """Smoothly suppresses small micro-noise below noise_deadband."""
+        if abs(r) < 1e-9:
+            return 0.0
+        return float(r * np.tanh(abs(r) / max(self.noise_deadband, 1e-6)))
+
+    def _get_symbol_elasticities(self, krx_symbol: str) -> Dict[str, float]:
+        """Resolves symbol elasticity dictionary with suffix fallback (.KS, .KQ, or stripped code)."""
+        if krx_symbol in self.elasticities:
+            return self.elasticities[krx_symbol]
+        if f"{krx_symbol}.KS" in self.elasticities:
+            return self.elasticities[f"{krx_symbol}.KS"]
+        if f"{krx_symbol}.KQ" in self.elasticities:
+            return self.elasticities[f"{krx_symbol}.KQ"]
+        if "." in krx_symbol:
+            base = krx_symbol.split(".")[0]
+            if base in self.elasticities:
+                return self.elasticities[base]
+            for k, v in self.elasticities.items():
+                if k.split(".")[0] == base:
+                    return v
+        else:
+            for k, v in self.elasticities.items():
+                if k.split(".")[0] == krx_symbol:
+                    return v
+        return self.elasticities.get("DEFAULT", {})
+
+    def _build_effective_weight_matrix(self, krx_symbols: List[str]) -> Tuple[np.ndarray, List[str]]:
+        """
+        Builds normalized effective weight matrix W_norm (N x M) and leaders list.
+        W_norm[i, m] = (w_m * E[i, m]) / sum_j (w_j * E[i, j])
+        """
+        leaders = list(self.leader_weights.keys())
+        M = len(leaders)
+        N = len(krx_symbols)
+        if N == 0 or M == 0:
+            return np.zeros((N, M), dtype=np.float64), leaders
+
+        w_vec = np.array([self.leader_weights[k] for k in leaders], dtype=np.float64)
+        default_krx = self.elasticities.get("DEFAULT", {})
+        sox_fallback = default_krx.get("^SOX", 0.50)
+
+        # Pre-construct default elasticity row
+        default_e = np.array([
+            default_krx.get(l, default_krx.get("^SOX", sox_fallback)) for l in leaders
+        ], dtype=np.float64)
+
+        # Check if all symbols use default
+        has_custom = any(
+            s in self.elasticities or f"{s}.KS" in self.elasticities or f"{s}.KQ" in self.elasticities
+            for s in krx_symbols
+        )
+        if not has_custom:
+            w_eff_row = default_e * w_vec
+            denom = np.sum(w_eff_row)
+            w_norm_row = w_eff_row / (denom if denom > 0 else 1.0)
+            W_norm = np.tile(w_norm_row, (N, 1))
+            return W_norm, leaders
+
+        E = np.empty((N, M), dtype=np.float64)
+        for i, sym in enumerate(krx_symbols):
+            sym_e = self._get_symbol_elasticities(sym)
+            for j, leader in enumerate(leaders):
+                E[i, j] = sym_e.get(leader, sym_e.get("^SOX", sox_fallback))
+
+        W_eff = E * w_vec[np.newaxis, :]
+        denom = np.sum(W_eff, axis=1, keepdims=True)
+        W_norm = W_eff / np.where(denom > 0, denom, 1.0)
+        return W_norm, leaders
+
+    def compute_asymmetric_impulse(
+        self,
+        us_returns: Union[Dict[str, float], pd.Series, pd.DataFrame, np.ndarray],
+        krx_symbol: str = "DEFAULT",
+    ) -> float:
+        """Computes asymmetric lead-lag impulse for a specific KRX symbol."""
+        if us_returns is None:
+            r_dict = {}
+        elif isinstance(us_returns, dict):
+            r_dict = us_returns
+        elif isinstance(us_returns, pd.DataFrame):
+            r_dict = {} if len(us_returns) == 0 else us_returns.iloc[-1].to_dict()
+        elif isinstance(us_returns, pd.Series):
+            r_dict = {} if len(us_returns) == 0 else us_returns.to_dict()
+        elif isinstance(us_returns, (list, tuple, np.ndarray)):
+            arr = np.asarray(us_returns, dtype=np.float64).flatten()
+            if len(arr) == 0:
+                r_dict = {}
+            else:
+                leaders = list(self.leader_weights.keys())
+                r_dict = {leaders[i]: arr[i] for i in range(min(len(arr), len(leaders)))}
+        else:
+            r_dict = {}
+
+        sym_elasticities = self._get_symbol_elasticities(krx_symbol)
+
+        impulse = 0.0
+        total_eff_weight = 0.0
+
+        for leader, w in self.leader_weights.items():
+            r_raw = float(r_dict.get(leader, 0.0))
+            if not np.isfinite(r_raw):
+                r_raw = 0.0
+
+            r_filtered = self._apply_hyperbolic_noise_deadband(r_raw)
+
+            # Asymmetric decomposition: downside shock penalty
+            if r_filtered >= 0:
+                shock = r_filtered
+            else:
+                shock = r_filtered * self.asymmetric_downside_ratio
+
+            elasticity = sym_elasticities.get(leader, sym_elasticities.get("^SOX", 0.50))
+            eff_w = w * elasticity
+            impulse += eff_w * shock
+            total_eff_weight += eff_w
+
+        if total_eff_weight > 0:
+            impulse /= total_eff_weight
+
+        return float(impulse)
+
+    def evaluate(
+        self,
+        us_returns: Union[Dict[str, Any], pd.Series, pd.DataFrame, np.ndarray] = None,
+        krx_symbols: Optional[List[str]] = None,
+        krx_returns: Optional[Any] = None,
+        lead_returns: Optional[Any] = None,
+        lag_symbols: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Evaluates asymmetric cross-border tech impulse alpha for KRX universe (Vectorized BLAS)."""
+        lead_data = us_returns if us_returns is not None else lead_returns
+        if lead_data is None and "lead_returns" in kwargs:
+            lead_data = kwargs["lead_returns"]
+
+        symbols = krx_symbols if krx_symbols is not None else lag_symbols
+        if symbols is None and "lag_symbols" in kwargs:
+            symbols = kwargs["lag_symbols"]
+
+        if symbols is None:
+            if krx_returns is not None and hasattr(krx_returns, 'columns'):
+                symbols = list(krx_returns.columns)
+            else:
+                symbols = ["005930.KS", "000660.KS", "042700.KQ", "058470.KQ", "240810.KQ", "091160.KS"]
+
+        # Dynamic causality and zero-lookahead verification
+        us_ts = kwargs.get("us_timestamps", None)
+        krx_ts = kwargs.get("krx_timestamps", None)
+        zero_lookahead_verified = bool(self.lag_days >= 1)
+        if us_ts is not None and krx_ts is not None:
+            zero_lookahead_verified = bool(self.verify_zero_lookahead(us_ts, krx_ts))
+
+        if lead_data is None:
+            latest_us: Any = {}
+        elif isinstance(lead_data, pd.DataFrame):
+            if len(lead_data) == 0:
+                latest_us = {}
+            elif len(lead_data) > self.lag_days and self.lag_days > 0:
+                latest_us = lead_data.shift(self.lag_days).iloc[-1].to_dict()
+                if krx_returns is not None and hasattr(krx_returns, "index") and isinstance(krx_returns.index, (pd.DatetimeIndex, pd.PeriodIndex)):
+                    zero_lookahead_verified = bool(self.verify_zero_lookahead(lead_data.index, krx_returns.index))
+            else:
+                latest_us = lead_data.iloc[-1].to_dict()
+        elif isinstance(lead_data, pd.Series):
+            if len(lead_data) == 0:
+                latest_us = {}
+            elif isinstance(lead_data.index, (pd.DatetimeIndex, pd.PeriodIndex)) or (len(lead_data) > 1 and not any(isinstance(k, str) and k in self.leader_weights for k in lead_data.index)):
+                if len(lead_data) > self.lag_days and self.lag_days > 0:
+                    shifted_s = lead_data.shift(self.lag_days)
+                    val = float(shifted_s.iloc[-1]) if pd.notna(shifted_s.iloc[-1]) else 0.0
+                else:
+                    val = float(lead_data.iloc[-1]) if pd.notna(lead_data.iloc[-1]) else 0.0
+                lead_key = str(lead_data.name) if lead_data.name and str(lead_data.name) in self.leader_weights else "^SOX"
+                latest_us = {lead_key: val}
+                if krx_returns is not None and hasattr(krx_returns, "index") and isinstance(krx_returns.index, (pd.DatetimeIndex, pd.PeriodIndex)):
+                    zero_lookahead_verified = bool(self.verify_zero_lookahead(lead_data.index, krx_returns.index))
+            else:
+                latest_us = lead_data.to_dict()
+        else:
+            latest_us = lead_data
+
+        leaders = list(self.leader_weights.keys())
+        M = len(leaders)
+        N = len(symbols)
+
+        # 1. Extract raw US return vector r_arr (M,)
+        if isinstance(latest_us, dict):
+            r_arr = np.array([float(latest_us.get(k, 0.0)) for k in leaders], dtype=np.float64)
+        elif isinstance(latest_us, pd.Series):
+            d = latest_us.to_dict()
+            r_arr = np.array([float(d.get(k, 0.0)) for k in leaders], dtype=np.float64)
+        elif isinstance(latest_us, pd.DataFrame):
+            if len(latest_us) == 0:
+                r_arr = np.zeros(M, dtype=np.float64)
+            else:
+                d = latest_us.iloc[-1].to_dict()
+                r_arr = np.array([float(d.get(k, 0.0)) for k in leaders], dtype=np.float64)
+        elif isinstance(latest_us, (list, tuple, np.ndarray)):
+            flat = np.asarray(latest_us, dtype=np.float64).flatten()
+            r_arr = np.zeros(M, dtype=np.float64)
+            k_len = min(len(flat), M)
+            r_arr[:k_len] = flat[:k_len]
+        else:
+            r_arr = np.zeros(M, dtype=np.float64)
+
+        r_arr = np.nan_to_num(r_arr, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # 2. Vectorized hyperbolic noise deadband across M leaders
+        delta = max(self.noise_deadband, 1e-6)
+        abs_r = np.abs(r_arr)
+        r_filt = np.where(abs_r < 1e-9, 0.0, r_arr * np.tanh(abs_r / delta))
+
+        # 3. Asymmetric downside shock penalty
+        shocks = np.where(r_filt >= 0, r_filt, r_filt * self.asymmetric_downside_ratio)
+
+        # 4. BLAS Matrix-Vector Multiplication: imp_vec = W_norm @ shocks
+        W_norm, _ = self._build_effective_weight_matrix(symbols)
+        imp_vec = W_norm @ shocks if N > 0 else np.zeros(0, dtype=np.float64)
+
+        # 5. Vectorized alpha saturation and continuous dispersion scaling
+        sat = max(self.saturation_scale, 1e-6)
+        tanh_imp = np.tanh(imp_vec / sat) if N > 0 else np.zeros(0, dtype=np.float64)
+        alpha_vec = 3.0 * tanh_imp
+        norm_vec = 0.50 + 0.499 * tanh_imp
+
+        avg_impulse = float(np.mean(imp_vec)) if N > 0 else 0.0
+        asym_signs = np.where(imp_vec >= 0, 1.0, -self.asymmetric_downside_ratio) if N > 0 else np.zeros(0)
+        asymmetric_shock_index = float(np.mean(asym_signs)) if N > 0 else 0.0
+
+        alphas = dict(zip(symbols, alpha_vec.tolist()))
+        norm_scores = dict(zip(symbols, norm_vec.tolist()))
+        impulses = dict(zip(symbols, imp_vec.tolist()))
+
+        if N == 1:
+            s_sym = symbols[0]
+            alpha_out: Any = float(alpha_vec[0])
+            norm_out: Any = float(norm_vec[0])
+        else:
+            alpha_out = pd.Series(alphas)
+            norm_out = pd.Series(norm_scores)
+
+        # Build symbol scores mapping with suffix aliases
+        scores_dict = {}
+        for sym, val in alphas.items():
+            scores_dict[sym] = val
+            if "." in sym:
+                scores_dict[sym.split(".")[0]] = val
+            else:
+                scores_dict[f"{sym}.KS"] = val
+
+        res_dict = {
+            "alpha_f940": alpha_out,
+            "alpha": alpha_out,
+            "scores": scores_dict,
+            "normalized_score": norm_out,
+            "impulses": impulses,
+            "average_impulse": avg_impulse,
+            "asymmetric_shock_index": asymmetric_shock_index,
+            "lag_days": self.lag_days,
+            "zero_lookahead_verified": zero_lookahead_verified,
+            "num_symbols": N,
+        }
+        # Populate individual symbol scores directly on root dict
+        res_dict.update(scores_dict)
+        return res_dict
+
+    def couple(self, us_returns: Any, krx_returns: Any = None) -> Dict[str, Any]:
+        return self.evaluate(us_returns, krx_returns=krx_returns)
+
+    def __call__(self, us_returns: Any, krx_returns: Any = None) -> Dict[str, Any]:
+        return self.evaluate(us_returns, krx_returns=krx_returns)
+
+    @classmethod
+    def compute(cls, us_returns: Any, krx_symbols: Optional[List[str]] = None, **kwargs: Any) -> Dict[str, Any]:
+        coupler = cls(**kwargs)
+        return coupler.evaluate(us_returns, krx_symbols=krx_symbols)
+
+    def calibrate(
+        self,
+        us_history: pd.DataFrame,
+        krx_history: pd.DataFrame,
+        min_periods: int = 20,
+        ridge_alpha: float = 1.0,
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        Dynamically calibrates transmission elasticities gamma_{leader, follower} using lag-1 ridge regression.
+        Strict zero lookahead: US history is shifted by +1d relative to KRX history.
+        """
+        shifted_us = us_history.shift(self.lag_days)
+        common_idx = shifted_us.dropna().index.intersection(krx_history.dropna().index)
+        if len(common_idx) < min_periods:
+            return self.elasticities
+
+        X = shifted_us.loc[common_idx].values
+        N, M = X.shape
+        XtX = X.T @ X
+        scale = max(float(np.trace(XtX)) / max(M, 1), 1e-6)
+        inv_XtX = np.linalg.pinv(XtX + ridge_alpha * 0.01 * scale * np.eye(M))
+
+        for col in krx_history.columns:
+            y = krx_history.loc[common_idx, col].values
+            beta = inv_XtX @ (X.T @ y)
+            leader_cols = list(shifted_us.columns)
+            self.elasticities[col] = {
+                leader_cols[m]: float(np.clip(beta[m], -2.0, 2.0)) for m in range(M)
+            }
+        return self.elasticities
+
+    @staticmethod
+    def verify_zero_lookahead(us_timestamps: Any, krx_timestamps: Any) -> bool:
+        """Verifies that all US indicator timestamps strictly precede corresponding KRX timestamps."""
+        us_t = pd.to_datetime(us_timestamps)
+        krx_t = pd.to_datetime(krx_timestamps)
+        return bool((us_t < krx_t).all())
+
+
+# Feature F940 Aliases
+F940Coupler = CrossBorderTechLeadLagCoupler
+CrossBorderTechCoupler = CrossBorderTechLeadLagCoupler
+AsymmetricTechLeadLagCoupler = CrossBorderTechLeadLagCoupler
+Phase192TechLeadLagCoupler = CrossBorderTechLeadLagCoupler
+AsymmetricCrossBorderTechLeadLagCoupler = CrossBorderTechLeadLagCoupler
+
+
+
+class Phase192Coupler:
+    """
+    Phase 192 (Release R183, Features F940 & F941): Institutional Multi-Market Alpha Coupler.
+    Couples:
+    - F940: Asymmetric Cross-Border Tech Lead-Lag Impulse Coupler (US Tech Mega-Caps -> KRX Value Chain)
+    - F941: 14-Pillar Cross-Cluster Confluence Kernel & Dynamic Dispersion Scaling
+    - 14-Pillar Riemannian ZCA Whitening on S_{++}^{14}
+    """
+
+    def __init__(
+        self,
+        kappa: float = 1.92,
+        epsilon_reg: float = 1e-6,
+        asymmetric_downside_ratio: float = 1.40,
+        confluence_gain_eta: float = 0.35,
+        **kwargs: Any,
+    ):
+        self.kappa = float(kappa)
+        self.epsilon_reg = float(epsilon_reg)
+        self.lead_lag_coupler = CrossBorderTechLeadLagCoupler(
+            asymmetric_downside_ratio=asymmetric_downside_ratio,
+            **kwargs,
+        )
+        if CrossClusterConfluenceKernel is not None:
+            self.confluence_kernel = CrossClusterConfluenceKernel(
+                eta_gain=confluence_gain_eta,
+                epsilon_reg=epsilon_reg,
+                **kwargs,
+            )
+        else:
+            self.confluence_kernel = None
+
+        if DynamicDispersionScaler is not None:
+            self.dispersion_scaler = DynamicDispersionScaler()
+        else:
+            self.dispersion_scaler = None
+
+    def __call__(self, pillar_scores: Any, us_returns: Optional[Any] = None) -> Dict[str, Any]:
+        return self.evaluate(pillar_scores, us_returns=us_returns)
+
+    def couple(self, pillar_scores: Any, us_returns: Optional[Any] = None) -> Dict[str, Any]:
+        return self.evaluate(pillar_scores, us_returns=us_returns)
+
+    def compute_coupling(self, pillar_scores: Any, us_returns: Optional[Any] = None) -> Dict[str, Any]:
+        return self.evaluate(pillar_scores, us_returns=us_returns)
+
+    @classmethod
+    def compute(
+        cls,
+        pillar_scores: Union[pd.DataFrame, Dict[str, Any], np.ndarray],
+        us_returns: Optional[Any] = None,
+        kappa: float = 1.92,
+        epsilon_reg: float = 1e-6,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        coupler = cls(kappa=kappa, epsilon_reg=epsilon_reg, **kwargs)
+        return coupler.evaluate(pillar_scores, us_returns=us_returns)
+
+    def evaluate(
+        self,
+        pillar_scores: Union[pd.DataFrame, Dict[str, Any], np.ndarray],
+        us_returns: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Evaluates Phase 192 (Release R183) multi-factor confluence and lead-lag coupling."""
+        index = None
+        is_single_1d = False
+
+        if isinstance(pillar_scores, pd.DataFrame):
+            p_mat = pillar_scores.values.astype(np.float64)
+            index = pillar_scores.index
+        elif isinstance(pillar_scores, dict):
+            vals = list(pillar_scores.values())
+            if vals and hasattr(vals[0], "__len__") and not isinstance(vals[0], (str, bytes)):
+                p_mat = np.column_stack([np.asarray(v, dtype=np.float64) for v in vals])
+            else:
+                p_mat = np.asarray([float(v) for v in vals], dtype=np.float64).reshape(1, -1)
+                is_single_1d = True
+            v0 = vals[0] if vals else None
+            if isinstance(v0, pd.Series) or (hasattr(v0, "index") and not callable(getattr(v0, "index"))):
+                index = getattr(v0, "index")
+        else:
+            p_mat = np.asarray(pillar_scores, dtype=np.float64)
+            if p_mat.ndim == 1:
+                p_mat = p_mat.reshape(1, -1)
+                is_single_1d = True
+
+        N, D = p_mat.shape
+        p_clean = np.clip(np.nan_to_num(p_mat, nan=0.50, posinf=0.95, neginf=0.05), 0.05, 0.95)
+
+        # 1. 14-Pillar Empirical Covariance and Riemannian AIRM distance
+        if N > 1:
+            cov = np.cov(p_clean, rowvar=False)
+            if cov.ndim == 0:
+                cov = np.array([[float(cov)]])
+        else:
+            cov = np.eye(D, dtype=np.float64)
+
+        cov_sym = 0.5 * (cov + cov.T)
+        vals, vecs = np.linalg.eigh(cov_sym)
+        vals_clamped = np.maximum(vals, self.epsilon_reg)
+        log_eigs = np.log(vals_clamped)
+        airm_dist = float(np.sqrt(np.sum(log_eigs ** 2)))
+
+        # 2. Symmetrical ZCA whitening
+        inv_sqrt = vecs @ np.diag(1.0 / np.sqrt(vals_clamped)) @ vecs.T
+        zca_mat = 0.5 * (inv_sqrt + inv_sqrt.T)
+
+        # 3. Factor Action Functional & Harmony Regularizer
+        centered = p_clean - 0.50
+        norm_p_sq = np.sum(centered ** 2, axis=1)
+        s_action = 0.5 * airm_dist + 0.5 * norm_p_sq
+        h_phase192 = np.exp(-self.kappa * s_action)
+        fcpi_v183 = 1.0 / (1.0 + s_action)
+
+        # 4. F941 Confluence Amplification
+        if self.confluence_kernel is not None:
+            conf_metrics = self.confluence_kernel.evaluate(p_clean)
+            c_gain = np.asarray(conf_metrics["confluence_gain"])
+        else:
+            conf_metrics = {}
+            c_gain = np.ones(N)
+
+        # 5. Composite Whitened Alpha with Confluence Gain
+        whitened = centered @ zca_mat
+        alpha_base = np.sum(whitened, axis=1) * h_phase192
+        alpha_raw = alpha_base * c_gain
+
+        # 6. F940 Cross-Border Tech Impulse Integration (if US returns supplied)
+        cross_border_metrics = {}
+        if us_returns is not None:
+            cross_border_metrics = self.lead_lag_coupler.evaluate(us_returns)
+            imp_val = cross_border_metrics.get("average_impulse", 0.0)
+            alpha_raw += float(imp_val) * 10.0
+
+        # Continuous alpha strictly bounded in [-3.0, 3.0]
+        alpha_bounded = np.clip(alpha_raw, -3.0, 3.0)
+
+        # Smooth dynamic dispersion scaling in [0.0, 1.0] without hard clipping
+        if self.dispersion_scaler is not None:
+            alpha_normalized = self.dispersion_scaler.fit_transform(alpha_bounded)
+        else:
+            alpha_normalized = 0.5 + 0.499 * np.tanh(alpha_bounded / 3.0)
+
+        if is_single_1d:
+            a_val = float(alpha_bounded[0])
+            norm_val = float(alpha_normalized[0]) if hasattr(alpha_normalized, '__len__') else float(alpha_normalized)
+            return {
+                "alpha_p192": a_val,
+                "alpha": a_val,
+                "alpha_normalized": norm_val,
+                "h_phase192": float(h_phase192[0]),
+                "fcpi_v183": float(fcpi_v183[0]),
+                "action_functional": float(s_action[0]),
+                "s_action": float(s_action[0]),
+                "riemannian_airm_metric": float(airm_dist),
+                "airm_distance": float(airm_dist),
+                "zca_matrix": zca_mat,
+                "confluence_metrics": conf_metrics,
+                "cross_border_metrics": cross_border_metrics,
+            }
+
+        if index is not None and isinstance(pillar_scores, (pd.DataFrame, dict)):
+            h_out = pd.Series(h_phase192, index=index)
+            fcpi_out = pd.Series(fcpi_v183, index=index)
+            s_out = pd.Series(s_action, index=index)
+            alpha_out = pd.Series(alpha_bounded, index=index)
+            norm_out = pd.Series(alpha_normalized, index=index)
+        else:
+            h_out = h_phase192
+            fcpi_out = fcpi_v183
+            s_out = s_action
+            alpha_out = alpha_bounded
+            norm_out = alpha_normalized
+
+        return {
+            "alpha_p192": alpha_out,
+            "alpha": alpha_out,
+            "alpha_normalized": norm_out,
+            "h_phase192": h_out,
+            "fcpi_v183": fcpi_out,
+            "action_functional": s_out,
+            "s_action": s_out,
+            "riemannian_airm_metric": float(airm_dist),
+            "airm_distance": float(airm_dist),
+            "zca_matrix": zca_mat,
+            "confluence_metrics": conf_metrics,
+            "cross_border_metrics": cross_border_metrics,
+        }
+
+
+# Phase 192 / Milestone 1 Aliases
+Milestone1AlphaCoupler = Phase192Coupler
+Phase192AlphaCoupler = Phase192Coupler
+F940F941CompositeCoupler = Phase192Coupler
+QuattuordecupleConfluenceCoupler = Phase192Coupler
+
+
 
 try:
     from ..analysis.dsr_validator import DeflatedSharpeRatioValidator

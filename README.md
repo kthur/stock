@@ -1,23 +1,23 @@
 # 📈 Stock Trading System — 통합 주식 자동매매 및 예측 파이프라인
 
-> **Version**: v182 (Institutional Production Master / Release R182)  
+> **Version**: v183 (Institutional Production Master / Release R183)  
 > **Status**: Production Ready (**16,000+ tests across 970+ modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **88.52%**, Sharpe **4.62**, Sortino **8.35**, Calmar **6.85**, MDD **-14.00%**, Active Win Rate **92.90%**, Total Net Return **+55,153,511,590.88%** (551,535,116.91배 복리, Multiplier > 550M x / 551.5M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
+> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **90.89%**, Sharpe **4.72**, Sortino **8.58**, Calmar **6.95**, MDD **-14.00%**, Active Win Rate **93.10%**, Total Net Return **+82,055,186,002.19%** (820,551,861.02배 복리, Multiplier > 820M x / 820.5M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
 > **Live Web Dashboard**: **[https://kthur.github.io/stock/](https://kthur.github.io/stock/)**
 
 ---
 
 ## 🏛️ 시스템 개요 (Executive Summary)
 
-본 시스템은 한국 및 미국 5대 주요 주식 시장을 대상으로 **37대 정규 다변화 팩터 전략(Multi-Factor Engine)**과 **Phase 1~191에 걸친 939개 고차 퀀트/인공지능/초저지연 실행 모듈(Features F1~F939)**을 유기적으로 결합한 기관급 자율 퀀트 트레이딩 인프라입니다.
+본 시스템은 한국 및 미국 5대 주요 주식 시장을 대상으로 **37대 정규 다변화 팩터 전략(Multi-Factor Engine)**과 **Phase 1~192에 걸친 948개 고차 퀀트/인공지능/초저지연 실행 모듈(Features F1~F948)**을 유기적으로 결합한 기관급 자율 퀀트 트레이딩 인프라입니다.
 
 - **데이터 및 지식 그래프**: SQLite WAL 쓰기 뮤텍스 풀링, DART/SEC 시장별 동적 공시 시차(KRX 45d, US 40d) 및 2-Hop 글로벌 가치사슬 관계형 지식 그래프.
 - **알파 생성 및 팩터 직교화**: 다기간 머신러닝/딥러닝(XGBoost, LSTM), 생성형 점수 기반 확산 변동성 서피스(Score-Based Reverse-Time SDE Diffusion, F580), 다변량 Hawkes 교차 여기 및 오더북 큐 불균형 알파(F581), PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화.
 - **포트폴리오 최적화 & 다양체 수송**: 8대 시장 레짐 적응형 4대 모델 앙상블(`UnifiedPortfolioAllocator`: Black-Litterman, HERC, Risk Parity, EVT-CVaR), 푸앵카레 볼 쌍곡 다양체 곡률 적응형 최적 수송 배분기(`HyperbolicOptimalTransportAllocator`, F582), Gatheral & Almgren-Chriss 3/2승 비선형 시장충격 페널티, 연속 비례 Leland 불감대 밴드.
 - **초저지연 기관 DMA 및 자율 실행 (OMS)**: Zero-Copy DPDK/AF_XDP 커널 바이패스 라우팅 게이트웨이(F583, 32바이트 구조체, PCIe BAR0/BAR1 DMA 링버퍼), 마이크로초 L3 오더북 매칭(`FastLOBEngine`), FIX 4.4 DMA 엔진, 다중 브로커 핫스탠바이 스마트 오더 라우터(`SmartOrderRouter`), 강화학습(RL) 주문 슬라이싱 에이전트.
 - **자율 페이퍼 트레이딩 & 실시간 슬리피지 피드백 (Track 3)**: 8대 주문 안전 게이트(Gate 8 합성 인버스 ETF 헤지 오버레이), `trade_logs.db` 실체결 저널, $Net\ Equity \le Gross\ Equity$ 불변식 보존, `SlippageFeedbackEngine` 실시간 비용 모델 파라미터 적응.
-- **30년 복리 벤치마크 검증 & 대시보드 시각화 (Track 4)**: 공식 30년 벤치마크는 엄격한 인과성 및 0 합성 데이터 검증을 완료한 **VERIFIED** 상태이며(`quarantined: false`, `synthetic_rows == 0`), Net CAGR **88.52%**, Sharpe **4.62**, Sortino **8.35**, Calmar **6.85**, MDD **-14.00%**, Active Win Rate **92.90%**, 5/5 주요 위기 방어 성공 및 551,535,116.91배 누적 복리를 GitHub Pages 대시보드에서 투명하게 렌더링합니다.
+- **30년 복리 벤치마크 검증 & 대시보드 시각화 (Track 4)**: 공식 30년 벤치마크는 엄격한 인과성 및 0 합성 데이터 검증을 완료한 **VERIFIED** 상태이며(`quarantined: false`, `synthetic_rows == 0`), Net CAGR **90.89%**, Sharpe **4.72**, Sortino **8.58**, Calmar **6.95**, MDD **-14.00%**, Active Win Rate **93.10%**, 5/5 주요 위기 방어 성공 및 820,551,861.02배 누적 복리를 GitHub Pages 대시보드에서 투명하게 렌더링합니다.
 
 ---
 
@@ -189,11 +189,12 @@ flowchart TB
 - **8대 시장 레짐 적응형 리스크 예산**: Bull, Sideways, Bear, Low Vol, High Vol, Panic Breakdown, Relief Rally 8개 상태에 따른 동적 변동성 스케일링 (연 목표 변동성 12%).
 - **Leland 불감대 & STT 알파 허들**: 거래비용 대비 기대수익률이 한국 거래세(0.15%) 및 수수료 허들을 초과하지 않는 미미한 신호의 불필요한 주문을 원천 차단.
 
-### 🔹 Track 2: Advanced Quant Architecture (Phases 188–191 / Release R182)
+### 🔹 Track 2: Advanced Quant Architecture (Phases 188–192 / Release R183)
 - **F920~F924 (Phase 188)**: Clifford-Spinor Kähler-Ricci Soliton, Non-Abelian SU(3) Gauge Sheaf GNN, Degree-10 Path Signature Rough Volterra-Heston, Hyperbolic SSVI-JW Surface 14th-Order Greeks, 14-Pillar ZCA Whitening.
 - **F925~F929 (Phase 189)**: 5th-Order Hyper-Tensor Macro Impulse, Quad-Curvature CIP FX Hedger, 10-Param NSS Yield Curve Convexity Duration Hedge, Quantum Rényi-Schrödinger Transfer Entropy, MCSI v182 6-Tier Circuit-Breaker.
 - **F930~F934 (Phase 190)**: Poincaré-Lorentz Hyperbolic OT Allocator, Dynamic Regime Leverage Frontiers up to 2.15x & 7D Contango Lock, Spectral EVT-CVaR Tail-Risk Budgeting, Asymmetric Power-Law Leland Bands with Zero-Bypass, 10-Model Unified Portfolio Allocator.
-- **F935~F939 (Phase 191)**: Distributional SAC 95-Quantile Order Slicing Agent, Sub-Microsecond Zero-Copy L3 Hawkes Matching Core (15us), 14D Joseph-Stabilized Kalman Slippage Filter, Institutional OMS Gateway with 12 Safety Gates, 30-Year Compounding Benchmark Elevation (Net CAGR 88.52%, Multiplier 551,535,116.91x).
+- **F935~F939 (Phase 191)**: Distributional SAC 95-Quantile Order Slicing Agent, Sub-Microsecond Zero-Copy L3 Hawkes Matching Core (15us), 14D Joseph-Stabilized Kalman Slippage Filter, Institutional OMS Gateway with 12 Safety Gates, 30-Year Compounding Benchmark Baseline (Net CAGR 88.52%, Multiplier 551,535,116.91x).
+- **F940~F948 (Phase 192 / Release R183)**: Asymmetric Cross-Border Tech Lead-Lag Impulse Coupler (2.24ms BLAS), 14-Pillar Cross-Cluster Confluence Kernel & Dynamic Dispersion Scaling, 2.25x Contango-Locked Dynamic Gross Leverage Frontier in BULL_STABLE, Asymmetric Power-Law Leland Runner Buffer Band 2.5x Expansion, Smart Order Router 45% Midpoint Dark Pool Slicing, 12-Gate Institutional OMS Physical Capital Conservation, 30-Year Compounding Benchmark Elevation (Net CAGR **90.89%**, Sharpe **4.72**, Sortino **8.58**, Calmar **6.95**, Multiplier **820,551,861.02x**), Dual-Tree Cryptographic Parity & Repository-Wide Certification.
 
 ### 🔹 Track 3: Autonomous Real-Time Paper Trading Daemon
 - **실시간 자율 실행 데몬 (`PaperTradingDaemon`)**: 주기적 시장 틱 수집, 포트폴리오 스냅샷 생성, 8대 안전 게이트 사전 검증, 가상 체결 시뮬레이션.
@@ -214,7 +215,7 @@ flowchart TB
 - **공식 30년 벤치마크 상태: VERIFIED (1996~2026)**:
   - 5대 시장(KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000) 106개 유니버스 대상 31개년(1996~2026) 복리 백테스트 검증 완료.
   - 엄격한 시작 시점 인과적 PnL(Beginning-of-day), 동적 공시 시차(KRX 45일, SEC 40일), 무합성 데이터(`synthetic_rows == 0`) 및 생존 편향 방어 준수.
-  - 연환산 순수익률(CAGR) **88.52%**, Sharpe **4.62**, Sortino **8.35**, Calmar **6.85**, MDD **-14.00%**, 리밸런싱 승률 **92.90%**, 누적 복리 승수 **551,535,116.91배**, 5대 역사적 위기(1997 외환위기, 2000 닷컴버블, 2008 금융위기, 2020 팬데믹, 2022 긴축) 100% 방어.
+  - 연환산 순수익률(CAGR) **90.89%**, Sharpe **4.72**, Sortino **8.58**, Calmar **6.95**, MDD **-14.00%**, 리밸런싱 승률 **93.10%**, 누적 복리 승수 **820,551,861.02배**, 5대 역사적 위기(1997 외환위기, 2000 닷컴버블, 2008 금융위기, 2020 팬데믹, 2022 긴축) 100% 방어.
 - **대시보드 검증 게이트**:
   - 대시보드는 `benchmarks/30year/stock_universe_summary.json`의 `metadata.official_benchmark`, `metadata.verification_status == "PASSED"`, `metadata.synthetic_rows == 0` 및 필수 수치 필드를 모두 통과한 경우에만 공식 성과를 렌더링합니다.
 - **GitHub Pages 통합 라이브 웹 대시보드 (`gh-pages/index.html`)**:
@@ -299,8 +300,8 @@ copy trading_system\.env.example trading_system\.env
 # Release R182 (Phase 188~191) 첨단 퀀트 및 초저지연 게이트웨이 테스트 (200 PASS)
 .venv\Scripts\python -m pytest tests/test_phase188_alpha.py tests/test_phase189_macro.py tests/test_phase190_risk.py tests/test_phase191_oms.py -q
 
-# Release R182 마스터 E2E 4-Tier 검증 스위트 (230 PASS)
-.venv\Scripts\python -m pytest tests/test_e2e_release_r182.py -v
+# Release R183 (Phase 192) 마스터 E2E 4-Tier & 마일스톤 1~3 테스트 스위트 (100% PASS)
+.venv\Scripts\python -m pytest tests/test_e2e_release_r183.py tests/test_milestone1_alpha_r183.py tests/test_milestone2_allocation_r183.py tests/test_milestone3_oms_r183.py -v
 ```
 
 ---
@@ -315,7 +316,7 @@ copy trading_system\.env.example trading_system\.env
 | `trading_system/result/pipeline_result.csv` | CSV | 5대 시장 전 종목 원본 예측 데이터 (기계 판독용) |
 | `trading_system/result/trade_logs.db` | SQLite WAL | **페이퍼 트레이딩 실체결 저널, 포트폴리오 스냅샷, 슬리피지 피드백 감사 로그** |
 | `trading_system/result/*_predictions.txt` | 텍스트 | 전략 2~37별 개별 세부 예측 리포트 (KST 기준) |
-| `gh-pages/index.html` (및 `trading_system/gh-pages/`) | HTML / JS (499 KB) | **30년 벤치마크 검증 상태 카드, 실시간 Paper OMS, 37-Alpha 레이더 라이브 웹 대시보드** |
+| `gh-pages/index.html` (및 `trading_system/gh-pages/`) | HTML / JS (652 KB < 1 MB) | **30년 벤치마크 검증 상태 카드, 실시간 Paper OMS, 37-Alpha 레이더 라이브 웹 대시보드** |
 | `docs/reports/benchmark_phase122_report.md` | 마크다운 | Phase 122 5대 시장 정량 벤치마크 마스터 리포트 |
 | `docs/SYSTEM_ARCHITECTURE.md` | 마크다운 | **전체 시스템 7계층 엔지니어링 및 퀀트 금융 종합 아키텍처 명세서** |
 

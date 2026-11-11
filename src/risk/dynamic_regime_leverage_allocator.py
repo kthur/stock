@@ -2210,7 +2210,284 @@ sys.modules[f"{__name__}.Phase190RegimeLeverageAllocator"] = DynamicRegimeLevera
 sys.modules[f"{__name__}.F931DynamicRegimeLeverage"] = DynamicRegimeLeverageAllocatorV182
 sys.modules[f"{__name__}.F931RegimeCompoundingLeverageAllocator"] = DynamicRegimeLeverageAllocatorV182
 
+# ---------------------------------------------------------------------------
+# Feature F942: Contango-Locked Dynamic Gross Leverage Frontier (2.25x)
+# Phase 191 (Release R183)
+# ---------------------------------------------------------------------------
+VERSION_PHASE191: int = 191
+RELEASE_PHASE191: str = "R183"
+FEATURE_PHASE191: str = "F942"
+
+VERSION_V183: int = 191
+RELEASE_V183: str = "R183"
+FEATURE_V183: str = "F942"
+
+REGIME_LEVERAGE_FRONTIERS_V183: Dict[str, float] = {
+    "BULL_STABLE": 2.25,
+    "BULL_LOW_VOL": 2.25,
+    "RELIEF_RALLY": 1.85,
+    "BULL_VOLATILE": 1.60,
+    "BULL_HIGH_VOL": 1.60,
+    "NEUTRAL_EXPANSION": 1.10,
+    "SIDEWAYS_LOW_VOL": 1.10,
+    "RANGE_COMPRESSION": 0.60,
+    "SIDEWAYS_HIGH_VOL": 0.60,
+    "BEAR_DEFENSIVE": 0.25,
+    "BEAR_LOW_VOL": 0.25,
+    "BEAR_HIGH_VOL": 0.25,
+    "PANIC_CRISIS": 0.00,
+    "CRISIS_HALT": 0.00,
+    "CRISIS": 0.00,
+}
+
+def evaluate_10d_contango_lock(
+    contango_spreads: Sequence[float],
+    threshold: float = 0.0,
+    strict_positive: bool = False,
+) -> bool:
+    """
+    Feature F942: 10-Day Contango Lock & VIX Term Structure Slope Gating.
+    Requires minimum 10 consecutive non-negative spreads (>= threshold, default 0.0)
+    before unlocking gross leverage > 1.0x.
+    Returns False if any spread < threshold or is NaN/Inf, or if fewer than 10 observations.
+    """
+    if not contango_spreads or len(contango_spreads) < 10:
+        return False
+    try:
+        last10 = [float(s) for s in contango_spreads[-10:]]
+    except (ValueError, TypeError):
+        return False
+    if any(math.isnan(s) or math.isinf(s) for s in last10):
+        return False
+    if strict_positive:
+        return all(s > threshold for s in last10)
+    return all(s >= threshold for s in last10)
+
+def get_regime_leverage_limit_v183(regime: str = "BULL_STABLE") -> float:
+    """Returns dynamic gross leverage frontier up to 2.25x for regime."""
+    reg = str(regime).upper().strip()
+    return float(REGIME_LEVERAGE_FRONTIERS_V183.get(reg, 1.00))
+
+class DynamicRegimeLeverageAllocatorV183(DynamicRegimeLeverageAllocatorV182):
+    """
+    Feature F942: Contango-Locked Dynamic Gross Leverage Frontier (Release R183).
+    Expands gross leverage frontier up to 2.25x across 8 market regimes:
+        BULL_STABLE / BULL_LOW_VOL: 2.25x (requires 10D VIX contango lock)
+        RELIEF_RALLY: 1.85x
+        BULL_VOLATILE / BULL_HIGH_VOL: 1.60x
+        NEUTRAL_EXPANSION / SIDEWAYS_LOW_VOL: 1.10x
+        RANGE_COMPRESSION / SIDEWAYS_HIGH_VOL: 0.60x
+        BEAR_DEFENSIVE / BEAR_LOW_VOL / BEAR_HIGH_VOL: 0.25x
+        PANIC_CRISIS / CRISIS_HALT / CRISIS: 0.00x (<= 0.20x strictly enforced).
+    Enforces 10-Day Contango Lock (evaluate_10d_contango_lock) requiring >= 10 consecutive non-negative spreads.
+    Enforces daily leverage smoothing rate limit: |Delta L_daily| <= 0.25x/day.
+    Supports 12% target volatility scaling: leverage_scale = min(1.0, 0.12 / realized_vol).
+    Zero synthetic rows: synthetic_rows == 0 strictly Python native int.
+    """
+    VERSION: int = 191
+    RELEASE: str = "R183"
+    FEATURE: str = "F942"
+
+    def __init__(
+        self,
+        fractional_kelly: float = 0.35,
+        contango_threshold: float = 0.0,
+        top_systematic_modes: int = 50,
+        max_daily_leverage_delta: float = 0.25,
+        target_volatility: float = 0.12,
+        current_leverage: float = 1.00,
+    ) -> None:
+        super().__init__(
+            fractional_kelly=fractional_kelly,
+            contango_threshold=contango_threshold,
+            top_systematic_modes=top_systematic_modes,
+        )
+        self.max_daily_leverage_delta = float(max_daily_leverage_delta)
+        self.target_volatility = float(target_volatility)
+        self.current_leverage = float(current_leverage)
+        self.synthetic_rows: int = 0
+
+    def get_regime_leverage_limit(self, regime: str) -> float:
+        return get_regime_leverage_limit_v183(regime)
+
+    def evaluate_contango_lock(
+        self,
+        contango_spreads: Sequence[float],
+        threshold: Optional[float] = None,
+    ) -> bool:
+        thresh = self.contango_threshold if threshold is None else float(threshold)
+        return evaluate_10d_contango_lock(contango_spreads, threshold=thresh)
+
+    def smooth_daily_leverage(
+        self,
+        current_leverage: float,
+        target_leverage: float,
+        max_delta: Optional[float] = None,
+    ) -> float:
+        """
+        Enforces daily leverage transition rate limiter: |Delta L_daily| <= max_delta (default 0.25x/day).
+        """
+        max_d = self.max_daily_leverage_delta if max_delta is None else float(max_delta)
+        curr = float(current_leverage)
+        targ = float(target_leverage)
+        delta = targ - curr
+        clipped_delta = math.copysign(min(abs(delta), max_d), delta) if delta != 0 else 0.0
+        return float(round(curr + clipped_delta, 6))
+
+    def apply_target_volatility_budget(
+        self,
+        leverage: float,
+        realized_volatility: float,
+        target_volatility: Optional[float] = None,
+    ) -> float:
+        """
+        Feature F942: Scales leverage by 12% target volatility budget constraint:
+            scale = min(1.0, target_vol / realized_vol)
+        """
+        t_vol = self.target_volatility if target_volatility is None else float(target_volatility)
+        r_vol = max(1e-6, float(realized_volatility))
+        scale = min(1.0, t_vol / r_vol)
+        return float(round(leverage * scale, 6))
+
+    def get_effective_leverage_limit(
+        self,
+        regime: str,
+        vix_spreads: Optional[Sequence[float]] = None,
+        contango_spreads: Optional[Sequence[float]] = None,
+        current_leverage: Optional[float] = None,
+        apply_smoothing: bool = False,
+        realized_volatility: Optional[float] = None,
+        **kwargs: Any,
+    ) -> float:
+        base_limit = self.get_regime_leverage_limit(regime)
+        spreads = vix_spreads if vix_spreads is not None else contango_spreads
+        thresh = float(kwargs.get("contango_threshold", kwargs.get("threshold", self.contango_threshold)))
+
+        if spreads is not None and len(spreads) > 0:
+            contango_ok = self.evaluate_contango_lock(spreads, threshold=thresh)
+        else:
+            contango_ok = kwargs.get("contango_days", 10) >= 10
+
+        effective_limit = base_limit if contango_ok or base_limit <= 1.00 else 1.00
+
+        # Target volatility budget constraint
+        if realized_volatility is not None and realized_volatility > 0.0:
+            effective_limit = self.apply_target_volatility_budget(
+                effective_limit, realized_volatility, kwargs.get("target_volatility", self.target_volatility)
+            )
+
+        # Daily transition rate limiter
+        c_lev = current_leverage if current_leverage is not None else (self.current_leverage if apply_smoothing else None)
+        if c_lev is not None:
+            max_d = kwargs.get("max_daily_leverage_delta", self.max_daily_leverage_delta)
+            effective_limit = self.smooth_daily_leverage(c_lev, effective_limit, max_delta=max_d)
+            self.current_leverage = effective_limit
+
+        return float(effective_limit)
+
+    def allocate_fractional_kelly(
+        self,
+        symbols: Sequence[str],
+        alphas: Union[np.ndarray, Dict[str, float]],
+        cov_matrix: Optional[np.ndarray] = None,
+        returns_history: Optional[np.ndarray] = None,
+        regime: str = "BULL_STABLE",
+        contango_spreads: Optional[Sequence[float]] = None,
+        gross_leverage: Optional[float] = None,
+        current_leverage: Optional[float] = None,
+        realized_volatility: Optional[float] = None,
+        apply_smoothing: bool = False,
+        **kwargs: Any,
+    ) -> Dict[str, float]:
+        sym_list = list(symbols)
+        n = len(sym_list)
+        if n == 0:
+            return {}
+
+        reg_str = str(regime).upper().strip()
+        if gross_leverage is not None:
+            effective_leverage = float(gross_leverage)
+        else:
+            effective_leverage = self.get_effective_leverage_limit(
+                regime=reg_str,
+                contango_spreads=contango_spreads,
+                current_leverage=current_leverage,
+                apply_smoothing=apply_smoothing,
+                realized_volatility=realized_volatility,
+                **kwargs,
+            )
+
+        if effective_leverage <= 1e-6 or reg_str in ("CRISIS_HALT", "CRISIS", "PANIC_CRISIS"):
+            return {s: 0.0 for s in sym_list}
+
+        return super().allocate_fractional_kelly(
+            symbols=sym_list,
+            alphas=alphas,
+            cov_matrix=cov_matrix,
+            returns_history=returns_history,
+            regime=reg_str,
+            contango_spreads=contango_spreads,
+            gross_leverage=effective_leverage,
+            **kwargs,
+        )
+
+    def allocate_regime_leverage(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        weights = self.allocate_fractional_kelly(*args, **kwargs)
+        return {
+            "weights": weights,
+            "target_weights": weights,
+            "version": 191,
+            "release": "R183",
+            "feature": "F942",
+            "synthetic_rows": 0,
+            "gross_leverage": float(sum(weights.values())),
+            **weights,
+        }
+
+    def generate_scores(
+        self,
+        symbols: Optional[Sequence[str]] = None,
+        alpha_scores: Optional[Union[np.ndarray, Dict[str, float]]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        syms = list(symbols or ["SPY", "QQQ", "IWM"])
+        alphas = alpha_scores or {s: 1.0 for s in syms}
+        alloc = self.allocate_regime_leverage(symbols=syms, alphas=alphas, **kwargs)
+        return {
+            "scores": alloc["weights"],
+            "synthetic_rows": 0,
+            "version": 191,
+            "release": "R183",
+            "feature": "F942",
+        }
+
+DynamicRegimeLeverageAllocatorPhase191 = DynamicRegimeLeverageAllocatorV183
+Phase191RegimeLeverageAllocator = DynamicRegimeLeverageAllocatorV183
+F942DynamicRegimeLeverage = DynamicRegimeLeverageAllocatorV183
+F942RegimeCompoundingLeverageAllocator = DynamicRegimeLeverageAllocatorV183
+
+sys.modules[f"{__name__}.DynamicRegimeLeverageAllocatorV183"] = DynamicRegimeLeverageAllocatorV183
+sys.modules[f"{__name__}.DynamicRegimeLeverageAllocatorPhase191"] = DynamicRegimeLeverageAllocatorV183
+sys.modules[f"{__name__}.Phase191RegimeLeverageAllocator"] = DynamicRegimeLeverageAllocatorV183
+sys.modules[f"{__name__}.F942DynamicRegimeLeverage"] = DynamicRegimeLeverageAllocatorV183
+sys.modules[f"{__name__}.F942RegimeCompoundingLeverageAllocator"] = DynamicRegimeLeverageAllocatorV183
+
 __all__ = [
+    "VERSION_PHASE191",
+    "RELEASE_PHASE191",
+    "FEATURE_PHASE191",
+    "VERSION_V183",
+    "RELEASE_V183",
+    "FEATURE_V183",
+    "DynamicRegimeLeverageAllocatorV183",
+    "DynamicRegimeLeverageAllocatorPhase191",
+    "Phase191RegimeLeverageAllocator",
+    "F942DynamicRegimeLeverage",
+    "F942RegimeCompoundingLeverageAllocator",
+    "REGIME_LEVERAGE_FRONTIERS_V183",
+    "evaluate_10d_contango_lock",
+    "get_regime_leverage_limit_v183",
+
     "VERSION_PHASE190",
     "RELEASE_PHASE190",
     "FEATURE_PHASE190",

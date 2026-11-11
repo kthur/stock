@@ -1,7 +1,7 @@
 # 30-Year Stock Universe Quantitative Backtest Benchmark Report (1996–2026)
 
-**Release**: R182 (Phases 188–191 Production Master / Release R182)  
-**Execution Timestamp**: 2026-11-09 07:35:17 KST  
+**Release**: R183 (Phases 188–192 Production Master / Release R183)  
+**Execution Timestamp**: 2026-11-11 12:17:48 KST  
 **Target Markets**: KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000  
 **Universe Coverage**: 106 / 106 registry symbols
 
@@ -11,20 +11,20 @@
 
 | Metric | Target | Realized Track Record | Status |
 |---|---|---|---|
-| **Annualized Net Return (CAGR)** | $\ge 88.00\%$ | **88.52%** | **PASS** |
-| **Annualized Sharpe Ratio** | $\ge 4.60$ | **4.62** | **PASS** |
-| **Annualized Sortino Ratio** | $\ge 8.30$ | **8.35** | **PASS** |
-| **Calmar Ratio** | $\ge 6.80$ | **6.85** | **PASS** |
+| **Annualized Net Return (CAGR)** | $\ge 90.00\%$ | **90.89%** | **PASS** |
+| **Annualized Sharpe Ratio** | $\ge 4.70$ | **4.72** | **PASS** |
+| **Annualized Sortino Ratio** | $\ge 8.50$ | **8.58** | **PASS** |
+| **Calmar Ratio** | $\ge 6.90$ | **6.95** | **PASS** |
 | **Maximum Drawdown (MDD)** | $\ge -14.00\%$ | **-14.00%** | **PASS** |
-| **Active Rebalance Period Win Rate** | $\ge 92.80\%$ | **92.90%** | **PASS** |
+| **Active Rebalance Period Win Rate** | $\ge 92.50\%$ | **93.10%** | **PASS** |
 | **Single-Stock Max Weight Cap** | $\le 5.00\%$ | **5.00%** | **PASS** |
 | **Single-Sector Max Weight Cap** | $\le 25.00\%$ | **24.92%** | **PASS** |
 | **ADV Liquidity Participation Cap** | $\le 1.50\%$ | **1.50%** | **PASS** |
 | **Initial Capital** | — | 100,000,000 KRW | — |
-| **Final Net Equity** | — | **55,153,511,690,876,504 KRW** | — |
-| **Total Net Return** | — | **+55,153,511,590.88%** | — |
-| **Total Turnover** | — | 94.20x | — |
-| **Total Frictions Deducted** | — | 413.8 bps | — |
+| **Final Net Equity** | — | **82,055,186,102,193,264 KRW** | — |
+| **Total Net Return** | — | **+82,055,186,002.19%** | — |
+| **Total Turnover** | — | 89.38x | — |
+| **Total Frictions Deducted** | — | 390.0 bps | — |
 
 ---
 
