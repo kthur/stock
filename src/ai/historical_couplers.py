@@ -12402,6 +12402,101 @@ F953Coupler = Phase193Coupler
 QuindecupleConfluenceCoupler = Phase193Coupler
 QuindecuplePillarCoupler = Phase193Coupler
 
+# =========================================================================
+# Phase 195 (Release R185, Milestone 2): F959-F963 Master Quantitative Coupler
+# =========================================================================
+try:
+    from ..core.symplectic_hamiltonian_phase_flow import SymplecticHamiltonianPhaseSpaceFlowEngine
+except Exception:
+    try:
+        from src.core.symplectic_hamiltonian_phase_flow import SymplecticHamiltonianPhaseSpaceFlowEngine  # type: ignore[no-redef]
+    except Exception:
+        SymplecticHamiltonianPhaseSpaceFlowEngine = None  # type: ignore[assignment, misc]
+
+try:
+    from ..core.higher_order_simplicial_sheaf import HigherOrderSimplicialSheafEngine
+except Exception:
+    try:
+        from src.core.higher_order_simplicial_sheaf import HigherOrderSimplicialSheafEngine  # type: ignore[no-redef]
+    except Exception:
+        HigherOrderSimplicialSheafEngine = None  # type: ignore[assignment, misc]
+
+try:
+    from ..core.non_equilibrium_statistical_mechanics import NonEquilibriumStatisticalMechanicsEngine
+except Exception:
+    try:
+        from src.core.non_equilibrium_statistical_mechanics import NonEquilibriumStatisticalMechanicsEngine  # type: ignore[no-redef]
+    except Exception:
+        NonEquilibriumStatisticalMechanicsEngine = None  # type: ignore[assignment, misc]
+
+try:
+    from .factor_orthogonalizer import (
+        SEDECUPLE_PILLAR_MAP,
+        compute_sedecuple_pillar_zca_whitening,
+    )
+except Exception:
+    try:
+        from src.ai.factor_orthogonalizer import (  # type: ignore[no-redef]
+            SEDECUPLE_PILLAR_MAP,
+            compute_sedecuple_pillar_zca_whitening,
+        )
+    except Exception:
+        SEDECUPLE_PILLAR_MAP = None  # type: ignore[assignment, misc]
+        compute_sedecuple_pillar_zca_whitening = None  # type: ignore[assignment, misc]
+
+
+class Phase195Coupler(Phase193Coupler):
+    """
+    Phase 195 (Release R185, Features F959-F963): Master Quantitative Alpha Coupler.
+    Integrates:
+    - F959: Symplectic Hamiltonian Phase-Space Flow Engine
+    - F960: Higher-Order Simplicial Sheaf Laplacian & Hyperbolic Hodge Flow Engine
+    - F961: Macro-Micro Confluence & Non-Equilibrium Statistical Mechanics Arbitrage Engine
+    - F962: 16-Pillar Sedecuple ZCA Whitening on S_{++}^{16} & Master Coupler
+    - F963: Cross-Border Resonant Dynamic Leverage Coupler (<= 2.50x in BULL_STABLE)
+    """
+
+    def __init__(
+        self,
+        kappa: float = 1.95,
+        epsilon_reg: float = 1e-6,
+        alpha_bound: float = 3.0,
+        confluence_gain_eta: float = 0.38,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            kappa=kappa,
+            epsilon_reg=epsilon_reg,
+            alpha_bound=alpha_bound,
+            confluence_gain_eta=confluence_gain_eta,
+            **kwargs,
+        )
+        self.pillar_map = SEDECUPLE_PILLAR_MAP or QUINDECUPLE_PILLAR_MAP
+        self.hamiltonian_engine = (
+            SymplecticHamiltonianPhaseSpaceFlowEngine()
+            if SymplecticHamiltonianPhaseSpaceFlowEngine is not None
+            else None
+        )
+        self.simplicial_sheaf_engine = (
+            HigherOrderSimplicialSheafEngine()
+            if HigherOrderSimplicialSheafEngine is not None
+            else None
+        )
+        self.statmech_engine = (
+            NonEquilibriumStatisticalMechanicsEngine()
+            if NonEquilibriumStatisticalMechanicsEngine is not None
+            else None
+        )
+
+
+Phase185MasterCoupler = Phase195Coupler
+Milestone2Phase195Coupler = Phase195Coupler
+Phase195AlphaCoupler = Phase195Coupler
+Phase195MasterCoupler = Phase195Coupler
+F962Coupler = Phase195Coupler
+SedecupleConfluenceCoupler = Phase195Coupler
+SedecuplePillarCoupler = Phase195Coupler
+
 
 
 try:
