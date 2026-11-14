@@ -81,6 +81,46 @@ GLOBAL_VALUE_CHAIN_EDGES: List[Tuple[str, str, float]] = [
     ("005380", "018880", 0.80),  # Hyundai Motor -> Hanon Systems
     ("005380", "204320", 0.80),  # Hyundai Motor -> HL Mando
     ("005380", "005850", 0.75),  # Hyundai Motor -> SL Corp
+
+    # ── China Cross-Border Value Chain & Strategic Industry Linkages (Phase 194 / F959) ──
+    # EV, Lithium & Secondary Battery Ecosystem (CATL, BYD, Lithium refiners -> KRX 2차전지 & US EV)
+    ("300750", "373220", 0.70),  # CATL -> LG Energy Solution (Global EV Battery benchmark)
+    ("300750", "247540", 0.75),  # CATL -> Ecopro BM (Cathode materials pricing & demand link)
+    ("300750", "003670", 0.75),  # CATL -> POSCO Future M (Anode/Cathode)
+    ("300750", "006400", 0.70),  # CATL -> Samsung SDI
+    ("002594", "TSLA", 0.75),    # BYD -> Tesla (EV volume & price war spillover)
+    ("002594", "005380", 0.70),  # BYD -> Hyundai Motor (Global market lead-lag)
+    ("002594", "000270", 0.70),  # BYD -> Kia
+    ("002466", "247540", 0.80),  # Tianqi Lithium -> Ecopro BM (Lithium supply chain)
+    ("002460", "373220", 0.80),  # Ganfeng Lithium -> LGES (Lithium hydroxide raw materials)
+    ("603659", "003670", 0.75),  # Putailai -> POSCO Future M (Anode separator/graphite)
+
+    # Solar, Photovoltaic & Clean Energy (LONGi, Tongwei, Sungrow -> KRX Solar & Power Equipment)
+    ("601012", "009830", 0.80),  # LONGi Green Energy -> Hanwha Solutions (Solar wafer/module price parity)
+    ("600438", "010060", 0.80),  # Tongwei -> OCI Holdings (Polysilicon benchmark pricing lead-lag)
+    ("300274", "010120", 0.70),  # Sungrow Power -> LS Electric (Inverter/BESS grid power flow)
+
+    # Semiconductor OSAT, Foundry & Equipment (SMIC, JCET, Tongfu -> KRX Memory & Equipment)
+    ("688981", "005930", 0.75),  # SMIC -> Samsung Electronics (Legacy node foundry & memory spillover)
+    ("600584", "042700", 0.75),  # JCET -> Hanmi Semiconductor (Advanced packaging equipment)
+    ("600584", "067310", 0.75),  # JCET -> Hana Micron (OSAT packaging volume spillover)
+    ("002156", "042700", 0.70),  # Tongfu Microelectronics -> Hanmi Semiconductor
+
+    # Rare Earth & Strategic Critical Minerals (Northern Rare Earth -> KRX Materials & Defense)
+    ("600111", "005490", 0.75),  # China Northern Rare Earth -> POSCO Holdings (Permanent magnet materials)
+    ("600111", "047400", 0.85),  # China Northern Rare Earth -> Union Materials (Ferrite rare earth substitute)
+    ("600111", "012450", 0.65),  # China Northern Rare Earth -> Hanwha Aerospace (Defense rare earth inputs)
+
+    # China Macro Cyclical & Domestic Demand Spillover (Consumption, Steel, Chemicals, Shipping)
+    ("600519", "090430", 0.75),  # Kweichow Moutai (China consumption proxy) -> Amorepacific
+    ("600519", "051900", 0.75),  # Moutai -> LG H&H (Cosmetics/luxury consumption)
+    ("600519", "008770", 0.70),  # Moutai -> Hotel Shilla (Duty free & travel retail)
+    ("600019", "005490", 0.80),  # Baosteel (600019) -> POSCO Holdings (Asian steel pricing lead-lag)
+    ("600019", "004020", 0.80),  # Baosteel -> Hyundai Steel
+    ("600309", "051910", 0.80),  # Wanhua Chemical (600309) -> LG Chem (Petrochemical / MDI spread)
+    ("600309", "011170", 0.75),  # Wanhua Chemical -> Lotte Chemical
+    ("601919", "011200", 0.80),  # COSCO Shipping (601919) -> HMM (Container shipping freight CCFI)
+    ("601919", "028670", 0.75),  # COSCO Shipping -> Pan Ocean (Dry bulk BDI)
 ]
 
 

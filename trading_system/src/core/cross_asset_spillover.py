@@ -173,6 +173,16 @@ DEFAULT_SECTOR_MACRO_BETAS: Dict[str, Dict[str, float]] = {
 
     # Market Baseline Default
     "Market": {"sox": 0.50, "usdkrw": 0.20, "tnx": 0.00, "wti": 0.10, "vix": -0.80, "sp500": 1.00, "gold": 0.10, "dxy": 0.00},
+
+    # ── Additional Cross-Border & China-Impacted Sectors (Phase 194 / F960) ──
+    "Secondary Battery": {"sox": 1.30, "usdkrw": 0.85, "tnx": -0.60, "wti": -0.30, "vix": -1.15, "sp500": 1.20, "gold": 0.20, "dxy": 0.25},
+    "2차전지": {"sox": 1.30, "usdkrw": 0.85, "tnx": -0.60, "wti": -0.30, "vix": -1.15, "sp500": 1.20, "gold": 0.20, "dxy": 0.25},
+    "Solar": {"sox": 0.70, "usdkrw": 0.50, "tnx": -0.80, "wti": 0.70, "vix": -0.90, "sp500": 0.90, "gold": 0.30, "dxy": -0.30},
+    "태양광": {"sox": 0.70, "usdkrw": 0.50, "tnx": -0.80, "wti": 0.70, "vix": -0.90, "sp500": 0.90, "gold": 0.30, "dxy": -0.30},
+    "Cosmetics": {"sox": 0.20, "usdkrw": -0.30, "tnx": -0.40, "wti": -0.40, "vix": -0.85, "sp500": 0.85, "gold": 0.10, "dxy": -0.20},
+    "화장품": {"sox": 0.20, "usdkrw": -0.30, "tnx": -0.40, "wti": -0.40, "vix": -0.85, "sp500": 0.85, "gold": 0.10, "dxy": -0.20},
+    "Shipping": {"sox": 0.30, "usdkrw": 0.95, "tnx": 0.30, "wti": 0.70, "vix": -0.85, "sp500": 1.00, "gold": 0.10, "dxy": 0.35},
+    "해운": {"sox": 0.30, "usdkrw": 0.95, "tnx": 0.30, "wti": 0.70, "vix": -0.85, "sp500": 1.00, "gold": 0.10, "dxy": 0.35},
 }
 
 SECTOR_MACRO_ELASTICITY_MATRIX: Dict[str, Dict[str, float]] = DEFAULT_SECTOR_MACRO_BETAS

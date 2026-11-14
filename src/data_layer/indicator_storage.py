@@ -112,6 +112,23 @@ GLOBAL_BENCHMARK_FALLBACKS = [
     ("BMO", "Bank of Montreal", "CANADA_TSX", "Financials", "Banking"),
     ("TRI", "Thomson Reuters", "CANADA_TSX", "Technology", "Information Services"),
     ("SHOP", "Shopify", "CANADA_TSX", "Technology", "E-Commerce"),
+    # China (CSI 300 / SSE / SZSE) — Phase 194 / F961
+    ("600519.SS", "Kweichow Moutai", "CHINA_SSE", "Consumer Staples", "Distillers"),
+    ("300750.SZ", "CATL", "CHINA_SZSE", "Technology", "Batteries"),
+    ("601318.SS", "Ping An Insurance", "CHINA_SSE", "Financials", "Insurance"),
+    ("600036.SS", "China Merchants Bank", "CHINA_SSE", "Financials", "Banking"),
+    ("002594.SZ", "BYD", "CHINA_SZSE", "Consumer Discretionary", "Automotive"),
+    ("688981.SS", "SMIC", "CHINA_SSE", "Technology", "Semiconductors"),
+    ("601012.SS", "LONGi Green Energy", "CHINA_SSE", "Technology", "Solar Energy"),
+    ("600111.SS", "Northern Rare Earth", "CHINA_SSE", "Materials", "Rare Earth"),
+    ("600309.SS", "Wanhua Chemical", "CHINA_SSE", "Materials", "Chemicals"),
+    ("601919.SS", "COSCO Shipping", "CHINA_SSE", "Industrials", "Shipping"),
+    # Hong Kong (HKEX / Hang Seng)
+    ("0700.HK", "Tencent Holdings", "HKEX", "Communication", "Interactive Media"),
+    ("9988.HK", "Alibaba Group", "HKEX", "Consumer Discretionary", "E-Commerce"),
+    ("3690.HK", "Meituan", "HKEX", "Consumer Discretionary", "Internet Retail"),
+    ("0981.HK", "SMIC (HK)", "HKEX", "Technology", "Semiconductors"),
+    ("1211.HK", "BYD (HK)", "HKEX", "Consumer Discretionary", "Automotive"),
 ]
 
 
