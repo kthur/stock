@@ -2972,7 +2972,7 @@ def _prepare_report_context(
         rows_html_summary = ""
         cards_html_summary = ""
         if mkt_data and mkt_data.rows:
-            display_limit = 8
+            display_limit = 15
             is_large_universe = len(mkt_data.rows) > display_limit
             display_rows = mkt_data.rows[:display_limit] if is_large_universe else mkt_data.rows
             for erow in mkt_data.rows[:25]:
