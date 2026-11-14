@@ -21,6 +21,18 @@ from src.ai.prediction_model import OnDevicePredictionModel
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+def _resolve_model_dir(output_dir: Optional[str] = None) -> Path:
+    """Resolve model directory, targeting <root>/models/ as primary."""
+    if output_dir:
+        return Path(output_dir)
+    # Check parent hierarchy for true repository root
+    for p in Path(__file__).resolve().parents:
+        if (p / "trading_system" / "src").exists() and (p / "models").exists():
+            return p / "models"
+    fallback = Path(__file__).resolve().parent.parent / "models"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
 def create_mock_tuning_data(model: OnDevicePredictionModel) -> pd.DataFrame:
     """Generate a mock training dataset for testing/fallback if DB is empty."""
     logger.info("Generating mock tuning dataset...")
@@ -40,52 +52,68 @@ def create_mock_tuning_data(model: OnDevicePredictionModel) -> pd.DataFrame:
     df = pd.DataFrame(data)
     return df
 
-def load_tuning_data() -> pd.DataFrame:
+def load_tuning_data(market: Optional[str] = None) -> pd.DataFrame:
     """Load a sample of the training dataset from local StockPriceDB."""
     cfg = TradingConfig()
     price_db = StockPriceDB(db_path=cfg.stock_price_db_path)
     storage = MarketIndicatorStorage(db_path=cfg.db_path)
     model = OnDevicePredictionModel()
 
-    symbols = price_db.get_all_symbols()
-    if not symbols:
-        return create_mock_tuning_data(model)
+    try:
+        symbols = price_db.get_all_symbols()
+        if not symbols:
+            return create_mock_tuning_data(model)
 
-    # Sample up to 10 symbols for fast tuning
-    random.seed(42)
-    sample_symbols = random.sample(symbols, min(len(symbols), 10))
-
-    prices_dict = {}
-    from run_pipeline import fetch_indicator_history
-    indicator_train = fetch_indicator_history(cfg.train_start_date, price_db, -1)
-
-    for sym in sample_symbols:
-        df = price_db.get_prices(sym, start_date=cfg.train_start_date)
-        if not df.empty and len(df) >= 70:
+        if market:
             try:
-                merged = model.merge_fundamentals(sym, df, storage)
-                if merged is not None:
-                    prices_dict[sym] = merged
+                universe = storage.get_universe()
+                if not universe.empty and 'market' in universe.columns and 'symbol' in universe.columns:
+                    mkt_syms = universe[universe['market'].str.upper() == str(market).upper()]['symbol'].tolist()
+                    if mkt_syms:
+                        filtered = [s for s in symbols if s in mkt_syms]
+                        if filtered:
+                            symbols = filtered
             except Exception as e:
-                logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
+                logger.debug(f"Could not filter symbols by market {market}: {e}")
 
-    if not prices_dict:
+        # Sample up to 10 symbols for fast tuning
+        random.seed(42)
+        sample_symbols = random.sample(symbols, min(len(symbols), 10))
+
+        prices_dict = {}
+        from run_pipeline import fetch_indicator_history
+        indicator_train = fetch_indicator_history(cfg.train_start_date, price_db, -1)
+
+        for sym in sample_symbols:
+            df = price_db.get_prices(sym, start_date=cfg.train_start_date)
+            if not df.empty and len(df) >= 70:
+                try:
+                    merged = model.merge_fundamentals(sym, df, storage)
+                    if merged is not None:
+                        prices_dict[sym] = merged
+                except Exception as e:
+                    logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
+
+        if not prices_dict:
+            return create_mock_tuning_data(model)
+
+        df_train = model.prepare_training_data(prices_dict, indicator_train)
+        if df_train.empty:
+            return create_mock_tuning_data(model)
+
+        return df_train
+    except Exception as e:
+        logger.warning(f"Failed to load tuning data from DB/indicators: {e}. Falling back to mock dataset.")
         return create_mock_tuning_data(model)
 
-    df_train = model.prepare_training_data(prices_dict, indicator_train)
-    if df_train.empty:
-        return create_mock_tuning_data(model)
-
-    return df_train
-
-def tune_hyperparameters(n_trials: int = 3, output_dir: Optional[str] = None):
+def tune_hyperparameters(n_trials: int = 3, output_dir: Optional[str] = None, market: Optional[str] = None):
     """
     Search for optimal hyperparameters using Optuna for XGBoost, LightGBM, and CatBoost.
     Splits the dataset chronologically (80% train, 20% validation).
-    Saves the best parameters to models/tuned_params.json.
+    Saves the best parameters to models/tuned_params[_market].json.
     """
-    logger.info("Loading tuning dataset...")
-    df = load_tuning_data()
+    logger.info(f"Loading tuning dataset (market={market or 'GLOBAL'})...")
+    df = load_tuning_data(market=market)
 
     # Chronological split (80% train, 20% validation)
     df['date'] = pd.to_datetime(df['date'])
@@ -289,17 +317,45 @@ def tune_hyperparameters(n_trials: int = 3, output_dir: Optional[str] = None):
     study_cat_clf.optimize(objective_cat_clf, n_trials=n_trials)
     best_params['surge_cat'] = study_cat_clf.best_params
 
-    # Save to tuned_params.json
-    model_dir = Path(output_dir) if output_dir else Path(__file__).resolve().parent.parent / "models"
+    # Save to tuned_params[_market].json
+    model_dir = _resolve_model_dir(output_dir)
     model_dir.mkdir(parents=True, exist_ok=True)
-    output_path = model_dir / "tuned_params.json"
 
+    if market:
+        best_params['market'] = str(market).upper()
+        filename = f"tuned_params_{str(market).lower()}.json"
+    else:
+        best_params['market'] = "GLOBAL"
+        filename = "tuned_params.json"
+
+    output_path = model_dir / filename
     with open(output_path, 'w') as f:
         json.dump(best_params, f, indent=2)
 
     logger.info(f"Saved tuned hyperparameters to {output_path}")
+
+    # Mirror to secondary models directory only if primary root models was targeted (not in custom/test runs)
+    if output_dir is None:
+        try:
+            ts_models = Path(__file__).resolve().parent.parent / "models"
+            if ts_models.resolve() != model_dir.resolve() and ts_models.exists():
+                with open(ts_models / filename, 'w') as f:
+                    json.dump(best_params, f, indent=2)
+                logger.info(f"Mirrored tuned hyperparameters to {ts_models / filename}")
+        except Exception as e:
+            logger.debug(f"Failed to mirror tuned params: {e}")
+
     return best_params
 
 if __name__ == "__main__":
-    n_trials = int(os.environ.get("N_TRIALS", "30"))
-    tune_hyperparameters(n_trials=n_trials)
+    import argparse
+    parser = argparse.ArgumentParser(description="Optuna Hyperparameter Tuning across Markets")
+    parser.add_argument("--trials", "--n-trials", type=int, default=int(os.environ.get("N_TRIALS", "30")),
+                        help="Number of Optuna trials per model type")
+    parser.add_argument("--output-dir", type=str, default=None,
+                        help="Target directory for tuned parameters")
+    parser.add_argument("--market", type=str, default=None,
+                        help="Target market (e.g. sp500, nasdaq, russell2000, kospi, kosdaq)")
+    args = parser.parse_args()
+
+    tune_hyperparameters(n_trials=args.trials, output_dir=args.output_dir, market=args.market)

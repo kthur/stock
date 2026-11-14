@@ -114,7 +114,10 @@ class ModelCacheManager:
         try:
             import xgboost as xgb
             import lightgbm as lgb
-            import catboost as cb
+            try:
+                import catboost as cb
+            except ImportError:
+                cb = None
 
             if isinstance(model, xgb.XGBModel):
                 try:
@@ -131,7 +134,7 @@ class ModelCacheManager:
             elif isinstance(model, lgb.LGBMModel):
                 model.booster_.save_model(str(tmp_path))
                 meta["model_format"] = "lightgbm_text"
-            elif isinstance(model, (cb.CatBoostRegressor, cb.CatBoostClassifier)):
+            elif cb is not None and isinstance(model, (cb.CatBoostRegressor, cb.CatBoostClassifier)):
                 model.save_model(str(tmp_path))
                 meta["model_format"] = "catboost_binary"
             elif hasattr(model, "save_model") and callable(getattr(model, "save_model")):
@@ -231,7 +234,10 @@ class ModelCacheManager:
         try:
             import xgboost as xgb
             import lightgbm as lgb
-            import catboost as cb
+            try:
+                import catboost as cb
+            except ImportError:
+                cb = None
 
             if "xgb" in fpath.name.lower() or suffix == ".json" or m_format == "xgboost_json" or "XGB" in m_class:
                 is_classifier = kwargs.get("is_classifier", False) or "classifier" in fpath.name.lower() or "Classifier" in m_class
@@ -262,12 +268,15 @@ class ModelCacheManager:
                     loaded_model = getattr(obj, "booster_", obj)
 
             elif "cat" in fpath.name.lower() or suffix == ".bin" or m_format == "catboost_binary" or "CatBoost" in m_class:
-                is_classifier = kwargs.get("is_classifier", False) or "classifier" in fpath.name.lower() or "Classifier" in m_class
-                if is_classifier:
-                    loaded_model = cb.CatBoostClassifier()
+                if cb is not None:
+                    is_classifier = kwargs.get("is_classifier", False) or "classifier" in fpath.name.lower() or "Classifier" in m_class
+                    if is_classifier:
+                        loaded_model = cb.CatBoostClassifier()
+                    else:
+                        loaded_model = cb.CatBoostRegressor()
+                    loaded_model.load_model(str(fpath))
                 else:
-                    loaded_model = cb.CatBoostRegressor()
-                loaded_model.load_model(str(fpath))
+                    logger.warning(f"[ModelCacheManager] CatBoost not available to load {fpath.name}")
 
             elif "lstm" in fpath.name.lower() or suffix == ".pt" or "LSTM" in m_class:
                 from src.ai.lstm_predictor import LSTMPredictor
@@ -427,10 +436,10 @@ class ModelCacheManager:
                     if m in fname_lower:
                         if "xgb_model" in fname_lower or "lgb_model" in fname_lower or "cat_model" in fname_lower:
                             market_counts[m]["regression"] += 1
-                        elif "surge" in fname_lower:
-                            market_counts[m]["surge"] += 1
                         elif "vcp" in fname_lower:
                             market_counts[m]["vcp"] += 1
+                        elif "surge" in fname_lower:
+                            market_counts[m]["surge"] += 1
                         elif "lstm" in fname_lower:
                             market_counts[m]["lstm"] += 1
 

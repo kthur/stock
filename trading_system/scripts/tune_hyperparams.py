@@ -6,7 +6,7 @@ import optuna
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 # Add the parent directory of this script's directory to python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -19,7 +19,18 @@ from src.data_layer.indicator_storage import MarketIndicatorStorage
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def load_data_for_tuning():
+def _resolve_model_dir(output_dir: Optional[str] = None) -> Path:
+    """Resolve model directory, targeting <root>/models/ as primary."""
+    if output_dir:
+        return Path(output_dir)
+    for p in Path(__file__).resolve().parents:
+        if (p / "trading_system" / "src").exists() and (p / "models").exists():
+            return p / "models"
+    fallback = Path(__file__).resolve().parent.parent / "models"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+def load_data_for_tuning(market: Optional[str] = None):
     cfg = TradingConfig()
     price_db = StockPriceDB(db_path=cfg.stock_price_db_path)
     storage = MarketIndicatorStorage(db_path=cfg.db_path)
@@ -29,15 +40,21 @@ def load_data_for_tuning():
         logger.error("Universe is empty. Cannot tune.")
         return pd.DataFrame(), pd.DataFrame()
 
-    logger.info("Loading a sample of symbols for hyperparameter tuning...")
-    # Sample 10 symbols from SP500 and 10 symbols from KRX to keep tuning fast
-    sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
-    krx_symbols = universe[universe['market'] != 'SP500']['symbol'].tolist()
-
+    logger.info(f"Loading a sample of symbols for hyperparameter tuning (market={market or 'ALL'})...")
     import random
     random.seed(42)
-    sample_symbols = random.sample(sp500_symbols, min(10, len(sp500_symbols))) + \
-                     random.sample(krx_symbols, min(10, len(krx_symbols)))
+
+    if market:
+        mkt_symbols = universe[universe['market'].str.upper() == str(market).upper()]['symbol'].tolist()
+        if not mkt_symbols:
+            mkt_symbols = universe['symbol'].tolist()
+        sample_symbols = random.sample(mkt_symbols, min(20, len(mkt_symbols)))
+    else:
+        # Sample 10 symbols from SP500 and 10 symbols from KRX to keep tuning fast
+        sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
+        krx_symbols = universe[universe['market'] != 'SP500']['symbol'].tolist()
+        sample_symbols = random.sample(sp500_symbols, min(10, len(sp500_symbols))) + \
+                         random.sample(krx_symbols, min(10, len(krx_symbols)))
 
     model = OnDevicePredictionModel()
 
@@ -200,16 +217,21 @@ def tune_surge(df_train: pd.DataFrame, trials: int = 15) -> Dict[str, Any]:
     logger.info(f"Best surge classification parameters: {study.best_params}")
     return study.best_params
 
-def main():
-    df_train, universe = load_data_for_tuning()
+def main(trials: int = 15, output_dir: Optional[str] = None, market: Optional[str] = None):
+    df_train, universe = load_data_for_tuning(market=market)
     if df_train.empty:
         logger.error("No training data generated. Cannot proceed with tuning.")
         return
 
-    best_xgb_reg = tune_regression(df_train, trials=15)
-    best_xgb_surge = tune_surge(df_train, trials=15)
+    best_xgb_reg = tune_regression(df_train, trials=trials)
+    best_xgb_surge = tune_surge(df_train, trials=trials)
 
     tuned_data = {}
+    if market:
+        tuned_data['market'] = str(market).upper()
+    else:
+        tuned_data['market'] = 'GLOBAL'
+
     if best_xgb_reg:
         # Standardize for regressor params
         tuned_data['xgb'] = best_xgb_reg
@@ -248,13 +270,32 @@ def main():
         }
 
     if tuned_data:
-        models_dir = Path(__file__).resolve().parent.parent / "models"
+        models_dir = _resolve_model_dir(output_dir)
         models_dir.mkdir(parents=True, exist_ok=True)
-        tuned_path = models_dir / "tuned_params.json"
+        filename = f"tuned_params_{str(market).lower()}.json" if market else "tuned_params.json"
+        tuned_path = models_dir / filename
 
         with open(tuned_path, 'w') as f:
             json.dump(tuned_data, f, indent=2)
         logger.info(f"Successfully saved tuned parameters to {tuned_path}")
 
+        # Mirror to secondary models directory only if primary root models was targeted (not in custom/test runs)
+        if output_dir is None:
+            try:
+                ts_models = Path(__file__).resolve().parent.parent / "models"
+                if ts_models.resolve() != models_dir.resolve() and ts_models.exists():
+                    with open(ts_models / filename, 'w') as f:
+                        json.dump(tuned_data, f, indent=2)
+                    logger.info(f"Mirrored tuned hyperparameters to {ts_models / filename}")
+            except Exception as e:
+                logger.debug(f"Failed to mirror tuned params: {e}")
+
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Hyperparameter Tuning Script")
+    parser.add_argument("--trials", type=int, default=15, help="Number of trials per model")
+    parser.add_argument("--output-dir", type=str, default=None, help="Target output directory")
+    parser.add_argument("--market", type=str, default=None, help="Target market name (e.g. sp500, nasdaq)")
+    args = parser.parse_args()
+
+    main(trials=args.trials, output_dir=args.output_dir, market=args.market)

@@ -145,6 +145,66 @@ class TestTuningAndRetry(unittest.TestCase):
         self.assertGreaterEqual(diff1, 0.15)
         self.assertGreaterEqual(diff2, 0.15)
 
+    def test_market_specific_params_loading_all_5_markets(self):
+        """Verify OnDevicePredictionModel loads distinct market profiles and falls back to global."""
+        model = OnDevicePredictionModel()
+        expected_depths = {
+            'SP500': 4,
+            'NASDAQ': 5,
+            'RUSSELL2000': 4,
+            'KOSPI': 4,
+            'KOSDAQ': 5,
+        }
+        for mkt, exp_depth in expected_depths.items():
+            p = model._load_market_params(mkt)
+            self.assertEqual(p.get('market'), mkt)
+            self.assertEqual(p.get('xgb', {}).get('max_depth'), exp_depth)
+
+        # Fallback to global
+        p_unknown = model._load_market_params('UNKNOWN_MARKET')
+        self.assertEqual(p_unknown.get('market'), 'GLOBAL')
+        self.assertEqual(p_unknown.get('xgb', {}).get('max_depth'), 5)
+
+    def test_vcp_predictor_market_params_loading(self):
+        """Verify VCPSurgePredictor loads market profiles and vcp_ml overrides."""
+        vcp = VCPSurgePredictor()
+        expected_vcp_spw = {
+            'SP500': 8.0,
+            'NASDAQ': 12.0,
+            'RUSSELL2000': 15.0,
+            'KOSPI': 10.0,
+            'KOSDAQ': 15.0,
+        }
+        for mkt, exp_spw in expected_vcp_spw.items():
+            p = vcp._load_market_params(mkt)
+            self.assertEqual(p.get('market'), mkt)
+            self.assertIn('vcp_ml', p)
+            self.assertEqual(p['vcp_ml'].get('scale_pos_weight'), exp_spw)
+
+        # Fallback
+        p_unknown = vcp._load_market_params('NONEXISTENT')
+        self.assertEqual(p_unknown.get('market'), 'GLOBAL')
+        self.assertEqual(p_unknown.get('vcp_ml', {}).get('scale_pos_weight'), 20.0)
+
+    def test_tune_models_market_flag_saving(self):
+        """Verify tune_hyperparameters correctly saves market-specific tuned_params_{market}.json."""
+        with patch('scripts.tune_models.load_tuning_data') as mock_load:
+            from scripts.tune_models import create_mock_tuning_data
+            model = OnDevicePredictionModel()
+            mock_load.return_value = create_mock_tuning_data(model)
+
+            res = tune_hyperparameters(n_trials=1, output_dir=str(self.model_dir), market='KOSPI')
+            self.assertEqual(res.get('market'), 'KOSPI')
+
+            target_file = self.model_dir / "tuned_params_kospi.json"
+            self.assertTrue(target_file.exists())
+
+            with open(target_file, 'r') as f:
+                data = json.load(f)
+            self.assertEqual(data.get('market'), 'KOSPI')
+            self.assertIn('xgb', data)
+            self.assertIn('surge_xgb', data)
+
 
 if __name__ == '__main__':
     unittest.main()

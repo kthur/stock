@@ -131,6 +131,66 @@ class VCPSurgePredictor:
 
         self.load_models()
 
+    @staticmethod
+    def _sanitize_market_params(params: Dict[str, Any]) -> Dict[str, Any]:
+        """Sanitize and clamp hyperparameter boundaries to institutional limits:
+        - learning_rate >= 1e-4
+        - max_depth >= 1
+        - scale_pos_weight: clamped <= 20.0 and > 0, fallback to 20.0 if invalid/negative
+        - n_estimators >= 1
+        Recursively processes nested model parameter dictionaries."""
+        if not isinstance(params, dict):
+            return {}
+
+        sanitized: Dict[str, Any] = {}
+        for section_key, section_val in params.items():
+            if isinstance(section_val, dict):
+                clean_sec = dict(section_val)
+                if 'learning_rate' in clean_sec:
+                    try:
+                        clean_sec['learning_rate'] = max(1e-4, float(clean_sec['learning_rate']))
+                    except (TypeError, ValueError):
+                        clean_sec['learning_rate'] = 0.05
+                if 'max_depth' in clean_sec:
+                    try:
+                        clean_sec['max_depth'] = max(1, int(clean_sec['max_depth']))
+                    except (TypeError, ValueError):
+                        clean_sec['max_depth'] = 5
+                if 'n_estimators' in clean_sec:
+                    try:
+                        clean_sec['n_estimators'] = max(1, int(clean_sec['n_estimators']))
+                    except (TypeError, ValueError):
+                        clean_sec['n_estimators'] = 100
+                if 'scale_pos_weight' in clean_sec:
+                    try:
+                        spw = clean_sec['scale_pos_weight']
+                        clean_sec['scale_pos_weight'] = min(float(spw), 20.0) if (spw is not None and float(spw) > 0) else 20.0
+                    except (TypeError, ValueError):
+                        clean_sec['scale_pos_weight'] = 20.0
+                sanitized[section_key] = clean_sec
+            else:
+                sanitized[section_key] = section_val
+        return sanitized
+
+    def _load_market_params(self, market: str) -> Dict[str, Any]:
+        """Load market-specific tuned parameters (e.g. tuned_params_sp500.json),
+        falling back to global tuned_params.json if market file does not exist."""
+        m_lower = str(market).lower()
+        market_file = self.model_dir / f"tuned_params_{m_lower}.json"
+        global_file = self.model_dir / "tuned_params.json"
+        target_file = market_file if market_file.exists() else global_file
+        if target_file.exists():
+            try:
+                with open(target_file, 'r') as f:
+                    data = json.load(f)
+                logger.info(f"VCPSurgePredictor: Loaded tuned params for {market} from {target_file.name}")
+                if isinstance(data, dict):
+                    return self._sanitize_market_params(data)
+                return {}
+            except Exception as e:
+                logger.warning(f"VCPSurgePredictor: Failed to load tuned params from {target_file}: {e}")
+        return {}
+
     def _compute_vcp_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Compute VCP features from raw OHLCV for a single symbol."""
         if df is None or len(df) < 65:
@@ -400,6 +460,24 @@ class VCPSurgePredictor:
             kw_lgb: Dict[str, Any] = dict(self._surge_lgb_kwargs)
             kw_cat: Dict[str, Any] = dict(self._surge_cat_kwargs)
 
+            # Apply market-specific hyperparameter overrides if available
+            mkt_params = self._load_market_params(market)
+            if 'surge_xgb' in mkt_params:
+                kw_xgb.update(mkt_params['surge_xgb'])
+            if 'surge_lgb' in mkt_params:
+                kw_lgb.update(mkt_params['surge_lgb'])
+            if 'surge_cat' in mkt_params:
+                kw_cat.update(mkt_params['surge_cat'])
+            if 'vcp_ml' in mkt_params:
+                vcp_ml_p = mkt_params['vcp_ml']
+                for k, v in vcp_ml_p.items():
+                    if k in kw_xgb or k in ['scale_pos_weight', 'window_step_size']:
+                        kw_xgb[k] = v
+                    if k in kw_lgb or k in ['scale_pos_weight', 'window_step_size']:
+                        kw_lgb[k] = v
+                    if k in kw_cat or k in ['scale_pos_weight', 'window_step_size']:
+                        kw_cat[k] = v
+
             from src.ai.prediction_model import DateAwareTimeSeriesSplit
             m_df['date'] = pd.to_datetime(m_df['date'])
             m_df = m_df.sort_values('date').reset_index(drop=True)
@@ -460,12 +538,17 @@ class VCPSurgePredictor:
                         logger.info(f"VCP ML skip {market} {h}d: only {pos_count} positive (< 2)")
                         continue
 
-                scale_pos_weight = min(neg_count / pos_count, 20.0)
+                spw_cap = kw_xgb.get('scale_pos_weight', 20.0)
+                try:
+                    spw_cap = min(float(spw_cap), 20.0) if (spw_cap is not None and float(spw_cap) > 0) else 20.0
+                except (TypeError, ValueError):
+                    spw_cap = 20.0
+                scale_pos_weight = min(neg_count / pos_count, spw_cap)
                 kw_xgb['scale_pos_weight'] = scale_pos_weight
                 kw_lgb['scale_pos_weight'] = scale_pos_weight
                 kw_cat['scale_pos_weight'] = scale_pos_weight
                 logger.info(f"VCP ML {market} {h}d: {pos_count} pos / {neg_count} neg "
-                            f"(scale={scale_pos_weight:.1f})")
+                            f"(scale={scale_pos_weight:.1f}, cap={spw_cap:.1f})")
 
                 X = m_df.loc[valid_idx, feat_cols]
                 y = target

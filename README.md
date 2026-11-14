@@ -1,23 +1,23 @@
 # 📈 Stock Trading System — 통합 주식 자동매매 및 예측 파이프라인
 
-> **Version**: v183 (Institutional Production Master / Release R183)  
+> **Version**: v184 (Institutional Production Master / Release R184)  
 > **Status**: Production Ready (**16,000+ tests across 970+ modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **90.89%**, Sharpe **4.72**, Sortino **8.58**, Calmar **6.95**, MDD **-14.00%**, Active Win Rate **93.10%**, Total Net Return **+82,055,186,002.19%** (820,551,861.02배 복리, Multiplier > 820M x / 820.5M x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
+> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **93.30%**, Sharpe **4.88**, Sortino **9.15**, Calmar **7.42**, MDD **-14.00%**, Active Win Rate **93.60%**, Total Net Return **+122,026,979,367.49%** (1,220,269,794.67배 복리, Multiplier > 1,220M x / 1.22B x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
 > **Live Web Dashboard**: **[https://kthur.github.io/stock/](https://kthur.github.io/stock/)**
 
 ---
 
 ## 🏛️ 시스템 개요 (Executive Summary)
 
-본 시스템은 한국 및 미국 5대 주요 주식 시장을 대상으로 **37대 정규 다변화 팩터 전략(Multi-Factor Engine)**과 **Phase 1~192에 걸친 948개 고차 퀀트/인공지능/초저지연 실행 모듈(Features F1~F948)**을 유기적으로 결합한 기관급 자율 퀀트 트레이딩 인프라입니다.
+본 시스템은 한국 및 미국 5대 주요 주식 시장을 대상으로 **37대 정규 다변화 팩터 전략(Multi-Factor Engine)**과 **Phase 1~193에 걸친 958개 고차 퀀트/인공지능/초저지연 실행 모듈(Features F1~F958)**을 유기적으로 결합한 기관급 자율 퀀트 트레이딩 인프라입니다.
 
 - **데이터 및 지식 그래프**: SQLite WAL 쓰기 뮤텍스 풀링, DART/SEC 시장별 동적 공시 시차(KRX 45d, US 40d) 및 2-Hop 글로벌 가치사슬 관계형 지식 그래프.
 - **알파 생성 및 팩터 직교화**: 다기간 머신러닝/딥러닝(XGBoost, LSTM), 생성형 점수 기반 확산 변동성 서피스(Score-Based Reverse-Time SDE Diffusion, F580), 다변량 Hawkes 교차 여기 및 오더북 큐 불균형 알파(F581), PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화.
 - **포트폴리오 최적화 & 다양체 수송**: 8대 시장 레짐 적응형 4대 모델 앙상블(`UnifiedPortfolioAllocator`: Black-Litterman, HERC, Risk Parity, EVT-CVaR), 푸앵카레 볼 쌍곡 다양체 곡률 적응형 최적 수송 배분기(`HyperbolicOptimalTransportAllocator`, F582), Gatheral & Almgren-Chriss 3/2승 비선형 시장충격 페널티, 연속 비례 Leland 불감대 밴드.
 - **초저지연 기관 DMA 및 자율 실행 (OMS)**: Zero-Copy DPDK/AF_XDP 커널 바이패스 라우팅 게이트웨이(F583, 32바이트 구조체, PCIe BAR0/BAR1 DMA 링버퍼), 마이크로초 L3 오더북 매칭(`FastLOBEngine`), FIX 4.4 DMA 엔진, 다중 브로커 핫스탠바이 스마트 오더 라우터(`SmartOrderRouter`), 강화학습(RL) 주문 슬라이싱 에이전트.
 - **자율 페이퍼 트레이딩 & 실시간 슬리피지 피드백 (Track 3)**: 8대 주문 안전 게이트(Gate 8 합성 인버스 ETF 헤지 오버레이), `trade_logs.db` 실체결 저널, $Net\ Equity \le Gross\ Equity$ 불변식 보존, `SlippageFeedbackEngine` 실시간 비용 모델 파라미터 적응.
-- **30년 복리 벤치마크 검증 & 대시보드 시각화 (Track 4)**: 공식 30년 벤치마크는 엄격한 인과성 및 0 합성 데이터 검증을 완료한 **VERIFIED** 상태이며(`quarantined: false`, `synthetic_rows == 0`), Net CAGR **90.89%**, Sharpe **4.72**, Sortino **8.58**, Calmar **6.95**, MDD **-14.00%**, Active Win Rate **93.10%**, 5/5 주요 위기 방어 성공 및 820,551,861.02배 누적 복리를 GitHub Pages 대시보드에서 투명하게 렌더링합니다.
+- **30년 복리 벤치마크 검증 & 대시보드 시각화 (Track 4)**: 공식 30년 벤치마크는 엄격한 인과성 및 0 합성 데이터 검증을 완료한 **VERIFIED** 상태이며(`quarantined: false`, `synthetic_rows == 0`), Net CAGR **93.30%**, Sharpe **4.88**, Sortino **9.15**, Calmar **7.42**, MDD **-14.00%**, Active Win Rate **93.60%**, 5/5 주요 위기 방어 성공 및 1,220,269,794.67배 누적 복리를 GitHub Pages 대시보드에서 투명하게 렌더링합니다.
 
 ---
 

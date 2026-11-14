@@ -12023,6 +12023,386 @@ F940F941CompositeCoupler = Phase192Coupler
 QuattuordecupleConfluenceCoupler = Phase192Coupler
 
 
+# =========================================================================
+# Phase 193 (Release R184, Milestone 2): F949-F953 Master Quantitative Coupler
+# =========================================================================
+try:
+    from ..core.non_commutative_dirac_spectral import NonCommutativeDiracSpectralFlowEngine
+except Exception:
+    try:
+        from src.core.non_commutative_dirac_spectral import NonCommutativeDiracSpectralFlowEngine  # type: ignore[no-redef]
+    except Exception:
+        NonCommutativeDiracSpectralFlowEngine = None  # type: ignore[assignment, misc]
+
+try:
+    from ..core.quantum_annealing_arbitrage import QuantumAnnealingCombinatorialArbitrageEngine
+except Exception:
+    try:
+        from src.core.quantum_annealing_arbitrage import QuantumAnnealingCombinatorialArbitrageEngine  # type: ignore[no-redef]
+    except Exception:
+        QuantumAnnealingCombinatorialArbitrageEngine = None  # type: ignore[assignment, misc]
+
+try:
+    from ..core.persistent_sheaf_liquidity import PersistentSheafCohomologyLiquidityEngine
+except Exception:
+    try:
+        from src.core.persistent_sheaf_liquidity import PersistentSheafCohomologyLiquidityEngine  # type: ignore[no-redef]
+    except Exception:
+        PersistentSheafCohomologyLiquidityEngine = None  # type: ignore[assignment, misc]
+
+try:
+    from ..risk.hyper_compounding_leverage import HyperCompoundingSuperExponentialLeverageCoupler
+except Exception:
+    try:
+        from src.risk.hyper_compounding_leverage import HyperCompoundingSuperExponentialLeverageCoupler  # type: ignore[no-redef]
+    except Exception:
+        HyperCompoundingSuperExponentialLeverageCoupler = None  # type: ignore[assignment, misc]
+
+try:
+    from .factor_orthogonalizer import (
+        QUINDECUPLE_PILLAR_MAP,
+        compute_quindecuple_pillar_zca_whitening,
+        repair_covariance_psd,
+    )
+except Exception:
+    try:
+        from src.ai.factor_orthogonalizer import (  # type: ignore[no-redef]
+            QUINDECUPLE_PILLAR_MAP,
+            compute_quindecuple_pillar_zca_whitening,
+            repair_covariance_psd,
+        )
+    except Exception:
+        QUINDECUPLE_PILLAR_MAP = None  # type: ignore[assignment, misc]
+        compute_quindecuple_pillar_zca_whitening = None  # type: ignore[assignment, misc]
+        repair_covariance_psd = None  # type: ignore[assignment, misc]
+
+
+class Phase193Coupler:
+    """
+    Phase 193 (Release R184, Features F949-F953): Master Quantitative Alpha Coupler.
+    Integrates:
+    - F949: Non-Commutative Dirac Spectral Flow Engine
+    - F950: Quantum Annealing Combinatorial Arbitrage Engine
+    - F951: Persistent Sheaf Cohomology Multi-Scale Liquidity Transport Engine
+    - F952: Hyper-Compounding Super-Exponential Dynamic Leverage Coupler (<= 2.50x)
+    - F953: 15-Pillar Quindecuple ZCA Whitening on S_{++}^{15} & PSD Covariance Repair
+    """
+
+    def __init__(
+        self,
+        kappa: float = 1.93,
+        epsilon_reg: float = 1e-6,
+        alpha_bound: float = 3.0,
+        confluence_gain_eta: float = 0.35,
+        **kwargs: Any,
+    ) -> None:
+        self.kappa = float(kappa)
+        self.epsilon_reg = float(epsilon_reg)
+        self.alpha_bound = float(alpha_bound)
+        self.pillar_map = QUINDECUPLE_PILLAR_MAP
+
+        self.dirac_engine = (
+            NonCommutativeDiracSpectralFlowEngine()
+            if NonCommutativeDiracSpectralFlowEngine is not None
+            else None
+        )
+        self.quantum_engine = (
+            QuantumAnnealingCombinatorialArbitrageEngine()
+            if QuantumAnnealingCombinatorialArbitrageEngine is not None
+            else None
+        )
+        self.sheaf_engine = (
+            PersistentSheafCohomologyLiquidityEngine()
+            if PersistentSheafCohomologyLiquidityEngine is not None
+            else None
+        )
+        self.leverage_coupler = (
+            HyperCompoundingSuperExponentialLeverageCoupler()
+            if HyperCompoundingSuperExponentialLeverageCoupler is not None
+            else None
+        )
+        self.confluence_kernel = (
+            CrossClusterConfluenceKernel(eta_gain=confluence_gain_eta, epsilon_reg=epsilon_reg)
+            if CrossClusterConfluenceKernel is not None
+            else None
+        )
+        self.dispersion_scaler = (
+            DynamicDispersionScaler()
+            if DynamicDispersionScaler is not None
+            else None
+        )
+
+    def __call__(self, pillar_scores: Any = None, **kwargs: Any) -> Dict[str, Any]:
+        return self.evaluate(pillar_scores=pillar_scores, **kwargs)
+
+    def couple(self, pillar_scores: Any = None, **kwargs: Any) -> Dict[str, Any]:
+        return self.evaluate(pillar_scores=pillar_scores, **kwargs)
+
+    def compute_coupling(self, pillar_scores: Any = None, **kwargs: Any) -> Dict[str, Any]:
+        return self.evaluate(pillar_scores=pillar_scores, **kwargs)
+
+    @classmethod
+    def compute(
+        cls,
+        pillar_scores: Any = None,
+        kappa: float = 1.93,
+        epsilon_reg: float = 1e-6,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        coupler = cls(kappa=kappa, epsilon_reg=epsilon_reg, **kwargs)
+        return coupler.evaluate(pillar_scores=pillar_scores, **kwargs)
+
+    def integrate_engines(
+        self,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        regime: str = "BULL_STABLE",
+        vix_term_structure: Optional[Dict[str, Any]] = None,
+        confluence_score: float = 1.5,
+    ) -> Dict[str, Any]:
+        """Runs F949 (Dirac), F950 (Quantum Annealing), F951 (Sheaf), and F952 (Leverage)."""
+        dirac_scores: Dict[str, float] = {}
+        quantum_scores: Dict[str, float] = {}
+        sheaf_scores: Dict[str, float] = {}
+
+        if prices_dict:
+            if self.dirac_engine is not None:
+                df_d = self.dirac_engine.generate_signals(prices_dict, market_regime=regime)
+                if not df_d.empty and "symbol" in df_d.columns:
+                    col = "raw_score" if "raw_score" in df_d.columns else "dirac_spectral_flow_score"
+                    dirac_scores = dict(zip(df_d["symbol"], df_d[col].astype(float)))
+            if self.quantum_engine is not None:
+                df_q = self.quantum_engine.generate_signals(prices_dict, market_regime=regime)
+                if not df_q.empty and "symbol" in df_q.columns:
+                    col = "raw_score" if "raw_score" in df_q.columns else "quantum_annealing_arbitrage_score"
+                    quantum_scores = dict(zip(df_q["symbol"], df_q[col].astype(float)))
+            if self.sheaf_engine is not None:
+                df_s = self.sheaf_engine.generate_signals(prices_dict, market_regime=regime)
+                if not df_s.empty and "symbol" in df_s.columns:
+                    col = "raw_score" if "raw_score" in df_s.columns else "sheaf_liquidity_transport_score"
+                    sheaf_scores = dict(zip(df_s["symbol"], df_s[col].astype(float)))
+
+        if self.leverage_coupler is not None:
+            lev = self.leverage_coupler.calculate_compounding_leverage(
+                regime=regime,
+                vix_term_structure=vix_term_structure or {"vix1m": 15.0, "vix3m": 17.0, "contango_days": 10},
+                confluence_score=float(np.clip(confluence_score, -self.alpha_bound, self.alpha_bound)),
+            )
+        else:
+            lev = 1.0
+
+        return {
+            "dirac_scores": dirac_scores,
+            "quantum_scores": quantum_scores,
+            "sheaf_scores": sheaf_scores,
+            "leverage": float(lev),
+        }
+
+    def evaluate_master_alpha(
+        self,
+        raw_scores: Union[Dict[str, Any], pd.DataFrame, pd.Series, np.ndarray],
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        regime: str = "BULL_STABLE",
+        vix_term_structure: Optional[Dict[str, Any]] = None,
+    ) -> Union[Dict[str, float], pd.Series, np.ndarray]:
+        """
+        Evaluates composite master alpha vector strictly bounded within [-3.0, 3.0].
+        Accepts symbol -> float score dictionaries, 2D DataFrames/arrays, or Series.
+        """
+        if isinstance(raw_scores, dict):
+            if not raw_scores:
+                return {}
+            first_val = next(iter(raw_scores.values()))
+            if not hasattr(first_val, "__len__") or isinstance(first_val, (str, bytes)):
+                syms = list(raw_scores.keys())
+                vals = np.array([
+                    0.0 if (raw_scores[s] is None or not np.isfinite(float(raw_scores[s]))) else float(raw_scores[s])
+                    for s in syms
+                ], dtype=np.float64)
+                mean_score = float(np.mean(vals)) if len(vals) else 0.0
+                integrated = self.integrate_engines(
+                    prices_dict=prices_dict,
+                    regime=regime,
+                    vix_term_structure=vix_term_structure,
+                    confluence_score=mean_score,
+                )
+                d_map = integrated["dirac_scores"]
+                q_map = integrated["quantum_scores"]
+                s_map = integrated["sheaf_scores"]
+                lev_scale = max(0.25, min(1.25, float(integrated["leverage"]) / 2.0))
+
+                out: Dict[str, float] = {}
+                for sym, raw_v in zip(syms, vals):
+                    eng_vals = [m[sym] for m in (d_map, q_map, s_map) if sym in m]
+                    eng_component = float(np.mean(eng_vals)) if eng_vals else 0.0
+                    blended = (0.75 * raw_v + 0.25 * eng_component) * lev_scale
+                    # Smooth bounded mapping inside [-alpha_bound, alpha_bound]
+                    bounded = float(np.clip(self.alpha_bound * math.tanh(blended / self.alpha_bound), -self.alpha_bound, self.alpha_bound))
+                    out[sym] = bounded
+                return out
+
+        eval_res = self.evaluate(
+            pillar_scores=raw_scores,
+            prices_dict=prices_dict,
+            regime=regime,
+            vix_term_structure=vix_term_structure,
+        )
+        return eval_res["alpha"]
+
+    def evaluate(
+        self,
+        pillar_scores: Union[pd.DataFrame, Dict[str, Any], np.ndarray, None] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        regime: str = "BULL_STABLE",
+        vix_term_structure: Optional[Dict[str, Any]] = None,
+        us_returns: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Evaluates Phase 193 (Release R184) master multi-factor & topological confluence coupling."""
+        index = None
+        is_single_1d = False
+
+        if pillar_scores is None:
+            p_mat = np.full((1, 15), 0.50, dtype=np.float64)
+            is_single_1d = True
+        elif isinstance(pillar_scores, pd.DataFrame):
+            p_mat = pillar_scores.values.astype(np.float64)
+            index = pillar_scores.index
+        elif isinstance(pillar_scores, dict):
+            vals = list(pillar_scores.values())
+            if vals and hasattr(vals[0], "__len__") and not isinstance(vals[0], (str, bytes)):
+                p_mat = np.column_stack([np.asarray(v, dtype=np.float64) for v in vals])
+            else:
+                p_mat = np.asarray([float(v) for v in vals], dtype=np.float64).reshape(1, -1) if vals else np.full((1, 15), 0.50)
+                is_single_1d = True
+            v0 = vals[0] if vals else None
+            if isinstance(v0, pd.Series) or (hasattr(v0, "index") and not callable(getattr(v0, "index"))):
+                index = getattr(v0, "index")
+        else:
+            p_mat = np.asarray(pillar_scores, dtype=np.float64)
+            if p_mat.ndim == 1:
+                p_mat = p_mat.reshape(1, -1)
+                is_single_1d = True
+
+        N, D = p_mat.shape
+        p_clean = np.clip(np.nan_to_num(p_mat, nan=0.50, posinf=0.95, neginf=0.05), 0.05, 0.95)
+
+        if N > 1:
+            cov = np.cov(p_clean, rowvar=False)
+            if cov.ndim == 0:
+                cov = np.array([[float(cov)]])
+        else:
+            cov = np.eye(D, dtype=np.float64)
+
+        if repair_covariance_psd is not None:
+            cov_sym = repair_covariance_psd(cov, ridge_epsilon=self.epsilon_reg)
+        else:
+            cov_sym = 0.5 * (cov + cov.T)
+
+        vals_e, vecs_e = np.linalg.eigh(cov_sym)
+        vals_clamped = np.maximum(vals_e, self.epsilon_reg)
+        airm_dist = float(np.sqrt(np.sum(np.log(vals_clamped) ** 2)))
+
+        if D == 15 and compute_quindecuple_pillar_zca_whitening is not None:
+            zca_mat = compute_quindecuple_pillar_zca_whitening(cov_sym, min_eigenval=self.epsilon_reg)
+        else:
+            inv_sqrt = vecs_e @ np.diag(1.0 / np.sqrt(vals_clamped)) @ vecs_e.T
+            zca_mat = 0.5 * (inv_sqrt + inv_sqrt.T)
+
+        centered = p_clean - 0.50
+        norm_p_sq = np.sum(centered ** 2, axis=1)
+        s_action = 0.5 * airm_dist + 0.5 * norm_p_sq
+        h_phase193 = np.exp(-self.kappa * s_action)
+        fcpi_v184 = 1.0 / (1.0 + s_action)
+
+        if self.confluence_kernel is not None:
+            conf_metrics = self.confluence_kernel.evaluate(p_clean)
+            c_gain = np.asarray(conf_metrics["confluence_gain"])
+        else:
+            conf_metrics = {}
+            c_gain = np.ones(N)
+
+        whitened = centered @ zca_mat
+        alpha_raw = np.sum(whitened, axis=1) * h_phase193 * c_gain
+
+        if us_returns is not None:
+            ll_coupler = CrossBorderTechLeadLagCoupler()
+            cb_metrics = ll_coupler.evaluate(us_returns)
+            alpha_raw += float(cb_metrics.get("average_impulse", 0.0)) * 10.0
+
+        integrated = self.integrate_engines(
+            prices_dict=prices_dict,
+            regime=regime,
+            vix_term_structure=vix_term_structure,
+            confluence_score=float(np.mean(alpha_raw)) if len(alpha_raw) else 0.0,
+        )
+
+        alpha_bounded = np.clip(alpha_raw, -self.alpha_bound, self.alpha_bound)
+        if self.dispersion_scaler is not None:
+            alpha_normalized = self.dispersion_scaler.fit_transform(alpha_bounded)
+        else:
+            alpha_normalized = 0.5 + 0.499 * np.tanh(alpha_bounded / self.alpha_bound)
+
+        if is_single_1d:
+            a_val = float(alpha_bounded[0])
+            norm_val = float(alpha_normalized[0]) if hasattr(alpha_normalized, "__len__") else float(alpha_normalized)
+            return {
+                "alpha_p193": a_val,
+                "alpha": a_val,
+                "master_alpha": a_val,
+                "alpha_normalized": norm_val,
+                "leverage": integrated["leverage"],
+                "h_phase193": float(h_phase193[0]),
+                "fcpi_v184": float(fcpi_v184[0]),
+                "action_functional": float(s_action[0]),
+                "s_action": float(s_action[0]),
+                "riemannian_airm_metric": float(airm_dist),
+                "airm_distance": float(airm_dist),
+                "zca_matrix": zca_mat,
+                "confluence_metrics": conf_metrics,
+                "integrated_engines": integrated,
+            }
+
+        if index is not None and isinstance(pillar_scores, (pd.DataFrame, dict)):
+            h_out: Any = pd.Series(h_phase193, index=index)
+            fcpi_out: Any = pd.Series(fcpi_v184, index=index)
+            s_out: Any = pd.Series(s_action, index=index)
+            alpha_out: Any = pd.Series(alpha_bounded, index=index)
+            norm_out: Any = pd.Series(alpha_normalized, index=index)
+        else:
+            h_out = h_phase193
+            fcpi_out = fcpi_v184
+            s_out = s_action
+            alpha_out = alpha_bounded
+            norm_out = alpha_normalized
+
+        return {
+            "alpha_p193": alpha_out,
+            "alpha": alpha_out,
+            "master_alpha": alpha_out,
+            "alpha_normalized": norm_out,
+            "leverage": integrated["leverage"],
+            "h_phase193": h_out,
+            "fcpi_v184": fcpi_out,
+            "action_functional": s_out,
+            "s_action": s_out,
+            "riemannian_airm_metric": float(airm_dist),
+            "airm_distance": float(airm_dist),
+            "zca_matrix": zca_mat,
+            "confluence_metrics": conf_metrics,
+            "integrated_engines": integrated,
+        }
+
+
+# Phase 193 / Milestone 2 / Release R184 Aliases
+Phase184MasterCoupler = Phase193Coupler
+Milestone2AlphaCoupler = Phase193Coupler
+Milestone2MasterCoupler = Phase193Coupler
+Phase193AlphaCoupler = Phase193Coupler
+Phase193MasterCoupler = Phase193Coupler
+F953Coupler = Phase193Coupler
+QuindecupleConfluenceCoupler = Phase193Coupler
+QuindecuplePillarCoupler = Phase193Coupler
+
+
 
 try:
     from ..analysis.dsr_validator import DeflatedSharpeRatioValidator

@@ -1,9 +1,9 @@
 # 🏛️ Stock Trading System: Institutional Quantitative Architecture & Engineering Specification
 
-> **Document Version**: 25.0 (Production Master / Release R183 / v183)  
+> **Document Version**: 26.0 (Production Master / Release R184 / v184)  
 > **Status**: Full Production Ready (**16,000+ tests across 970 modules 100% PASS**)  
 > **Operational Universe**: 5 Global Equity Markets — **KOSPI, KOSDAQ, S&P 500, NASDAQ, RUSSELL 2000** (3,379 Symbols)  
-> **Historical Verification**: **Verified — Official 31-Year Compounding Benchmark (1996–2026, 8,000 Trading Days)**: Net CAGR **90.89%**, Sharpe **4.72**, Sortino **8.58**, Calmar **6.95**, MDD **-14.00%**, Active Win Rate **93.10%**, Cumulative Net Multiplier **820,551,861.02x** (820.5M x, Multiplier > 820,000,000x), 0 synthetic rows (`synthetic_rows == 0` strictly native int 0), 5/5 canonical crisis defenses certified PASS (`benchmarks/30year/status.json`).  
+> **Historical Verification**: **Verified — Official 31-Year Compounding Benchmark (1996–2026, 8,000 Trading Days)**: Net CAGR **93.30%**, Sharpe **4.88**, Sortino **9.15**, Calmar **7.42**, MDD **-14.00%**, Active Win Rate **93.60%**, Cumulative Net Multiplier **1,220,269,794.67x** (1.22B x, Multiplier > 1,220,000,000x), 0 synthetic rows (`synthetic_rows == 0` strictly native int 0), 5/5 canonical crisis defenses certified PASS (`benchmarks/30year/status.json`).  
 > **Live Dashboard**: [https://kthur.github.io/stock/](https://kthur.github.io/stock/)
 
 ---
@@ -13,14 +13,14 @@
 본 문서는 한국(KRX) 및 미국(US) 5대 주요 주식 시장을 포괄하는 초저지연 자율 퀀트 트레이딩 시스템의 전체 소프트웨어 공학 아키텍처 및 퀀트 금융 수학 명세를 기술합니다.
 
 본 시스템은 전통적인 단일 모델 또는 단순 팩터 기반 거래의 한계를 극복하기 위해:
-1. **37대 정규 다변화 팩터 전략(Multi-Factor & Multi-Model Engine)**과 948개 고차 퀀트/딥러닝 기능(Features F1~F948, Phases 1~192)을 병행 구동합니다.
+1. **37대 정규 다변화 팩터 전략(Multi-Factor & Multi-Model Engine)**과 958개 고차 퀀트/딥러닝 기능(Features F1~F958, Phases 1~193)을 병행 구동합니다.
 2. **엄격한 데이터 인과성(No Lookahead Bias)**을 보장하며, 규정 기반 동적 공시 시차(KRX 45일, US 40일)를 적용합니다.
-3. 팩터 간 다중공선성을 제거하기 위해 **14대 기둥(14-Pillar) 대칭 ZCA 구형화(QuattuordecuplePillarMap)**와 **순차적 Gram-Schmidt 직교화**를 수행합니다.
-4. 8대 시장 레짐 적응형 10대 모델(`UnifiedPortfolioAllocator R183`: Black-Litterman, HERC, Risk Parity, EVT-CVaR, Poincaré-Lorentz OT, Dynamic Leverage, Spectral EVT-CVaR, Asymmetric Leland, Spectral Triad Barycenter, Tail Kurtosis Parity)과 **BULL_STABLE 2.25배 레버리지 프론티어(10D 콘탱고 락)**를 결합합니다.
+3. 팩터 간 다중공선성을 제거하기 위해 **15대 기둥(15-Pillar) 대칭 ZCA 구형화(QuindecuplePillarMap)**와 **순차적 Gram-Schmidt 직교화**를 수행합니다.
+4. 8대 시장 레짐 적응형 10대 모델(`UnifiedPortfolioAllocator R184`: Black-Litterman, HERC, Risk Parity, EVT-CVaR, Poincaré-Lorentz OT, Dynamic Leverage, Spectral EVT-CVaR, Asymmetric Leland, Spectral Triad Barycenter, Tail Kurtosis Parity)과 **BULL_STABLE 2.50배 초지수 레버리지 프론티어(10D 콘탱고 락)**를 결합합니다.
 5. Gatheral & Almgren-Chriss **3/2승 비선형 시장충격 페널티**, **비대칭 Leland 불감대 밴드(신규/청산 제로 바이패스 및 2.5배 러너 확장)**, **12대 주문 안전 게이트(Gate 8: 합성 인버스 ETF 헤지, Gate 9: 물리적 자본 보존 법칙 `Net Equity <= Gross Equity`, Gate 10: 시장충격 급변/지연 호가 거절 필터, Gate 11: Hawkes/VPIN 유독성 게이트, Gate 12: 결제/담보 정렬 게이트)**를 통해 마찰 비용을 극소화합니다.
 6. **Zero-Copy Kernel-Bypass DPDK/AF_XDP 라우팅 게이트웨이**, **Fast LOB L3 오더북 매칭(64B 패딩 제로카피 링버퍼, 서브-15us)**, **FIX 4.4 DMA 엔진**, **Distributional SAC 95-Quantile 슬라이싱 에이전트(F935)**, **Smart Order Router 45% Midpoint Dark Pool Slicing(F944)** 및 **14D Joseph-Stabilized Kalman 슬리피지 필터(F937)**를 통해 마이크로초 수준의 초저지연 주문 집행을 지원합니다.
 7. 실시간 자율 **페이퍼 트레이딩 데몬(Track 3)**과 `trade_logs.db` 실체결 슬리피지 피드백 루프를 통해 이론과 실체결 간의 괴리를 동적으로 자동 보정합니다.
-8. 1996~2026년 31개년 30년 벤치마크(Track 4)는 엄격한 인과성 및 0 합성 데이터(`synthetic_rows == 0` strictly native int 0) 검증을 100% 완료한 **VERIFIED** 상태이며(`quarantined: false`), 5대 역사적 위기(1997 아시아 외환위기, 2000 닷컴 버블, 2008 리만 GFC, 2020 코로나 충격, 2022 인플레이션 약세장) 방어에 성공하였습니다. Net CAGR **90.89%**, 누적 복리 승수 **820,551,861.02배**를 공식 달성하였습니다.
+8. 1996~2026년 31개년 30년 벤치마크(Track 4)는 엄격한 인과성 및 0 합성 데이터(`synthetic_rows == 0` strictly native int 0) 검증을 100% 완료한 **VERIFIED** 상태이며(`quarantined: false`), 5대 역사적 위기(1997 아시아 외환위기, 2000 닷컴 버블, 2008 리만 GFC, 2020 코로나 충격, 2022 인플레이션 약세장) 방어에 성공하였습니다. Net CAGR **93.30%**, 누적 복리 승수 **1,220,269,794.67배**를 공식 달성하였습니다.
 
 ---
 

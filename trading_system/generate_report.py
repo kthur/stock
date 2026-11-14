@@ -2763,7 +2763,9 @@ def _prepare_report_context(
         rows_html = ""
         cards_html = ""
         if mkt_data and mkt_data.rows:
-            for row_idx, erow in enumerate(mkt_data.rows):
+            display_limit = 10
+            display_rows = mkt_data.rows[:display_limit] if len(mkt_data.rows) > display_limit else mkt_data.rows
+            for row_idx, erow in enumerate(display_rows):
                 rc = ret_class(erow.expected_return)
                 ret_disp = f"▲ {erow.expected_return}" if erow.expected_return.startswith('+') else (f"▼ {erow.expected_return}" if erow.expected_return.startswith('-') else erow.expected_return)
                 symbol_link = make_stock_link(erow.symbol, mkt)
@@ -2809,7 +2811,7 @@ def _prepare_report_context(
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
                 clean_name = html.escape(erow.name).replace("'", "\\'").replace('"', '&quot;')
-                drawer_call = f"openStockDrawer('{erow.symbol}', '{clean_name}', '{mkt}', '{erow.score}', '{ret_disp}', '{factors_encoded}', {row_idx})"
+                drawer_call = f"openStockDrawer('{erow.symbol}', '{clean_name}', '{mkt}', '{erow.score}', '{ret_disp}', '', {row_idx})"
                 rank_badge_html = f'<span class="rank-badge rank-1">1</span>' if erow.rank == 1 else (f'<span class="rank-badge rank-2">2</span>' if erow.rank == 2 else (f'<span class="rank-badge rank-3">3</span>' if erow.rank == 3 else f'#{erow.rank}'))
                 rows_html += f"""
             <tr class="clickable-row" data-symbol="{erow.symbol}" data-initial-rank="{erow.rank}" data-initial-order="{row_idx}" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 37대 전략 상세 보기">
@@ -2970,7 +2972,7 @@ def _prepare_report_context(
         rows_html_summary = ""
         cards_html_summary = ""
         if mkt_data and mkt_data.rows:
-            display_limit = 12
+            display_limit = 8
             is_large_universe = len(mkt_data.rows) > display_limit
             display_rows = mkt_data.rows[:display_limit] if is_large_universe else mkt_data.rows
             for erow in mkt_data.rows[:25]:
@@ -3021,7 +3023,7 @@ def _prepare_report_context(
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
                 clean_name = html.escape(erow.name).replace("'", "\\\'").replace('"', '&quot;')
-                drawer_call = f"openStockDrawer('{erow.symbol}', '{clean_name}', '{mkt}', '{erow.score}', '{ret_disp}', '{factors_encoded}', {row_idx})"
+                drawer_call = f"openStockDrawer('{erow.symbol}', '{clean_name}', '{mkt}', '{erow.score}', '{ret_disp}', '', {row_idx})"
                 rank_badge_html = f'<span class="rank-badge rank-1">1</span>' if erow.rank == 1 else (f'<span class="rank-badge rank-2">2</span>' if erow.rank == 2 else (f'<span class="rank-badge rank-3">3</span>' if erow.rank == 3 else f'#{erow.rank}'))
                 rows_html_summary += f'''
             <tr class="clickable-row" data-symbol="{erow.symbol}" data-initial-rank="{erow.rank}" data-initial-order="{row_idx}" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{{{event.preventDefault();this.click()}}}}" title="클릭하여 37대 전략 상세 보기">
@@ -7656,9 +7658,38 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   
   const factorsContainer = document.getElementById('drawer-factors-grid');
   let parsedFactors = {{}};
-  if (factorsContainer && factorObjStr) {{
-    try {{
-      parsedFactors = JSON.parse(decodeURIComponent(factorObjStr));
+  if (factorsContainer) {{
+    if (factorObjStr) {{
+      try {{
+        parsedFactors = JSON.parse(decodeURIComponent(factorObjStr));
+      }} catch(e) {{}}
+    }}
+    if ((!parsedFactors || Object.keys(parsedFactors).length === 0) && typeof allStocksUniverse !== 'undefined') {{
+      const itm = allStocksUniverse.find(s => s.sym === symbol);
+      if (itm && itm.factors) {{
+        try {{
+          parsedFactors = JSON.parse(decodeURIComponent(itm.factors));
+        }} catch(e) {{}}
+      }}
+    }}
+    if (Array.isArray(parsedFactors)) {{
+      const CANONICAL_37_NAMES = [
+        "1. XGBoost 회귀", "2. Surge 분류기", "3. Lead-Lag", "4. VCP 패턴 (Rule)", "5. VCP ML",
+        "6. Strict LSTM", "7. Stat-Arb", "8. Sector Rotation", "9. RIM Valuation", "10. Event-Driven",
+        "11. MQ Factor", "12. Options IV Skew", "13. Order Flow", "14. Short-Term Reversal", "15. ARM Factor",
+        "16. CARD Factor", "17. LATR Factor", "18. Inst & Foreign Sector", "19. Supply Chain", "20. NLP Sentiment",
+        "21. Factor Neutralized", "22. Vol Targeting", "23. Microstructure", "24. Accruals Quality", "25. Short Squeeze",
+        "26. Value-Up Yield", "27. Trend Efficiency", "28. Gamma Squeeze", "29. Insider Buying", "30. Darkpool & HFT",
+        "31. Tone Drift", "32. Cross-Asset Spillover", "33. Supply Chain GNN", "34. Range Expansion", "35. Dual Correction",
+        "36. Index Rebalance", "37. Overnight Gap"
+      ];
+      const obj = {{}};
+      CANONICAL_37_NAMES.forEach((name, idx) => {{
+        obj[name] = parsedFactors[idx];
+      }});
+      parsedFactors = obj;
+    }}
+    if (parsedFactors && Object.keys(parsedFactors).length > 0) {{
       let html = '';
       for (const [key, rawVal] of Object.entries(parsedFactors)) {{
         let valStr = (rawVal === null || rawVal === undefined) ? 'N/A' : String(rawVal).trim();
@@ -8041,7 +8072,7 @@ def main(args_list: Optional[list[str]] = None):
     scen_universe = []
     for m in ensemble.markets:
         mkt = m.market
-        for r in m.rows[:50]:
+        for r in m.rows[:15]:
             raw_sec = getattr(r, 'sector_rotation', 'General')
             gics = SectorRotationEngine.normalize_sector(raw_sec, symbol=r.symbol, name=r.name)
             sec_cfg = GICS_ELASTICITY_MAP.get(gics, GICS_ELASTICITY_MAP['Consumer Staples'])
@@ -8071,50 +8102,21 @@ def main(args_list: Optional[list[str]] = None):
     seen_syms = set()
     for m in ensemble.markets:
         mkt = m.market
-        for r in m.rows:
+        for r in m.rows[:15]:
             if r.symbol not in seen_syms:
                 seen_syms.add(r.symbol)
-                factors_dict = {
-                    "1. XGBoost 회귀": r.reg,
-                    "2. Surge 분류기": r.surge,
-                    "3. Lead-Lag": r.lead_lag,
-                    "4. VCP 패턴 (Rule)": r.vcp_rule,
-                    "5. VCP ML": r.vcp_ml,
-                    "6. Strict LSTM": r.lstm,
-                    "7. Stat-Arb": r.stat_arb,
-                    "8. Sector Rotation": r.sector_rotation,
-                    "9. RIM Valuation": r.rim_valuation,
-                    "10. Event-Driven": r.event_driven,
-                    "11. MQ Factor": r.mq_factor,
-                    "12. Options IV Skew": r.iv_skew,
-                    "13. Order Flow": r.order_flow,
-                    "14. Short-Term Reversal": r.short_term_reversal,
-                    "15. ARM Factor": r.arm_factor,
-                    "16. CARD Factor": r.card_factor,
-                    "17. LATR Factor": r.latr_factor,
-                    "18. Inst & Foreign Sector": r.inst_foreign_sector,
-                    "19. Supply Chain": r.supply_chain,
-                    "20. NLP Sentiment": r.sentiment,
-                    "21. Factor Neutralized": r.factor_neutralized,
-                    "22. Vol Targeting": r.vol_target,
-                    "23. Microstructure": r.microstructure,
-                    "24. Accruals Quality": r.accruals_quality,
-                    "25. Short Squeeze": r.short_squeeze,
-                    "26. Value-Up Yield": r.valueup_catalyst,
-                    "27. Trend Efficiency": r.trend_efficiency,
-                    "28. Gamma Squeeze": r.gamma_squeeze,
-                    "29. Insider Buying": r.insider_buying,
-                    "30. Darkpool & HFT": r.darkpool,
-                    "31. Tone Drift": r.earnings_tone_drift,
-                    "32. Cross-Asset Spillover": r.cross_asset_spillover,
-                    "33. Supply Chain GNN": r.supply_chain_gnn,
-                    "34. Range Expansion": r.range_expansion,
-                    "35. Dual Correction": r.dual_correction,
-                    "36. Index Rebalance": r.index_rebalance,
-                    "37. Overnight Gap": r.overnight_gap,
-                }
+                factors_list = [
+                    r.reg, r.surge, r.lead_lag, r.vcp_rule, r.vcp_ml,
+                    r.lstm, r.stat_arb, r.sector_rotation, r.rim_valuation, r.event_driven,
+                    r.mq_factor, r.iv_skew, r.order_flow, r.short_term_reversal, r.arm_factor,
+                    r.card_factor, r.latr_factor, r.inst_foreign_sector, r.supply_chain, r.sentiment,
+                    r.factor_neutralized, r.vol_target, r.microstructure, r.accruals_quality, r.short_squeeze,
+                    r.valueup_catalyst, r.trend_efficiency, r.gamma_squeeze, r.insider_buying, r.darkpool,
+                    r.earnings_tone_drift, r.cross_asset_spillover, r.supply_chain_gnn, r.range_expansion, r.dual_correction,
+                    r.index_rebalance, r.overnight_gap
+                ]
                 import urllib.parse
-                factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
+                factors_encoded = urllib.parse.quote(_safe_json(factors_list))
                 all_stocks_universe.append({
                     "sym": r.symbol,
                     "name": r.name,

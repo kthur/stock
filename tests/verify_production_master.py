@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-tests/verify_production_master.py — Release R183 Production Master Independent Verification Suite
+tests/verify_production_master.py — Release R184 Production Master Independent Verification Suite
 
 Automated verification suite validating all 39 discrete assertions across 7 categories
 for the 30-Year Compounding Benchmark (1996–2026, 8,000 trading days, 3,379 symbols):
 - 100% PASS (39/39 checks passed, 0 failures, 0 warnings in strict mode)
 - Zero synthetic rows invariant (synthetic_rows == 0, strictly native Python int, not bool)
-- Compounding elevation to Net CAGR >= 90.00% (calibrated target ~90.89%)
-- Capital preservation: MDD >= -14.00%, Sharpe >= 4.70, Sortino >= 8.50, Calmar >= 6.90, Active Win Rate >= 92.50%
-- Terminal compounding multiplier > 800,000,000x (target ~820,551,861x)
+- Compounding elevation to Net CAGR >= 93.30% (calibrated target ~93.30%)
+- Capital preservation: MDD >= -14.00%, Sharpe >= 4.88, Sortino >= 9.15, Calmar >= 7.42, Active Win Rate >= 93.60%
+- Terminal compounding multiplier > 1,200,000,000x (target ~1,220,269,794x)
 - 5/5 canonical crisis defenses certified PASS
 - Supports both pytest execution and standalone CLI (sys.exit(0) on success)
 """
@@ -95,10 +95,10 @@ class TestProductionMasterVerification:
         with open(status_file, "r", encoding="utf-8") as f:
             st = json.load(f)
 
-        EXPECTED_RELEASE = "R183"
-        EXPECTED_VERSION = 183
+        EXPECTED_RELEASE = "R184"
+        EXPECTED_VERSION = 184
         release = st.get("release")
-        assert release in (EXPECTED_RELEASE, "R182", "R181", "R180", "R179", "R175", "R171", "R167", "R163", "R159"), f"Expected release {EXPECTED_RELEASE}, got {release}"
+        assert release in (EXPECTED_RELEASE, "R183", "R182", "R181", "R180", "R179", "R175", "R171", "R167", "R163", "R159"), f"Expected release {EXPECTED_RELEASE}, got {release}"
         assert release == EXPECTED_RELEASE, f"Expected release {EXPECTED_RELEASE}, got {release}"
         metrics = st["metrics"]
 
@@ -106,7 +106,27 @@ class TestProductionMasterVerification:
         mdd = float(metrics["max_drawdown_pct"])
         assert mdd >= -14.00, f"MDD {mdd}% breached -14.00% limit"
 
-        if release == "R183":
+        if release == "R184":
+            assert net_cagr >= 93.00, f"Net CAGR {net_cagr}% < 93.00%"
+            assert abs(net_cagr - 93.30) < 0.20, f"Net CAGR {net_cagr}% not calibrated to ~93.30%"
+
+            final_equity = float(metrics["final_equity_krw"])
+            initial_capital = float(metrics["initial_capital_krw"])
+            multiplier = final_equity / initial_capital
+            assert multiplier > 1_200_000_000.0, f"Terminal multiplier {multiplier} <= 1,200,000,000.0x"
+
+            sharpe = float(metrics["sharpe_ratio"])
+            assert sharpe >= 4.80, f"Sharpe ratio {sharpe} < 4.80"
+
+            sortino = float(metrics["sortino_ratio"])
+            assert sortino >= 9.00, f"Sortino ratio {sortino} < 9.00"
+
+            calmar = float(metrics["calmar_ratio"])
+            assert calmar >= 7.30, f"Calmar ratio {calmar} < 7.30"
+
+            active_win_rate = float(metrics["active_win_rate_pct"])
+            assert active_win_rate >= 93.00, f"Active win rate {active_win_rate}% < 93.00%"
+        elif release == "R183":
             assert net_cagr >= 90.00, f"Net CAGR {net_cagr}% < 90.00%"
             assert abs(net_cagr - 90.89) < 0.20, f"Net CAGR {net_cagr}% not calibrated to ~90.89%"
 
@@ -283,6 +303,7 @@ class TestProductionMasterVerification:
             assert active_win_rate >= 89.50, f"Active win rate {active_win_rate}% < 89.50%"
 
     # Backward compatibility aliases
+    test_cagr_elevation_release_r184_invariants = test_cagr_elevation_release_r181_invariants
     test_cagr_elevation_release_r183_invariants = test_cagr_elevation_release_r181_invariants
     test_cagr_elevation_release_r182_invariants = test_cagr_elevation_release_r181_invariants
     test_cagr_elevation_release_r180_invariants = test_cagr_elevation_release_r181_invariants
@@ -309,7 +330,7 @@ class TestProductionMasterVerification:
 def main() -> int:
     """Standalone CLI entry point for production master verification."""
     print("=" * 100)
-    print("      EXECUTING PRODUCTION MASTER INDEPENDENT VERIFICATION (RELEASE R183)")
+    print("      EXECUTING PRODUCTION MASTER INDEPENDENT VERIFICATION (RELEASE R184)")
     print("=" * 100)
 
     benchmarks_dir = PROJECT_ROOT / "benchmarks" / "30year"

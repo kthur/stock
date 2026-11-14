@@ -2,6 +2,7 @@ import logging
 import math
 import os
 import pandas as pd
+import numpy as np
 import xgboost as xgb
 import lightgbm as lgb
 try:
@@ -10,10 +11,17 @@ except ImportError:
     class _CatBoostStub:
         class CatBoostRegressor:
             def __init__(self, *args, **kwargs): pass
+            def fit(self, *args, **kwargs): return self
+            def predict(self, X): return np.zeros(len(X), dtype=np.float32)
+            def predict_proba(self, X): return np.zeros((len(X), 2), dtype=np.float32)
+            def save_model(self, path): pass
         class CatBoostClassifier:
             def __init__(self, *args, **kwargs): pass
+            def fit(self, *args, **kwargs): return self
+            def predict(self, X): return np.zeros(len(X), dtype=np.float32)
+            def predict_proba(self, X): return np.zeros((len(X), 2), dtype=np.float32)
+            def save_model(self, path): pass
     cb = _CatBoostStub()  # type: ignore
-import numpy as np
 import json
 from typing import Dict, Any, List, Optional, Tuple, Union
 
@@ -533,6 +541,47 @@ class OnDevicePredictionModel:
         self.load_surge_models()
         self.load_lead_lag()
 
+    @staticmethod
+    def _sanitize_market_params(params: Dict[str, Any]) -> Dict[str, Any]:
+        """Sanitize and clamp hyperparameter boundaries to institutional limits:
+        - learning_rate >= 1e-4
+        - max_depth >= 1
+        - scale_pos_weight: clamped <= 20.0 and > 0, fallback to 20.0 if invalid/negative
+        - n_estimators >= 1
+        Recursively processes nested model parameter dictionaries."""
+        if not isinstance(params, dict):
+            return {}
+
+        sanitized: Dict[str, Any] = {}
+        for section_key, section_val in params.items():
+            if isinstance(section_val, dict):
+                clean_sec = dict(section_val)
+                if 'learning_rate' in clean_sec:
+                    try:
+                        clean_sec['learning_rate'] = max(1e-4, float(clean_sec['learning_rate']))
+                    except (TypeError, ValueError):
+                        clean_sec['learning_rate'] = 0.05
+                if 'max_depth' in clean_sec:
+                    try:
+                        clean_sec['max_depth'] = max(1, int(clean_sec['max_depth']))
+                    except (TypeError, ValueError):
+                        clean_sec['max_depth'] = 5
+                if 'n_estimators' in clean_sec:
+                    try:
+                        clean_sec['n_estimators'] = max(1, int(clean_sec['n_estimators']))
+                    except (TypeError, ValueError):
+                        clean_sec['n_estimators'] = 100
+                if 'scale_pos_weight' in clean_sec:
+                    try:
+                        spw = clean_sec['scale_pos_weight']
+                        clean_sec['scale_pos_weight'] = min(float(spw), 20.0) if (spw is not None and float(spw) > 0) else 20.0
+                    except (TypeError, ValueError):
+                        clean_sec['scale_pos_weight'] = 20.0
+                sanitized[section_key] = clean_sec
+            else:
+                sanitized[section_key] = section_val
+        return sanitized
+
     def _load_market_params(self, market: str) -> Dict[str, Any]:
         """Load market-specific tuned parameters (e.g. tuned_params_sp500.json),
         falling back to global tuned_params.json if market file does not exist."""
@@ -545,7 +594,9 @@ class OnDevicePredictionModel:
                 with open(target_file, 'r') as f:
                     data = json.load(f)
                 logger.info(f"Loaded tuned params for {market} from {target_file.name}")
-                return data if isinstance(data, dict) else {}
+                if isinstance(data, dict):
+                    return self._sanitize_market_params(data)
+                return {}
             except Exception as e:
                 logger.warning(f"Failed to load tuned params from {target_file}: {e}")
         return {}
@@ -2362,7 +2413,12 @@ class OnDevicePredictionModel:
                 logger.warning(f"No surge samples for {market} {h}d, skipping")
                 continue
 
-            scale_pos_weight = min(neg_count / pos_count, 20.0)
+            spw_cap = kw_xgb.get('scale_pos_weight', 20.0)
+            try:
+                spw_cap = min(float(spw_cap), 20.0) if (spw_cap is not None and float(spw_cap) > 0) else 20.0
+            except (TypeError, ValueError):
+                spw_cap = 20.0
+            scale_pos_weight = min(neg_count / pos_count, spw_cap)
             kw_xgb['scale_pos_weight'] = scale_pos_weight
             kw_lgb['scale_pos_weight'] = scale_pos_weight
             kw_cat['scale_pos_weight'] = scale_pos_weight
