@@ -366,6 +366,7 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                         norm_scores = np.full(N_m, 0.5)
 
             # Pure Idiosyncratic Alpha Conviction Boost & Multi-Tier Super Premium
+            norm_scores = norm_scores.copy()
             mega_alpha_mask = norm_scores >= 0.95
             super_alpha_mask = (norm_scores >= 0.90) & (~mega_alpha_mask)
             alpha_mask = (norm_scores >= 0.80) & (norm_scores < 0.90)
