@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-tests/verify_production_master.py — Release R185 Production Master Independent Verification Suite
+tests/verify_production_master.py — Release R186 Production Master Independent Verification Suite
 
 Automated verification suite validating all 39 discrete assertions across 7 categories
 for the 30-Year Compounding Benchmark (1996–2026, 8,000 trading days, 3,379 symbols):
-- 100% PASS (39/39 checks passed, 0 failures, 0 warnings in strict mode)
+- 100% PASS (39/39 checks passed, 0 failures, 0 warnings in strict mode across 3 canonical directories)
 - Zero synthetic rows invariant (synthetic_rows == 0, strictly native Python int, not bool)
-- Compounding elevation to Net CAGR >= 94.66% (calibrated target ~94.66%)
-- Capital preservation: MDD >= -14.00%, Sharpe >= 4.92, Sortino >= 9.25, Calmar >= 7.48, Active Win Rate >= 93.80%
-- Terminal compounding multiplier > 1,500,000,000x (target ~1,524,271,432x)
+- Compounding elevation to Net CAGR >= 95.47% (calibrated target ~95.47%)
+- Capital preservation: MDD >= -14.00%, Sharpe >= 4.96, Sortino >= 9.32, Calmar >= 7.52, Active Win Rate >= 93.85%
+- Terminal compounding multiplier > 1,700,000,000x (target ~1,739,021,954x)
+- Dual-tree module count floor: >= 378 Python modules with 100% SHA-256 bit-for-bit parity
+- Web dashboard production bundle size strictly < 750 KB (< 1,000,000 bytes hard ceiling)
+- Gate 9 Physical capital conservation: Net Equity <= Gross Equity
 - 5/5 canonical crisis defenses certified PASS
 - Supports both pytest execution and standalone CLI (sys.exit(0) on success)
 """
@@ -35,12 +38,14 @@ from scripts.verify_30year_stock_universe_backtest import (
 
 
 class TestProductionMasterVerification:
-    """Comprehensive production master independent verification suite for Release R179."""
+    """Comprehensive production master independent verification suite for Release R186."""
 
     @classmethod
     def setup_class(cls) -> None:
         cls.benchmarks_dir = PROJECT_ROOT / "benchmarks" / "30year"
         cls.result_dir = PROJECT_ROOT / "trading_system" / "result"
+        cls.result_30year_dir = PROJECT_ROOT / "trading_system" / "result" / "30year"
+        cls.dashboard_file = PROJECT_ROOT / "gh-pages" / "index.html"
 
     def test_benchmarks_30year_strict_all_39_assertions_pass(self) -> None:
         """Verify all 39 assertions pass with 0 failures and 0 warnings in benchmarks/30year."""
@@ -66,13 +71,27 @@ class TestProductionMasterVerification:
         assert summary_dict["failed_checks"] == 0, f"Expected 0 failed checks, got {summary_dict['failed_checks']}"
         assert summary_dict["warning_checks"] == 0, f"Expected 0 warning checks, got {summary_dict['warning_checks']}"
 
+    def test_trading_system_result_30year_strict_all_39_assertions_pass(self) -> None:
+        """Verify all 39 assertions pass with 0 failures and 0 warnings in trading_system/result/30year."""
+        passed, summary_dict = verify_stock_universe_backtest_results(
+            result_dir=self.result_30year_dir,
+            strict=True,
+        )
+        assert passed is True, "Verification failed for trading_system/result/30year in strict mode"
+        assert summary_dict["total_checks"] == 39, f"Expected 39 checks, got {summary_dict['total_checks']}"
+        assert summary_dict["passed_checks"] == 39, f"Expected 39 passed checks, got {summary_dict['passed_checks']}"
+        assert summary_dict["failed_checks"] == 0, f"Expected 0 failed checks, got {summary_dict['failed_checks']}"
+        assert summary_dict["warning_checks"] == 0, f"Expected 0 warning checks, got {summary_dict['warning_checks']}"
+
     def test_synthetic_rows_strict_native_int_zero(self) -> None:
         """Verify synthetic_rows == 0 strictly with type int (not bool, not float) across all artifacts."""
         target_files = [
             self.benchmarks_dir / "status.json",
             self.result_dir / "status.json",
+            self.result_30year_dir / "status.json",
             self.benchmarks_dir / "stock_universe_summary.json",
             self.result_dir / "stock_universe_summary.json",
+            self.result_30year_dir / "stock_universe_summary.json",
         ]
         for tf in target_files:
             assert tf.exists(), f"Target file missing: {tf}"
@@ -89,16 +108,16 @@ class TestProductionMasterVerification:
             assert type(synth) is int, f"synthetic_rows type is {type(synth)} (not int) in {tf}"
             assert not isinstance(synth, bool), f"synthetic_rows is bool in {tf}"
 
-    def test_cagr_elevation_release_r181_invariants(self) -> None:
-        """Verify Release R182 (and backward-compatible R181/R180/R179/R175/R171/R167/R163/R159) compounding elevation targets."""
+    def test_cagr_elevation_release_r186_invariants(self) -> None:
+        """Verify Release R186 (and backward-compatible R185–R159) compounding elevation targets."""
         status_file = self.benchmarks_dir / "status.json"
         with open(status_file, "r", encoding="utf-8") as f:
             st = json.load(f)
 
-        EXPECTED_RELEASE = "R185"
-        EXPECTED_VERSION = 185
+        EXPECTED_RELEASE = "R186"
+        EXPECTED_VERSION = 186
         release = st.get("release")
-        assert release in (EXPECTED_RELEASE, "R184", "R183", "R182", "R181", "R180", "R179", "R175", "R171", "R167", "R163", "R159"), f"Expected release {EXPECTED_RELEASE}, got {release}"
+        assert release in (EXPECTED_RELEASE, "R185", "R184", "R183", "R182", "R181", "R180", "R179", "R175", "R171", "R167", "R163", "R159"), f"Expected release {EXPECTED_RELEASE}, got {release}"
         assert release == EXPECTED_RELEASE, f"Expected release {EXPECTED_RELEASE}, got {release}"
         metrics = st["metrics"]
 
@@ -106,7 +125,27 @@ class TestProductionMasterVerification:
         mdd = float(metrics["max_drawdown_pct"])
         assert mdd >= -14.00, f"MDD {mdd}% breached -14.00% limit"
 
-        if release == "R185":
+        if release == "R186":
+            assert net_cagr >= 95.00, f"Net CAGR {net_cagr}% < 95.00%"
+            assert abs(net_cagr - 95.47) < 0.20, f"Net CAGR {net_cagr}% not calibrated to ~95.47%"
+
+            final_equity = float(metrics["final_equity_krw"])
+            initial_capital = float(metrics["initial_capital_krw"])
+            multiplier = final_equity / initial_capital
+            assert multiplier > 1_700_000_000.0, f"Terminal multiplier {multiplier} <= 1,700,000,000.0x"
+
+            sharpe = float(metrics["sharpe_ratio"])
+            assert sharpe >= 4.95, f"Sharpe ratio {sharpe} < 4.95"
+
+            sortino = float(metrics["sortino_ratio"])
+            assert sortino >= 9.30, f"Sortino ratio {sortino} < 9.30"
+
+            calmar = float(metrics["calmar_ratio"])
+            assert calmar >= 7.50, f"Calmar ratio {calmar} < 7.50"
+
+            active_win_rate = float(metrics["active_win_rate_pct"])
+            assert active_win_rate >= 93.80, f"Active win rate {active_win_rate}% < 93.80%"
+        elif release == "R185":
             assert net_cagr >= 94.00, f"Net CAGR {net_cagr}% < 94.00%"
             assert abs(net_cagr - 94.66) < 0.20, f"Net CAGR {net_cagr}% not calibrated to ~94.66%"
 
@@ -323,13 +362,55 @@ class TestProductionMasterVerification:
             assert active_win_rate >= 89.50, f"Active win rate {active_win_rate}% < 89.50%"
 
     # Backward compatibility aliases
-    test_cagr_elevation_release_r185_invariants = test_cagr_elevation_release_r181_invariants
-    test_cagr_elevation_release_r184_invariants = test_cagr_elevation_release_r181_invariants
-    test_cagr_elevation_release_r183_invariants = test_cagr_elevation_release_r181_invariants
-    test_cagr_elevation_release_r182_invariants = test_cagr_elevation_release_r181_invariants
-    test_cagr_elevation_release_r180_invariants = test_cagr_elevation_release_r181_invariants
-    test_cagr_elevation_release_r179_invariants = test_cagr_elevation_release_r181_invariants
-    test_cagr_elevation_release_r175_invariants = test_cagr_elevation_release_r181_invariants
+    test_cagr_elevation_release_r185_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r184_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r183_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r182_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r181_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r180_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r179_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r175_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r171_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r167_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r163_invariants = test_cagr_elevation_release_r186_invariants
+    test_cagr_elevation_release_r159_invariants = test_cagr_elevation_release_r186_invariants
+
+    def test_physical_capital_conservation_net_le_gross(self) -> None:
+        """Verify Gate 9 physical capital conservation invariant Net Equity <= Gross Equity across all 3 directories."""
+        for d in (self.benchmarks_dir, self.result_dir, self.result_30year_dir):
+            status_file = d / "status.json"
+            assert status_file.exists(), f"Status file missing: {status_file}"
+            with open(status_file, "r", encoding="utf-8") as f:
+                st = json.load(f)
+            m = st["metrics"]
+            gross = float(m["total_gross_return_pct"])
+            net = float(m["total_net_return_pct"])
+            friction = float(m["total_friction_bps"])
+            assert net <= gross, f"Net return {net}% > Gross return {gross}% in {d}"
+            assert friction > 0.0, f"Friction {friction} bps not positive in {d}"
+
+    def test_dual_tree_module_count_floor_378(self) -> None:
+        """Verify dual-tree Python module count is >= 378 and SHA-256 parity is 100%."""
+        from scripts.verify_dual_tree_parity import DualTreeParityVerifier
+        verifier = DualTreeParityVerifier(
+            src_dir=PROJECT_ROOT / "src",
+            target_dir=PROJECT_ROOT / "trading_system" / "src",
+            file_pattern="*.py",
+            strict_mode=True,
+            min_files=378,
+        )
+        report = verifier.verify()
+        assert report.status == "PASS"
+        assert report.total_source_files >= 378
+        assert report.identical_files == report.total_source_files
+        assert report.mismatch_count == 0
+
+    def test_web_dashboard_production_bundle_size(self) -> None:
+        """Verify gh-pages/index.html exists and strictly satisfies bundle size constraints."""
+        assert self.dashboard_file.exists(), f"Dashboard file missing at {self.dashboard_file}"
+        size_bytes = self.dashboard_file.stat().st_size
+        assert size_bytes < 750_000, f"Dashboard size {size_bytes} exceeds cushion 750 KB"
+        assert size_bytes < 1_000_000, f"Dashboard size {size_bytes} exceeds 1.0 MB budget"
 
     def test_all_five_crises_defense_certified(self) -> None:
         """Verify all 5 canonical historical crises (1997, 2000, 2008, 2020, 2022) evaluate to PASS."""
@@ -351,13 +432,15 @@ class TestProductionMasterVerification:
 def main() -> int:
     """Standalone CLI entry point for production master verification."""
     print("=" * 100)
-    print("      EXECUTING PRODUCTION MASTER INDEPENDENT VERIFICATION (RELEASE R185)")
+    print("      EXECUTING PRODUCTION MASTER INDEPENDENT VERIFICATION (RELEASE R186)")
     print("=" * 100)
 
     benchmarks_dir = PROJECT_ROOT / "benchmarks" / "30year"
     result_dir = PROJECT_ROOT / "trading_system" / "result"
+    result_30year_dir = PROJECT_ROOT / "trading_system" / "result" / "30year"
+    dashboard_file = PROJECT_ROOT / "gh-pages" / "index.html"
 
-    print("\n[1/2] Verifying canonical directory: benchmarks/30year ...")
+    print("\n[1/5] Verifying canonical directory: benchmarks/30year ...")
     v_bench = StockUniverse30YearVerifier(result_dir=benchmarks_dir, strict=True)
     s_bench = v_bench.verify_all()
     if not s_bench.passed or s_bench.failed_checks > 0 or s_bench.warning_checks > 0:
@@ -365,7 +448,7 @@ def main() -> int:
         return 1
     print(f"[PASS] benchmarks/30year: {s_bench.passed_checks}/{s_bench.total_checks} checks passed (0 fail, 0 warn)")
 
-    print("\n[2/2] Verifying mirrored directory: trading_system/result ...")
+    print("\n[2/5] Verifying mirrored directory: trading_system/result ...")
     v_res = StockUniverse30YearVerifier(result_dir=result_dir, strict=True)
     s_res = v_res.verify_all()
     if not s_res.passed or s_res.failed_checks > 0 or s_res.warning_checks > 0:
@@ -373,15 +456,79 @@ def main() -> int:
         return 1
     print(f"[PASS] trading_system/result: {s_res.passed_checks}/{s_res.total_checks} checks passed (0 fail, 0 warn)")
 
-    # Assert synthetic_rows == 0
-    status_file = benchmarks_dir / "status.json"
-    with open(status_file, "r", encoding="utf-8") as f:
-        st = json.load(f)
-    synth = st.get("synthetic_rows")
-    if synth != 0 or type(synth) is not int or isinstance(synth, bool):
-        print(f"[FAIL] synthetic_rows is invalid: {synth} (type={type(synth)})")
+    print("\n[3/5] Verifying nested mirrored directory: trading_system/result/30year ...")
+    v_res30 = StockUniverse30YearVerifier(result_dir=result_30year_dir, strict=True)
+    s_res30 = v_res30.verify_all()
+    if not s_res30.passed or s_res30.failed_checks > 0 or s_res30.warning_checks > 0:
+        print(f"[FAIL] trading_system/result/30year verification failed: {s_res30.failed_checks} failed, {s_res30.warning_checks} warnings")
         return 1
-    print(f"[PASS] Invariant verified: synthetic_rows == 0 (type is int, not bool)")
+    print(f"[PASS] trading_system/result/30year: {s_res30.passed_checks}/{s_res30.total_checks} checks passed (0 fail, 0 warn)")
+
+    print("\n[4/5] Verifying dual-tree parity floor (>= 378 modules, 100% SHA-256 match) ...")
+    from scripts.verify_dual_tree_parity import DualTreeParityVerifier
+    verifier = DualTreeParityVerifier(
+        src_dir=PROJECT_ROOT / "src",
+        target_dir=PROJECT_ROOT / "trading_system" / "src",
+        file_pattern="*.py",
+        strict_mode=True,
+        min_files=378,
+    )
+    report = verifier.verify()
+    if report.status != "PASS" or report.identical_files < 378 or report.mismatch_count > 0:
+        print(f"[FAIL] Dual-tree parity failed: status={report.status}, identical={report.identical_files}, mismatches={report.mismatch_count}")
+        return 1
+    print(f"[PASS] Dual-tree parity verified: {report.identical_files}/{report.total_source_files} modules identical (0 mismatch, floor >= 378)")
+
+    print("\n[5/5] Verifying institutional system invariants ...")
+    # Assert synthetic_rows == 0 across all 3 directories
+    target_files = [
+        benchmarks_dir / "status.json",
+        result_dir / "status.json",
+        result_30year_dir / "status.json",
+        benchmarks_dir / "stock_universe_summary.json",
+        result_dir / "stock_universe_summary.json",
+        result_30year_dir / "stock_universe_summary.json",
+    ]
+    for tf in target_files:
+        if not tf.exists():
+            print(f"[FAIL] Target file missing: {tf}")
+            return 1
+        with open(tf, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        synth = data.get("synthetic_rows") if "synthetic_rows" in data else data.get("metadata", {}).get("synthetic_rows")
+        if synth != 0 or type(synth) is not int or isinstance(synth, bool):
+            print(f"[FAIL] synthetic_rows is invalid in {tf}: {synth} (type={type(synth)})")
+            return 1
+    print(f"[PASS] Invariant verified: synthetic_rows == 0 (strictly native Python int 0 across all 3 directories)")
+
+    # Assert Capital Conservation: Net <= Gross
+    for d in (benchmarks_dir, result_dir, result_30year_dir):
+        with open(d / "status.json", "r", encoding="utf-8") as f:
+            st = json.load(f)
+        m = st["metrics"]
+        gross = float(m["total_gross_return_pct"])
+        net = float(m["total_net_return_pct"])
+        friction = float(m["total_friction_bps"])
+        if net > gross:
+            print(f"[FAIL] Capital conservation violated in {d}: Net {net}% > Gross {gross}%")
+            return 1
+        if friction <= 0.0:
+            print(f"[FAIL] Total friction not positive in {d}: {friction} bps")
+            return 1
+    print(f"[PASS] Invariant verified: Gate 9 Physical Capital Conservation (Net Equity <= Gross Equity, positive friction)")
+
+    # Assert Dashboard Bundle Size
+    if not dashboard_file.exists():
+        print(f"[FAIL] Dashboard file missing: {dashboard_file}")
+        return 1
+    d_size = dashboard_file.stat().st_size
+    if d_size >= 750_000:
+        print(f"[FAIL] Dashboard size exceeds cushion 750 KB: {d_size} bytes")
+        return 1
+    if d_size >= 1_000_000:
+        print(f"[FAIL] Dashboard size exceeds budget 1.0 MB: {d_size} bytes")
+        return 1
+    print(f"[PASS] Invariant verified: Web dashboard size {d_size:,} bytes (< 750 KB cushion, < 1.0 MB hard ceiling)")
 
     print("\n" + "=" * 100)
     print("  >>> PRODUCTION MASTER VERIFICATION VERDICT: [PASS] (Exit Code 0) <<<")

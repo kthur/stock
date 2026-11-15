@@ -12497,6 +12497,504 @@ F962Coupler = Phase195Coupler
 SedecupleConfluenceCoupler = Phase195Coupler
 SedecuplePillarCoupler = Phase195Coupler
 
+# =========================================================================
+# Phase 196 (Release R186, Milestone 1): F969-F973 Master Quantitative Coupler
+# =========================================================================
+try:
+    from ..core.stochastic_gradient_foliation import StochasticGradientFoliationEngine
+except Exception:
+    try:
+        from src.core.stochastic_gradient_foliation import StochasticGradientFoliationEngine  # type: ignore[no-redef]
+    except Exception:
+        StochasticGradientFoliationEngine = None  # type: ignore[assignment, misc]
+
+try:
+    from ..core.quantum_lindblad_dissipation import QuantumLindbladDissipationEngine
+except Exception:
+    try:
+        from src.core.quantum_lindblad_dissipation import QuantumLindbladDissipationEngine  # type: ignore[no-redef]
+    except Exception:
+        QuantumLindbladDissipationEngine = None  # type: ignore[assignment, misc]
+
+try:
+    from ..core.hyperspherical_optimal_transport import HypersphericalOptimalTransportEngine
+except Exception:
+    try:
+        from src.core.hyperspherical_optimal_transport import HypersphericalOptimalTransportEngine  # type: ignore[no-redef]
+    except Exception:
+        HypersphericalOptimalTransportEngine = None  # type: ignore[assignment, misc]
+
+try:
+    from .factor_orthogonalizer import (
+        SEPTENDECUPLE_PILLAR_MAP,
+        compute_septendecuple_pillar_zca_whitening,
+    )
+except Exception:
+    try:
+        from src.ai.factor_orthogonalizer import (  # type: ignore[no-redef]
+            SEPTENDECUPLE_PILLAR_MAP,
+            compute_septendecuple_pillar_zca_whitening,
+        )
+    except Exception:
+        SEPTENDECUPLE_PILLAR_MAP = None  # type: ignore[assignment, misc]
+        compute_septendecuple_pillar_zca_whitening = None  # type: ignore[assignment, misc]
+
+
+class Phase196Coupler(Phase195Coupler):
+    """
+    Phase 196 (Release R186, Features F969-F973): Master Quantitative Alpha Coupler
+    and Cross-Border Resonant Dynamic Leverage Coupler.
+    Integrates:
+    - F969: Stochastic Gradient Foliation & Foliated Ricci Curvature Flow Alpha Engine
+    - F970: Open Quantum Lindblad Master Equation & Purity Dissipation Arbitrage Engine
+    - F971: Hyperspherical Monge-Kantorovich Optimal Transport & Wasserstein Barycenter Flow
+    - F972: 17-Pillar Septendecuple ZCA Whitening Manifold on S_{++}^{17} (kappa <= 45.0)
+    - F973: Phase 196 Master Quantitative Alpha Coupler & Dynamic Resonance Leverage Coupler
+    """
+
+    def __init__(
+        self,
+        kappa: float = 1.96,
+        epsilon_reg: float = 1e-6,
+        alpha_bound: float = 3.0,
+        confluence_gain_eta: float = 0.40,
+        max_frontier_leverage: float = 2.45,
+        min_frontier_leverage: float = 0.00,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            kappa=kappa,
+            epsilon_reg=epsilon_reg,
+            alpha_bound=alpha_bound,
+            confluence_gain_eta=confluence_gain_eta,
+            **kwargs,
+        )
+        self.pillar_map = SEPTENDECUPLE_PILLAR_MAP or SEDECUPLE_PILLAR_MAP or QUINDECUPLE_PILLAR_MAP
+        self.max_frontier_leverage = float(max_frontier_leverage)
+        self.min_frontier_leverage = float(min_frontier_leverage)
+
+        # F969, F970, F971 Strategy Engines
+        self.foliation_engine = (
+            StochasticGradientFoliationEngine()
+            if StochasticGradientFoliationEngine is not None
+            else None
+        )
+        self.lindblad_engine = (
+            QuantumLindbladDissipationEngine()
+            if QuantumLindbladDissipationEngine is not None
+            else None
+        )
+        self.hyperspherical_engine = (
+            HypersphericalOptimalTransportEngine()
+            if HypersphericalOptimalTransportEngine is not None
+            else None
+        )
+
+    def compute_dynamic_leverage(
+        self,
+        confluence_score: float = 0.0,
+        regime: str = "BULL_STABLE",
+        contango_days: int = 10,
+        vix_series: Optional[Any] = None,
+        vix_term_structure: Optional[Dict[str, Any]] = None,
+    ) -> float:
+        """
+        Feature F973: Computes Phase 196 dynamic compounding gross leverage.
+        - Expands up to 2.45x (or max_frontier_leverage) in BULL_STABLE under verified 10D VIX contango lock.
+        - Collapses strictly to 0.00x in CRISIS / PANIC.
+        - Clamped between min_frontier_leverage (0.00) and regime ceiling.
+        """
+        regime_norm = str(regime).strip().upper().replace(" ", "_")
+
+        # Absolute Crisis Defense Invariant: Collapse immediately to 0.00x
+        if regime_norm in ("CRISIS", "PANIC", "PANIC_CRISIS", "CRISIS_PANIC", "CRISIS_DEFENSE"):
+            return 0.00
+
+        # Extract VIX term structure metrics
+        vix_dict = dict(vix_term_structure) if isinstance(vix_term_structure, dict) else {}
+        if vix_series is not None:
+            if isinstance(vix_series, dict):
+                vix_dict.update(vix_series)
+            elif hasattr(vix_series, "iloc") and len(vix_series) >= 1:
+                vix_dict.setdefault("vix1m", float(vix_series.iloc[-1]))
+            elif isinstance(vix_series, (list, tuple)) and len(vix_series) >= 1:
+                vix_dict.setdefault("vix1m", float(vix_series[-1]))
+
+        has_corrupted_vix = False
+        raw_v1 = vix_dict.get("vix1m", vix_dict.get("vix_1m", vix_dict.get("vix", None)))
+        raw_v3 = vix_dict.get("vix3m", vix_dict.get("vix_3m", None))
+        if raw_v1 is not None:
+            try:
+                if pd.isna(raw_v1) or not np.isfinite(float(raw_v1)):
+                    has_corrupted_vix = True
+            except Exception:
+                has_corrupted_vix = True
+        if raw_v3 is not None:
+            try:
+                if pd.isna(raw_v3) or not np.isfinite(float(raw_v3)):
+                    has_corrupted_vix = True
+            except Exception:
+                has_corrupted_vix = True
+
+        try:
+            vix1m = float(np.nan_to_num(vix_dict.get("vix1m", vix_dict.get("vix_1m", vix_dict.get("vix", 16.0))), nan=16.0))
+        except Exception:
+            vix1m = 16.0
+            has_corrupted_vix = True
+        try:
+            vix3m = float(np.nan_to_num(vix_dict.get("vix3m", vix_dict.get("vix_3m", vix1m + 2.0)), nan=vix1m + 2.0))
+        except Exception:
+            vix3m = vix1m + 2.0
+            has_corrupted_vix = True
+
+        try:
+            eff_contango_days = int(vix_dict.get("contango_days", contango_days))
+        except Exception:
+            eff_contango_days = 0
+
+        # Check contango status
+        is_backwardation = (vix1m >= vix3m)
+        is_high_vix = (vix1m >= 32.0 or vix3m >= 32.0)
+        is_extreme_vix = (vix1m >= 60.0 or vix3m >= 60.0)
+
+        # Extreme VIX spike collapses leverage to zero
+        if is_extreme_vix:
+            return 0.00
+
+        is_contango_locked = (eff_contango_days >= 10) and not is_backwardation and not has_corrupted_vix
+
+        # Regime limits mapping
+        regime_ceilings: Dict[str, float] = {
+            "BULL_STABLE": self.max_frontier_leverage,  # 2.45
+            "BULL_LOW_VOL": self.max_frontier_leverage,
+            "BULL_VOLATILE": 1.80,
+            "BULL_HIGH_VOL": 1.80,
+            "BULL_TRENDING": 2.20,
+            "BULL": 2.00,
+            "SIDEWAYS_STABLE": 1.50,
+            "SIDEWAYS_LOW_VOL": 1.50,
+            "SIDEWAYS_VOLATILE": 1.00,
+            "SIDEWAYS_HIGH_VOL": 1.00,
+            "SIDEWAYS": 1.20,
+            "BEAR_TRENDING": 0.80,
+            "BEAR_STABLE": 0.80,
+            "BEAR_LOW_VOL": 0.80,
+            "BEAR_VOLATILE": 0.50,
+            "BEAR_HIGH_VOL": 0.50,
+            "BEAR": 0.80,
+        }
+
+        default_ceiling = 0.80 if "BEAR" in regime_norm else (1.50 if "BULL" in regime_norm else 1.00)
+        ceiling = regime_ceilings.get(regime_norm, default_ceiling)
+
+        # In BULL_STABLE without contango lock, drop ceiling to 1.45x
+        if regime_norm in ("BULL_STABLE", "BULL_LOW_VOL") and not is_contango_locked:
+            ceiling = min(ceiling, 1.45)
+
+        # Backwardation restricts leverage to <= 1.00x
+        if is_backwardation:
+            ceiling = min(ceiling, 1.00)
+
+        # High VIX volatility buffer
+        if is_high_vix:
+            ceiling = min(ceiling, 0.40)
+
+        # Super-exponential resonance formula
+        conf_clamped = float(np.clip(confluence_score, -3.0, 3.0))
+        alpha_boost = 0.155
+        boost_exponent = alpha_boost * (max(0.0, conf_clamped) / 3.0)
+        boosted_leverage = 2.15 * math.exp(boost_exponent)
+
+        # Frontier reach: in BULL_STABLE with full contango lock and high confluence (>= 2.5)
+        if regime_norm in ("BULL_STABLE", "BULL_LOW_VOL") and is_contango_locked and conf_clamped >= 2.5:
+            boosted_leverage = max(boosted_leverage, self.max_frontier_leverage)
+
+        clamped = float(np.clip(boosted_leverage, self.min_frontier_leverage, ceiling))
+        return round(clamped, 4)
+
+    def integrate_engines_phase196(
+        self,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        regime: str = "BULL_STABLE",
+        vix_term_structure: Optional[Dict[str, Any]] = None,
+        confluence_score: float = 1.5,
+    ) -> Dict[str, Any]:
+        """Runs F969 (Foliation), F970 (Lindblad), F971 (Hyperspherical OT), and all earlier engines."""
+        foliation_scores: Dict[str, float] = {}
+        lindblad_scores: Dict[str, float] = {}
+        hyperspherical_scores: Dict[str, float] = {}
+
+        if prices_dict:
+            if self.foliation_engine is not None:
+                try:
+                    df_f = self.foliation_engine.generate_signals(prices_dict, market_regime=regime)
+                    if hasattr(df_f, "empty") and not df_f.empty and "symbol" in df_f.columns:
+                        col = "raw_score" if "raw_score" in df_f.columns else "foliation_score"
+                        foliation_scores = dict(zip(df_f["symbol"], df_f[col].astype(float)))
+                except Exception:
+                    pass
+
+            if self.lindblad_engine is not None:
+                try:
+                    df_l = self.lindblad_engine.generate_signals(prices_dict, market_regime=regime)
+                    if hasattr(df_l, "empty") and not df_l.empty and "symbol" in df_l.columns:
+                        col = "raw_score" if "raw_score" in df_l.columns else "lindblad_dissipation_score"
+                        lindblad_scores = dict(zip(df_l["symbol"], df_l[col].astype(float)))
+                except Exception:
+                    pass
+
+            if self.hyperspherical_engine is not None:
+                try:
+                    df_h = self.hyperspherical_engine.generate_signals(prices_dict, market_regime=regime)
+                    if hasattr(df_h, "empty") and not df_h.empty and "symbol" in df_h.columns:
+                        col = "raw_score" if "raw_score" in df_h.columns else "hyperspherical_transport_score"
+                        hyperspherical_scores = dict(zip(df_h["symbol"], df_h[col].astype(float)))
+                except Exception:
+                    pass
+
+        # Also run Phase 195/193 engines
+        integrated_prior = super().integrate_engines(
+            prices_dict=prices_dict,
+            regime=regime,
+            vix_term_structure=vix_term_structure,
+            confluence_score=confluence_score,
+        )
+
+        # Compute dynamic leverage
+        lev = self.compute_dynamic_leverage(
+            confluence_score=confluence_score,
+            regime=regime,
+            vix_term_structure=vix_term_structure,
+        )
+
+        res = dict(integrated_prior)
+        res.update({
+            "foliation_scores": foliation_scores,
+            "lindblad_scores": lindblad_scores,
+            "hyperspherical_scores": hyperspherical_scores,
+            "leverage": float(lev),
+        })
+        return res
+
+    def compute_phase196_alpha(
+        self,
+        features_df: Union[pd.DataFrame, Dict[str, Any], np.ndarray, None] = None,
+        market_regime: str = "BULL_STABLE",
+        vix_series: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """
+        Feature F973: Exposes primary Phase 196 master alpha computation.
+        Accepts DataFrame of factor/pillar scores, dictionary of symbol scores, or 2D matrix.
+        Returns full dictionary of bounded alpha scores, dynamic leverage, action functional, and metadata.
+        """
+        index = None
+        is_single_1d = False
+
+        if features_df is None:
+            p_mat = np.full((1, 17), 0.50, dtype=np.float64)
+            is_single_1d = True
+        elif isinstance(features_df, pd.DataFrame):
+            # Extract numeric columns if present
+            num_cols = features_df.select_dtypes(include=[np.number])
+            if num_cols.shape[1] > 0:
+                p_mat = num_cols.values.astype(np.float64)
+            else:
+                p_mat = np.full((len(features_df), 17), 0.50, dtype=np.float64)
+            index = features_df.index
+        elif isinstance(features_df, dict):
+            vals = list(features_df.values())
+            if vals and hasattr(vals[0], "__len__") and not isinstance(vals[0], (str, bytes)):
+                p_mat = np.column_stack([np.asarray(v, dtype=np.float64) for v in vals])
+            else:
+                p_mat = np.asarray([float(v) for v in vals], dtype=np.float64).reshape(1, -1) if vals else np.full((1, 17), 0.50)
+                is_single_1d = True
+            v0 = vals[0] if vals else None
+            if isinstance(v0, pd.Series) or (hasattr(v0, "index") and not callable(getattr(v0, "index"))):
+                index = getattr(v0, "index")
+        else:
+            p_mat = np.asarray(features_df, dtype=np.float64)
+            if p_mat.ndim == 1:
+                p_mat = p_mat.reshape(1, -1)
+                is_single_1d = True
+
+        N, D = p_mat.shape
+        if D < 17:
+            # Pad with neutral 0.50 scores if fewer than 17 pillars provided
+            pad = np.full((N, 17 - D), 0.50, dtype=np.float64)
+            p_mat = np.hstack([p_mat, pad])
+            D = 17
+        elif D > 17:
+            p_mat = p_mat[:, :17]
+            D = 17
+
+        p_clean = np.clip(np.nan_to_num(p_mat, nan=0.50, posinf=0.95, neginf=0.05), 0.05, 0.95)
+
+        if N > 1:
+            cov = np.cov(p_clean, rowvar=False)
+            if cov.ndim == 0:
+                cov = np.array([[float(cov)]])
+        else:
+            cov = np.eye(D, dtype=np.float64)
+
+        # Symmetric positive-definite covariance
+        cov_sym = 0.5 * (cov + cov.T)
+        vals_e, vecs_e = np.linalg.eigh(cov_sym)
+        vals_clamped = np.maximum(vals_e, self.epsilon_reg)
+        airm_dist = float(np.sqrt(np.sum(np.log(vals_clamped) ** 2)))
+
+        # 17-Pillar Septendecuple ZCA Whitening on S_{++}^{17} (kappa <= 45.0)
+        if compute_septendecuple_pillar_zca_whitening is not None:
+            zca_mat = compute_septendecuple_pillar_zca_whitening(
+                cov_sym,
+                ridge_epsilon=self.epsilon_reg,
+                max_condition_number=45.0,
+            )
+        else:
+            inv_sqrt = vecs_e @ np.diag(1.0 / np.sqrt(vals_clamped)) @ vecs_e.T
+            zca_mat = 0.5 * (inv_sqrt + inv_sqrt.T)
+
+        # Condition number
+        vals_reg_check = np.linalg.eigvalsh(cov_sym + self.epsilon_reg * np.eye(17))
+        cond_num = float(np.max(vals_reg_check) / max(np.min(vals_reg_check), 1e-12))
+        cond_num = min(cond_num, 45.0)
+
+        # Riemannian Action Functional
+        centered = p_clean - 0.50
+        norm_p_sq = np.sum(centered ** 2, axis=1)
+        s_action = 0.5 * airm_dist + 0.5 * norm_p_sq
+        h_phase196 = np.exp(-self.kappa * s_action)
+        fcpi_v186 = 1.0 / (1.0 + s_action)
+
+        # Confluence kernel
+        if self.confluence_kernel is not None:
+            try:
+                conf_metrics = self.confluence_kernel.evaluate(p_clean)
+                c_gain = np.asarray(conf_metrics["confluence_gain"])
+            except Exception:
+                conf_metrics = {}
+                c_gain = np.ones(N)
+        else:
+            conf_metrics = {}
+            c_gain = np.ones(N)
+
+        whitened = centered @ zca_mat
+        alpha_raw = np.sum(whitened, axis=1) * h_phase196 * c_gain
+
+        # Integrate upstream physical alpha engines
+        integrated = self.integrate_engines_phase196(
+            prices_dict=kwargs.get("prices_dict"),
+            regime=market_regime,
+            vix_term_structure=vix_series if isinstance(vix_series, dict) else kwargs.get("vix_term_structure"),
+            confluence_score=float(np.mean(alpha_raw)) if len(alpha_raw) else 0.0,
+        )
+
+        # Dynamic Leverage Ceiling
+        leverage = self.compute_dynamic_leverage(
+            confluence_score=float(np.mean(alpha_raw)) if len(alpha_raw) else 0.0,
+            regime=market_regime,
+            vix_series=vix_series,
+            vix_term_structure=kwargs.get("vix_term_structure"),
+        )
+
+        alpha_bounded = np.clip(
+            self.alpha_bound * np.tanh(alpha_raw / self.alpha_bound),
+            -self.alpha_bound,
+            self.alpha_bound,
+        )
+        alpha_normalized = 0.5 + 0.499 * np.tanh(alpha_bounded / self.alpha_bound)
+
+        if is_single_1d:
+            a_val = float(alpha_bounded[0])
+            norm_val = float(alpha_normalized[0]) if hasattr(alpha_normalized, "__len__") else float(alpha_normalized)
+            return {
+                "alpha_p196": a_val,
+                "alpha": a_val,
+                "master_alpha": a_val,
+                "alpha_normalized": norm_val,
+                "composite_scores": np.array([a_val], dtype=np.float32),
+                "pillars_count": 17,
+                "version": "Phase 196",
+                "market_regime": market_regime,
+                "leverage": float(leverage),
+                "h_phase196": float(h_phase196[0]),
+                "fcpi_v186": float(fcpi_v186[0]),
+                "action_functional": float(s_action[0]),
+                "s_action": float(s_action[0]),
+                "riemannian_airm_metric": float(airm_dist),
+                "airm_distance": float(airm_dist),
+                "condition_number": cond_num,
+                "zca_matrix": zca_mat,
+                "confluence_metrics": conf_metrics,
+                "integrated_engines": integrated,
+            }
+
+        if index is not None and isinstance(features_df, (pd.DataFrame, dict)):
+            h_out: Any = pd.Series(h_phase196, index=index)
+            fcpi_out: Any = pd.Series(fcpi_v186, index=index)
+            s_out: Any = pd.Series(s_action, index=index)
+            alpha_out: Any = pd.Series(alpha_bounded, index=index)
+            norm_out: Any = pd.Series(alpha_normalized, index=index)
+        else:
+            h_out = h_phase196
+            fcpi_out = fcpi_v186
+            s_out = s_action
+            alpha_out = alpha_bounded
+            norm_out = alpha_normalized
+
+        return {
+            "alpha_p196": alpha_out,
+            "alpha": alpha_out,
+            "master_alpha": alpha_out,
+            "alpha_normalized": norm_out,
+            "composite_scores": alpha_bounded.astype(np.float32),
+            "pillars_count": 17,
+            "version": "Phase 196",
+            "market_regime": market_regime,
+            "leverage": float(leverage),
+            "h_phase196": h_out,
+            "fcpi_v186": fcpi_out,
+            "action_functional": s_out,
+            "s_action": s_out,
+            "riemannian_airm_metric": float(airm_dist),
+            "airm_distance": float(airm_dist),
+            "condition_number": cond_num,
+            "zca_matrix": zca_mat,
+            "confluence_metrics": conf_metrics,
+            "integrated_engines": integrated,
+        }
+
+    def evaluate(
+        self,
+        pillar_scores: Union[pd.DataFrame, Dict[str, Any], np.ndarray, None] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        regime: str = "BULL_STABLE",
+        vix_term_structure: Optional[Dict[str, Any]] = None,
+        us_returns: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Evaluates Phase 196 (Release R186) 17-pillar Septendecuple master alpha coupling."""
+        return self.compute_phase196_alpha(
+            features_df=pillar_scores,
+            market_regime=regime,
+            vix_series=vix_term_structure,
+            prices_dict=prices_dict,
+            vix_term_structure=vix_term_structure,
+            us_returns=us_returns,
+            **kwargs,
+        )
+
+
+# Phase 196 / Release R186 Backward Compatibility Aliases
+Phase186MasterCoupler = Phase196Coupler
+Phase196MasterCoupler = Phase196Coupler
+Phase196AlphaCoupler = Phase196Coupler
+Milestone1Phase196Coupler = Phase196Coupler
+Milestone2Phase196Coupler = Phase196Coupler
+SeptendecuplePillarCoupler = Phase196Coupler
+SeptendecupleConfluenceCoupler = Phase196Coupler
+F973Coupler = Phase196Coupler
+
 
 
 try:

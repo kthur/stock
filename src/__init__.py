@@ -232,7 +232,7 @@ from .core import (
 from .data_layer import MarketDataHandler, NLPEngine
 from .persistence import AssetHistoryDB, TradeLogger
 
-__version__ = "185.0.0"
+__version__ = "186.0.0"
 __author__ = "Stock Trading Team"
 __all__ = [
     "AccountSyncAgent",

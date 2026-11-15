@@ -1,9 +1,9 @@
 # Track 3: Autonomous Paper Trading Session & Shadow OMS Execution Report
 
-- **Session Timestamp**: 2026-11-14T18:35:29.255609+09:00 (KST)
-- **Execution Mode**: `DRY_RUN`
+- **Session Timestamp**: 2026-11-15T22:35:51.109602+09:00 (KST)
+- **Execution Mode**: `PAPER`
 - **Market Regime**: `BULL_LOW_VOL` (Crisis Level: `NORMAL`)
-- **Rebalance Iterations**: 1
+- **Rebalance Iterations**: 3
 - **Mathematical Invariant (`Net Equity <= Gross Equity`)**: **PASSED**
 
 ## 1. Portfolio Financial Snapshot

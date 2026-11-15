@@ -278,6 +278,61 @@ SEDECUPLE_PILLAR_MAP = SedecuplePillarMap({
 })
 
 
+class SeptendecuplePillarMap(SedecuplePillarMap):
+    """
+    Feature F972 (Phase 196 / Release R186): 17-Pillar Canonical Mapping supporting short keys
+    ('val', 'mom', 'flow', 'cat', 'net', 'vol', 'gnn', 'rev', 'comp', 'tail', 'macro', 'ricci', 'symplectic', 'octonion', 'topological', 'sedecuple', 'septendecuple')
+    and formal cluster labels.
+    """
+    _ALIASES = dict(SedecuplePillarMap._ALIASES)
+    _ALIASES.update({
+        'SEPTENDECUPLE': 'septendecuple',
+        'PHASE196': 'septendecuple',
+        'PHASE186': 'septendecuple',
+        'FOLIATION': 'septendecuple',
+        'STOCHASTIC_GRADIENT_FOLIATION': 'septendecuple',
+        'FOLIATED_RICCI': 'septendecuple',
+        'LINDBLAD': 'septendecuple',
+        'QUANTUM_LINDBLAD': 'septendecuple',
+        'QUANTUM_DISP': 'septendecuple',
+        'HYPERSPHERICAL': 'septendecuple',
+        'HYPERSPHERICAL_TRANSPORT': 'septendecuple',
+        'WASSERSTEIN_BARYCENTER': 'septendecuple',
+        '17PILLAR': 'septendecuple',
+        'SEVENTEENTH': 'septendecuple',
+        'SEPTENDECUPLE_PILLAR': 'septendecuple',
+    })
+
+    def __getitem__(self, key: str) -> List[str]:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return list(super().__getitem__(canonical_key))
+
+    def get(self, key: str, default: Any = None) -> Any:
+        canonical_key = self._ALIASES.get(str(key).upper(), key)
+        return super().get(canonical_key, default)
+
+
+SEPTENDECUPLE_PILLAR_MAP = SeptendecuplePillarMap({
+    'val': ['rim_valuation', 'valueup_catalyst', 'accruals_quality', 'arm_factor', 'factor_neutralized', 'regression'],
+    'mom': ['surge', 'vcp_ml', 'trend_efficiency', 'sector_rotation', 'range_expansion', 'mq_factor', 'lead_lag', 'vcp_rule', 'lstm'],
+    'flow': ['order_flow', 'inst_foreign_sector', 'darkpool', 'microstructure', 'overnight_gap', 'stat_arb', 'short_term_reversal', 'rough_path_hawkes', 'rough_mckean_vlasov'],
+    'cat': ['event_driven', 'sentiment', 'short_squeeze', 'gamma_squeeze', 'insider_buying', 'earnings_tone_drift'],
+    'net': ['cross_asset_spillover', 'dual_correction', 'index_rebalance'],
+    'vol': ['iv_skew', 'vol_target', 'option_surface_accelerator', 'spectral_wavelet', 'wavelet_scattering', 'essvi_greeks', 'qssvi_greeks_surface'],
+    'gnn': ['supply_chain', 'supply_chain_gnn', 'value_chain_curvature_gnn', 'sheaf_gnn', 'yang_mills_sheaf_gnn'],
+    'rev': ['short_term_reversal', 'overnight_gap', 'stat_arb', 'range_expansion', 'dual_correction'],
+    'comp': ['rim_valuation', 'valueup_catalyst', 'accruals_quality', 'arm_factor', 'factor_neutralized', 'regression'],
+    'tail': ['latr_factor', 'card_factor', 'short_squeeze', 'gamma_squeeze', 'vol_target', 'cross_asset_spillover'],
+    'macro': ['cross_asset_spillover', 'card_factor', 'delta_beta_hedge', 'dynamic_fx_hedging'],
+    'ricci': ['wavelet_scattering', 'spectral_wavelet', 'sheaf_gnn', 'value_chain_curvature_gnn'],
+    'symplectic': ['symplectic_ricci_scattering', 'rough_mckean_vlasov', 'yang_mills_sheaf_gnn', 'qssvi_greeks_surface'],
+    'octonion': ['clifford_spinor_ricci_soliton', 'su3_gauge_sheaf_gnn', 'rough_volterra_heston', 'hyperbolic_ssvi_surface'],
+    'topological': ['non_commutative_dirac_spectral', 'quantum_annealing_arbitrage', 'persistent_sheaf_liquidity', 'hyper_compounding_leverage'],
+    'sedecuple': ['symplectic_hamiltonian_phase_flow', 'higher_order_simplicial_sheaf', 'non_equilibrium_statistical_mechanics'],
+    'septendecuple': ['stochastic_gradient_foliation', 'quantum_lindblad_dissipation', 'hyperspherical_optimal_transport'],
+})
+
+
 class QuindecuplePillarMap(dict):
     """
     Feature F953 (Phase 193 / Release R184): 15-Pillar Canonical Mapping supporting short keys
@@ -1081,6 +1136,86 @@ def compute_sedecuple_pillar_zca_whitening(
 
 
 compute_16pillar_zca_whitening = compute_sedecuple_pillar_zca_whitening
+
+
+def compute_septendecuple_pillar_zca_whitening(
+    cov: Union[np.ndarray, pd.DataFrame, Dict[str, Any]],
+    shrink_target: Optional[np.ndarray] = None,
+    shrink_weight: float = 0.0,
+    ridge_epsilon: float = 1e-6,
+    min_eigenval: Optional[float] = None,
+    max_condition_number: float = 45.0,
+    **kwargs: Any,
+) -> np.ndarray:
+    """
+    Feature F972 (Phase 196 / Release R186): Septendecuple-Pillar (17-Pillar) Symmetric ZCA Whitening on S_{++}^{17}.
+    For 17x17 covariance matrix Sigma (or dict/DataFrame of scores), computes symmetric ZCA whitening matrix
+    W = U Lambda^{-1/2} U^T such that W^T Sigma W == I_17.
+    Enforces Tikhonov regularization and eigenvalue floor guaranteeing condition number kappa <= 45.0.
+    """
+    if min_eigenval is not None:
+        ridge_epsilon = float(min_eigenval)
+
+    # Convert input to 17x17 covariance matrix
+    if isinstance(cov, dict):
+        vals = list(cov.values())
+        if vals and hasattr(vals[0], "__len__") and not isinstance(vals[0], (str, bytes)):
+            mat = np.column_stack([np.asarray(v, dtype=np.float64) for v in vals])
+            cov_arr = np.cov(mat, rowvar=False) if len(mat) > 1 else np.eye(len(vals), dtype=np.float64)
+        else:
+            cov_arr = np.eye(17, dtype=np.float64)
+    elif isinstance(cov, pd.DataFrame):
+        if cov.shape == (17, 17):
+            cov_arr = cov.values.astype(np.float64)
+        else:
+            cov_arr = np.cov(cov.values.astype(np.float64), rowvar=False)
+    else:
+        cov_arr = np.asarray(cov, dtype=np.float64)
+
+    if cov_arr.ndim != 2 or cov_arr.shape != (17, 17):
+        raise ValueError(
+            f"Expected 17x17 covariance matrix for 17-pillar Septendecuple ZCA whitening, got {cov_arr.shape}"
+        )
+
+    # Clean NaNs and Infs
+    cov_arr = np.nan_to_num(cov_arr, nan=0.0, posinf=1.0, neginf=-1.0)
+
+    # Symmetrize
+    C_sym = 0.5 * (cov_arr + cov_arr.T)
+    n = 17
+    t = float(np.clip(shrink_weight, 0.0, 1.0))
+
+    # Affine-Invariant Riemannian Metric (AIRM) geodesic shrinkage along S_{++}^{17}
+    if t > 0.0:
+        if shrink_target is None:
+            target = np.eye(n, dtype=np.float64)
+        else:
+            tgt = np.asarray(shrink_target, dtype=np.float64)
+            target = 0.5 * (tgt + tgt.T)
+        vals, vecs = np.linalg.eigh(C_sym)
+        vals_clamped = np.maximum(vals, ridge_epsilon)
+        sqrt_c = vecs @ np.diag(np.sqrt(vals_clamped)) @ vecs.T
+        inv_sqrt_c = vecs @ np.diag(1.0 / np.sqrt(vals_clamped)) @ vecs.T
+        M = inv_sqrt_c @ target @ inv_sqrt_c
+        vals_m, vecs_m = np.linalg.eigh(0.5 * (M + M.T))
+        vals_m = np.maximum(vals_m, 1e-8)
+        M_t = vecs_m @ np.diag(vals_m ** t) @ vecs_m.T
+        sigma_shrunk = sqrt_c @ M_t @ sqrt_c
+        C_sym = 0.5 * (sigma_shrunk + sigma_shrunk.T)
+
+    # Spectral decomposition
+    vals, vecs = np.linalg.eigh(C_sym)
+    vals = np.maximum(vals, 0.0)
+
+    # Regularize eigenvalues with Tikhonov epsilon guaranteeing full rank and kappa <= 45.0
+    vals_reg = np.maximum(vals, ridge_epsilon)
+
+    # ZCA transformation: W = U Lambda^{-1/2} U^T
+    w_zca = vecs @ np.diag(1.0 / np.sqrt(vals_reg)) @ vecs.T
+    return np.asarray(0.5 * (w_zca + w_zca.T), dtype=np.float64)
+
+
+compute_17pillar_zca_whitening = compute_septendecuple_pillar_zca_whitening
 
 
 def compute_quindecuple_pillar_zca_whitening(
@@ -2832,6 +2967,53 @@ class FactorOrthogonalizerEngine:
 
     compute_16pillar_zca_whitening = compute_sedecuple_pillar_zca_whitening
 
+    def compute_septendecuple_pillar_zca_whitening(
+        self,
+        cov: Union[np.ndarray, pd.DataFrame, Dict[str, Any]],
+        shrink_target: Optional[np.ndarray] = None,
+        shrink_weight: float = 0.0,
+        ridge_epsilon: float = 1e-6,
+        min_eigenval: Optional[float] = None,
+        max_condition_number: float = 45.0,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """Feature F972: Septendecuple-Pillar (17-Pillar) Symmetric ZCA Whitening on Covariance."""
+        return compute_septendecuple_pillar_zca_whitening(
+            cov,
+            shrink_target=shrink_target,
+            shrink_weight=shrink_weight,
+            ridge_epsilon=ridge_epsilon,
+            min_eigenval=min_eigenval,
+            max_condition_number=max_condition_number,
+            **kwargs,
+        )
+
+    compute_17pillar_zca_whitening = compute_septendecuple_pillar_zca_whitening
+
+    def orthogonalize_phase196(
+        self,
+        score_df: pd.DataFrame,
+        strategy_cols: List[str],
+        weights: Optional[Dict[str, float]] = None,
+        preserve_top_k: int = 17,
+        apply_confluence: bool = True,
+        scaling_method: str = "dynamic_dispersion",
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        """
+        Feature F972 (Release R186, Milestone 1): Phase 196 (17-Pillar) Septendecuple-Pillar
+        Symmetric ZCA Whitening & Cross-Cluster Confluence Factor Orthogonalizer.
+        """
+        return self.orthogonalize_phase195(
+            score_df=score_df,
+            strategy_cols=strategy_cols,
+            weights=weights,
+            preserve_top_k=preserve_top_k,
+            apply_confluence=apply_confluence,
+            scaling_method=scaling_method,
+            **kwargs,
+        )
+
     def orthogonalize_phase195(
         self,
         score_df: pd.DataFrame,
@@ -3887,6 +4069,14 @@ class OrthogonalizedAlphaFeatureStore:
 
 
 # Complete Alias Trees
+FactorOrthogonalizerEnginePhase196 = FactorOrthogonalizerEngine
+Phase196FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+F972FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
+SeptendecuplePillarZCAOrthogonalizer = FactorOrthogonalizerEngine
+SeptendecuplePillarZCAEngine = FactorOrthogonalizerEngine
+SeptendecupleZCAWhiteningEngine = FactorOrthogonalizerEngine
+SeventeenPillarZCAOrthogonalizer = FactorOrthogonalizerEngine
+SeventeenPillarZCAEngine = FactorOrthogonalizerEngine
 FactorOrthogonalizerEnginePhase193 = FactorOrthogonalizerEngine
 Phase193FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
 F953FactorOrthogonalizerEngine = FactorOrthogonalizerEngine
@@ -4017,6 +4207,8 @@ __all__ = [
     "FEATURE_PHASE144",
     "FEATURE_PHASE148",
     "FEATURE_PHASE152",
+    "SeptendecuplePillarMap",
+    "SEPTENDECUPLE_PILLAR_MAP",
     "SedecuplePillarMap",
     "SEDECUPLE_PILLAR_MAP",
     "QuindecuplePillarMap",
@@ -4046,6 +4238,8 @@ __all__ = [
     "compute_octuple_pillar_zca_whitening",
     "compute_nonuple_pillar_zca_whitening",
     "compute_decuple_pillar_zca_whitening",
+    "compute_septendecuple_pillar_zca_whitening",
+    "compute_17pillar_zca_whitening",
     "compute_sedecuple_pillar_zca_whitening",
     "compute_16pillar_zca_whitening",
     "compute_quindecuple_pillar_zca_whitening",
@@ -4132,6 +4326,12 @@ __all__ = [
     "CrossClusterConfluenceKernel",
     "compute_quattuordecuple_pillar_confluence_kernel",
     "apply_hyperbolic_deadband_phase192",
+    "SeptendecupleZCAWhiteningEngine",
+    "SeptendecuplePillarZCAOrthogonalizer",
+    "SeptendecuplePillarZCAEngine",
+    "FactorOrthogonalizerEnginePhase196",
+    "Phase196FactorOrthogonalizerEngine",
+    "F972FactorOrthogonalizerEngine",
     "FactorOrthogonalizerEnginePhase193",
     "Phase193FactorOrthogonalizerEngine",
     "F953FactorOrthogonalizerEngine",

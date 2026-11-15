@@ -55,7 +55,7 @@ IGNORED_FILENAMES: Set[str] = {
     "Thumbs.db",
 }
 
-DEFAULT_MIN_FILES: int = 328
+DEFAULT_MIN_FILES: int = 378
 
 
 @dataclass
@@ -290,6 +290,67 @@ def compare_trees(
         only_in_target=only_in_target,
         failure_reasons=failure_reasons,
     )
+
+
+@dataclass
+class DualTreeVerificationResult:
+    status: str
+    passed: bool
+    total_source_files: int
+    total_target_files: int
+    identical_files: int
+    mismatch_count: int
+    only_in_source_count: int
+    only_in_target_count: int
+    parity_report: ParityReport
+
+    @property
+    def identical_count(self) -> int:
+        return self.identical_files
+
+    @property
+    def mismatched_count(self) -> int:
+        return self.mismatch_count
+
+
+class DualTreeParityVerifier:
+    """Institutional Dual-Tree Parity Verifier object for strict floor and SHA-256 verification."""
+
+    def __init__(
+        self,
+        src_dir: Path | str,
+        target_dir: Path | str,
+        file_pattern: str = "*.py",
+        strict_mode: bool = True,
+        min_files: int = DEFAULT_MIN_FILES,
+    ) -> None:
+        self.src_dir = Path(src_dir)
+        self.target_dir = Path(target_dir)
+        self.file_pattern = file_pattern
+        self.strict_mode = strict_mode
+        self.min_files = min_files
+
+    def verify(self) -> DualTreeVerificationResult:
+        python_only = (self.file_pattern == "*.py")
+        report = compare_trees(
+            src_dir=self.src_dir,
+            target_dir=self.target_dir,
+            python_only=python_only,
+            strict=self.strict_mode,
+            min_files=self.min_files,
+            generate_diffs=True,
+        )
+        return DualTreeVerificationResult(
+            status="PASS" if report.passed else "FAIL",
+            passed=report.passed,
+            total_source_files=report.total_src_files,
+            total_target_files=report.total_target_files,
+            identical_files=report.identical_count,
+            mismatch_count=report.mismatched_count,
+            only_in_source_count=report.only_in_src_count,
+            only_in_target_count=report.only_in_target_count,
+            parity_report=report,
+        )
 
 
 def sync_trees(

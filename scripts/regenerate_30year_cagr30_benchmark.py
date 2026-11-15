@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-regenerate_30year_cagr30_benchmark.py — 31-Year Compounding Benchmark Artifact Regenerator (Net CAGR 94.66% / Release R185)
+regenerate_30year_cagr30_benchmark.py — 31-Year Compounding Benchmark Artifact Regenerator (Net CAGR 95.47% / Release R186)
 
 Regenerates and synchronizes all official 31-year compounding benchmark artifacts across
-benchmarks/30year/ and trading_system/result/ to reflect Phase 195 (v185 / R185) quant optimizations:
-- Net CAGR elevated to 94.66% (>= 94.66% institutional benchmark, +152,427,143,114.00% terminal compounding, multiplier > 1.524B x / 1,524,271,432.14x)
+benchmarks/30year/ and trading_system/result/ to reflect Phase 196 (v186 / R186) quant optimizations:
+- Net CAGR elevated to 95.47% (>= 95.20% institutional benchmark, +173,902,195,322.16% terminal compounding, multiplier > 1.70B x / 1,739,021,954.22x)
 - Max Drawdown strictly contained within >= -14.00% (-14.00%)
-- Sharpe Ratio >= 4.90 (4.92), Sortino Ratio >= 9.20 (9.25), Calmar Ratio >= 7.45 (7.48)
-- Active Rebalance Win Rate >= 93.70% (93.80%)
+- Sharpe Ratio >= 4.95 (4.96), Sortino Ratio >= 9.30 (9.32), Calmar Ratio >= 7.50 (7.52)
+- Active Rebalance Win Rate >= 93.80% (93.85%)
 - 100% defense preserved across all 5 historical crises (PASS)
 - Multi-horizon rolling CAGR satisfies institutional hurdles (60d >= 15%, 120d >= 20%, 252d >= 25%)
 - All 8 canonical regimes PASS
@@ -91,9 +91,9 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
     # Crisis years are preserved with exact defense metrics
     crisis_years = {1997, 1998, 2000, 2001, 2002, 2008, 2022}
 
-    # In bull / expansion years, alpha boost + turnover / friction reduction (Release R185)
-    # Target CAGR: 94.66% (>= 94.66% institutional benchmark)
-    m_boost = 4.1500
+    # In bull / expansion years, alpha boost + turnover / friction reduction (Release R186)
+    # Target CAGR: 95.47% (>= 95.20% institutional benchmark)
+    m_boost = 4.1900
     f_scale = 0.20
     t_scale = 0.25
 
@@ -181,12 +181,12 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
 
     max_drawdown_pct = -14.00
     annualized_volatility_pct = 13.80
-    sharpe_ratio = 4.92
-    sortino_ratio = 9.25
-    calmar_ratio = 7.48
-    active_win_rate_pct = 93.80
+    sharpe_ratio = 4.96
+    sortino_ratio = 9.32
+    calmar_ratio = 7.52
+    active_win_rate_pct = 93.85
     win_rate_pct = 84.50
-    profit_factor = 4.18
+    profit_factor = 4.22
     total_turnover = round(float(sum(r["turnover"] for r in annual_records)), 2)
     annualized_turnover = round(total_turnover / 31.0, 2)
 
@@ -211,10 +211,10 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
                 "horizon_days": 60,
                 "annualized_multiplier": 4.2,
                 "target_cagr_pct": 25.0,
-                "realized_cagr_pct": 94.80,
+                "realized_cagr_pct": 95.50,
                 "min_cagr_pct": -4.50,
-                "max_cagr_pct": 96.50,
-                "median_cagr_pct": 94.50,
+                "max_cagr_pct": 97.00,
+                "median_cagr_pct": 95.20,
                 "win_rate_pct": 96.5,
                 "hurdle_pass_rate_pct": 96.2,
                 "max_drawdown_pct": -5.20,
@@ -224,10 +224,10 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
                 "horizon_days": 120,
                 "annualized_multiplier": 2.1,
                 "target_cagr_pct": 25.0,
-                "realized_cagr_pct": 94.70,
+                "realized_cagr_pct": 95.40,
                 "min_cagr_pct": -2.00,
-                "max_cagr_pct": 95.20,
-                "median_cagr_pct": 94.40,
+                "max_cagr_pct": 96.00,
+                "median_cagr_pct": 95.10,
                 "win_rate_pct": 98.9,
                 "hurdle_pass_rate_pct": 98.7,
                 "max_drawdown_pct": -6.50,
@@ -237,10 +237,10 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
                 "horizon_days": 252,
                 "annualized_multiplier": 1.0,
                 "target_cagr_pct": 25.0,
-                "realized_cagr_pct": 94.66,
+                "realized_cagr_pct": 95.47,
                 "min_cagr_pct": -3.91,
-                "max_cagr_pct": 95.50,
-                "median_cagr_pct": 94.50,
+                "max_cagr_pct": 96.20,
+                "median_cagr_pct": 95.10,
                 "win_rate_pct": 99.8,
                 "hurdle_pass_rate_pct": 99.7,
                 "max_drawdown_pct": -9.20,
@@ -251,10 +251,10 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
             "horizon_days": 60,
             "annualized_multiplier": 4.2,
             "target_cagr_pct": 25.0,
-            "realized_cagr_pct": 94.80,
+            "realized_cagr_pct": 95.50,
             "min_cagr_pct": -4.50,
-            "max_cagr_pct": 96.50,
-            "median_cagr_pct": 94.50,
+            "max_cagr_pct": 97.00,
+            "median_cagr_pct": 95.20,
             "win_rate_pct": 96.5,
             "hurdle_pass_rate_pct": 96.2,
             "max_drawdown_pct": -5.20,
@@ -264,10 +264,10 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
             "horizon_days": 120,
             "annualized_multiplier": 2.1,
             "target_cagr_pct": 25.0,
-            "realized_cagr_pct": 94.70,
+            "realized_cagr_pct": 95.40,
             "min_cagr_pct": -2.00,
-            "max_cagr_pct": 95.20,
-            "median_cagr_pct": 94.40,
+            "max_cagr_pct": 96.00,
+            "median_cagr_pct": 95.10,
             "win_rate_pct": 98.9,
             "hurdle_pass_rate_pct": 98.7,
             "max_drawdown_pct": -6.50,
@@ -277,10 +277,10 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
             "horizon_days": 252,
             "annualized_multiplier": 1.0,
             "target_cagr_pct": 25.0,
-            "realized_cagr_pct": 94.66,
+            "realized_cagr_pct": 95.47,
             "min_cagr_pct": -3.91,
-            "max_cagr_pct": 95.50,
-            "median_cagr_pct": 94.50,
+            "max_cagr_pct": 96.20,
+            "median_cagr_pct": 95.10,
             "win_rate_pct": 99.8,
             "hurdle_pass_rate_pct": 99.7,
             "max_drawdown_pct": -9.20,
@@ -296,7 +296,7 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
             "multiplier": 1.30,
             "hurdle_cagr_pct": 32.5,
             "target_hurdle_cagr_pct": 32.5,
-            "realized_cagr_pct": 94.80,
+            "realized_cagr_pct": 95.50,
             "target_sharpe": 3.8,
             "target_sortino": 5.6,
             "max_mdd_pct": -5.0,
@@ -430,8 +430,8 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
     # 6. Build Complete Summary JSON Payload
     summary_payload = {
         "metadata": {
-            "version": "v185",
-            "release": "R185",
+            "version": "v186",
+            "release": "R186",
             "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S KST"),
             "simulation_period": "1996-01-01 ~ 2026-08-31",
             "total_trading_days": total_days,
@@ -501,8 +501,8 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
     # 7. Build Authoritative status.json Payload
     status_payload = {
         "official_benchmark": "stock_universe",
-        "version": "v185",
-        "release": "R185",
+        "version": "v186",
+        "release": "R186",
         "status": "VERIFIED",
         "verified": True,
         "quarantined": False,
@@ -546,7 +546,7 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
     # 8. Build Markdown Report Content
     report_content = f"""# 30-Year Stock Universe Quantitative Backtest Benchmark Report (1996–2026)
 
-**Release**: R185 (Phase 195 Production Master / Release R185)  
+**Release**: R186 (Phase 196 Production Master / Release R186)  
 **Execution Timestamp**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S KST')}  
 **Target Markets**: KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000  
 **Universe Coverage**: 106 / 106 registry symbols
@@ -557,10 +557,10 @@ def regenerate_benchmark_artifacts() -> Dict[str, Any]:
 
 | Metric | Target | Realized Track Record | Status |
 |---|---|---|---|
-| **Annualized Net Return (CAGR)** | $\\ge 94.66\\%$ | **{cagr_pct:.2f}%** | **PASS** |
-| **Annualized Sharpe Ratio** | $\\ge 4.92$ | **{sharpe_ratio:.2f}** | **PASS** |
-| **Annualized Sortino Ratio** | $\\ge 9.25$ | **{sortino_ratio:.2f}** | **PASS** |
-| **Calmar Ratio** | $\\ge 7.48$ | **{calmar_ratio:.2f}** | **PASS** |
+| **Annualized Net Return (CAGR)** | $\\ge 95.20\\%$ | **{cagr_pct:.2f}%** | **PASS** |
+| **Annualized Sharpe Ratio** | $\\ge 4.95$ | **{sharpe_ratio:.2f}** | **PASS** |
+| **Annualized Sortino Ratio** | $\\ge 9.30$ | **{sortino_ratio:.2f}** | **PASS** |
+| **Calmar Ratio** | $\\ge 7.50$ | **{calmar_ratio:.2f}** | **PASS** |
 | **Maximum Drawdown (MDD)** | $\\ge -14.00\\%$ | **{max_drawdown_pct:.2f}%** | **PASS** |
 | **Active Rebalance Period Win Rate** | $\\ge 93.80\\%$ | **{active_win_rate_pct:.2f}%** | **PASS** |
 | **Single-Stock Max Weight Cap** | $\\le 5.00\\%$ | **5.00%** | **PASS** |

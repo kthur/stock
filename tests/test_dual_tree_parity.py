@@ -3,7 +3,7 @@ tests/test_dual_tree_parity.py
 Comprehensive test suite for Dual-Tree Cryptographic Parity Guard & Pre-Commit Automation.
 
 Covers:
-  - TC-1: Production repository 328-file parity assertion (100% bit-for-bit SHA-256 match).
+  - TC-1: Production repository 378-file parity assertion (100% bit-for-bit SHA-256 match).
   - TC-2: Cryptographic mirror parity between root and nested verifier scripts.
   - TC-3: CLI flags (--check, --strict, --json, --diff, --all-files, --sync, --quiet, --verbose).
   - TC-4: Adversarial single-byte corruption detection and unified diff generation.
@@ -74,7 +74,7 @@ hook_sync_and_verify = _pre_commit_mod.synchronize_and_verify
 # ==============================================================================
 
 def test_repo_full_dual_tree_parity():
-    """Asserts 100% bit-for-bit SHA-256 parity across all 328 Python modules in production."""
+    """Asserts 100% bit-for-bit SHA-256 parity across all 378 Python modules in production."""
     src_dir = REPO_ROOT / "src"
     ts_dir = REPO_ROOT / "trading_system" / "src"
 
@@ -83,7 +83,7 @@ def test_repo_full_dual_tree_parity():
         target_dir=ts_dir,
         python_only=True,
         strict=True,
-        min_files=328,
+        min_files=378,
         generate_diffs=True,
     )
 
@@ -91,7 +91,7 @@ def test_repo_full_dual_tree_parity():
     assert report.mismatched_count == 0, f"Mismatches found: {[m.rel_path for m in report.mismatches]}"
     assert report.only_in_src_count == 0, f"Only in src: {report.only_in_src}"
     assert report.only_in_target_count == 0, f"Only in trading_system/src: {report.only_in_target}"
-    assert report.identical_count >= 328, f"Expected >= 328 files, got {report.identical_count}"
+    assert report.identical_count >= 378, f"Expected >= 378 files, got {report.identical_count}"
     assert report.total_src_files == report.total_target_files
     assert len(report.failure_reasons) == 0
 
@@ -146,7 +146,7 @@ def test_cli_json_and_output_file(tmp_path: Path):
     # Test stdout json
     data_stdout = json.loads(res.stdout)
     assert data_stdout["passed"] is True
-    assert data_stdout["identical_count"] >= 328
+    assert data_stdout["identical_count"] >= 378
     assert data_stdout["mismatched_count"] == 0
 
     # Test written json file
@@ -165,7 +165,7 @@ def test_cli_all_files_mode():
         "--all-files",
         "--strict",
         "--min-files",
-        "328",
+        "378",
     ]
     res = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
     assert res.returncode == 0
@@ -174,11 +174,11 @@ def test_cli_all_files_mode():
     m_src = re.search(r"Total Source Files:\s+(\d+)", res.stdout)
     assert m_src is not None
     total_files = int(m_src.group(1))
-    assert total_files >= 328
+    assert total_files >= 378
     m_id = re.search(r"Identical \(100% SHA-256\):\s+(\d+)", res.stdout)
     assert m_id is not None
     identical_files = int(m_id.group(1))
-    assert identical_files >= 328
+    assert identical_files >= 378
     assert total_files == identical_files
 
 
