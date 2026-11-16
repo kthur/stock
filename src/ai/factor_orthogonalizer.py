@@ -2373,6 +2373,140 @@ def safe_matrix_precision_guard(func):
     return wrapper
 
 
+def compute_oas_covariance(
+    X_bar: Optional[np.ndarray] = None,
+    C_sample: Optional[np.ndarray] = None,
+    ridge_epsilon: float = 1e-6,
+) -> Tuple[np.ndarray, float]:
+    """
+    Analytical Oracle Approximating Shrinkage (OAS, Chen et al., 2010):
+    Target spherical identity F = (Tr(S) / K) * I.
+    Optimal closed-form shrinkage intensity \\hat{\\rho}_{\\text{OAS}} evaluated in closed form without cross-validation:
+        \\hat{\\rho}_{\\text{OAS}} = \\min\\left(1.0, \\frac{\\left(1 - \\frac{2}{K}\\right) \\text{Tr}(S^2) + \\text{Tr}^2(S)}{\\left(N + 1 - \\frac{2}{K}\\right) \\left(\\text{Tr}(S^2) - \\frac{\\text{Tr}^2(S)}{K}\\right)}\\right)
+        C_{\\text{OAS}} = (1 - \\hat{\\rho}_{\\text{OAS}}) S + \\hat{\\rho}_{\\text{OAS}} \\frac{\\text{Tr}(S)}{K} I + \\epsilon_{\\text{ridge}} I
+    """
+    if X_bar is None and C_sample is None:
+        raise ValueError("Either X_bar or C_sample must be provided")
+
+    N: int = 0
+    if X_bar is not None:
+        if not isinstance(X_bar, np.ndarray):
+            X_arr = np.asarray(X_bar, dtype=np.float64)
+        else:
+            X_arr = X_bar.astype(np.float64, copy=False)
+        if X_arr.ndim == 2:
+            N = X_arr.shape[0]
+            if C_sample is None:
+                if N > 1:
+                    C_sample = (X_arr.T @ X_arr) / float(N - 1)
+                else:
+                    C_sample = X_arr.T @ X_arr
+
+    if C_sample is None:
+        raise ValueError("Failed to compute or obtain sample covariance matrix")
+
+    if not isinstance(C_sample, np.ndarray):
+        C_mat = np.asarray(C_sample, dtype=np.float64)
+    else:
+        C_mat = C_sample.astype(np.float64, copy=False)
+
+    if C_mat.ndim != 2 or C_mat.shape[0] != C_mat.shape[1]:
+        raise ValueError(f"Sample covariance matrix must be 2D square, got shape {C_mat.shape}")
+
+    K = C_mat.shape[0]
+    if N <= 0:
+        N = K
+
+    S = 0.5 * (C_mat + C_mat.T)
+    if K <= 1:
+        C_oas = S + ridge_epsilon * np.eye(K, dtype=np.float64)
+        return C_oas, 0.0
+
+    tr_S = float(np.trace(S))
+    tr_S2 = float(np.sum(S ** 2))
+    tr2_S = tr_S ** 2
+
+    denom_term = tr_S2 - (tr2_S / float(K))
+
+    if denom_term <= 1e-12:
+        rho_oas = 0.0
+    elif N <= 2:
+        rho_oas = 0.20
+    else:
+        num = (1.0 - 2.0 / float(K)) * tr_S2 + tr2_S
+        denom = (float(N) + 1.0 - 2.0 / float(K)) * denom_term
+        if abs(denom) <= 1e-12:
+            rho_oas = 0.0
+        else:
+            rho_oas = float(np.clip(num / denom, 0.0, 1.0))
+
+    target = (tr_S / float(K)) * np.eye(K, dtype=np.float64)
+    C_oas = (1.0 - rho_oas) * S + rho_oas * target + float(ridge_epsilon) * np.eye(K, dtype=np.float64)
+    C_oas = 0.5 * (C_oas + C_oas.T)
+    return C_oas, float(rho_oas)
+
+
+def higham_nearest_correlation_matrix(
+    C: np.ndarray,
+    tol: float = 1e-7,
+    max_iter: int = 100,
+    min_eig: float = 1e-5,
+) -> np.ndarray:
+    """
+    Higham (2002) Nearest PSD Correlation Matrix Projection.
+    Dykstra's alternating projection algorithm for computing the nearest correlation matrix
+    in Frobenius norm satisfying both unit-diagonal and positive semi-definite cone constraints:
+        \\min_{R \\in \\mathcal{S}_K \\cap \\mathcal{U}_K} \\|R - C\\|_F^2
+    """
+    if not isinstance(C, np.ndarray):
+        C_arr = np.asarray(C, dtype=np.float64)
+    else:
+        C_arr = C.astype(np.float64, copy=True)
+
+    if C_arr.ndim != 2 or C_arr.shape[0] != C_arr.shape[1]:
+        raise ValueError(f"Input matrix must be 2D square, got shape {C_arr.shape}")
+
+    K = C_arr.shape[0]
+    if K <= 1:
+        return np.ones((K, K), dtype=np.float64)
+
+    C_sym = 0.5 * (C_arr + C_arr.T)
+    Y = C_sym.copy()
+    Delta_S = np.zeros_like(C_sym)
+    proj_floor = float(min_eig) * (1.0 + 1e-8)
+
+    for it in range(1, int(max_iter) + 1):
+        R_temp = Y - Delta_S
+        R_temp_sym = 0.5 * (R_temp + R_temp.T)
+        vals, vecs = np.linalg.eigh(R_temp_sym)
+        vals_clipped = np.maximum(vals, proj_floor)
+        R = vecs @ (vals_clipped[:, None] * vecs.T)
+        R = 0.5 * (R + R.T)
+
+        Delta_S = R - R_temp
+        Y = R.copy()
+        np.fill_diagonal(Y, 1.0)
+        rel_diff = np.linalg.norm(Y - R, "fro") / max(float(np.linalg.norm(Y, "fro")), 1e-12)
+        if rel_diff < tol:
+            break
+
+    np.fill_diagonal(Y, 1.0)
+    Y = 0.5 * (Y + Y.T)
+    min_val = float(np.min(np.linalg.eigvalsh(Y)))
+    if min_val < min_eig:
+        vals_f, vecs_f = np.linalg.eigh(Y)
+        vals_f_clipped = np.maximum(vals_f, proj_floor)
+        Y = vecs_f @ (vals_f_clipped[:, None] * vecs_f.T)
+        Y = 0.5 * (Y + Y.T)
+        d = np.diag(Y)
+        inv_d = 1.0 / np.sqrt(np.maximum(d, 1e-12))
+        Y = inv_d[:, None] * Y * inv_d[None, :]
+        np.fill_diagonal(Y, 1.0)
+        Y = 0.5 * (Y + Y.T)
+
+    return Y
+
+
 def repair_covariance_psd(
     C: Optional[np.ndarray] = None,
     ridge_epsilon: float = 1e-6,
@@ -2381,10 +2515,11 @@ def repair_covariance_psd(
     **kwargs: Any,
 ) -> np.ndarray:
     """
-    Feature F481 & Feature F953: Pairwise available-data covariance repair.
+    Feature F481 & Feature F953 & M2: Pairwise available-data covariance repair.
     Projects a non-positive semi-definite (non-PSD) pairwise covariance matrix onto the
-    cone of PSD matrices via spectral eigenvalue thresholding, then rescales to preserve
-    original marginal diagonal variances.
+    cone of PSD matrices using Higham (2002) alternating projections on the standardized
+    correlation matrix, guaranteeing unit diagonal and positive semi-definiteness, then
+    rescales to preserve original marginal diagonal variances.
     Clamps negative and sub-threshold eigenvalues to min_eigenval (default 1e-6).
     """
     if C is None:
@@ -2419,13 +2554,18 @@ def repair_covariance_psd(
     d_psd = np.diag(C_psd)
     inv_sqrt_d = 1.0 / np.sqrt(np.maximum(d_psd, 1e-12))
     R = inv_sqrt_d[:, None] * C_psd * inv_sqrt_d[None, :]
+    np.fill_diagonal(R, 1.0)
+    R = 0.5 * (R + R.T)
 
-    vR, wR = np.linalg.eigh(R)
-    vR_clipped = np.maximum(vR, eff_eps)
-    R_psd = wR @ np.diag(vR_clipped) @ wR.T
+    R_higham = higham_nearest_correlation_matrix(
+        R,
+        tol=float(kwargs.get("tol", 1e-7)),
+        max_iter=int(kwargs.get("max_iter", 100)),
+        min_eig=eff_eps,
+    )
 
     sqrt_orig = np.sqrt(d_orig)
-    C_repaired = sqrt_orig[:, None] * R_psd * sqrt_orig[None, :]
+    C_repaired = sqrt_orig[:, None] * R_higham * sqrt_orig[None, :]
     C_repaired = 0.5 * (C_repaired + C_repaired.T)
 
     v2 = np.linalg.eigvalsh(C_repaired)
@@ -2514,6 +2654,8 @@ class FactorOrthogonalizerEngine:
 
     compute_pairwise_available_covariance = staticmethod(compute_pairwise_available_covariance)
     repair_covariance_psd = staticmethod(repair_covariance_psd)
+    compute_oas_covariance = staticmethod(compute_oas_covariance)
+    higham_nearest_correlation_matrix = staticmethod(higham_nearest_correlation_matrix)
 
     def orthogonalize(
         self,
@@ -3770,7 +3912,6 @@ class FactorOrthogonalizerEngine:
         return cast(np.ndarray, X_ortho)
 
     def _compute_ledoit_wolf_covariance(self, X_bar: np.ndarray, C_sample: np.ndarray) -> np.ndarray:
-        N, K = X_bar.shape
         try:
             from sklearn.covariance import LedoitWolf
             lw = LedoitWolf(store_precision=False, assume_centered=True)
@@ -3778,15 +3919,8 @@ class FactorOrthogonalizerEngine:
         except Exception:
             pass
 
-        mu = np.trace(C_sample) / max(K, 1)
-        target = mu * np.eye(K)
-        d2 = float(np.sum((C_sample - target) ** 2))
-        if d2 < 1e-12:
-            return cast(np.ndarray, C_sample + self.ridge_epsilon * np.eye(K))
-
-        delta = self.shrinkage_alpha if self.shrinkage_alpha > 0 else 0.01
-        C_shrunk = (1.0 - delta) * C_sample + delta * target
-        return cast(np.ndarray, C_shrunk + self.ridge_epsilon * np.eye(K))
+        C_oas, _ = compute_oas_covariance(X_bar, C_sample=C_sample, ridge_epsilon=self.ridge_epsilon)
+        return cast(np.ndarray, C_oas)
 
     def extract_pure_idiosyncratic_alpha(
         self,
@@ -4254,6 +4388,8 @@ __all__ = [
     "safe_matrix_precision_guard",
     "compute_pairwise_available_covariance",
     "repair_covariance_psd",
+    "compute_oas_covariance",
+    "higham_nearest_correlation_matrix",
     "apply_hyperbolic_deadband_phase140",
     "apply_hyperbolic_deadband_phase144",
     "apply_hyperbolic_deadband_phase148",

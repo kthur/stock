@@ -1,172 +1,256 @@
 {
-  "task_1_hrp_weights": [
+  "collinearity": [
     {
-      "scenario": "Singular matrix (all 1s)",
-      "elapsed_sec": 0.201,
-      "output_shape": 5,
-      "sum_weights": 1.0,
-      "has_nan": false,
-      "has_inf": false,
-      "min_w": 0.19999999999999854,
-      "max_w": 0.2000000000000005,
+      "N": 10,
+      "max_rho": 3e-05,
+      "latency_ms": 29.42,
+      "passed": true,
+      "corrs": {
+        "size": 0.0,
+        "value": 0.0,
+        "profit": 0.0,
+        "invest": 0.0,
+        "momentum": 0.0
+      }
+    },
+    {
+      "N": 50,
+      "max_rho": 0.0079,
+      "latency_ms": 16.81,
+      "passed": true,
+      "corrs": {
+        "size": 0.0061,
+        "value": 0.0079,
+        "profit": 0.0061,
+        "invest": 0.0061,
+        "momentum": 0.0061
+      }
+    },
+    {
+      "N": 100,
+      "max_rho": 0.0387,
+      "latency_ms": 16.21,
+      "passed": true,
+      "corrs": {
+        "size": 0.0387,
+        "value": 0.0332,
+        "profit": 0.0387,
+        "invest": 0.0387,
+        "momentum": 0.0387
+      }
+    },
+    {
+      "N": 500,
+      "max_rho": 0.04259,
+      "latency_ms": 16.66,
+      "passed": true,
+      "corrs": {
+        "size": 0.0409,
+        "value": 0.0426,
+        "profit": 0.0409,
+        "invest": 0.0409,
+        "momentum": 0.0409
+      }
+    },
+    {
+      "N": 1000,
+      "max_rho": 0.0337,
+      "latency_ms": 22.59,
+      "passed": true,
+      "corrs": {
+        "size": 0.0304,
+        "value": 0.0337,
+        "profit": 0.0304,
+        "invest": 0.0304,
+        "momentum": 0.0304
+      }
+    },
+    {
+      "N": 3379,
+      "max_rho": 0.02001,
+      "latency_ms": 28.66,
+      "passed": true,
+      "corrs": {
+        "size": 0.02,
+        "value": 0.013,
+        "profit": 0.02,
+        "invest": 0.02,
+        "momentum": 0.02
+      }
+    }
+  ],
+  "missingness": [
+    {
+      "missing_rate_pct": 0,
+      "coverage_pct": 100.0,
+      "latency_ms": 25.13,
+      "in_bounds": true,
       "passed": true
     },
     {
-      "scenario": "Ill-conditioned matrix (rank 2, dim 10)",
-      "elapsed_sec": 0.005,
-      "output_shape": 10,
-      "sum_weights": 1.0,
-      "has_nan": false,
-      "has_inf": false,
+      "missing_rate_pct": 20,
+      "coverage_pct": 100.0,
+      "latency_ms": 27.1,
+      "in_bounds": true,
       "passed": true
     },
     {
-      "scenario": "Extreme high volatility (1e8 to 1e-6)",
-      "elapsed_sec": 0.002,
-      "output_shape": 5,
-      "sum_weights": 1.0,
-      "has_nan": false,
-      "has_inf": false,
+      "missing_rate_pct": 50,
+      "coverage_pct": 100.0,
+      "latency_ms": 26.12,
+      "in_bounds": true,
       "passed": true
     },
     {
-      "scenario": "Covariance with NaNs/Infs",
-      "elapsed_sec": 0.002,
-      "output_shape": 3,
-      "sum_weights": 1.0,
-      "has_nan": false,
-      "has_inf": false,
+      "missing_rate_pct": 80,
+      "coverage_pct": 100.0,
+      "latency_ms": 24.3,
+      "in_bounds": true,
+      "passed": true
+    },
+    {
+      "missing_rate_pct": 90,
+      "coverage_pct": 100.0,
+      "latency_ms": 27.06,
+      "in_bounds": true,
+      "passed": true
+    },
+    {
+      "missing_rate_pct": 95,
+      "coverage_pct": 100.0,
+      "latency_ms": 25.21,
+      "in_bounds": true,
+      "passed": true
+    },
+    {
+      "missing_rate_pct": 98,
+      "coverage_pct": 100.0,
+      "latency_ms": 24.56,
+      "in_bounds": true,
+      "passed": true
+    },
+    {
+      "missing_rate_pct": 99,
+      "coverage_pct": 100.0,
+      "latency_ms": 25.54,
+      "in_bounds": true,
+      "passed": true
+    },
+    {
+      "missing_rate_pct": 99.9,
+      "coverage_pct": 100.0,
+      "latency_ms": 24.55,
+      "in_bounds": true,
       "passed": true
     }
   ],
-  "task_2_merge_fundamentals": [
+  "zero_variance": [
     {
-      "scenario": "Unnamed DatetimeIndex & 60d Filing Lag Verification",
-      "elapsed_sec": 0.049,
-      "rev_jan15_before_60d": 1000.0,
-      "rev_mar15_after_60d": 1500.0,
-      "lookahead_leakage_free": true,
+      "case": "All 0.0 (Factors + Scores)",
+      "has_nan": false,
+      "in_bounds": true,
       "passed": true
     },
     {
-      "scenario": "Benchmark symbol AAPL (KeyError 'book_value' test)",
-      "elapsed_sec": 0.021,
+      "case": "All 100.0 (Factors + Scores)",
+      "has_nan": false,
+      "in_bounds": true,
       "passed": true
     },
     {
-      "scenario": "Out-of-order timestamps & Duplicate dates",
-      "elapsed_sec": 0.026,
-      "output_rows": 3,
-      "index_has_duplicates": false,
-      "is_chronological": true,
+      "case": "Constant Factors, Dynamic Score",
+      "has_nan": false,
+      "in_bounds": true,
       "passed": true
     },
     {
-      "scenario": "Missing price columns (only Close)",
-      "elapsed_sec": 0.015,
-      "columns_present": [
-        "Close",
-        "date",
-        "revenue",
-        "operating_income",
-        "net_income",
-        "eps",
-        "dividend_per_share",
-        "book_value",
-        "eps_growth_1y",
-        "revenue_growth_1y",
-        "has_fundamental"
-      ],
-      "has_revenue": true,
-      "has_has_fundamental": true,
+      "case": "Dynamic Factors, Constant Score (0.42)",
+      "has_nan": false,
+      "in_bounds": true,
       "passed": true
     }
   ],
-  "task_3_advanced_statistics": [
+  "tiny_universes": [
     {
-      "scenario": "total_return = -1.5 (Equity curve goes negative)",
-      "elapsed_sec": 0.0,
-      "total_return": -1.5,
-      "annual_return": "-1.0",
-      "annual_return_type": "float",
-      "has_complex": false,
-      "json_serializable": true,
-      "json_error": "None",
-      "passed": true
+      "N": 1,
+      "passed": true,
+      "has_nan": false,
+      "in_bounds": true
     },
     {
-      "scenario": "total_return = -2.0",
-      "elapsed_sec": 0.0,
-      "total_return": -2.0,
-      "annual_return": "-1.0",
-      "annual_return_type": "float",
-      "has_complex": false,
-      "json_serializable": true,
-      "json_error": "None",
-      "passed": true
+      "N": 2,
+      "passed": true,
+      "has_nan": false,
+      "in_bounds": true
     },
     {
-      "scenario": "total_return = 0.0",
-      "elapsed_sec": 0.001,
-      "total_return": 0.0,
-      "annual_return": "0.0",
-      "annual_return_type": "float",
-      "has_complex": false,
-      "json_serializable": true,
-      "json_error": "None",
-      "passed": true
+      "N": 3,
+      "passed": true,
+      "has_nan": false,
+      "in_bounds": true
     },
     {
-      "scenario": "total_return = -1.0",
-      "elapsed_sec": 0.0,
-      "total_return": -1.0,
-      "annual_return": "-1.0",
-      "annual_return_type": "float",
-      "has_complex": false,
-      "json_serializable": true,
-      "json_error": "None",
-      "passed": true
+      "N": 4,
+      "passed": true,
+      "has_nan": false,
+      "in_bounds": true
     },
     {
-      "scenario": "Trades with 0 losses (profit_factor=inf)",
-      "elapsed_sec": 0.0,
-      "profit_factor": "999.0",
-      "json_strict_serializable": true,
-      "json_error": "None",
+      "N": 5,
+      "passed": true,
+      "has_nan": false,
+      "in_bounds": true
+    },
+    {
+      "N": 6,
+      "passed": true,
+      "has_nan": false,
+      "in_bounds": true
+    },
+    {
+      "N": 7,
+      "passed": true,
+      "has_nan": false,
+      "in_bounds": true
+    },
+    {
+      "N": 8,
+      "passed": true,
+      "has_nan": false,
+      "in_bounds": true
+    },
+    {
+      "N": 9,
+      "passed": true,
+      "has_nan": false,
+      "in_bounds": true
+    },
+    {
+      "N": 10,
+      "passed": true,
+      "has_nan": false,
+      "in_bounds": true
+    },
+    {
+      "case": "5-market singletons",
       "passed": true
     }
   ],
-  "task_4_intraday_stop_loss": [
-    {
-      "scenario": "Extreme 50% price drop",
-      "elapsed_sec": 0.003,
-      "triggered": true,
-      "reason": "PEAK_TO_TROUGH_DROP",
-      "drop_pct": -0.5,
-      "recommended_action": "FULL_LIQUIDATION",
-      "passed": true
-    },
-    {
-      "scenario": "NaN/Inf inputs in DataFrame",
-      "elapsed_sec": 0.002,
-      "triggered": true,
-      "reason": "PEAK_TO_TROUGH_DROP",
-      "passed": true
-    },
-    {
-      "scenario": "Volume spike (20x volume with price drop)",
-      "elapsed_sec": 0.002,
-      "triggered": true,
-      "reason": "PANIC_VOLUME_SPIKE",
-      "panic_volume_ratio": 10.256410256410257,
-      "passed": true
-    },
-    {
-      "scenario": "IntradayTick with Inf price",
-      "elapsed_sec": 0.0,
-      "triggered": false,
-      "reason": "INVALID_PRICE",
-      "passed": true
-    }
-  ]
+  "outliers": {
+    "has_nan": false,
+    "has_inf": false,
+    "in_bounds": true,
+    "passed": true
+  },
+  "monte_carlo_sla": {
+    "num_runs": 50,
+    "max_overall_rho": 0.13118,
+    "avg_rho": 0.07625,
+    "p99_rho": 0.13057,
+    "sla_threshold": 0.15,
+    "avg_latency_ms": 21.3,
+    "p99_latency_ms": 31.54,
+    "passed": true
+  },
+  "overall_verdict": "APPROVE"
 }

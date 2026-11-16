@@ -147,7 +147,213 @@ class AllocationResult(dict):
         )
 
 
+def compute_factor_risk_contributions(
+    weights: np.ndarray,
+    B_loadings: np.ndarray,
+    Omega_F: Optional[np.ndarray] = None,
+    D_idio: Optional[np.ndarray] = None,
+    cov_matrix: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, np.ndarray, float]:
+    """
+    Computes Euler Marginal Factor Risk Contribution (MFRC),
+    Percentage Factor Risk Contribution (PFRC), and
+    Idiosyncratic Risk Ratio (IRR = idio_var / total_var).
+
+    Mathematical Formulation:
+        beta_p = B^T w
+        factor_var = beta_p^T Omega_F beta_p
+        idio_var = w^T D_idio w
+        total_var = factor_var + idio_var
+        MFRC_k = (Omega_F beta_p)_k / sigma_p
+        PFRC_k = beta_{p, k} * (Omega_F beta_p)_k / total_var
+        IRR = idio_var / total_var
+
+    Euler Homogeneous Risk Decomposition Identity:
+        sum_{k=1}^K PFRC_k + IRR == 1.000000 (within machine precision)
+
+    Parameters:
+        weights: (N,) or (N, 1) portfolio weights vector.
+        B_loadings: (N, K) factor loadings matrix.
+        Omega_F: (K, K) factor covariance matrix. If None and cov_matrix provided,
+                 estimated via GLS projection: (B^T B)^{-1} B^T cov_matrix B (B^T B)^{-1}.
+        D_idio: (N,) or (N, N) idiosyncratic variance diagonal. If None and cov_matrix provided,
+                estimated as diag(cov_matrix - B Omega_F B^T) clipped at >= 0.0.
+        cov_matrix: (N, N) optional asset covariance matrix for automatic factor decomposition.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, float]: (mfrc, pfrc, irr)
+    """
+    w = np.nan_to_num(np.asarray(weights, dtype=np.float64).flatten(), nan=0.0, posinf=0.0, neginf=0.0)
+    N = len(w)
+    if N == 0:
+        return np.array([], dtype=np.float64), np.array([], dtype=np.float64), 1.0
+
+    B = np.nan_to_num(np.asarray(B_loadings, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+    if B.ndim == 1:
+        B = B.reshape(N, -1) if len(B) == N else B.reshape(-1, 1)
+    K = B.shape[1]
+    if K == 0:
+        return np.array([], dtype=np.float64), np.array([], dtype=np.float64), 1.0
+
+    # Automatic estimation of Omega_F and D_idio if omitted and cov_matrix provided
+    cov = None
+    if cov_matrix is not None:
+        cov = np.nan_to_num(np.asarray(cov_matrix, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+
+    if Omega_F is None:
+        if cov is not None and cov.shape == (N, N):
+            pinv_B = np.linalg.pinv(B)
+            Omega = pinv_B @ cov @ pinv_B.T
+            Omega = (Omega + Omega.T) / 2.0
+        else:
+            Omega = np.eye(K, dtype=np.float64)
+    else:
+        Omega = np.nan_to_num(np.asarray(Omega_F, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+        Omega = (Omega + Omega.T) / 2.0
+
+    # Ensure PSD for factor covariance
+    vals, vecs = np.linalg.eigh(Omega)
+    if np.any(vals < 0):
+        Omega = vecs @ np.diag(np.maximum(vals, 0.0)) @ vecs.T
+        Omega = (Omega + Omega.T) / 2.0
+
+    if D_idio is None:
+        if cov is not None and cov.shape == (N, N):
+            sys_cov = B @ Omega @ B.T
+            D_diag = np.maximum(np.diag(cov - sys_cov), 0.0)
+        else:
+            D_diag = np.zeros(N, dtype=np.float64)
+    else:
+        D_arr = np.nan_to_num(np.asarray(D_idio, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+        D_diag = np.diag(D_arr) if D_arr.ndim == 2 else D_arr.flatten()
+        D_diag = np.maximum(D_diag, 0.0)
+
+    beta_p = B.T @ w
+    factor_var = float(beta_p.T @ Omega @ beta_p)
+    idio_var = float(np.sum((w ** 2) * D_diag))
+    total_var = factor_var + idio_var
+
+    if total_var <= 1e-12 or not np.isfinite(total_var):
+        return np.zeros(K, dtype=np.float64), np.zeros(K, dtype=np.float64), 1.0
+
+    port_std = math.sqrt(max(1e-12, total_var))
+    Omega_beta = Omega @ beta_p
+    mfrc = Omega_beta / port_std
+    pfrc = (beta_p * Omega_beta) / total_var
+    irr = float(idio_var / total_var)
+
+    return mfrc, pfrc, irr
+
+
+def calculate_factor_risk_parity_weights(
+    cov_matrix: np.ndarray,
+    factor_loadings: np.ndarray,
+    factor_covariance: Optional[np.ndarray] = None,
+    idiosyncratic_vars: Optional[np.ndarray] = None,
+    max_single_stock_weight: float = 0.20,
+    lambda_frp: float = 1.0,
+    target_pfrc: Optional[np.ndarray] = None,
+    max_iter: int = 100,
+) -> np.ndarray:
+    """
+    Computes Factor Risk Parity (FRP) weights by minimizing factor risk contribution disparity:
+        min_w  lambda_frp * sum_{k=1}^K (PFRC_k(w) - target_pfrc_k)^2 + 0.5 * w^T cov w
+        s.t.   sum(w) == 1,  0 <= w_i <= max_single_stock_weight
+
+    Parameters:
+        cov_matrix: (N, N) asset covariance matrix.
+        factor_loadings: (N, K) factor loadings matrix B.
+        factor_covariance: (K, K) factor covariance matrix Omega_F (optional).
+        idiosyncratic_vars: (N,) or (N, N) idiosyncratic variance diagonal (optional).
+        max_single_stock_weight: float maximum single stock weight cap (default 0.20).
+        lambda_frp: float penalty intensity on factor risk disparity (default 1.0).
+        target_pfrc: (K,) target percentage risk contributions (default uniform 1/K).
+        max_iter: int maximum SLSQP optimizer iterations (default 100).
+
+    Returns:
+        np.ndarray: (N,) optimal factor risk parity portfolio weights summing to 1.0.
+    """
+    cov = np.nan_to_num(np.asarray(cov_matrix, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+    N = cov.shape[0]
+    if N == 0:
+        return np.array([], dtype=np.float64)
+    if N == 1:
+        return np.array([1.0], dtype=np.float64)
+
+    B = np.nan_to_num(np.asarray(factor_loadings, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+    if B.ndim == 1:
+        B = B.reshape(N, -1) if len(B) == N else B.reshape(-1, 1)
+    K = B.shape[1]
+
+    if factor_covariance is None:
+        pinv_B = np.linalg.pinv(B)
+        Omega_F = pinv_B @ cov @ pinv_B.T
+        Omega_F = (Omega_F + Omega_F.T) / 2.0
+    else:
+        Omega_F = np.nan_to_num(np.asarray(factor_covariance, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+        Omega_F = (Omega_F + Omega_F.T) / 2.0
+
+    vals, vecs = np.linalg.eigh(Omega_F)
+    if np.any(vals < 0):
+        Omega_F = vecs @ np.diag(np.maximum(vals, 0.0)) @ vecs.T
+        Omega_F = (Omega_F + Omega_F.T) / 2.0
+
+    if idiosyncratic_vars is None:
+        sys_cov = B @ Omega_F @ B.T
+        D_diag = np.maximum(np.diag(cov - sys_cov), 1e-6)
+    else:
+        D_arr = np.nan_to_num(np.asarray(idiosyncratic_vars, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+        D_diag = np.diag(D_arr) if D_arr.ndim == 2 else D_arr.flatten()
+        D_diag = np.maximum(D_diag, 0.0)
+
+    tgt_pfrc = np.full(K, 1.0 / K, dtype=np.float64) if target_pfrc is None else np.asarray(target_pfrc, dtype=np.float64)
+
+    def frp_objective(w):
+        w_arr = np.asarray(w, dtype=np.float64)
+        beta_p = B.T @ w_arr
+        f_var = float(beta_p.T @ Omega_F @ beta_p)
+        i_var = float(np.sum((w_arr ** 2) * D_diag))
+        tot_var = f_var + i_var
+        if tot_var <= 1e-12:
+            return 0.0
+        pfrc = (beta_p * (Omega_F @ beta_p)) / tot_var
+        frp_pen = float(lambda_frp * np.sum((pfrc - tgt_pfrc) ** 2))
+        vol_pen = 0.05 * float(w_arr @ cov @ w_arr)
+        return frp_pen + vol_pen
+
+    w0 = np.full(N, 1.0 / N, dtype=np.float64)
+    cap = max_single_stock_weight if (N * max_single_stock_weight >= 1.0) else 1.0
+    bounds = [(0.0, cap) for _ in range(N)]
+    constraints = [{'type': 'eq', 'fun': lambda w: float(np.sum(w) - 1.0)}]
+
+    try:
+        from scipy.optimize import minimize
+        res = minimize(
+            frp_objective,
+            w0,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints,
+            options={'maxiter': max_iter, 'ftol': 1e-5}
+        )
+        if res.success and np.all(np.isfinite(res.x)):
+            w_res = np.clip(res.x, 0.0, cap)
+            tot = float(np.sum(w_res))
+            return w_res / tot if tot > 0 else np.full(N, 1.0 / N, dtype=np.float64)
+    except Exception as e_opt:
+        logger.debug(f"[FRP Optimizer] Optimization failed: {e_opt}")
+
+    # Fallback to asset-level risk parity if available
+    try:
+        return calculate_risk_parity_weights(cov)
+    except Exception:
+        return np.full(N, 1.0 / N, dtype=np.float64)
+
+
 class UnifiedPortfolioAllocator:
+
+    compute_factor_risk_contributions = staticmethod(compute_factor_risk_contributions)
+    calculate_factor_risk_parity_weights = staticmethod(calculate_factor_risk_parity_weights)
 
     VERSION_PHASE196: int = 196
     RELEASE_PHASE196: str = "R186"
@@ -2039,6 +2245,7 @@ class UnifiedPortfolioAllocator:
 
         self.target_vols = dict(self.TARGET_VOLS_PHASE196)
         self.frontier_limits = dict(self.FRONTIER_LIMITS_PHASE196)
+        self.last_factor_risk_decomposition: Optional[Dict[str, Any]] = None
 
     @classmethod
     def get_regime_model_weights(cls, regime: str) -> Dict[str, float]:
@@ -27917,11 +28124,21 @@ class UnifiedPortfolioAllocator:
                 w_hrp_raw = calculate_hrp_weights(cov_matrix, symbols=symbols, sectors=sectors)
                 w_herc = np.array([w_hrp_raw.get(s, 0.0) for s in symbols], dtype=float) if isinstance(w_hrp_raw, dict) else np.asarray(w_hrp_raw, dtype=float)
 
-        # 3. Model C: Equal Risk Contribution / Risk Parity
+        # 3. Model C: Equal Risk Contribution / Factor Risk Parity
         w_rp = np.full(n, 1.0 / n)
         if blend_cfg["rp"] > 0:
             try:
-                w_rp = calculate_risk_parity_weights(cov_matrix)
+                if factor_loadings is not None and kwargs.get("enable_factor_risk_parity", True):
+                    w_rp = self.calculate_factor_risk_parity_weights(
+                        cov_matrix=cov_matrix,
+                        factor_loadings=factor_loadings,
+                        factor_covariance=kwargs.get("factor_covariance", kwargs.get("omega_f", None)),
+                        idiosyncratic_vars=kwargs.get("idiosyncratic_vars", kwargs.get("d_idio", None)),
+                        max_single_stock_weight=self.max_single_weight,
+                        lambda_frp=float(kwargs.get("lambda_frp", 1.0)),
+                    )
+                else:
+                    w_rp = calculate_risk_parity_weights(cov_matrix)
             except Exception as e:
                 logger.debug(f"[RP] Failed, fallback: {e}")
                 w_rp = np.full(n, 1.0 / n)
@@ -28468,6 +28685,24 @@ class UnifiedPortfolioAllocator:
                 final_w = w_next
         else:
             final_w = w_target
+
+        if factor_loadings is not None:
+            try:
+                mfrc, pfrc, irr = self.compute_factor_risk_contributions(
+                    weights=final_w,
+                    B_loadings=factor_loadings,
+                    Omega_F=kwargs.get("factor_covariance", kwargs.get("omega_f", None)),
+                    D_idio=kwargs.get("idiosyncratic_vars", kwargs.get("d_idio", None)),
+                    cov_matrix=cov_matrix,
+                )
+                self.last_factor_risk_decomposition = {
+                    "mfrc": mfrc,
+                    "pfrc": pfrc,
+                    "irr": irr,
+                    "frp_imbalance": float(np.sum((pfrc - (1.0 / max(1, len(pfrc)))) ** 2)) if len(pfrc) > 0 else 0.0,
+                }
+            except Exception as e_frp:
+                logger.debug(f"[Factor Risk Decomposition Telemetry] Exception: {e_frp}")
 
         return np.asarray(final_w, dtype=float)
 
@@ -31528,6 +31763,8 @@ __all__ = [
     "allocate_portfolio_phase186",
 
     "UnifiedPortfolioAllocator",
+    "compute_factor_risk_contributions",
+    "calculate_factor_risk_parity_weights",
     "compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_53_fisher_rao_barycenter_blend",
     "compute_lurie_borcherds_monster_moonshine_whittaker_drinfeld_higher_homology_53_barycenter",
     "compute_lurie_drinfeld_higher_homology_53_barycenter",

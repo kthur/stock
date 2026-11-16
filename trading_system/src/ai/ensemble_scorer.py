@@ -12425,12 +12425,183 @@ apply_centapentacontaduo_hyperbolic_deadband = apply_centapentacontaduogonal_hyp
 # Import historical couplers (Phases 1-43) for backward compatibility
 from .historical_couplers import *
 
+
+def compute_entropy_softmax_weights(
+    base_weights: Dict[str, float],
+    rolling_sharpes: Dict[str, float],
+    ic_dict: Optional[Dict[str, float]] = None,
+    crowding_dict: Optional[Dict[str, float]] = None,
+    temperature: float = 1.0,
+    gamma: float = 0.15,
+    alpha: float = 0.20,
+    beta: float = 0.40,
+    min_weight: float = 0.005,
+    max_weight: float = 0.25,
+) -> Dict[str, float]:
+    """
+    Computes continuous entropy-regularized temperature-scaled softmax strategy weights.
+
+    Mathematical Formulation:
+        u_i = ln(max(w_{i, base}, 1e-6)) + gamma * clip(Sharpe_i, -3.0, 3.0)
+              + alpha * tanh(2.0 * IC_i) - beta * Crowd_i
+        w_i = exp((u_i - max(u)) / T) / sum_j exp((u_j - max(u)) / T)
+
+    Guarantees strict monotonicity:
+        d w_i / d Crowd_i = - (beta / T) * w_i * (1 - w_i) < 0
+
+    Eliminates the hard ratio clamping defect (_vmin_floor = _vmax * 0.05) and floor inversion.
+
+    Args:
+        base_weights: Dictionary of baseline strategy weights from regime matrix.
+        rolling_sharpes: Dictionary of trailing rolling Sharpe ratios.
+        ic_dict: Optional dictionary of Information Coefficients (IC or Rank IC).
+        crowding_dict: Optional dictionary of factor crowding penalties in [0.0, 1.0].
+        temperature: Softmax temperature parameter (default 1.0, 2.0 in crisis regimes).
+        gamma: Sharpe sensitivity coefficient (default 0.15).
+        alpha: IC momentum sensitivity coefficient (default 0.20).
+        beta: Factor crowding penalty sensitivity coefficient (default 0.40).
+        min_weight: Minimum weight floor per strategy (default 0.005).
+        max_weight: Maximum weight cap per strategy (default 0.25).
+
+    Returns:
+        Dict[str, float]: Normalized strategy weights summing to 1.000000.
+    """
+    if not base_weights:
+        return {}
+
+    active_keys = [k for k, w in base_weights.items() if w is not None and float(w) > 0.0]
+    if not active_keys:
+        n_keys = len(base_weights)
+        if n_keys == 0:
+            return {}
+        return {k: 1.0 / n_keys for k in base_weights}
+
+    T = float(max(temperature, 1e-4))
+
+    # Sanitize Sharpe ratios
+    clean_sharpes: Dict[str, float] = {}
+    for k in active_keys:
+        v = rolling_sharpes.get(k, 0.0) if rolling_sharpes else 0.0
+        if v is None:
+            clean_sharpes[k] = 0.0
+        else:
+            try:
+                vf = float(v)
+                if np.isnan(vf):
+                    clean_sharpes[k] = 0.0
+                elif np.isposinf(vf):
+                    clean_sharpes[k] = 3.0
+                elif np.isneginf(vf):
+                    clean_sharpes[k] = -3.0
+                else:
+                    clean_sharpes[k] = float(np.clip(vf, -3.0, 3.0))
+            except (ValueError, TypeError):
+                clean_sharpes[k] = 0.0
+
+    # Sanitize Information Coefficients
+    clean_ic: Dict[str, float] = {}
+    if ic_dict:
+        for k in active_keys:
+            v = ic_dict.get(k, 0.0)
+            if v is None:
+                clean_ic[k] = 0.0
+            else:
+                try:
+                    vf = float(v)
+                    clean_ic[k] = 0.0 if np.isnan(vf) else float(np.clip(vf, -1.0, 1.0))
+                except (ValueError, TypeError):
+                    clean_ic[k] = 0.0
+    else:
+        clean_ic = {k: 0.0 for k in active_keys}
+
+    # Sanitize Crowding Penalties
+    clean_crowd: Dict[str, float] = {}
+    if crowding_dict:
+        for k in active_keys:
+            v = crowding_dict.get(k, 0.0)
+            if v is None:
+                clean_crowd[k] = 0.0
+            else:
+                try:
+                    vf = float(v)
+                    clean_crowd[k] = 0.0 if np.isnan(vf) else float(np.clip(vf, 0.0, 1.0))
+                except (ValueError, TypeError):
+                    clean_crowd[k] = 0.0
+    else:
+        clean_crowd = {k: 0.0 for k in active_keys}
+
+    # Compute unnormalized logits
+    logits = []
+    for k in active_keys:
+        base_w = float(base_weights[k])
+        log_base = float(np.log(max(base_w, 1e-6)))
+        sh = clean_sharpes[k]
+        ic_val = clean_ic[k]
+        crowd_val = clean_crowd[k]
+
+        u_i = (
+            log_base
+            + gamma * sh
+            + alpha * float(np.tanh(2.0 * ic_val))
+            - beta * crowd_val
+        )
+        logits.append(u_i)
+
+    logits_arr = np.array(logits, dtype=np.float64)
+
+    # Numerical stability shift: subtract max(logits)
+    max_logit = float(np.max(logits_arr))
+    scaled_logits = (logits_arr - max_logit) / T
+
+    exp_w = np.exp(np.clip(scaled_logits, -700.0, 0.0))
+    sum_exp = float(np.sum(exp_w))
+
+    if sum_exp <= 1e-12 or not np.isfinite(sum_exp):
+        tot_base = sum(float(base_weights[k]) for k in active_keys)
+        return {k: (float(base_weights[k]) / tot_base if tot_base > 0 else 1.0 / len(active_keys)) for k in active_keys}
+
+    raw_weights = exp_w / sum_exp
+
+    # Boundary enforcement: clip to [eff_min, eff_max] if feasible
+    K = len(active_keys)
+    eff_min = min_weight if (min_weight * K <= 1.0) else (1.0 / K)
+    eff_max = max_weight if (max_weight * K >= 1.0) else 1.0
+
+    if eff_min < eff_max:
+        w = np.clip(raw_weights, eff_min, eff_max)
+        for _ in range(10):
+            s = float(np.sum(w))
+            if abs(s - 1.0) < 1e-9:
+                break
+            free = (w > eff_min + 1e-9) & (w < eff_max - 1e-9)
+            if not np.any(free):
+                w = w / s
+                break
+            excess = 1.0 - s
+            w[free] += excess * (w[free] / np.sum(w[free]))
+            w = np.clip(w, eff_min, eff_max)
+        final_weights_arr = w
+    else:
+        final_weights_arr = raw_weights
+
+    result = {}
+    for k, w_val in zip(active_keys, final_weights_arr):
+        result[k] = float(w_val)
+
+    for k in base_weights:
+        if k not in result:
+            result[k] = 0.0
+
+    return result
+
+
 class EnsembleScoringEngine:
     """
     Ensembles 37 multi-factor strategy predictions across 3 horizon tiers
     using 2D regime matrix weights, factor orthogonalization (PCA-ZCA & Gram-Schmidt),
     and dynamic exponential Sharpe weighting.
     """
+    compute_entropy_softmax_weights = staticmethod(compute_entropy_softmax_weights)
 
     # 3-Tier Multi-Horizon Alpha Signal Decomposition (Slow: 1M~1Y, Medium: 5D~20D, Fast: 1D~3D)
     ALPHA_HORIZON_TIERS = {
@@ -14188,32 +14359,49 @@ class EnsembleScoringEngine:
 
             scores[strategy] = base_w * multiplier * ic_mult * dsr_mult * turbo_mult * (1.0 - crowd_penalty)
 
-        # Additionally bound the TOTAL weight ratio (base regime weights already
-        # differ up to ~5x, so multiplier-only capping is not enough).
-        max_total_ratio = 20.0
-        min_total_ratio = 1.0 / max_total_ratio  # 0.05
-        _vals = np.array([v for v in scores.values() if v > 0.0], dtype=float)
-        if len(_vals) > 0:
-            _vmax = float(_vals.max())
-            _vmin_floor = _vmax * min_total_ratio
-            scores = {k: (max(v, _vmin_floor) if v > 0.0 else 0.0) for k, v in scores.items()}
-
-        total_score = sum(scores.values())
-        if total_score == 0.0 or not np.isfinite(total_score):
+        # Continuous Entropy-Regularized Softmax Weighting (Milestone 3 / Feature F5)
+        # Replaces legacy hard ratio clamping (_vmin_floor = _vmax * 0.05) to eliminate floor inversion
+        # and strictly guarantee monotonic crowding reduction: d w_i / d Crowd_i = - (beta / T) * w_i * (1 - w_i) < 0.
+        temperature = float(kwargs.get('temperature', 2.0 if is_crisis_or_bear_high_vol else 1.0))
+        active_items = {k: v for k, v in scores.items() if v is not None and float(v) > 0.0}
+        if not active_items:
             return base_weights
-        dynamic_weights = {k: float(v / total_score) for k, v in scores.items()}
 
-        # Enforce minimum weight floor on active (non-pruned) strategies to prevent zero-weight deadlock.
-        STRATEGY_WEIGHT_FLOOR = 0.01  # 1% minimum per active strategy
-        n_strategies = len(dynamic_weights)
-        if n_strategies > 0:
-            for k in dynamic_weights:
-                if 0.0 < dynamic_weights[k] < STRATEGY_WEIGHT_FLOOR and k in base_weights:
-                    dynamic_weights[k] = STRATEGY_WEIGHT_FLOOR
-            # Re-normalize after floor enforcement
-            floor_total = sum(dynamic_weights.values())
-            if floor_total > 1e-12:
-                dynamic_weights = {k: float(v / floor_total) for k, v in dynamic_weights.items()}
+        active_keys = list(active_items.keys())
+        logits = np.array([np.log(max(float(active_items[k]), 1e-12)) for k in active_keys], dtype=np.float64)
+        scaled_logits = (logits - np.max(logits)) / max(temperature, 1e-4)
+        exp_w = np.exp(np.clip(scaled_logits, -700.0, 0.0))
+        sum_exp = float(np.sum(exp_w))
+        if sum_exp <= 1e-12 or not np.isfinite(sum_exp):
+            return base_weights
+
+        raw_weights = exp_w / sum_exp
+        K = len(active_keys)
+        min_w = float(kwargs.get('min_strategy_weight', 0.005))
+        max_w = float(kwargs.get('max_strategy_weight', 0.25))
+        eff_min = min_w if (min_w * K <= 1.0) else (1.0 / K)
+        eff_max = max_w if (max_w * K >= 1.0) else 1.0
+
+        if eff_min < eff_max:
+            w_arr = np.clip(raw_weights, eff_min, eff_max)
+            for _ in range(10):
+                s = float(np.sum(w_arr))
+                if abs(s - 1.0) < 1e-9:
+                    break
+                free = (w_arr > eff_min + 1e-9) & (w_arr < eff_max - 1e-9)
+                if not np.any(free):
+                    w_arr = w_arr / s
+                    break
+                excess = 1.0 - s
+                w_arr[free] += excess * (w_arr[free] / np.sum(w_arr[free]))
+                w_arr = np.clip(w_arr, eff_min, eff_max)
+            final_weights_arr = w_arr
+        else:
+            final_weights_arr = raw_weights
+
+        dynamic_weights = {k: 0.0 for k in base_weights}
+        for k, v in zip(active_keys, final_weights_arr):
+            dynamic_weights[k] = float(v)
 
         # F03: Continuous TV-distance & VIX entropy adaptive weight smoothing alpha_t
         current_regime_str = str(regime_label_for_log)

@@ -19,6 +19,173 @@ from src.core.base_strategy import BaseStrategyEngine
 from src.core.strategy_registry import register_strategy, StrategyMeta
 
 
+def compute_precision_weighted_neutralization(
+    y: np.ndarray,
+    B: np.ndarray,
+    weights_precision: Optional[np.ndarray] = None,
+    ridge_lambda: float = 1e-4,
+) -> np.ndarray:
+    """Computes precision-weighted minimum-distortion factor neutralization:
+        y_star = [I - W^{-1} B (B^T W^{-1} B + ridge * I)^{-1} B^T] y
+    where W = diag(w_1, ..., w_N).
+    When weights_precision is None or uniform, reduces algebraically to standard OLS / QR projection.
+    Robust to singular matrices via Tikhonov ridge regularization, falls back to SVD
+    pseudoinverse when N < K, and returns zero residual when N <= 1.
+    """
+    y_arr = np.asarray(y, dtype=float).copy().ravel()
+    B_arr = np.asarray(B, dtype=float).copy()
+    if B_arr.ndim == 1:
+        B_arr = B_arr.reshape(-1, 1)
+
+    N = len(y_arr)
+    if N == 0 or B_arr.shape[0] != N:
+        return np.zeros_like(y_arr, dtype=float)
+    if N == 1:
+        return np.zeros_like(y_arr, dtype=float)
+
+    # Sanitize inputs (NaN imputation)
+    if not np.all(np.isfinite(y_arr)):
+        med_y = float(np.nanmedian(y_arr)) if np.any(np.isfinite(y_arr)) else 0.0
+        y_arr = np.where(np.isfinite(y_arr), y_arr, med_y)
+
+    K = B_arr.shape[1]
+    if not np.all(np.isfinite(B_arr)):
+        for k in range(K):
+            col = B_arr[:, k]
+            if not np.all(np.isfinite(col)):
+                med_col = float(np.nanmedian(col)) if np.any(np.isfinite(col)) else 0.0
+                B_arr[:, k] = np.where(np.isfinite(col), col, med_col)
+
+    # Under-determined cross-sections (N < K) fallback to SVD pseudoinverse
+    if N < K:
+        beta_pinv = np.linalg.pinv(B_arr) @ y_arr
+        return y_arr - B_arr @ beta_pinv
+
+    # Check if weights_precision is provided and non-uniform
+    is_uniform = True
+    w = None
+    if weights_precision is not None:
+        w_cand = np.asarray(weights_precision, dtype=float).copy().ravel()
+        if len(w_cand) == N and np.all(np.isfinite(w_cand)) and np.all(w_cand > 1e-12):
+            w_min, w_max = float(np.min(w_cand)), float(np.max(w_cand))
+            if (w_max - w_min) > 1e-8 * max(abs(w_min), 1.0):
+                is_uniform = False
+                w = w_cand
+        elif len(w_cand) == N:
+            w_fixed = np.where(np.isfinite(w_cand) & (w_cand > 1e-12), w_cand, 1.0)
+            w_min, w_max = float(np.min(w_fixed)), float(np.max(w_fixed))
+            if (w_max - w_min) > 1e-8 * max(abs(w_min), 1.0):
+                is_uniform = False
+                w = w_fixed
+
+    # When weights_precision is None or uniform, reduces algebraically to standard OLS / QR projection
+    if is_uniform or w is None:
+        try:
+            Q, _ = np.linalg.qr(B_arr, mode="reduced")
+            return y_arr - Q @ (Q.T @ y_arr)
+        except Exception:
+            beta_pinv = np.linalg.pinv(B_arr) @ y_arr
+            return y_arr - B_arr @ beta_pinv
+
+    # Precision-weighted Generalized Least Squares (GLS) minimum-distortion projection
+    w_clean = np.where(np.isfinite(w) & (w > 1e-12), w, 1.0)
+    w_inv = 1.0 / w_clean
+    W_inv_B = w_inv[:, None] * B_arr
+    A = B_arr.T @ W_inv_B
+    b = B_arr.T @ y_arr
+
+    is_ill_conditioned = False
+    try:
+        cond_A = np.linalg.cond(A)
+        if not np.isfinite(cond_A) or cond_A > 1e10:
+            is_ill_conditioned = True
+    except Exception:
+        is_ill_conditioned = True
+
+    if is_ill_conditioned:
+        eff_lambda = max(ridge_lambda, 1e-4) if (ridge_lambda is not None and ridge_lambda > 0) else 1e-4
+        A_reg = A + eff_lambda * np.eye(K)
+        try:
+            mu = np.linalg.solve(A_reg, b)
+        except np.linalg.LinAlgError:
+            mu = np.linalg.pinv(A_reg) @ b
+    else:
+        try:
+            mu = np.linalg.solve(A, b)
+        except np.linalg.LinAlgError:
+            eff_lambda = max(ridge_lambda, 1e-4) if (ridge_lambda is not None and ridge_lambda > 0) else 1e-4
+            A_reg = A + eff_lambda * np.eye(K)
+            try:
+                mu = np.linalg.solve(A_reg, b)
+            except np.linalg.LinAlgError:
+                mu = np.linalg.pinv(A_reg) @ b
+
+    y_star = y_arr - W_inv_B @ mu
+    return y_star
+
+
+def compute_bilinear_interaction_alpha(
+    scores_matrix: np.ndarray,
+    M_tensor: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """Computes non-linear synergistic interaction alpha across factor scores:
+        alpha_synergy = tanh(0.5 * diag(S @ M @ S.T))
+                      = tanh(0.5 * sum_j (S @ M)_ij * S_ij)
+    Bounded strictly in [-1.0, 1.0].
+    Symmetric low-rank interaction tensor M models:
+    - Value x Momentum = 0.25 (M[1,4] = M[4,1] = 0.25)
+    - Momentum x Quality = 0.20 (M[4,2] = M[2,4] = 0.20)
+    - Quality x Investment = 0.15 (M[2,3] = M[3,2] = 0.15)
+    """
+    S = np.asarray(scores_matrix, dtype=float).copy()
+    if S.ndim == 1:
+        S = S.reshape(1, -1)
+
+    N, K = S.shape
+    if N == 0 or K == 0:
+        return np.zeros(N, dtype=float)
+
+    # Sanitize non-finite values to median or 0.0
+    if not np.all(np.isfinite(S)):
+        for k in range(K):
+            col = S[:, k]
+            if not np.all(np.isfinite(col)):
+                med_val = float(np.nanmedian(col)) if np.any(np.isfinite(col)) else 0.0
+                S[:, k] = np.where(np.isfinite(col), col, med_val)
+
+    if M_tensor is None:
+        M = np.zeros((K, K), dtype=float)
+        if K >= 5:
+            # 5 Fama-French Factor order: Size=0, Value=1, Profitability=2, Investment=3, Momentum=4
+            M[1, 4] = M[4, 1] = 0.25  # Value x Momentum
+            M[4, 2] = M[2, 4] = 0.20  # Momentum x Quality
+            M[2, 3] = M[3, 2] = 0.15  # Quality x Investment
+    else:
+        M = np.asarray(M_tensor, dtype=float).copy()
+        if M.shape != (K, K):
+            M_padded = np.zeros((K, K), dtype=float)
+            min_r = min(K, M.shape[0])
+            min_c = min(K, M.shape[1])
+            M_padded[:min_r, :min_c] = M[:min_r, :min_c]
+            M = M_padded
+
+    # Compute bilinear form diag(S @ M @ S.T) in O(N K^2) without forming N x N outer product
+    SM = S @ M
+    diag_interaction = 0.5 * np.sum(SM * S, axis=1)
+
+    # Extreme score values clipped to [-8.0, 8.0] before bounded tanh activation
+    diag_interaction = np.clip(diag_interaction, -8.0, 8.0)
+    alpha_synergy = np.tanh(diag_interaction)
+    return alpha_synergy
+
+
+__all__ = [
+    "MultiFactorNeutralizerEngine",
+    "compute_precision_weighted_neutralization",
+    "compute_bilinear_interaction_alpha",
+]
+
+
 @register_strategy(
     StrategyMeta(
         strategy_id="factor_neutralized",
@@ -45,6 +212,28 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
 
     def __init__(self, config: Optional[Any] = None) -> None:
         self.config = config
+
+    @staticmethod
+    def compute_precision_weighted_neutralization(
+        y: np.ndarray,
+        B: np.ndarray,
+        weights_precision: Optional[np.ndarray] = None,
+        ridge_lambda: float = 1e-4,
+    ) -> np.ndarray:
+        """Precision-weighted minimum-distortion factor neutralization."""
+        return compute_precision_weighted_neutralization(
+            y=y, B=B, weights_precision=weights_precision, ridge_lambda=ridge_lambda
+        )
+
+    @staticmethod
+    def compute_bilinear_interaction_alpha(
+        scores_matrix: np.ndarray,
+        M_tensor: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """Non-linear synergistic interaction alpha across factor scores."""
+        return compute_bilinear_interaction_alpha(
+            scores_matrix=scores_matrix, M_tensor=M_tensor
+        )
 
     def compute_scores(
         self,
@@ -106,6 +295,29 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                 return "SP500"
             df["market"] = df["symbol"].map(_detect_mkt)
 
+        # Resolve optional precision weights or idiosyncratic variance for D-FCN
+        weights_precision = kwargs.get("weights_precision", kwargs.get("precision_weights", None))
+        weights_arr: Optional[np.ndarray] = None
+        if weights_precision is not None:
+            if isinstance(weights_precision, dict):
+                weights_arr = df["symbol"].map(weights_precision).values.astype(float)
+            elif isinstance(weights_precision, pd.Series):
+                weights_arr = df["symbol"].map(weights_precision.to_dict()).values.astype(float)
+            elif isinstance(weights_precision, (np.ndarray, list)):
+                w_cand = np.asarray(weights_precision, dtype=float).copy()
+                if len(w_cand) == len(df):
+                    weights_arr = w_cand
+        elif "idiosyncratic_var" in kwargs or "idio_var" in kwargs:
+            iv = kwargs.get("idiosyncratic_var", kwargs.get("idio_var", None))
+            if isinstance(iv, dict):
+                weights_arr = 1.0 / np.maximum(df["symbol"].map(iv).values.astype(float), 1e-6)
+            elif isinstance(iv, pd.Series):
+                weights_arr = 1.0 / np.maximum(df["symbol"].map(iv.to_dict()).values.astype(float), 1e-6)
+            elif isinstance(iv, (np.ndarray, list)):
+                iv_cand = np.asarray(iv, dtype=float).copy()
+                if len(iv_cand) == len(df):
+                    weights_arr = 1.0 / np.maximum(iv_cand, 1e-6)
+
         # 2. Merge fundamentals_dict if supplied
         if fundamentals_dict and isinstance(fundamentals_dict, dict):
             for col in ["market_cap", "per", "pbr", "roe", "asset_growth_yoy"]:
@@ -144,8 +356,13 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                 if num_cols:
                     score_col = num_cols[-1]
             if score_col:
-                score_map = dict(zip(raw_scores["symbol"].astype(str).str.strip(), pd.to_numeric(raw_scores[score_col], errors="coerce")))
-                df["_raw_y"] = df["symbol"].map(score_map)
+                raw_syms = raw_scores["symbol"].values
+                df_syms = df["symbol"].values
+                if len(raw_syms) == len(df_syms) and np.array_equal(raw_syms, df_syms):
+                    df["_raw_y"] = pd.to_numeric(raw_scores[score_col], errors="coerce").values
+                else:
+                    score_map = dict(zip(raw_scores["symbol"].astype(str).str.strip(), pd.to_numeric(raw_scores[score_col], errors="coerce")))
+                    df["_raw_y"] = df["symbol"].map(score_map)
                 has_explicit_raw = True
             else:
                 df["_raw_y"] = np.nan
@@ -285,48 +502,38 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                 else:
                     Z_m[:, k] = 0.0
 
-            # QR Decomposition: X = [1, Z_m]
+            # Factor Neutralization via D-FCN (GLS / QR minimum distortion)
             X_m = np.column_stack([np.ones(N_m, dtype=float), Z_m])
+            w_m = weights_arr[idxs_arr] if weights_arr is not None else None
 
-            if N_m >= 6:
-                try:
-                    Q_m, _ = np.linalg.qr(X_m, mode="reduced")
-                    proj_coef = np.dot(Q_m.T, y_m)
-                    y_pred = np.dot(Q_m, proj_coef)
-                    residual = y_m - y_pred
-                except Exception as e:
-                    logger.warning(f"QR decomposition failed for market {mkt}: {e}")
-                    # Ridge regression fallback for ill-conditioned design matrices
-                    ridge_eye = 1e-4 * np.eye(X_m.shape[1])
-                    beta_ridge = np.linalg.solve(np.dot(X_m.T, X_m) + ridge_eye, np.dot(X_m.T, y_m))
-                    residual = y_m - np.dot(X_m, beta_ridge)
-            elif N_m > 1:
-                # SVD pseudoinverse projection for under-determined cross-sections (N_m < 6)
-                beta_pinv = np.linalg.pinv(X_m) @ y_m
-                residual = y_m - np.dot(X_m, beta_pinv)
-            else:
-                residual = y_m - np.mean(y_m)
+            residual = compute_precision_weighted_neutralization(
+                y=y_m,
+                B=X_m,
+                weights_precision=w_m,
+                ridge_lambda=1e-4,
+            )
 
             # 6. Hard Post-Condition SLA Gate: secondary Gram-Schmidt deflation (corr_thresh = 0.05)
             res_std = float(np.std(residual, ddof=0))
-            if res_std > 1e-8:
-                for k in range(5):
-                    z_k = Z_m[:, k]
-                    z_std = float(np.std(z_k, ddof=0))
-                    if z_std > 1e-6:
-                        corr_val = float(np.corrcoef(z_k, residual)[0, 1])
-                        if np.isnan(corr_val) or np.abs(corr_val) >= 0.05:
-                            # Secondary Gram-Schmidt Deflation
+            if res_std > 1e-8 and N_m > 1:
+                res_norm = (residual - np.mean(residual)) / res_std
+                # Vectorized correlation: Z_m has mean 0 and std 1 for active columns
+                corr_vec = np.dot(Z_m.T, res_norm) / N_m
+                if np.any(np.abs(corr_vec) >= 0.05) or np.any(~np.isfinite(corr_vec)):
+                    for k in range(5):
+                        c_val = corr_vec[k]
+                        if not np.isfinite(c_val) or abs(c_val) >= 0.05:
+                            z_k = Z_m[:, k]
                             z_center = z_k - np.mean(z_k)
                             z_norm = np.linalg.norm(z_center)
                             if z_norm > 1e-8:
                                 u_k = z_center / z_norm
                                 residual = residual - np.dot(u_k, residual) * u_k
-                residual = residual - np.mean(residual)
+                    residual = residual - np.mean(residual)
 
             # 7. Robust Scaling to [0.0, 1.0] and Post-Scaling Correlation Check
             if N_m >= 5 and (np.max(residual) - np.min(residual)) > 1e-8:
-                norm_scores = pd.Series(residual).rank(pct=True).values
+                norm_scores = pd.Series(residual).rank(pct=True).values.copy()
             elif N_m > 1 and (np.max(residual) - np.min(residual)) > 1e-8:
                 p1, p99 = np.percentile(residual, 1), np.percentile(residual, 99)
                 denom = (p99 - p1) if (p99 - p1) > 1e-8 else 1.0
@@ -336,34 +543,29 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
             else:
                 norm_scores = np.full(N_m, 0.5)
 
+            # Bilinear Factor Interaction Tensor (BFIT) Non-Linear Synergy
+            if N_m >= 2 and Z_m.shape[1] >= 5:
+                synergy_alpha = compute_bilinear_interaction_alpha(Z_m)
+                norm_scores = np.clip(norm_scores + 0.10 * synergy_alpha, 0.02, 0.98)
+
             # Post-scaling correlation check & linear orthogonal adjustment
             if N_m >= 6 and (np.max(norm_scores) - np.min(norm_scores)) > 1e-8:
-                needs_adjust = False
-                for k in range(5):
-                    z_k = Z_m[:, k]
-                    z_std = float(np.std(z_k, ddof=0))
-                    s_std = float(np.std(norm_scores, ddof=0))
-                    if z_std > 1e-6 and s_std > 1e-6:
-                        c_val = float(np.corrcoef(z_k, norm_scores)[0, 1])
-                        if np.isnan(c_val) or np.abs(c_val) >= 0.15:
-                            needs_adjust = True
-                            break
-
-                if needs_adjust:
-                    adj_scores = norm_scores.copy()
-                    for k in range(5):
-                        z_k = Z_m[:, k]
-                        z_std = float(np.std(z_k, ddof=0))
-                        s_std = float(np.std(adj_scores, ddof=0))
-                        if z_std > 1e-6 and s_std > 1e-6:
-                            c_val = float(np.corrcoef(z_k, adj_scores)[0, 1])
-                            if np.isfinite(c_val):
-                                adj_scores = adj_scores - c_val * (z_k / z_std) * s_std
-                    s_min, s_max = np.min(adj_scores), np.max(adj_scores)
-                    if (s_max - s_min) > 1e-8:
-                        norm_scores = (adj_scores - s_min) / (s_max - s_min)
-                    else:
-                        norm_scores = np.full(N_m, 0.5)
+                s_mean = float(np.mean(norm_scores))
+                s_std = float(np.std(norm_scores, ddof=0))
+                if s_std > 1e-6:
+                    s_norm = (norm_scores - s_mean) / s_std
+                    corr_vec = np.dot(Z_m.T, s_norm) / N_m
+                    if np.any(np.abs(corr_vec) >= 0.15) or np.any(~np.isfinite(corr_vec)):
+                        adj_scores = norm_scores.copy()
+                        for k in range(5):
+                            c_val = corr_vec[k]
+                            if np.isfinite(c_val) and abs(c_val) >= 0.15:
+                                adj_scores = adj_scores - c_val * Z_m[:, k] * s_std
+                        s_min, s_max = float(np.min(adj_scores)), float(np.max(adj_scores))
+                        if (s_max - s_min) > 1e-8:
+                            norm_scores = (adj_scores - s_min) / (s_max - s_min)
+                        else:
+                            norm_scores = np.full(N_m, 0.5)
 
             # Pure Idiosyncratic Alpha Conviction Boost & Multi-Tier Super Premium
             norm_scores = norm_scores.copy()
@@ -385,8 +587,64 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
             scores[idxs_arr] = safe_norm_scores
             exposures[idxs_arr] = np.where(np.isfinite(Z_m), Z_m, 0.0)
 
-        df["factor_neutralized_score"] = pd.to_numeric(pd.Series(np.round(scores, 4)), errors='coerce').fillna(0.50).clip(0.0, 1.0)
-        df["neutralized_score"] = df["factor_neutralized_score"]
+        # Global Hard SLA Gating Pass (Guarantees unconditional |rho| < 0.15 across combined cross-section)
+        if N >= 3 and (np.max(scores) - np.min(scores)) > 1e-8:
+            F_clean = np.zeros((N, 5), dtype=float)
+            for k in range(5):
+                f_k = F_all[:, k]
+                v_mask = np.isfinite(f_k)
+                if np.any(v_mask):
+                    med_k = float(np.nanmedian(f_k[v_mask]))
+                    f_c = np.where(v_mask, f_k, med_k)
+                else:
+                    f_c = np.zeros(N, dtype=float)
+                f_s = float(np.std(f_c, ddof=0))
+                if f_s > 1e-6:
+                    F_clean[:, k] = (f_c - np.mean(f_c)) / f_s
+
+            s_mean = float(np.mean(scores))
+            s_std = float(np.std(scores, ddof=0))
+            needs_global_adjust = False
+            if s_std > 1e-6:
+                s_norm = (scores - s_mean) / s_std
+                # Vectorized global correlation check across all 5 factors
+                glob_corr = np.dot(F_clean.T, s_norm) / N
+                if np.any(np.abs(glob_corr) >= 0.12) or np.any(~np.isfinite(glob_corr)):
+                    needs_global_adjust = True
+                elif not np.all(np.isfinite(F_all)):
+                    for k in range(5):
+                        f_k = F_all[:, k]
+                        v_mask = np.isfinite(f_k)
+                        n_v = int(np.sum(v_mask))
+                        if n_v < 3 or n_v == N:
+                            continue
+                        f_v = f_k[v_mask]
+                        s_v = scores[v_mask]
+                        f_v_std = float(np.std(f_v, ddof=0))
+                        s_v_std = float(np.std(s_v, ddof=0))
+                        if f_v_std > 1e-6 and s_v_std > 1e-6:
+                            f_v_norm = (f_v - np.mean(f_v)) / f_v_std
+                            s_v_norm = (s_v - np.mean(s_v)) / s_v_std
+                            c_val = float(np.dot(f_v_norm, s_v_norm)) / n_v
+                            if not np.isfinite(c_val) or abs(c_val) >= 0.12:
+                                needs_global_adjust = True
+                                break
+
+            if needs_global_adjust and s_std > 1e-6:
+                try:
+                    Q_glob, _ = np.linalg.qr(F_clean, mode="reduced")
+                    adj_scores = s_norm - Q_glob @ (Q_glob.T @ s_norm)
+                except Exception:
+                    beta_glob = np.linalg.pinv(F_clean) @ s_norm
+                    adj_scores = s_norm - F_clean @ beta_glob
+
+                s_min, s_max = float(np.min(adj_scores)), float(np.max(adj_scores))
+                if (s_max - s_min) > 1e-8:
+                    scores = np.clip(0.02 + 0.96 * (adj_scores - s_min) / (s_max - s_min), 0.02, 0.98)
+
+        scores_clean = np.clip(np.where(np.isfinite(scores), np.round(scores, 4), 0.50), 0.0, 1.0)
+        df["factor_neutralized_score"] = scores_clean
+        df["neutralized_score"] = scores_clean
         df["smb_exposure"] = np.where(np.isfinite(exposures[:, 0]), np.round(exposures[:, 0], 4), 0.0)
         df["hml_exposure"] = np.where(np.isfinite(exposures[:, 1]), np.round(exposures[:, 1], 4), 0.0)
         df["rmw_exposure"] = np.where(np.isfinite(exposures[:, 2]), np.round(exposures[:, 2], 4), 0.0)

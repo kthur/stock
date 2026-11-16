@@ -17,6 +17,18 @@ from typing import Dict, List, Any, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "ExecutionOMSEngine",
+    "OMSEngine",
+    "AlmgrenChrissScheduler",
+    "OrderPlanItem",
+    "OrderPlanList",
+    "GatheralMarketImpactKernel",
+    "check_gate11_idiosyncratic_risk_ratio",
+    "check_gate12_factor_crowding_shock",
+    "evaluate_gate11_and_gate12",
+]
+
 VERSION_PHASE175: int = 175
 RELEASE_PHASE175: str = "R175"
 FEATURE_PHASE175: str = "F859"
@@ -312,6 +324,219 @@ class OrderPlanList(list):
         return super().__contains__(item)
 
 
+def check_gate11_idiosyncratic_risk_ratio(
+    w_target: np.ndarray,
+    B_loadings: np.ndarray,
+    Omega_F: Optional[np.ndarray] = None,
+    D_idio: Optional[np.ndarray] = None,
+    min_irr: float = 0.70,
+    cov_matrix: Optional[np.ndarray] = None,
+) -> Tuple[bool, float, str]:
+    """
+    Gate 11: Idiosyncratic Risk Ratio (IRR) Safeguard.
+    Rejects order batches where:
+        IRR = sigma^2_idio / sigma^2_total < min_irr (default 0.70)
+    Ensures portfolio variance is dominated by stock-specific alpha rather than systematic factor beta.
+
+    Formula:
+        beta_p = B^T w
+        sigma^2_factor = beta_p^T Omega_F beta_p
+        sigma^2_idio = w^T D w = sum(w_i^2 * D_i)
+        sigma^2_total = sigma^2_factor + sigma^2_idio
+        IRR = sigma^2_idio / sigma^2_total
+
+    Returns:
+        (passed: bool, irr: float, reason: str)
+    """
+    w = np.nan_to_num(np.asarray(w_target, dtype=np.float64).flatten(), nan=0.0, posinf=0.0, neginf=0.0)
+    N = len(w)
+    if N == 0:
+        return True, 1.0, "Zero/negligible total risk: safe default"
+
+    B = np.nan_to_num(np.asarray(B_loadings, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+    if B.ndim == 1:
+        B = B.reshape(N, -1) if len(B) == N else B.reshape(-1, 1)
+
+    if B.size == 0:
+        return True, 1.0, "Zero/negligible total risk: safe default"
+
+    if B.shape[0] != N:
+        return False, 0.0, f"Gate 11 Breached: Dimension mismatch weights N={N} != B rows={B.shape[0]}"
+
+    K = B.shape[1] if B.ndim == 2 else 0
+    if K == 0:
+        return True, 1.0, "Zero/negligible total risk: safe default"
+
+    cov = None
+    if cov_matrix is not None:
+        cov = np.nan_to_num(np.asarray(cov_matrix, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+
+    if Omega_F is None:
+        if cov is not None and cov.shape == (N, N):
+            pinv_B = np.linalg.pinv(B)
+            Omega = pinv_B @ cov @ pinv_B.T
+            Omega = (Omega + Omega.T) / 2.0
+        else:
+            Omega = np.eye(K, dtype=np.float64)
+    else:
+        Omega = np.nan_to_num(np.asarray(Omega_F, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+        if Omega.ndim == 1:
+            Omega = np.diag(Omega)
+        elif Omega.ndim == 0:
+            Omega = np.array([[float(Omega)]], dtype=np.float64)
+        Omega = (Omega + Omega.T) / 2.0
+
+    # Spectral clipping / PSD projection for factor covariance
+    if Omega.size > 0:
+        try:
+            vals, vecs = np.linalg.eigh(Omega)
+            if np.any(vals < 0):
+                Omega = vecs @ np.diag(np.maximum(vals, 0.0)) @ vecs.T
+                Omega = (Omega + Omega.T) / 2.0
+        except Exception:
+            pass
+
+    if D_idio is None:
+        if cov is not None and cov.shape == (N, N):
+            sys_cov = B @ Omega @ B.T
+            D_diag = np.maximum(np.diag(cov - sys_cov), 0.0)
+        else:
+            D_diag = np.zeros(N, dtype=np.float64)
+    else:
+        D_arr = np.nan_to_num(np.asarray(D_idio, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+        if D_arr.ndim == 2:
+            if D_arr.shape == (N, N):
+                D_diag = np.diag(D_arr)
+            else:
+                D_diag = D_arr.flatten()
+        elif D_arr.ndim == 1:
+            D_diag = D_arr.flatten()
+        else:
+            D_diag = np.array([float(D_arr)], dtype=np.float64)
+        D_diag = np.maximum(D_diag, 0.0)
+        if len(D_diag) < N:
+            D_diag = np.pad(D_diag, (0, N - len(D_diag)), mode='constant')
+        elif len(D_diag) > N:
+            D_diag = D_diag[:N]
+
+    beta_p = B.T @ w
+    factor_var = max(0.0, float(beta_p.T @ Omega @ beta_p))
+    idio_var = max(0.0, float(np.sum((w ** 2) * D_diag)))
+    total_var = factor_var + idio_var
+
+    if total_var <= 1e-12 or not np.isfinite(total_var):
+        return True, 1.0, "Zero/negligible total risk: safe default"
+
+    irr = float(np.clip(idio_var / total_var, 0.0, 1.0))
+    m_irr = float(min_irr) if (min_irr is not None and math.isfinite(float(min_irr))) else 0.70
+
+    # Exact 0.70 passes, 0.6999 fails, 0.7001 passes
+    passed = bool(round(irr, 9) >= round(m_irr, 9))
+    if passed:
+        return True, irr, "PASSED"
+    else:
+        return False, irr, f"Gate 11 Breached: IRR {irr:.4f} < {m_irr:.4f} (Factor Crowding Risk)"
+
+
+def check_gate12_factor_crowding_shock(
+    crowding_shock_z: float,
+    max_shock_z: float = 3.0,
+) -> Tuple[bool, Dict[str, Any]]:
+    """
+    Gate 12: Factor Crowding Shock Circuit Breaker.
+    Triggers execution throttling when cross-sectional crowding shock Z-score >= max_shock_z (default 3.0).
+
+    Returns:
+        (is_throttled: bool, throttling_params: Dict[str, Any])
+    """
+    if crowding_shock_z is None:
+        z = 0.0
+    else:
+        try:
+            fz = float(crowding_shock_z)
+            if not math.isfinite(fz):
+                z = 0.0
+            else:
+                z = fz
+        except (ValueError, TypeError):
+            z = 0.0
+
+    mz = float(max_shock_z) if (max_shock_z is not None and math.isfinite(float(max_shock_z))) else 3.0
+    is_throttled = bool(z >= mz)
+
+    if is_throttled:
+        params: Dict[str, Any] = {
+            "throttled": True,
+            "urgency": "passive_twap",
+            "max_adv_participation": 0.0050,
+            "leland_buffer_multiplier": 2.0,
+            "reason": f"Gate 12 Breached: Factor Crowding Shock Z={z:.2f} >= {mz:.2f} (Throttling Triggered)",
+            "shock_z": z,
+            "max_shock_z": mz,
+            "synthetic_rows": 0,
+        }
+        return True, params
+    else:
+        params: Dict[str, Any] = {
+            "throttled": False,
+            "urgency": "normal",
+            "max_adv_participation": 0.0150,
+            "leland_buffer_multiplier": 1.0,
+            "reason": "PASSED",
+            "shock_z": z,
+            "max_shock_z": mz,
+            "synthetic_rows": 0,
+        }
+        return False, params
+
+
+def evaluate_gate11_and_gate12(
+    w_target: np.ndarray,
+    B_loadings: np.ndarray,
+    Omega_F: Optional[np.ndarray] = None,
+    D_idio: Optional[np.ndarray] = None,
+    factor_shock_z: float = 0.0,
+    min_irr: float = 0.70,
+    max_shock_z: float = 3.0,
+    cov_matrix: Optional[np.ndarray] = None,
+) -> Tuple[bool, str, Dict[str, Any]]:
+    """
+    Feasibility Report §5.5 combined factor risk gate evaluation:
+    Evaluates both Gate 11 (IRR Safeguard) and Gate 12 (Factor Crowding Shock Circuit Breaker).
+
+    Returns:
+        (passed: bool, message: str, details: Dict[str, Any])
+    """
+    g11_pass, irr, g11_msg = check_gate11_idiosyncratic_risk_ratio(
+        w_target=w_target,
+        B_loadings=B_loadings,
+        Omega_F=Omega_F,
+        D_idio=D_idio,
+        min_irr=min_irr,
+        cov_matrix=cov_matrix,
+    )
+    g12_throttled, g12_params = check_gate12_factor_crowding_shock(
+        crowding_shock_z=factor_shock_z,
+        max_shock_z=max_shock_z,
+    )
+
+    details: Dict[str, Any] = {
+        "irr": irr,
+        "gate11_passed": g11_pass,
+        "gate11_reason": g11_msg,
+        "gate12_throttled": g12_throttled,
+        "gate12_params": g12_params,
+        "throttling_params": g12_params,
+        "synthetic_rows": 0,
+    }
+
+    if not g11_pass:
+        return False, g11_msg, details
+    if g12_throttled:
+        return False, g12_params["reason"], details
+    return True, "PASSED", details
+
+
 class ExecutionOMSEngine:
     """
     Order Management & Execution Engine for Stock Trading System.
@@ -322,6 +547,9 @@ class ExecutionOMSEngine:
     FEATURE = FEATURE
     SYNTHETIC_ROWS: int = 0
     synthetic_rows: int = 0
+    check_gate11_idiosyncratic_risk_ratio = staticmethod(check_gate11_idiosyncratic_risk_ratio)
+    check_gate12_factor_crowding_shock = staticmethod(check_gate12_factor_crowding_shock)
+    evaluate_gate11_and_gate12 = staticmethod(evaluate_gate11_and_gate12)
     VERSION_PHASE158 = VERSION_PHASE158
     RELEASE_PHASE158 = RELEASE_PHASE158
     FEATURE_PHASE158 = FEATURE_PHASE158
@@ -1140,6 +1368,85 @@ class ExecutionOMSEngine:
 
     evaluate_safety_gates = evaluate_12_safety_gates
 
+    def evaluate_batch_factor_risk_gates(
+        self,
+        portfolio_weights: Union[Dict[str, float], np.ndarray, List[float]],
+        factor_loadings: Optional[np.ndarray] = None,
+        factor_covariance: Optional[np.ndarray] = None,
+        idiosyncratic_vars: Optional[np.ndarray] = None,
+        factor_shock_z: float = 0.0,
+        min_irr: float = 0.70,
+        max_shock_z: float = 3.0,
+        cov_matrix: Optional[np.ndarray] = None,
+    ) -> Dict[str, Any]:
+        """
+        Batch / Target Portfolio Factor Risk Gate Evaluation.
+        Evaluates Gate 11 (Idiosyncratic Risk Ratio Safeguard) and Gate 12 (Crowding Shock Circuit Breaker).
+        """
+        if isinstance(portfolio_weights, dict):
+            w_arr = np.array(list(portfolio_weights.values()), dtype=np.float64)
+        else:
+            w_arr = np.asarray(portfolio_weights, dtype=np.float64).flatten()
+
+        N = len(w_arr)
+        if factor_loadings is None or (isinstance(factor_loadings, np.ndarray) and factor_loadings.size == 0):
+            B_loadings = np.zeros((N, 1), dtype=np.float64)
+            Omega_F = np.eye(1, dtype=np.float64)
+            D_idio = np.ones(N, dtype=np.float64)
+        else:
+            B_loadings = factor_loadings
+            Omega_F = factor_covariance
+            D_idio = idiosyncratic_vars
+
+        passed, reason, details = evaluate_gate11_and_gate12(
+            w_target=w_arr,
+            B_loadings=B_loadings,
+            Omega_F=Omega_F,
+            D_idio=D_idio,
+            factor_shock_z=factor_shock_z,
+            min_irr=min_irr,
+            max_shock_z=max_shock_z,
+            cov_matrix=cov_matrix,
+        )
+
+        return {
+            "passed": passed,
+            "status": "APPROVED" if passed else "REJECTED",
+            "reason": reason,
+            "irr": details.get("irr", 1.0),
+            "gate11_passed": details.get("gate11_passed", True),
+            "gate11_reason": details.get("gate11_reason", "PASSED"),
+            "gate12_throttled": details.get("gate12_throttled", False),
+            "gate12_reason": details.get("throttling_params", {}).get("reason", "PASSED"),
+            "throttling_params": details.get("throttling_params", {}),
+            "synthetic_rows": 0,
+        }
+
+    def update_factor_crowding_state(
+        self,
+        crowding_shock_z: float,
+        max_shock_z: float = 3.0,
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """Updates internal factor crowding throttling state based on Gate 12."""
+        is_throttled, params = check_gate12_factor_crowding_shock(crowding_shock_z, max_shock_z)
+        self.factor_crowding_shock_z = float(params.get("shock_z", 0.0))
+        self.is_factor_crowding_throttled = bool(is_throttled)
+        self.throttling_params = dict(params)
+        return is_throttled, params
+
+    def reset_factor_crowding_state(self) -> None:
+        """Resets factor crowding throttling state to normal."""
+        self.factor_crowding_shock_z = 0.0
+        self.is_factor_crowding_throttled = False
+        self.throttling_params = {
+            "throttled": False,
+            "urgency": "normal",
+            "max_adv_participation": 0.0150,
+            "leland_buffer_multiplier": 1.0,
+            "reason": "PASSED",
+            "synthetic_rows": 0,
+        }
+
 
     def __init__(self, db_path: str = "trade_logs.db", lot_size_krx: int = 1, config: Optional[Any] = None, version: Optional[int] = None, lob_engine: Optional[Any] = None, account_id: Optional[str] = None, initial_capital: Optional[float] = None, **kwargs):
         self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
@@ -1149,6 +1456,16 @@ class ExecutionOMSEngine:
         self.account_id = account_id or "DEFAULT_ACCOUNT"
         self.initial_capital = initial_capital or 100_000_000.0
         self.synthetic_rows: int = 0
+        self.factor_crowding_shock_z: float = 0.0
+        self.is_factor_crowding_throttled: bool = False
+        self.throttling_params: Dict[str, Any] = {
+            "throttled": False,
+            "urgency": "normal",
+            "max_adv_participation": 0.0150,
+            "leland_buffer_multiplier": 1.0,
+            "reason": "PASSED",
+            "synthetic_rows": 0,
+        }
         v = int(version) if version is not None else 103
         try:
             import sys
@@ -1495,6 +1812,8 @@ class ExecutionOMSEngine:
         max_adv_ratio: float = 0.05,
         prices_dict: Optional[Dict[str, Any]] = None,
         usdkrw_rate: float = 1350.0,
+        factor_shock_z: float = 0.0,
+        crowding_shock_z: float = 0.0,
         **kwargs
     ) -> Any:
         """
@@ -1538,6 +1857,46 @@ class ExecutionOMSEngine:
         if is_kill_switch_active():
             logger.critical("[OMS ENGINE] KILL SWITCH ACTIVE - skipping ALL order plan generation.")
             return order_plans
+
+        # Gate 12 Factor Crowding Shock Circuit Breaker check
+        effective_shock_z = factor_shock_z if factor_shock_z != 0.0 else crowding_shock_z
+        if effective_shock_z == 0.0:
+            effective_shock_z = float(kwargs.get("factor_shock_z", kwargs.get("crowding_shock_z", 0.0)) or 0.0)
+        max_sz = float(kwargs.get("max_shock_z", 3.0) or 3.0)
+        is_crowding_throttled, throttling_info = check_gate12_factor_crowding_shock(
+            crowding_shock_z=effective_shock_z,
+            max_shock_z=max_sz,
+        )
+        if is_crowding_throttled:
+            self.factor_crowding_shock_z = effective_shock_z
+            self.is_factor_crowding_throttled = True
+            self.throttling_params = throttling_info
+            logger.warning(f"[OMS GATE 12] {throttling_info.get('reason')} -> Activating execution throttling.")
+
+        # Gate 11 Idiosyncratic Risk Ratio (IRR) Safeguard check (if factor data provided)
+        b_loadings = kwargs.get("B_loadings", kwargs.get("factor_loadings"))
+        if b_loadings is not None:
+            omega_f = kwargs.get("Omega_F", kwargs.get("factor_covariance"))
+            d_idio = kwargs.get("D_idio", kwargs.get("idiosyncratic_vars"))
+            min_irr = float(kwargs.get("min_irr", 0.70) or 0.70)
+            cov_mat = kwargs.get("cov_matrix")
+            if "w_target" in kwargs:
+                w_chk = np.asarray(kwargs["w_target"], dtype=np.float64)
+            elif portfolio_weights:
+                w_chk = np.array(list(portfolio_weights.values()), dtype=np.float64)
+            else:
+                w_chk = np.array([], dtype=np.float64)
+            g11_ok, irr_val, g11_msg = check_gate11_idiosyncratic_risk_ratio(
+                w_target=w_chk,
+                B_loadings=b_loadings,
+                Omega_F=omega_f,
+                D_idio=d_idio,
+                min_irr=min_irr,
+                cov_matrix=cov_mat,
+            )
+            if not g11_ok:
+                logger.warning(f"[OMS GATE 11 BREACH] {g11_msg} -> Rejecting entire order batch.")
+                return order_plans
 
         cl_raw = crisis_level.value if hasattr(crisis_level, "value") else str(crisis_level)
         cl_upper = str(cl_raw).upper()
@@ -1845,6 +2204,8 @@ class ExecutionOMSEngine:
                             delta_i = p_alloc.calculate_dynamic_buffer_band(
                                 symbol=sym, target_weight=weight, cost_rate=c_rate, volatility_20d=vol_20d
                             )
+                            if is_crowding_throttled:
+                                delta_i *= 2.0
                             if abs(curr_w - weight) <= delta_i:
                                 logger.info(f"[OMS LELAND BUFFER] Symbol {sym}: Current weight {curr_w:.3f} within ±{delta_i:.3f} of target {weight:.3f} -> skipping redundant trade (Hold)")
                                 continue
@@ -2053,7 +2414,10 @@ class ExecutionOMSEngine:
                 adv_in_pred = pred.get("adv") if pred.get("adv") is not None else pred.get("trading_value")
                 if adv_in_pred is not None and float(adv_in_pred) > 0:
                     adv_val = float(adv_in_pred)
-                    effective_max_adv_ratio = min(max_adv_ratio, 0.05)  # V7-10: Strict 5% ADV market impact bound
+                    if is_crowding_throttled:
+                        effective_max_adv_ratio = min(max_adv_ratio, 0.0050)  # Gate 12: Throttled to 0.50% ADV cap
+                    else:
+                        effective_max_adv_ratio = min(max_adv_ratio, 0.05)  # V7-10: Strict 5% ADV market impact bound
                     max_adv_amount = effective_max_adv_ratio * adv_val
                     if effective_target_amount > max_adv_amount:
                         logger.info(f"[OMS ADV CAPACITY] {sym} target amount {effective_target_amount:,.0f} capped to {effective_max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
@@ -2156,7 +2520,10 @@ class ExecutionOMSEngine:
                 is_preassigned_strategy = (
                     'exec_strategy' in locals() and exec_strategy in ["PASSIVE_LIMIT", "CASH_OVERLAY", "DIP_LIMIT"]
                 )
-                if not is_preassigned_strategy:
+                if is_crowding_throttled:
+                    exec_strategy = "PASSIVE_TWAP"
+                    slice_count = max(4, slice_count)
+                elif not is_preassigned_strategy:
                     if effective_half_life <= 2.0:
                         exec_strategy = "FAST_VWAP"
                         slice_count = 3
@@ -2368,7 +2735,10 @@ class ExecutionOMSEngine:
                 tranches = []
                 if quantity > 0:
                     if slice_count > 1 and quantity >= slice_count:
-                        tier = "fast" if effective_half_life <= 2.0 else ("slow" if effective_half_life >= 25.0 else "medium")
+                        if is_crowding_throttled:
+                            tier = "passive_twap"
+                        else:
+                            tier = "fast" if effective_half_life <= 2.0 else ("slow" if effective_half_life >= 25.0 else "medium")
                         adv_ac = float(adv_eff) if adv_eff > 0 else 1_000_000.0
                         vol_ac = float(vol_sigma) if vol_sigma > 0 else 0.02
                         raw_slices = AlmgrenChrissScheduler.compute_trajectory(
@@ -2400,7 +2770,9 @@ class ExecutionOMSEngine:
                         n_act = len(active_slices)
                         for j, q_slice in enumerate(active_slices):
                             is_final = (j == n_act - 1)
-                            if exec_strategy == "PASSIVE_LIMIT":
+                            if is_crowding_throttled:
+                                t_tag = "PASSIVE_TWAP"
+                            elif exec_strategy == "PASSIVE_LIMIT":
                                 t_tag = "PASSIVE_LIMIT"
                             elif exec_strategy == "DIP_LIMIT":
                                 t_tag = "DIP_LIMIT" if not is_final else "AGGRESSIVE_TAKER"
@@ -2436,7 +2808,10 @@ class ExecutionOMSEngine:
                                 "limit_price": round(float(slice_px), 2)
                             })
                     else:
-                        s_tag = "PASSIVE_LIMIT" if exec_strategy == "PASSIVE_LIMIT" else ("MIDPOINT_PEG" if exec_strategy == "MIDPOINT_PEG" else ("DIP_LIMIT" if exec_strategy == "DIP_LIMIT" else "AGGRESSIVE_TAKER"))
+                        if is_crowding_throttled:
+                            s_tag = "PASSIVE_TWAP"
+                        else:
+                            s_tag = "PASSIVE_LIMIT" if exec_strategy == "PASSIVE_LIMIT" else ("MIDPOINT_PEG" if exec_strategy == "MIDPOINT_PEG" else ("DIP_LIMIT" if exec_strategy == "DIP_LIMIT" else "AGGRESSIVE_TAKER"))
                         tranches.append({
                             "slice": 1,
                             "quantity": int(quantity),
@@ -2509,7 +2884,8 @@ class ExecutionOMSEngine:
                     "tranches": tranches,
                     "sor_routing": sor_routing,
                     "expected_cost_saving_bps": round(expected_saving_bps, 2),
-                    "urgency": float(pred.get("urgency", 0.10 if exec_strategy == "PASSIVE_LIMIT" else 0.50)),
+                    "urgency": 0.0 if is_crowding_throttled else float(pred.get("urgency", 0.10 if exec_strategy == "PASSIVE_LIMIT" else 0.50)),
+                    "throttled": is_crowding_throttled,
                 })
                 order_plans.append(plan_entry)
 
@@ -4440,17 +4816,28 @@ class AlmgrenChrissScheduler:
         if total_quantity <= 0 or n_slices <= 1:
             return [total_quantity]
 
-        urgency_map = {"fast": 1.0e-3, "medium": 1.0e-5, "slow": 1.0e-7}
-        lambda_urg = urgency_map.get(str(strategy_tier).lower(), 1.0e-5)
+        urgency_map = {"fast": 1.0e-3, "medium": 1.0e-5, "slow": 1.0e-7, "passive_twap": 0.0, "twap": 0.0}
+        tier_str = str(strategy_tier).lower()
+        is_passive_twap = tier_str in ("passive_twap", "linear_twap", "twap_linear", "twap")
+        if is_passive_twap:
+            base = total_quantity // n_slices
+            rem = total_quantity % n_slices
+            return [int(base + (1 if i < rem else 0)) for i in range(n_slices)]
+
+        lambda_urg = urgency_map.get(tier_str, 1.0e-5)
         # Standardized temporary impact parameter based on participation fraction
         eta = 0.5 * max(daily_volatility, 0.01)
-        kappa = float(np.clip(np.sqrt(lambda_urg * (daily_volatility ** 2) / max(eta, 1e-8)), 0.01, 3.0))
 
         t = np.linspace(0, 1, n_slices + 1)
-        if kappa > 1e-4:
-            traj = np.sinh(kappa * (1.0 - t)) / np.sinh(kappa)
-        else:
+        if lambda_urg <= 0.0:
+            kappa = 0.0
             traj = 1.0 - t
+        else:
+            kappa = float(np.clip(np.sqrt(lambda_urg * (daily_volatility ** 2) / max(eta, 1e-8)), 0.01, 3.0))
+            if kappa > 1e-4:
+                traj = np.sinh(kappa * (1.0 - t)) / np.sinh(kappa)
+            else:
+                traj = 1.0 - t
 
         diffs = -np.diff(traj)
         diffs = np.maximum(diffs, 0.0)
@@ -4474,12 +4861,10 @@ class AlmgrenChrissScheduler:
                 alloc[i % n_slices] += 1
         elif diff_total < 0:
             rem = abs(diff_total)
-            for i in range(n_slices - 1, -1, -1):
-                sub = min(alloc[i], rem)
-                alloc[i] -= sub
-                rem -= sub
-                if rem <= 0:
-                    break
+            for i in range(rem):
+                candidates = [idx for idx in range(n_slices) if alloc[idx] > 0]
+                if candidates:
+                    alloc[candidates[-(i % len(candidates)) - 1]] -= 1
         return [int(x) for x in alloc]
 
     @staticmethod
