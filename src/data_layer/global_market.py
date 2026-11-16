@@ -39,6 +39,7 @@ GLOBAL_INDICES: Dict[str, str] = {
     "^STI": "Straits Times (Singapore)",
     "^GSPTSE": "S&P/TSX (Canada)",
     "^VIX": "CBOE Volatility",
+    "^SOX": "PHLX Semiconductor",
 }
 
 FX_PAIRS: Dict[str, str] = {
@@ -63,6 +64,8 @@ MACRO_COMMODITIES: Dict[str, str] = {
     "^FVX": "US 5Y Treasury Yield",
     "^IRX": "US 13W Treasury Bill",
     "CL=F": "WTI Crude Oil",
+    "GC=F": "Gold Futures",
+    "GLD": "SPDR Gold Shares",
     "DX-Y.NYB": "US Dollar Index (DXY)",
     "305720.KS": "KODEX KTB 3Y ETF",
     "273130.KS": "KODEX KTB 10Y ETF",
@@ -88,33 +91,60 @@ class GlobalMarketClient:
             if now - ts < _CACHE_TTL:
                 return data
 
+        # Coordinate rate limiting across pipeline threads
+        try:
+            from src.utils.rate_limiter import get_global_rate_limiter
+            get_global_rate_limiter().wait()
+        except Exception:
+            pass
+
+        # Canonicalize symbol aliases for both providers
+        sym_upper = symbol.strip().upper()
+        if sym_upper in ("DXY", "DX-Y.NYB"):
+            yf_symbol = "DX-Y.NYB"
+            fdr_sym = "DX-Y.NYB"
+        elif sym_upper in ("SOX", "^SOX"):
+            yf_symbol = "^SOX"
+            fdr_sym = "^SOX"
+        elif sym_upper in ("GOLD", "GLD"):
+            yf_symbol = "GLD"
+            fdr_sym = "GLD"
+        elif sym_upper in ("WTI", "CL=F"):
+            yf_symbol = "CL=F"
+            fdr_sym = "CL=F"
+        elif sym_upper in ("USDKRW=X", "USD/KRW"):
+            yf_symbol = "USDKRW=X"
+            fdr_sym = "USD/KRW"
+        else:
+            yf_symbol = symbol
+            fdr_sym = symbol.replace("USDKRW=X", "USD/KRW").replace("EURUSD=X", "EUR/USD")
+
         hist = None
         # Tier 1: yf.Ticker fast path
         try:
-            tk = yf.Ticker(symbol)
+            tk = yf.Ticker(yf_symbol)
             hist = tk.history(period=period)
         except Exception as e:
-            logger.debug("yfinance Ticker error for %s: %s", symbol, e)
+            logger.debug("yfinance Ticker error for %s (%s): %s", symbol, yf_symbol, e)
 
         # Tier 2: yf.download batch path
         if hist is None or hist.empty:
             try:
-                hist = yf.download(symbol, period=period, progress=False)
+                hist = yf.download(yf_symbol, period=period, progress=False)
                 if isinstance(hist.columns, pd.MultiIndex):
                     hist.columns = hist.columns.droplevel(1)
             except Exception as e:
-                logger.debug("yfinance download error for %s: %s", symbol, e)
+                logger.debug("yfinance download error for %s (%s): %s", symbol, yf_symbol, e)
 
         # Tier 3: FinanceDataReader fallback
         if hist is None or hist.empty:
             try:
                 import FinanceDataReader as fdr
-                fdr_sym = symbol.replace("USDKRW=X", "USD/KRW").replace("EURUSD=X", "EUR/USD")
                 hist = fdr.DataReader(fdr_sym, start=(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d'))
                 if hist is not None and not hist.empty:
                     hist.columns = [str(c).capitalize() for c in hist.columns]
             except Exception as e:
-                logger.debug("FDR fallback error for %s: %s", symbol, e)
+                logger.debug("FDR fallback error for %s (%s): %s", symbol, fdr_sym, e)
 
         if hist is not None and not hist.empty:
             self._cache[cache_key] = (hist, now)

@@ -446,10 +446,17 @@ class StockPriceDB:
     def __init__(self, db_path: Union[str, Path] = str(_DEFAULT_STOCK_PRICES_DB)):
         p = Path(db_path)
         if not p.is_absolute():
-            if str(db_path) in ("stock_prices.db", str(_DEFAULT_STOCK_PRICES_DB), "") and _DEFAULT_STOCK_PRICES_DB.exists():
+            ts_p = _TRADING_SYSTEM_ROOT / "trading_system" / p
+            if ts_p.exists():
+                p = ts_p
+            elif str(db_path) in ("stock_prices.db", str(_DEFAULT_STOCK_PRICES_DB), "") and _DEFAULT_STOCK_PRICES_DB.exists():
                 p = _DEFAULT_STOCK_PRICES_DB
             else:
                 p = (_TRADING_SYSTEM_ROOT / p).resolve()
+        elif p.name == "stock_prices.db" and p.parent.name != "trading_system":
+            ts_p = p.parent / "trading_system" / "stock_prices.db"
+            if ts_p.exists() and (not p.exists() or ts_p.stat().st_size > p.stat().st_size):
+                p = ts_p
         self.db_path = p
         self.logger = logger
         self._local = threading.local()
@@ -607,15 +614,34 @@ class StockPriceDB:
                         vol_f = 0.0
                     vol = int(vol_f) if (math.isfinite(vol_f) and vol_f >= 0) else 0
 
+                    is_macro_or_yield = (
+                        symbol in ('CL=F', '^IRX', '^TNX', '^FVX', '2YY=X')
+                        or symbol.startswith('^')
+                        or symbol.endswith('=F')
+                        or symbol.endswith('=X')
+                    )
+
                     if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl)):
                         continue
-                    if cl <= 0.0 or op <= 0.0 or hi <= 0.0 or lo <= 0.0:
-                        continue
-                    # Enforce logical OHLC consistency (fix minor data feed rounding errors or skip corrupt rows)
-                    if hi < lo or op > hi or op < lo or cl > hi or cl < lo:
+
+                    if not is_macro_or_yield:
+                        if cl <= 0.0:
+                            continue
+                        if op <= 0.0 or not math.isfinite(op):
+                            op = cl
+                        if hi <= 0.0 or not math.isfinite(hi):
+                            hi = max(cl, op)
+                        if lo <= 0.0 or not math.isfinite(lo):
+                            lo = min(cl, op)
                         hi = max(hi, op, cl, lo)
                         lo = min(lo, op, cl, hi)
                         if hi <= 0.0 or lo <= 0.0 or hi < lo:
+                            continue
+                    else:
+                        # Macro commodities or bond yields can have legitimate negative prices (e.g. WTI CL=F)
+                        hi = max(hi, op, cl, lo)
+                        lo = min(lo, op, cl, hi)
+                        if hi < lo:
                             continue
                 except (ValueError, TypeError, IndexError):
                     continue
@@ -656,9 +682,16 @@ class StockPriceDB:
         return self.update_prices_batch({symbol: df}, bypass_validation=bypass_validation)
 
     @staticmethod
-    def validate_and_clean_price_series(df: pd.DataFrame, max_daily_jump: float = 0.65) -> pd.DataFrame:
+    def validate_and_clean_price_series(
+        df: pd.DataFrame,
+        max_daily_jump: float = 0.65,
+        symbol: Optional[str] = None,
+        allow_negative: bool = False
+    ) -> pd.DataFrame:
         """Delegate to DataValidator for backwards compatibility and clean SRP separation."""
-        return DataValidator.validate_and_clean_price_series(df, max_daily_jump=max_daily_jump)
+        return DataValidator.validate_and_clean_price_series(
+            df, max_daily_jump=max_daily_jump, symbol=symbol, allow_negative=allow_negative
+        )
 
     def get_prices(self, symbol: str, start_date: Optional[str] = None,
                    end_date: Optional[str] = None,
@@ -686,7 +719,7 @@ class StockPriceDB:
         if not df.empty:
             df.set_index("date", inplace=True)
             df.columns = [col.capitalize() for col in df.columns]
-            df = self.validate_and_clean_price_series(df)
+            df = self.validate_and_clean_price_series(df, symbol=symbol)
         else:
             df = pd.DataFrame(columns=['Open', 'High', 'Low', 'Close', 'Volume'])
             df.index = pd.DatetimeIndex([], name='date')

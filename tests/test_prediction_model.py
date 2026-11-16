@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 # Ensure project root and trading_system are in sys.path
-_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _TS_DIR = os.path.join(_ROOT, "trading_system")
 if _TS_DIR not in sys.path:
     sys.path.insert(0, _TS_DIR)
@@ -266,6 +266,37 @@ class TestMLThreadAllocation(unittest.TestCase):
         self.assertEqual(xgb_surge.get_params().get("n_jobs"), 2)
         self.assertEqual(lgb_surge.get_params().get("n_jobs"), 2)
         self.assertEqual(cat_surge.get_params().get("thread_count"), 2)
+
+    def test_merge_indicator_history_auxiliary_nan_isolation(self):
+        """Verify that uncleaned auxiliary indicator columns with NaNs do not pollute training data."""
+        dates = pd.date_range("2024-01-01", periods=100)
+        df_stock = pd.DataFrame({
+            "Open": np.linspace(100, 110, 100),
+            "High": np.linspace(101, 111, 100),
+            "Low": np.linspace(99, 109, 100),
+            "Close": np.linspace(100, 110, 100),
+            "Volume": 1000.0,
+        }, index=dates)
+
+        # Auxiliary columns with NaNs that are present in pipeline but outside GLOBAL_FEATURES
+        ind_df = pd.DataFrame({
+            "vix_change": 0.1,
+            "us10y": 4.0,
+            "vix_raw": [np.nan if i % 2 == 0 else 20.0 for i in range(100)],
+            "dxy_raw": [np.nan if i % 3 == 0 else 104.0 for i in range(100)],
+            "unrelated_raw_indicator": [np.nan] * 100,
+        }, index=dates)
+
+        merged = self.model._merge_indicator_history(df_stock, ind_df)
+        self.assertNotIn("vix_raw", merged.columns)
+        self.assertNotIn("dxy_raw", merged.columns)
+        self.assertNotIn("unrelated_raw_indicator", merged.columns)
+        self.assertIn("vix_change", merged.columns)
+        self.assertIn("us10y", merged.columns)
+
+        # Confirm prepare_training_data does not drop rows due to auxiliary indicator NaNs
+        res = self.model.prepare_training_data({"TEST_A": df_stock}, indicator_df=ind_df)
+        self.assertGreater(len(res), 50)
 
 
 if __name__ == "__main__":

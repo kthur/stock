@@ -43,6 +43,21 @@ class TestModularPipeline(unittest.TestCase):
         self.assertEqual(m_map.get("AAPL"), "SP500")
         self.assertEqual(m_map.get("005930"), "KOSPI")
 
+    def test_data_fetcher_fetch_market_indicators_fallback(self):
+        fetcher = PipelineDataFetcher()
+        class MockStorage:
+            def __init__(self):
+                self._data = {"^VIX": 19.5, "^TNX": 4.5}
+            def save_indicators(self, data, date_str):
+                pass
+            def get_latest_global_indicators(self):
+                return self._data
+
+        res = fetcher.fetch_market_indicators(MockStorage(), None)
+        self.assertIn("^VIX", res)
+        self.assertIn("^TNX", res)
+        self.assertAlmostEqual(res["^VIX"], 19.5)
+
     def test_predictor_empty_inputs(self):
         predictor = PipelinePredictor()
         results = predictor.run_all_strategy_inference(

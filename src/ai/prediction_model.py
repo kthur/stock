@@ -10,13 +10,27 @@ try:
 except ImportError:
     class _CatBoostStub:
         class CatBoostRegressor:
-            def __init__(self, *args, **kwargs): pass
+            def __init__(self, *args, **kwargs):
+                self._params = dict(kwargs)
+            def get_params(self, deep=True):
+                return dict(self._params)
+            def get_all_params(self):
+                return dict(self._params)
+            def get_param(self, key):
+                return self._params.get(key)
             def fit(self, *args, **kwargs): return self
             def predict(self, X): return np.zeros(len(X), dtype=np.float32)
             def predict_proba(self, X): return np.zeros((len(X), 2), dtype=np.float32)
             def save_model(self, path): pass
         class CatBoostClassifier:
-            def __init__(self, *args, **kwargs): pass
+            def __init__(self, *args, **kwargs):
+                self._params = dict(kwargs)
+            def get_params(self, deep=True):
+                return dict(self._params)
+            def get_all_params(self):
+                return dict(self._params)
+            def get_param(self, key):
+                return self._params.get(key)
             def fit(self, *args, **kwargs): return self
             def predict(self, X): return np.zeros(len(X), dtype=np.float32)
             def predict_proba(self, X): return np.zeros((len(X), 2), dtype=np.float32)
@@ -1395,6 +1409,14 @@ class OnDevicePredictionModel:
         overlap_cols = [c for c in ind_copy.columns if c in df_copy.columns]
         if overlap_cols:
             ind_copy = ind_copy.drop(columns=overlap_cols)
+        # Adversarial Bug Fix: Restrict ind_copy to defined GLOBAL_FEATURES to prevent
+        # uncleaned raw auxiliary indicators (e.g., vix_raw, dxy_raw) with NaNs from polluting
+        # df_merged and causing accidental row dropping in prepare_training_data dropna().
+        feature_ind_cols = [c for c in ind_copy.columns if c in self.GLOBAL_FEATURES]
+        if feature_ind_cols:
+            ind_copy = ind_copy[feature_ind_cols]
+        else:
+            ind_copy = pd.DataFrame(index=ind_copy.index)
         df_merged = df_copy.join(ind_copy, how='left')
         if len(df_merged) > before:
             df_merged = df_merged.iloc[:before]

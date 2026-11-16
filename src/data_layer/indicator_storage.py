@@ -194,7 +194,8 @@ class MarketIndicatorStorage:
         'CL=F': (10.0, 300.0), 'WTI': (10.0, 300.0),
         'GC=F': (300.0, 10000.0), 'GLD': (50.0, 1000.0),
         '^GSPC': (1000.0, 10000.0), '^IXIC': (1000.0, 50000.0), '^RUT': (100.0, 10000.0),
-        '^KS11': (500.0, 5000.0), '^KQ11': (100.0, 5000.0),
+        '^KS11': (500.0, 15000.0), '^KQ11': (100.0, 5000.0),
+        '^SOX': (100.0, 30000.0), 'SOX': (100.0, 30000.0),
         'DX-Y.NYB': (50.0, 200.0), 'DXY': (50.0, 200.0),
         'USDJPY=X': (50.0, 400.0), 'EURUSD=X': (0.5, 3.0), 'GBPUSD=X': (0.5, 3.0),
         '^DJI': (5000.0, 100000.0), '^FTSE': (1000.0, 20000.0),
@@ -206,10 +207,17 @@ class MarketIndicatorStorage:
     def __init__(self, db_path: Union[str, Path] = str(_DEFAULT_INDICATORS_DB)):
         p = Path(db_path)
         if not p.is_absolute():
-            if str(db_path) in ("market_indicators.db", str(_DEFAULT_INDICATORS_DB), "") and _DEFAULT_INDICATORS_DB.exists():
+            ts_p = _TRADING_SYSTEM_ROOT / "trading_system" / p
+            if ts_p.exists():
+                p = ts_p
+            elif str(db_path) in ("market_indicators.db", str(_DEFAULT_INDICATORS_DB), "") and _DEFAULT_INDICATORS_DB.exists():
                 p = _DEFAULT_INDICATORS_DB
             else:
                 p = (_TRADING_SYSTEM_ROOT / p).resolve()
+        elif p.name == "market_indicators.db" and p.parent.name != "trading_system":
+            ts_p = p.parent / "trading_system" / "market_indicators.db"
+            if ts_p.exists() and (not p.exists() or ts_p.stat().st_size > p.stat().st_size):
+                p = ts_p
         self.db_path = str(p)
         # S6/D6 fix: reentrant write lock to prevent self-deadlock under ThreadPoolExecutor
         self._write_lock = MarketIndicatorStorage._SHARED_WRITE_LOCK
@@ -920,11 +928,13 @@ class MarketIndicatorStorage:
                     cur_d = idx.strftime("%Y-%m-%d") if hasattr(idx, 'strftime') else str(idx)
                     raw_val = row[close_pos + 1] if close_pos is not None else (row[1] if len(row) > 1 else None)
                     price = float(raw_val) if raw_val is not None and pd.notna(raw_val) else 0.0
-                    rows.append((cur_d, symbol, symbol, price, 0.0))
+                    if self._indicator_value_ok(symbol, symbol, price):
+                        rows.append((cur_d, symbol, symbol, price, 0.0))
             elif isinstance(val_data, dict):
                 raw_val = val_data.get('price') if val_data.get('price') is not None else val_data.get('Close')
-                price = float(raw_val) if raw_val is not None else 0.0
-                rows.append((d_str, symbol, symbol, price, 0.0))
+                price = float(raw_val) if raw_val is not None and pd.notna(raw_val) else 0.0
+                if self._indicator_value_ok(symbol, symbol, price):
+                    rows.append((d_str, symbol, symbol, price, 0.0))
         elif isinstance(data, dict):
             d_str = str(date_str or datetime.now(KST).strftime("%Y-%m-%d"))
             for sym, info in data.get('indices', {}).items():

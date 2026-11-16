@@ -818,8 +818,11 @@ _INDICATOR_TICKERS = {
     'FRED:IRSTCI01KRM156N': 'kr3y',   # Korea 3M/Short-Term Bond Rate (FRED / ECOS fallback)
     'USDKRW=X': 'usdkrw_change',
     'CL=F': 'wti_change',
+    'DX-Y.NYB': 'dxy_change',
     '^KS11': 'kospi_change',
     '^KQ11': 'kosdaq_change',
+    '^IXIC': 'nasdaq_change',
+    '^SOX': 'sox_change',
     # Sector & Bond ETFs (KRX Direct Code)
     '091160': 'kodex_semicon_change',
     '305720': 'kodex_battery_change',
@@ -1074,6 +1077,18 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
                 return (col_name, df['Close'].pct_change().fillna(0.0) * 100, 'vix_raw', df['Close'].ffill())
             elif col_name == 'usdkrw_change':
                 return (col_name, df['Close'].pct_change().fillna(0.0) * 100, 'usdkrw_raw', df['Close'].ffill())
+            elif col_name == 'wti_change':
+                return (col_name, df['Close'].pct_change().fillna(0.0) * 100, 'wti_raw', df['Close'].ffill())
+            elif col_name == 'gold_change':
+                return (col_name, df['Close'].pct_change().fillna(0.0) * 100, 'gold_raw', df['Close'].ffill())
+            elif col_name == 'dxy_change':
+                return (col_name, df['Close'].pct_change().fillna(0.0) * 100, 'dxy_raw', df['Close'].ffill())
+            elif col_name == 'sox_change':
+                return (col_name, df['Close'].pct_change().fillna(0.0) * 100, 'sox_raw', df['Close'].ffill())
+            elif col_name == 'sp500_change':
+                return (col_name, df['Close'].pct_change().fillna(0.0) * 100, 'sp500_raw', df['Close'].ffill())
+            elif col_name == 'nasdaq_change':
+                return (col_name, df['Close'].pct_change().fillna(0.0) * 100, 'nasdaq_raw', df['Close'].ffill())
             elif col_name.endswith('_change'):
                 return (col_name, df['Close'].pct_change().fillna(0.0) * 100)
             elif col_name == 'put_call_ratio':
@@ -3676,10 +3691,20 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     kr10y_val = _extract_macro_indicator('KR10Y', kr10y_raw, 'FRED:IRLTLT01KRM156N', 'FRED:IRLTLT01KRM156N', getattr(cfg, 'default_kr10y', 3.15), min_val=0.0, max_val=25.0, is_yield=True)
 
     # WTI Crude Oil
-    wti_val = _extract_macro_indicator('WTI', np.nan, 'CL=F', 'CL=F', getattr(cfg, 'default_wti', 75.0), min_val=10.0, max_val=300.0)
+    wti_raw = float(indicator_infer['wti_raw'].dropna().iloc[-1]) if ('wti_raw' in indicator_infer.columns and not indicator_infer['wti_raw'].dropna().empty) else np.nan
+    wti_val = _extract_macro_indicator('WTI', wti_raw, 'CL=F', 'CL=F', getattr(cfg, 'default_wti', 75.0), min_val=10.0, max_val=300.0)
 
     # Gold
-    gold_val = _extract_macro_indicator('Gold', np.nan, 'GLD', 'GLD', getattr(cfg, 'default_gold', 220.0), min_val=10.0, max_val=5000.0)
+    gold_raw = float(indicator_infer['gold_raw'].dropna().iloc[-1]) if ('gold_raw' in indicator_infer.columns and not indicator_infer['gold_raw'].dropna().empty) else np.nan
+    gold_val = _extract_macro_indicator('Gold', gold_raw, 'GLD', 'GLD', getattr(cfg, 'default_gold', 220.0), min_val=10.0, max_val=5000.0)
+
+    # DXY (US Dollar Index)
+    dxy_raw = float(indicator_infer['dxy_raw'].dropna().iloc[-1]) if ('dxy_raw' in indicator_infer.columns and not indicator_infer['dxy_raw'].dropna().empty) else np.nan
+    dxy_val = _extract_macro_indicator('DXY', dxy_raw, 'DX-Y.NYB', 'DX-Y.NYB', getattr(cfg, 'default_dxy', 103.5), min_val=50.0, max_val=200.0)
+
+    # SOX (PHLX Semiconductor Sector)
+    sox_raw = float(indicator_infer['sox_raw'].dropna().iloc[-1]) if ('sox_raw' in indicator_infer.columns and not indicator_infer['sox_raw'].dropna().empty) else np.nan
+    sox_val = _extract_macro_indicator('SOX', sox_raw, '^SOX', '^SOX', getattr(cfg, 'default_sox', 5000.0), min_val=100.0, max_val=30000.0)
 
     # ══ P0: Macro Indicator Data-Integrity Gate ══════════════════════════════
     # Protect the report AND the crisis/regime gating against corrupted/duplicated
@@ -3724,6 +3749,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     usdkrw_report = _plausible_bounds("USD/KRW", usdkrw_val, 950.0, 2200.0, 1380.0)
     wti_report = _plausible_bounds("WTI Crude", wti_val, 25.0, 180.0, 75.0)
     gold_report = _plausible_bounds("Gold (GLD)", gold_val, 100.0, 800.0, 220.0)
+    dxy_report = _plausible_bounds("DXY Index", dxy_val, 50.0, 200.0, 103.5)
+    sox_report = _plausible_bounds("SOX Index", sox_val, 100.0, 30000.0, 5000.0)
 
     # Cross-asset distinctness check: identical values across unrelated tickers
     # indicates a shared-series / DB cache contamination (not a real market state).

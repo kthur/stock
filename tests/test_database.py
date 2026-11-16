@@ -375,6 +375,45 @@ class TestStockPriceDBBatchUpsert(unittest.TestCase):
         retrieved = self.db.get_prices("GOOG")
         self.assertEqual(len(retrieved), 3)
 
+    def test_update_prices_batch_commodity_negative_prices(self):
+        """Verify authentic crisis negative commodity prices (e.g. CL=F) are preserved through batch upsert."""
+        import pandas as pd
+        df_cl = pd.DataFrame({
+            "Open": [17.73, -14.0],
+            "High": [17.85, 13.86],
+            "Low": [-40.32, -16.74],
+            "Close": [-37.63, 10.01],
+            "Volume": [247947, 2288230]
+        }, index=pd.date_range("2020-04-20", periods=2))
+
+        count = self.db.update_prices_batch({"CL=F": df_cl})
+        self.assertEqual(count, 2)
+
+        retrieved = self.db.get_prices("CL=F")
+        self.assertEqual(len(retrieved), 2)
+        self.assertAlmostEqual(retrieved["Close"].iloc[0], -37.63)
+        self.assertAlmostEqual(retrieved["Low"].iloc[0], -40.32)
+
+    def test_update_prices_batch_equity_zero_rectification(self):
+        """Verify equity rows with zero/corrupt OHLC are rectified and upserted cleanly."""
+        import pandas as pd
+        df_zero = pd.DataFrame({
+            "Open": [0.0, 100.0],
+            "High": [0.0, 105.0],
+            "Low": [0.0, 99.0],
+            "Close": [100.0, 102.0],
+            "Volume": [0, 1000]
+        }, index=pd.date_range("2026-01-01", periods=2))
+
+        count = self.db.update_prices_batch({"005930": df_zero})
+        self.assertEqual(count, 2)
+
+        retrieved = self.db.get_prices("005930")
+        self.assertEqual(len(retrieved), 2)
+        self.assertTrue((retrieved[["Open", "High", "Low", "Close"]] > 0).all().all())
+        self.assertTrue((retrieved["High"] >= retrieved["Open"]).all())
+        self.assertTrue((retrieved["Low"] <= retrieved["Open"]).all())
+
 
 if __name__ == "__main__":
     unittest.main()

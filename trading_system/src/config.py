@@ -394,7 +394,19 @@ class TradingConfig:
         for field_name in ('db_path', 'stock_price_db_path', 'realtime_state_db'):
             val = getattr(self, field_name, None)
             if val and not os.path.isabs(val):
-                setattr(self, field_name, os.path.join(base, val))
+                ts_candidate = os.path.join(base, "trading_system", val)
+                root_candidate = os.path.join(base, val)
+                if os.path.exists(ts_candidate) and (not os.path.exists(root_candidate) or os.path.getsize(ts_candidate) > os.path.getsize(root_candidate)):
+                    setattr(self, field_name, ts_candidate)
+                else:
+                    setattr(self, field_name, root_candidate)
+            elif val and os.path.isabs(val):
+                parent_dir = os.path.dirname(val)
+                file_name = os.path.basename(val)
+                if os.path.basename(parent_dir) != "trading_system":
+                    ts_candidate = os.path.join(parent_dir, "trading_system", file_name)
+                    if os.path.exists(ts_candidate) and (not os.path.exists(val) or os.path.getsize(ts_candidate) > os.path.getsize(val)):
+                        setattr(self, field_name, ts_candidate)
 
     def _parse_authorized_ids(self) -> list:
         if not self.telegram_authorized_user_ids.strip():

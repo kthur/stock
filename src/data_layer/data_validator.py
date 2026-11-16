@@ -132,6 +132,13 @@ def validate_price_data(sym: str, df: pd.DataFrame) -> bool:
     if total_rows == 0:
         return False
 
+    is_macro_or_yield = (
+        sym in ('CL=F', '^IRX', '^TNX', '^FVX', '2YY=X')
+        or sym.startswith('^')
+        or sym.endswith('=F')
+        or sym.endswith('=X')
+    )
+
     # 1. Close zero/negative or too many NaN
     nan_ratio = close.isna().sum() / total_rows
     valid_close = close.dropna()
@@ -139,12 +146,12 @@ def validate_price_data(sym: str, df: pd.DataFrame) -> bool:
     if nan_ratio > 0.5:
         logger.warning(f"[DataValidator] {sym}: Close NaN ratio={nan_ratio:.1%} > 50%, skipping")
         return False
-    if len(valid_close) > 0 and (non_positive / len(valid_close)) > 0.5:
+    if not is_macro_or_yield and len(valid_close) > 0 and (non_positive / len(valid_close)) > 0.5:
         logger.warning(f"[DataValidator] {sym}: Close non-positive ratio > 50%, skipping")
         return False
 
     # 2. Extreme daily returns & corporate action price spikes (> 300% change magnitude)
-    if len(valid_close) >= 2:
+    if not is_macro_or_yield and len(valid_close) >= 2:
         prev_close = valid_close.shift(1)
         valid_mask = (prev_close > 0) & np.isfinite(prev_close) & (valid_close > 0) & np.isfinite(valid_close)
         if valid_mask.sum() > 0:
@@ -318,21 +325,81 @@ class DataValidator:
         return filter_price_spikes(df, max_return)
 
     @staticmethod
-    def validate_and_clean_price_series(df: pd.DataFrame, max_daily_jump: float = 0.65) -> pd.DataFrame:
+    def validate_and_clean_price_series(
+        df: pd.DataFrame,
+        max_daily_jump: float = 0.65,
+        symbol: Optional[str] = None,
+        allow_negative: bool = False
+    ) -> pd.DataFrame:
         """
         Validates price series for unadjusted split anomalies or erroneous data feeds.
         Interpolates transient spikes/drops > max_daily_jump (65%) across all OHLC columns
         and enforces strict OHLC boundary invariants (Low <= Open, Close <= High).
         D3 / D7: Reconciled canonical implementation with float64 Volume protection.
+        Preserves authentic negative pricing for commodities (e.g. CL=F) and bond yields.
         """
         if df.empty or len(df) < 5 or 'Close' not in df.columns:
             return df
 
         df_clean = df.copy()
 
+        is_macro_or_yield = (
+            allow_negative
+            or (symbol is not None and (
+                symbol in ('CL=F', '^IRX', '^TNX', '^FVX', '2YY=X')
+                or symbol.startswith('^')
+                or symbol.endswith('=F')
+                or symbol.endswith('=X')
+            ))
+        )
+
+        if not is_macro_or_yield:
+            # Rectify negative and zero/non-positive price anomalies for equities
+            price_cols = [c for c in ['Open', 'High', 'Low', 'Close'] if c in df_clean.columns]
+            if price_cols:
+                # 1. Close must be positive, non-null
+                if 'Close' in df_clean.columns:
+                    c_ser = df_clean['Close'].abs()
+                    c_ser = c_ser.replace(0.0, np.nan).ffill().bfill().fillna(1e-4)
+                    df_clean['Close'] = c_ser.clip(lower=1e-4)
+
+                # 2. Open, High, Low: if non-positive or NaN, replace with Close
+                for col in ['Open', 'High', 'Low']:
+                    if col in df_clean.columns:
+                        col_ser = df_clean[col].abs()
+                        df_clean[col] = np.where(
+                            (col_ser <= 0) | col_ser.isna(),
+                            df_clean['Close'],
+                            col_ser
+                        )
+
+                # 3. Align High >= Low
+                if 'High' in df_clean.columns and 'Low' in df_clean.columns:
+                    raw_h = df_clean['High'].copy()
+                    raw_l = df_clean['Low'].copy()
+                    df_clean['High'] = np.maximum(raw_h, raw_l)
+                    df_clean['Low'] = np.minimum(raw_h, raw_l)
+
         # D3 Fix: Ensure Volume column is converted to float64 to prevent LossySetitemError on in-place slice division
         if 'Volume' in df_clean.columns:
             df_clean['Volume'] = pd.to_numeric(df_clean['Volume'], errors='coerce').astype(np.float64)
+
+        if is_macro_or_yield:
+            # Macro indicators and commodity futures do not experience equity stock splits
+            if 'Close' in df_clean.columns:
+                df_clean['Close'] = df_clean['Close'].ffill().bfill()
+            if 'Open' in df_clean.columns:
+                df_clean['Open'] = df_clean['Open'].fillna(df_clean['Close'] if 'Close' in df_clean.columns else 0.0)
+            if 'High' in df_clean.columns:
+                df_clean['High'] = df_clean['High'].fillna(df_clean['Close'] if 'Close' in df_clean.columns else 0.0)
+            if 'Low' in df_clean.columns:
+                df_clean['Low'] = df_clean['Low'].fillna(df_clean['Close'] if 'Close' in df_clean.columns else 0.0)
+
+            if 'High' in df_clean.columns and 'Low' in df_clean.columns and 'Close' in df_clean.columns:
+                open_series = df_clean['Open'] if 'Open' in df_clean.columns else df_clean['Close']
+                df_clean['High'] = np.fmax(df_clean['High'], np.fmax(open_series, df_clean['Close']))
+                df_clean['Low'] = np.fmin(df_clean['Low'], np.fmin(open_series, df_clean['Close']))
+            return df_clean
 
         close = df_clean['Close']
         if isinstance(close, pd.DataFrame):
@@ -425,5 +492,9 @@ class DataValidator:
             df_clean['High'] = np.fmax(df_clean['High'], np.fmax(open_series, df_clean['Close']))
             df_clean['Low'] = np.fmin(df_clean['Low'], np.fmin(open_series, df_clean['Close']))
             df_clean['Low'] = df_clean['Low'].clip(lower=1e-4)
+            if 'Open' in df_clean.columns:
+                df_clean['Open'] = df_clean['Open'].clip(lower=1e-4)
+            df_clean['Close'] = df_clean['Close'].clip(lower=1e-4)
+            df_clean['High'] = np.fmax(df_clean['High'], np.fmax(df_clean['Open'] if 'Open' in df_clean.columns else df_clean['Close'], df_clean['Close']))
 
         return df_clean

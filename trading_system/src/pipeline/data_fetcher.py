@@ -22,9 +22,23 @@ class PipelineDataFetcher:
     def fetch_market_indicators(self, storage: Any, cfg: Any) -> Dict[str, float]:
         """Fetch latest global macro indicators (VIX, USDKRW, TNX, ECOS, etc.)."""
         import math
+        from datetime import timezone, timedelta
+        kst = timezone(timedelta(hours=9))
+        date_str = datetime.now(kst).strftime('%Y-%m-%d')
         logger.info("[DataFetcher] Fetching global market indicators...")
         market_summary: Dict[str, float] = {}
 
+        # 1. Primary: Attempt live market indicator collection via GlobalMarketClient
+        try:
+            from src.data_layer.global_market import GlobalMarketClient
+            client = GlobalMarketClient()
+            summary = client.get_summary()
+            if hasattr(storage, 'save_indicators') and summary:
+                storage.save_indicators(summary, date_str)
+        except Exception as e:
+            logger.warning(f"[DataFetcher] Live GlobalMarketClient fetch failed: {e}. Falling back to DB cache.")
+
+        # 2. Retrieve latest available indicators from storage (populated either by live fetch or prior cache)
         if hasattr(storage, 'get_latest_global_indicators'):
             raw_summary = storage.get_latest_global_indicators() or {}
             for k, v in raw_summary.items():
@@ -34,14 +48,6 @@ class PipelineDataFetcher:
                         market_summary[str(k).strip()] = f
                 except (ValueError, TypeError):
                     continue
-
-        date_str = datetime.now().strftime('%Y-%m-%d')
-        if hasattr(storage, 'save_indicators') and market_summary:
-            try:
-                storage.save_indicators(market_summary, date_str)
-                logger.info(f"[DataFetcher] Saved {len(market_summary)} market indicators for date {date_str}.")
-            except Exception as e:
-                logger.warning(f"[DataFetcher] Failed to save market indicators: {e}")
 
         return market_summary
 
