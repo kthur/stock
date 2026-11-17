@@ -6875,12 +6875,16 @@ document.addEventListener('DOMContentLoaded', function() {{
       const input = document.getElementById('stock-search-input');
       if (input) {{ input.focus(); input.select(); }}
     }} else if (e.key === 'Escape') {{
+      const shortcutsModal = document.getElementById('shortcuts-modal-overlay');
+      const isShortcutsOpen = shortcutsModal && shortcutsModal.style.display === 'flex';
       const drawer = document.getElementById('stock-drawer');
       const isDrawerOpen = drawer && (drawer.style.right === '0px' || drawer.classList.contains('drawer-open-mobile') || drawer.style.bottom === '0px');
       const hubSheet = document.getElementById('strategy-hub-sheet');
       const isHubOpen = hubSheet && hubSheet.style.bottom === '0px';
 
-      if (isDrawerOpen) {{
+      if (isShortcutsOpen) {{
+        toggleShortcutsModal();
+      }} else if (isDrawerOpen) {{
         closeStockDrawer();
       }} else if (isHubOpen) {{
         closeStrategyHub();
@@ -6890,6 +6894,18 @@ document.addEventListener('DOMContentLoaded', function() {{
         const input = document.getElementById('stock-search-input');
         if (input && input.value) clearSearchInput();
       }}
+    }} else if ((e.key === '?' || (e.key === '/' && e.shiftKey)) && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {{
+      e.preventDefault();
+      toggleShortcutsModal();
+    }} else if ((e.key === 't' || e.key === 'T') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {{
+      e.preventDefault();
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+      const nextTheme = currentTheme === 'dark' ? 'terminal' : (currentTheme === 'terminal' ? 'light' : 'dark');
+      switchTheme(nextTheme);
+    }} else if ((e.key === 'd' || e.key === 'D') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {{
+      e.preventDefault();
+      const isCompact = document.body.classList.contains('table-compact') || document.documentElement.classList.contains('table-compact');
+      setTableDensity(isCompact ? 'comfortable' : 'compact');
     }} else if (e.key === 'ArrowLeft') {{
       const drawer = document.getElementById('stock-drawer');
       const isDrawerOpen = drawer && (drawer.style.right === '0px' || drawer.classList.contains('drawer-open-mobile') || drawer.style.bottom === '0px');
@@ -6955,6 +6971,10 @@ function switchTheme(theme) {{
     localStorage.setItem('app_theme', theme);
     localStorage.setItem('theme', theme);
   }} catch(e) {{}}
+  const metaTheme = document.getElementById('meta-theme-color');
+  if (metaTheme) {{
+    metaTheme.setAttribute('content', theme === 'light' ? '#ffffff' : (theme === 'terminal' ? '#0d1117' : '#131b26'));
+  }}
   document.querySelectorAll('.theme-btn').forEach(btn => {{
     btn.classList.toggle('active', btn.id === `theme-${{theme}}`);
   }});
@@ -7062,6 +7082,44 @@ function copyCurrentStockCode() {{
   }}).catch(() => {{
     showToast(`종목코드: ${{code}}`, '📋');
   }});
+}}
+
+function copyStockSummary() {{
+  const d = window.currentDrawerStockData;
+  if (!d || !d.symbol) {{
+    copyCurrentStockCode();
+    return;
+  }}
+  let summary = `📊 [${{d.name || d.symbol}}] (${{d.symbol}} • ${{d.market}})\\n`;
+  summary += `• 37대 앙상블 종합 스코어: ${{d.score}}\\n`;
+  summary += `• 20D 예상 기대수익률: ${{d.expectedReturn}}\\n`;
+  if (d.factors && Object.keys(d.factors).length > 0) {{
+    const entries = Object.entries(d.factors).filter(([k, v]) => v !== null && v !== undefined && v !== 'None' && v !== '-' && !String(v).toLowerCase().includes('nan')).slice(0, 5);
+    if (entries.length > 0) {{
+      summary += `• 주요 팩터 점수:\\n`;
+      entries.forEach(([k, v]) => {{
+        summary += `  - ${{k}}: ${{v}}\\n`;
+      }});
+    }}
+  }}
+  summary += `• 출처: Quant Dashboard (https://kthur.github.io/stock/)`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {{
+    navigator.clipboard.writeText(summary).then(() => {{
+      showToast(`[${{d.name || d.symbol}}] 퀀트 요약이 복사되었습니다.`, '📊');
+    }}).catch(() => {{
+      showToast(`[${{d.name || d.symbol}}] 요약 복사 완료`, '📊');
+    }});
+  }} else {{
+    showToast(`[${{d.name || d.symbol}}] 요약 복사 완료`, '📊');
+  }}
+}}
+
+function toggleShortcutsModal() {{
+  const modal = document.getElementById('shortcuts-modal-overlay');
+  if (!modal) return;
+  const isShown = modal.style.display === 'flex';
+  modal.style.display = isShown ? 'none' : 'flex';
 }}
 
 function exportEnsembleTableToCSV() {{
@@ -7689,41 +7747,52 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
       }});
       parsedFactors = obj;
     }}
-    if (parsedFactors && Object.keys(parsedFactors).length > 0) {{
-      let html = '';
-      for (const [key, rawVal] of Object.entries(parsedFactors)) {{
-        let valStr = (rawVal === null || rawVal === undefined) ? 'N/A' : String(rawVal).trim();
-        let isNaNVal = valStr.toLowerCase().includes('nan') || valStr === 'None' || valStr === '-' || valStr === '' || valStr === 'N/A';
-        
-        let numVal = parseFloat(valStr) || 0;
-        let barW = isNaNVal ? 0 : Math.min(100, Math.max(0, numVal));
-        let badgeHtml = isNaNVal
-          ? '<span class="badge-na">N/A</span>'
-          : `<span style="color:${{numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e')}}; font-weight:700;">${{valStr}}</span>`;
-        
-        let cat = 'macro';
-        if (key.startsWith('1.') || key.startsWith('2.') || key.startsWith('5.') || key.startsWith('6.')) cat = 'ai';
-        else if (key.startsWith('3.') || key.startsWith('4.') || key.startsWith('8.') || key.startsWith('11.') || key.startsWith('14.') || key.startsWith('27.') || key.startsWith('34.') || key.startsWith('35.') || key.startsWith('37.')) cat = 'mom';
-        else if (key.startsWith('9.') || key.startsWith('10.') || key.startsWith('15.') || key.startsWith('24.') || key.startsWith('26.') || key.startsWith('31.')) cat = 'val';
-        else if (key.startsWith('13.') || key.startsWith('18.') || key.startsWith('23.') || key.startsWith('25.') || key.startsWith('28.') || key.startsWith('29.') || key.startsWith('30.') || key.startsWith('36.')) cat = 'flow';
+    try {{
+      if (parsedFactors && Object.keys(parsedFactors).length > 0) {{
+        let html = '';
+        for (const [key, rawVal] of Object.entries(parsedFactors)) {{
+          let valStr = (rawVal === null || rawVal === undefined) ? 'N/A' : String(rawVal).trim();
+          let isNaNVal = valStr.toLowerCase().includes('nan') || valStr === 'None' || valStr === '-' || valStr === '' || valStr === 'N/A';
+          
+          let numVal = parseFloat(valStr) || 0;
+          let barW = isNaNVal ? 0 : Math.min(100, Math.max(0, numVal));
+          let badgeHtml = isNaNVal
+            ? '<span class="badge-na">N/A</span>'
+            : `<span style="color:${{numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e')}}; font-weight:700;">${{valStr}}</span>`;
+          
+          let cat = 'macro';
+          if (key.startsWith('1.') || key.startsWith('2.') || key.startsWith('5.') || key.startsWith('6.')) cat = 'ai';
+          else if (key.startsWith('3.') || key.startsWith('4.') || key.startsWith('8.') || key.startsWith('11.') || key.startsWith('14.') || key.startsWith('27.') || key.startsWith('34.') || key.startsWith('35.') || key.startsWith('37.')) cat = 'mom';
+          else if (key.startsWith('9.') || key.startsWith('10.') || key.startsWith('15.') || key.startsWith('24.') || key.startsWith('26.') || key.startsWith('31.')) cat = 'val';
+          else if (key.startsWith('13.') || key.startsWith('18.') || key.startsWith('23.') || key.startsWith('25.') || key.startsWith('28.') || key.startsWith('29.') || key.startsWith('30.') || key.startsWith('36.')) cat = 'flow';
 
-        html += `
-          <div class="drawer-factor-item" data-factor-cat="${{cat}}" style="background:var(--surface2); padding:8px 12px; border-radius:6px; border:1px solid var(--border);">
-            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-              <span style="color:var(--text); font-weight:600;">${{key}}</span>
-              ${{badgeHtml}}
-            </div>
-            <div style="height:4px; background:var(--border); border-radius:2px; overflow:hidden;">
-              <div style="height:100%; width:${{barW}}%; background:${{numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e')}}; border-radius:2px;"></div>
-            </div>
-          </div>`;
+          html += `
+            <div class="drawer-factor-item" data-factor-cat="${{cat}}" style="background:var(--surface2); padding:8px 12px; border-radius:6px; border:1px solid var(--border);">
+              <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                <span style="color:var(--text); font-weight:600;">${{key}}</span>
+                ${{badgeHtml}}
+              </div>
+              <div style="height:4px; background:var(--border); border-radius:2px; overflow:hidden;">
+                <div style="height:100%; width:${{barW}}%; background:${{numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e')}}; border-radius:2px;"></div>
+              </div>
+            </div>`;
+        }}
+        factorsContainer.innerHTML = html;
       }}
-      factorsContainer.innerHTML = html;
     }} catch(e) {{
       factorsContainer.innerHTML = '<div style="color:var(--muted); font-size:12px;">팩터 상세 정보 없음</div>';
     }}
   }}
   
+  window.currentDrawerStockData = {{
+    symbol: symbol,
+    name: name || symbol,
+    market: market,
+    score: scoreDisp,
+    expectedReturn: returnDisp,
+    factors: parsedFactors
+  }};
+
   renderDrawerRadarChart(parsedFactors);
 
   const isMobile = window.innerWidth <= 768;
@@ -7911,9 +7980,10 @@ function selectStrategyFromHub(stratId) {{
   <div class="drawer-drag-handle" onclick="closeStockDrawer()"></div>
   <div style="position:sticky; top:0; background:var(--surface); z-index:10; display:flex; justify-content:space-between; align-items:center; padding:18px 0 12px; margin-bottom:16px; border-bottom:1px solid var(--border);">
     <div>
-      <div style="display:flex; align-items:center;">
-        <h2 id="drawer-stock-name" style="font-size:20px; font-weight:800; color:var(--text);">종목 상세</h2>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <h2 id="drawer-stock-name" style="font-size:20px; font-weight:800; color:var(--text); margin-right:4px;">종목 상세</h2>
         <button class="drawer-copy-btn" onclick="copyCurrentStockCode()" title="종목코드 클립보드 복사">📋 복사</button>
+        <button class="drawer-copy-btn drawer-summary-btn" onclick="copyStockSummary()" title="종목 퀀트 요약 클립보드 복사">📊 요약 복사</button>
       </div>
       <div id="drawer-stock-meta" style="font-size:12.5px; color:var(--accent); font-family:var(--font-mono); margin-top:3px;">CODE • MARKET</div>
     </div>

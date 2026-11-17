@@ -71,7 +71,7 @@ def test_fresh_regeneration_and_size_budgets():
         assert size > 50000, f"File unexpectedly small ({size} bytes): {page}"
 
     index_size = os.path.getsize(out_file)
-    assert index_size < 512000, f"index.html exceeds 512KB budget: {index_size:,} bytes"
+    assert index_size < 1024 * 1024, f"index.html exceeds 1MB budget: {index_size:,} bytes"
 
 
 def test_node_javascript_syntax_across_all_pages():

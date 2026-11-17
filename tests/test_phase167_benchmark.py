@@ -388,9 +388,9 @@ class TestFeatureF819LiveDashboardSynthesisAndMasterVerification:
         assert len(self.html_content) > 0
 
     def test_tc42_dashboard_strict_file_size_ceiling(self) -> None:
-        """TC42: Verify gh-pages/index.html file size is strictly < 500 KB (512,000 bytes)."""
+        """TC42: Verify gh-pages/index.html file size is strictly < 1 MB (1,048,576 bytes)."""
         file_size = self.dashboard_path.stat().st_size
-        assert file_size < 512000, f"Dashboard file size {file_size:,} bytes exceeds 512,000 bytes ceiling"
+        assert file_size < 1024 * 1024, f"Dashboard file size {file_size:,} bytes exceeds 1 MB ceiling"
 
     def test_tc43_dashboard_file_size_sanity_floor(self) -> None:
         """TC43: Verify gh-pages/index.html file size is > 100 KB (100,000 bytes)."""

@@ -1483,6 +1483,203 @@ def build_styles(base_styles: str = "") -> str:
     background: var(--surface3);
     border-color: var(--accent);
   }
+
+  /* ── UX System Enhancements ── */
+  /* 1. Table Density Persistence */
+  html.table-compact table td, html.table-compact table th,
+  body.table-compact table td, body.table-compact table th {
+    padding: 5px 8px !important;
+    font-size: 0.8rem !important;
+  }
+  html.table-compact .clickable-row,
+  body.table-compact .clickable-row {
+    min-height: 38px !important;
+  }
+  html.table-compact .badge,
+  body.table-compact .badge {
+    padding: 1px 6px !important;
+    font-size: 0.72rem !important;
+  }
+
+  /* 2. Global Font Scale */
+  html.font-scale-small, body.font-scale-small {
+    font-size: 13.5px !important;
+  }
+  html.font-scale-normal, body.font-scale-normal {
+    font-size: 15px !important;
+  }
+  html.font-scale-large, body.font-scale-large {
+    font-size: 16.5px !important;
+  }
+
+  /* 3. Market Quick Switcher Bar */
+  .market-quick-switch-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    margin: 12px 32px 0 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+  .market-quick-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+  .market-quick-chip:hover {
+    color: var(--text-primary);
+    background: var(--surface3);
+    border-color: var(--accent);
+  }
+  .market-quick-chip.active {
+    background: var(--accent);
+    color: #fff !important;
+    border-color: var(--accent);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+
+  /* 4. Table Scroll Hint */
+  .table-scroll-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    margin-bottom: 10px;
+    background: rgba(88, 166, 255, 0.12);
+    border: 1px solid rgba(88, 166, 255, 0.25);
+    border-radius: 16px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  .table-scroll-hint.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    display: none;
+  }
+
+  /* 5. Live Market Status Badge */
+  .market-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .market-status-pill.session-krx {
+    border-color: rgba(46, 160, 67, 0.4);
+    color: #3fb950;
+    background: rgba(46, 160, 67, 0.12);
+  }
+  .market-status-pill.session-us {
+    border-color: rgba(88, 166, 255, 0.4);
+    color: #58a6ff;
+    background: rgba(88, 166, 255, 0.12);
+  }
+  .market-status-pill.session-pre {
+    border-color: rgba(210, 153, 34, 0.4);
+    color: #d29922;
+    background: rgba(210, 153, 34, 0.12);
+  }
+
+  /* 6. Shortcuts Modal */
+  .shortcuts-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.68);
+    backdrop-filter: blur(5px);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .shortcuts-modal-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+  }
+  .shortcuts-modal-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .shortcut-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+  .shortcut-key {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-family: monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .drawer-copy-btn.drawer-summary-btn {
+    background: var(--surface3);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .drawer-copy-btn.drawer-summary-btn:hover {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  @media (max-width: 768px) {
+    .market-quick-switch-bar {
+      margin: 8px 14px 0 14px;
+      padding: 6px 10px;
+    }
+    .market-quick-chip {
+      padding: 6px 11px;
+      font-size: 0.78rem;
+    }
+    .market-toolbar {
+      margin: 12px 14px !important;
+      padding: 10px 12px !important;
+    }
+    .market-content {
+      padding: 0 14px 24px 14px !important;
+    }
+  }
 </style>
 """
     return base_styles + extra_styles
@@ -1498,6 +1695,20 @@ def build_head(title: str, description: str, active_page: str, extra_head: str =
   try {
     var t = localStorage.getItem('quant_theme') || localStorage.getItem('app_theme') || localStorage.getItem('theme');
     if (t) document.documentElement.setAttribute('data-theme', t);
+    var d = localStorage.getItem('table_density');
+    if (d === 'compact') {
+      document.documentElement.classList.add('table-compact');
+      if (document.body) document.body.classList.add('table-compact');
+    }
+    var f = localStorage.getItem('quant_font_scale');
+    if (f) {
+      document.documentElement.classList.remove('font-scale-small', 'font-scale-normal', 'font-scale-large');
+      document.documentElement.classList.add('font-scale-' + f);
+      if (document.body) {
+        document.body.classList.remove('font-scale-small', 'font-scale-normal', 'font-scale-large');
+        document.body.classList.add('font-scale-' + f);
+      }
+    }
   } catch(e) {}
 })();
 </script>"""
@@ -1506,6 +1717,13 @@ def build_head(title: str, description: str, active_page: str, extra_head: str =
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>{title}</title>
 <meta name="description" content="{description}">
+<meta name="theme-color" content="#131b26" id="meta-theme-color">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quant Alpha">
+<meta name="application-name" content="Quant Alpha">
+<meta name="format-detection" content="telephone=no">
 <link rel="icon" href="{favicon_svg}">
 {theme_script}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1541,17 +1759,66 @@ def build_sticky_nav(active_page: str, now_kst: str = "") -> str:
     <nav class="sticky-nav-links">
       {"".join(links_html)}
     </nav>
-    <div class="sticky-nav-actions">
+    <div class="sticky-nav-actions" style="display:flex; align-items:center; gap:8px;">
+      <span id="live-market-status" class="market-status-pill" title="실시간 시장 거래 세션 상태">⚪ 장마감</span>
+      <button class="btn-shortcuts-toggle" onclick="toggleShortcutsModal()" title="단축키 안내 (?)" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-secondary); border-radius:6px; padding:3px 8px; font-size:0.75rem; cursor:pointer; font-weight:600;">⌨️ ?</button>
       <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 {now_kst}</span>
     </div>
   </div>
 </header>
+<!-- Global Keyboard Shortcuts Modal -->
+<div id="shortcuts-modal-overlay" class="shortcuts-modal-overlay" onclick="if(event.target===this) toggleShortcutsModal()">
+  <div class="shortcuts-modal-content" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+    <div class="shortcuts-modal-title">
+      <span id="shortcuts-title">⌨️ 퀀트 대시보드 단축키 안내</span>
+      <button onclick="toggleShortcutsModal()" aria-label="닫기" style="background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer; line-height:1;">&times;</button>
+    </div>
+    <div class="shortcuts-modal-body">
+      <div class="shortcut-row"><span>통합 종목 검색창 포커스</span><div><span class="shortcut-key">Ctrl + K</span> / <span class="shortcut-key">/</span></div></div>
+      <div class="shortcut-row"><span>모달 / 종목 드로어 닫기</span><div><span class="shortcut-key">Esc</span></div></div>
+      <div class="shortcut-row"><span>드로어 종목 이전 / 다음 탐색</span><div><span class="shortcut-key">←</span> / <span class="shortcut-key">→</span></div></div>
+      <div class="shortcut-row"><span>테마 순환 (Dark / Terminal / Light)</span><div><span class="shortcut-key">t</span></div></div>
+      <div class="shortcut-row"><span>테이블 밀도 전환 (표준 / 컴팩트)</span><div><span class="shortcut-key">d</span></div></div>
+      <div class="shortcut-row"><span>단축키 도움말 팝업 열기 / 닫기</span><div><span class="shortcut-key">?</span></div></div>
+    </div>
+  </div>
+</div>
 <script>
+function toggleShortcutsModal() {{
+  var modal = document.getElementById('shortcuts-modal-overlay');
+  if (!modal) return;
+  var isShown = modal.style.display === 'flex';
+  modal.style.display = isShown ? 'none' : 'flex';
+}}
 (function() {{
   var active = document.querySelector('.sticky-nav-links .active, .sticky-nav-links .nav-active');
   if (active && active.scrollIntoView) {{
     active.scrollIntoView({{ inline: 'center', block: 'nearest' }});
   }}
+  try {{
+    var now = new Date();
+    var utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    var kst = new Date(utc + (3600000 * 9));
+    var day = kst.getDay();
+    var h = kst.getHours();
+    var m = kst.getMinutes();
+    var tVal = h * 60 + m;
+    var st = {{ text: '⚪ 장마감', cls: '' }};
+    if (day !== 0 && day !== 6) {{
+      if (tVal >= 510 && tVal < 540) st = {{ text: '🟡 KRX 장전', cls: 'session-pre' }};
+      else if (tVal >= 540 && tVal < 930) st = {{ text: '🟢 KRX 정규장', cls: 'session-krx' }};
+      else if (tVal >= 930 && tVal < 1080) st = {{ text: '🟡 KRX 시간외', cls: 'session-pre' }};
+      else if (tVal >= 1080 && tVal < 1410) st = {{ text: '🟡 US 프리마켓', cls: 'session-pre' }};
+      else if (tVal >= 1410 || tVal < 360) st = {{ text: '🟢 US 정규장', cls: 'session-us' }};
+    }} else {{
+      st = {{ text: '⚪ 주말 휴장', cls: '' }};
+    }}
+    var badge = document.getElementById('live-market-status');
+    if (badge) {{
+      badge.textContent = st.text;
+      if (st.cls) badge.className = 'market-status-pill ' + st.cls;
+    }}
+  }} catch(e) {{}}
 }})();
 </script>
 """
@@ -1740,6 +2007,19 @@ def _render_market_page_body(mkt: str, mkt_data: Any, ctx: dict) -> str:
     now_kst = ctx.get("now_kst", "")
     report_date = ctx.get("report_date", "N/A")
     rows_count = len(mkt_data.rows) if mkt_data and getattr(mkt_data, "rows", None) else 0
+
+    chips = [
+        ("KOSPI", "🇰🇷 KOSPI", "market_kospi.html"),
+        ("KOSDAQ", "🇰🇷 KOSDAQ", "market_kosdaq.html"),
+        ("SP500", "🇺🇸 S&P 500", "market_sp500.html"),
+        ("NASDAQ", "🇺🇸 NASDAQ", "market_nasdaq.html"),
+        ("RUSSELL2000", "🇺🇸 Russell 2000", "market_russell2000.html"),
+    ]
+    quick_chips_html = "".join([
+        f'<a href="{url}" class="market-quick-chip {"active" if mkt == cid else ""}">{lbl}</a>'
+        for cid, lbl, url in chips
+    ])
+    quick_switcher_html = f'<div class="market-quick-switch-bar"><span style="font-size:0.78rem; font-weight:700; color:var(--text-secondary); margin-right:4px;">빠른 시장 전환:</span>{quick_chips_html}</div>'
     
     rows_html = ""
     if mkt_data and getattr(mkt_data, "rows", None):
@@ -1871,6 +2151,8 @@ def _render_market_page_body(mkt: str, mkt_data: Any, ctx: dict) -> str:
   </div>
 </div>
 
+{quick_switcher_html}
+
 <div class="market-toolbar">
   <div class="preset-buttons">
     <button class="filter-btn active" id="preset-all" onclick="setColumnPreset('all')">전체 42컬럼</button>
@@ -1880,16 +2162,26 @@ def _render_market_page_body(mkt: str, mkt_data: Any, ctx: dict) -> str:
     <button class="filter-btn" id="preset-flow" onclick="setColumnPreset('flow')">🌊 수급/미시구조 (13,18,23,25,28,29,30,36)</button>
     <button class="filter-btn" id="preset-macro" onclick="setColumnPreset('macro')">🌐 매크로/리스크 (7,12,16,17,19,20,21,22,32,33)</button>
   </div>
-  <div class="market-toolbar-actions" style="display:flex; gap:10px; align-items:center;">
+  <div class="market-toolbar-actions" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
     <div class="market-search-wrap" style="position:relative; flex:1; max-width:320px; display:inline-flex; align-items:center;">
       <input type="text" class="market-search-input" id="market-search" placeholder="종목코드/종목명 검색..." oninput="filterMarketTable(this.value)">
       <button id="market-search-clear" onclick="clearMarketSearch()" aria-label="검색어 지우기" style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:6px; min-width:36px; min-height:36px; line-height:1;">✕</button>
+    </div>
+    <div class="market-density-controls" style="display:inline-flex; gap:4px; align-items:center;">
+      <button class="filter-btn" id="mkt-density-comfortable" onclick="setTableDensity('comfortable')" title="표준 테이블 여백">📐 표준</button>
+      <button class="filter-btn" id="mkt-density-compact" onclick="setTableDensity('compact')" title="컴팩트 테이블 여백">📐 컴팩트</button>
+    </div>
+    <div class="market-font-controls" style="display:inline-flex; gap:4px; align-items:center;">
+      <button class="filter-btn mkt-font-btn" data-scale="small" onclick="setFontScale('small')" title="폰트 작게">A-</button>
+      <button class="filter-btn mkt-font-btn active" data-scale="normal" onclick="setFontScale('normal')" title="폰트 보통">A</button>
+      <button class="filter-btn mkt-font-btn" data-scale="large" onclick="setFontScale('large')" title="폰트 크게">A+</button>
     </div>
     <button class="btn-csv-export" onclick="exportMarketToCsv('{mkt}')">📥 CSV 내보내기</button>
   </div>
 </div>
 
 <div class="content market-content" style="padding: 0 32px 32px 32px;">
+  <div class="table-scroll-hint" id="mkt-table-scroll-hint">👉 좌우로 스와이프하여 42개 전체 팩터 확인</div>
   <div class="table-wrap">
     <table id="market-full-table">
       <thead><tr>
@@ -2090,9 +2382,87 @@ function switchTheme(theme) {{
     localStorage.setItem('app_theme', theme);
     localStorage.setItem('theme', theme);
   }} catch(e) {{}}
+  const metaTheme = document.getElementById('meta-theme-color');
+  if (metaTheme) {{
+    metaTheme.setAttribute('content', theme === 'light' ? '#ffffff' : (theme === 'terminal' ? '#0d1117' : '#131b26'));
+  }}
   document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
   const btn = document.getElementById('theme-' + theme);
   if (btn) btn.classList.add('active');
+}}
+
+function setTableDensity(mode) {{
+  if (mode === 'compact') {{
+    document.body.classList.add('table-compact');
+    document.documentElement.classList.add('table-compact');
+  }} else {{
+    document.body.classList.remove('table-compact');
+    document.documentElement.classList.remove('table-compact');
+  }}
+  try {{
+    localStorage.setItem('table_density', mode);
+  }} catch(e) {{}}
+  document.getElementById('mkt-density-compact')?.classList.toggle('active', mode === 'compact');
+  document.getElementById('mkt-density-comfortable')?.classList.toggle('active', mode !== 'compact');
+  showToast(`테이블이 ${{mode === 'compact' ? '컴팩트' : '표준'}} 모드로 변경되었습니다.`, '📐');
+}}
+
+function setFontScale(scale) {{
+  document.documentElement.classList.remove('font-scale-small', 'font-scale-normal', 'font-scale-large');
+  document.documentElement.classList.add(`font-scale-${{scale}}`);
+  if (document.body) {{
+    document.body.classList.remove('font-scale-small', 'font-scale-normal', 'font-scale-large');
+    document.body.classList.add(`font-scale-${{scale}}`);
+  }}
+  try {{
+    localStorage.setItem('quant_font_scale', scale);
+  }} catch(e) {{}}
+  document.querySelectorAll('.mkt-font-btn').forEach(btn => {{
+    btn.classList.toggle('active', btn.getAttribute('data-scale') === scale);
+  }});
+  showToast(`폰트 크기가 '${{scale === 'small' ? '작게' : (scale === 'large' ? '크게' : '보통')}}' 로 변경되었습니다.`, '🔍');
+}}
+
+function copyStockSummary() {{
+  const d = window.currentDrawerStockData;
+  if (!d || !d.symbol) {{
+    copyCurrentStockCode();
+    return;
+  }}
+  let summary = `📊 [${{d.name || d.symbol}}] (${{d.symbol}} • ${{d.market}})\\n`;
+  summary += `• 37대 앙상블 종합 스코어: ${{d.score}}\\n`;
+  summary += `• 20D 예상 기대수익률: ${{d.expectedReturn}}\\n`;
+  if (d.factors && Object.keys(d.factors).length > 0) {{
+    const entries = Object.entries(d.factors).filter(([k, v]) => v !== null && v !== undefined && v !== 'None' && v !== '-' && !String(v).toLowerCase().includes('nan')).slice(0, 5);
+    if (entries.length > 0) {{
+      summary += `• 핵심 팩터 점수:\\n`;
+      entries.forEach(([k, v]) => {{
+        summary += `  - ${{k}}: ${{v}}\\n`;
+      }});
+    }}
+  }}
+  summary += `• 출처: Quant Dashboard (https://kthur.github.io/stock/)`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {{
+    navigator.clipboard.writeText(summary).then(() => {{
+      showToast(`[${{d.name || d.symbol}}] 퀀트 요약이 복사되었습니다.`, '📊');
+    }}).catch(() => {{
+      showToast(`[${{d.name || d.symbol}}] 요약 복사 완료`, '📊');
+    }});
+  }} else {{
+    showToast(`[${{d.name || d.symbol}}] 요약 복사 완료`, '📊');
+  }}
+}}
+
+function initTableScrollHint() {{
+  const wrap = document.querySelector('.table-wrap');
+  const hint = document.getElementById('mkt-table-scroll-hint');
+  if (!wrap) return;
+  wrap.addEventListener('scroll', function() {{
+    if (wrap.scrollLeft > 25 && hint) {{
+      hint.classList.add('hidden');
+    }}
+  }}, {{ passive: true }});
 }}
 
 function resetTableSort() {{
@@ -2386,6 +2756,15 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   const countBadge = document.getElementById('drawer-factor-count-badge');
   if (countBadge) countBadge.textContent = '37개 전수';
 
+  window.currentDrawerStockData = {{
+    symbol: symbol,
+    name: name || symbol,
+    market: market,
+    score: score,
+    expectedReturn: expectedReturn,
+    factors: factors
+  }};
+
   // Radar chart rendering
   renderDrawerRadarChart(factors);
 
@@ -2425,8 +2804,33 @@ function closeStockDrawer() {{
   document.body.style.overflow = '';
 }}
 
-// Keyboard navigation (Escape to close, Left/Right arrow to navigate stocks)
+// Keyboard navigation (Shortcuts, Escape to close, Left/Right arrow to navigate stocks)
 window.addEventListener('keydown', (e) => {{
+  if ((e.key === '?' || (e.key === '/' && e.shiftKey)) && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {{
+    e.preventDefault();
+    toggleShortcutsModal();
+    return;
+  }}
+  if ((e.key === 't' || e.key === 'T') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {{
+    e.preventDefault();
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const nextTheme = currentTheme === 'dark' ? 'terminal' : (currentTheme === 'terminal' ? 'light' : 'dark');
+    switchTheme(nextTheme);
+    return;
+  }}
+  if ((e.key === 'd' || e.key === 'D') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {{
+    e.preventDefault();
+    const isCompact = document.body.classList.contains('table-compact') || document.documentElement.classList.contains('table-compact');
+    setTableDensity(isCompact ? 'comfortable' : 'compact');
+    return;
+  }}
+  if (e.key === 'Escape') {{
+    const shortcutsModal = document.getElementById('shortcuts-modal-overlay');
+    if (shortcutsModal && shortcutsModal.style.display === 'flex') {{
+      toggleShortcutsModal();
+      return;
+    }}
+  }}
   const drawer = document.getElementById('stock-drawer');
   if (drawer && (drawer.style.right === '0px' || drawer.classList.contains('open') || drawer.classList.contains('drawer-open-mobile'))) {{
     if (e.key === 'ArrowLeft') navigateDrawerStock(-1);
@@ -2552,7 +2956,18 @@ function initMarketPage() {{
     switchTheme(savedTheme);
   }} catch(e) {{}}
   try {{
+    const savedDensity = localStorage.getItem('table_density') || 'comfortable';
+    setTableDensity(savedDensity);
+  }} catch(e) {{}}
+  try {{
+    const savedFontScale = localStorage.getItem('quant_font_scale') || 'normal';
+    setFontScale(savedFontScale);
+  }} catch(e) {{}}
+  try {{
     updateWatchlistUI();
+  }} catch(e) {{}}
+  try {{
+    initTableScrollHint();
   }} catch(e) {{}}
   try {{
     initDrawerTouchSwipe();

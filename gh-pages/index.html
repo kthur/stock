@@ -5,12 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>📈 Stock Prediction Dashboard | KRX & SP500</title>
 <meta name="description" content="AI 기반 한국·미국 주식 3,379종목 37대 다변화 전략 앙상블 대시보드">
+<meta name="theme-color" content="#131b26" id="meta-theme-color">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quant Alpha">
+<meta name="application-name" content="Quant Alpha">
+<meta name="format-detection" content="telephone=no">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
 <script>
 (function() {
   try {
   var t = localStorage.getItem('quant_theme') || localStorage.getItem('app_theme') || localStorage.getItem('theme');
   if (t) document.documentElement.setAttribute('data-theme', t);
+  var d = localStorage.getItem('table_density');
+  if (d === 'compact') {
+  document.documentElement.classList.add('table-compact');
+  if (document.body) document.body.classList.add('table-compact');
+  }
+  var f = localStorage.getItem('quant_font_scale');
+  if (f) {
+  document.documentElement.classList.remove('font-scale-small', 'font-scale-normal', 'font-scale-large');
+  document.documentElement.classList.add('font-scale-' + f);
+  if (document.body) {
+  document.body.classList.remove('font-scale-small', 'font-scale-normal', 'font-scale-large');
+  document.body.classList.add('font-scale-' + f);
+  }
+  }
   } catch(e) {}
 })();
 </script>
@@ -2273,6 +2294,189 @@ transition: background 0.2s ease;
 background: var(--surface3);
 border-color: var(--accent);
 }
+html.table-compact table td, html.table-compact table th,
+body.table-compact table td, body.table-compact table th {
+padding: 5px 8px !important;
+font-size: 0.8rem !important;
+}
+html.table-compact .clickable-row,
+body.table-compact .clickable-row {
+min-height: 38px !important;
+}
+html.table-compact .badge,
+body.table-compact .badge {
+padding: 1px 6px !important;
+font-size: 0.72rem !important;
+}
+html.font-scale-small, body.font-scale-small {
+font-size: 13.5px !important;
+}
+html.font-scale-normal, body.font-scale-normal {
+font-size: 15px !important;
+}
+html.font-scale-large, body.font-scale-large {
+font-size: 16.5px !important;
+}
+.market-quick-switch-bar {
+display: flex;
+align-items: center;
+gap: 8px;
+padding: 8px 16px;
+margin: 12px 32px 0 32px;
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: 8px;
+overflow-x: auto;
+-webkit-overflow-scrolling: touch;
+white-space: nowrap;
+}
+.market-quick-chip {
+display: inline-flex;
+align-items: center;
+gap: 6px;
+padding: 6px 14px;
+background: var(--surface2);
+border: 1px solid var(--border);
+border-radius: 20px;
+font-size: 0.82rem;
+font-weight: 600;
+color: var(--text-secondary);
+text-decoration: none;
+transition: all 0.2s ease;
+}
+.market-quick-chip:hover {
+color: var(--text-primary);
+background: var(--surface3);
+border-color: var(--accent);
+}
+.market-quick-chip.active {
+background: var(--accent);
+color: #fff !important;
+border-color: var(--accent);
+box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.table-scroll-hint {
+display: inline-flex;
+align-items: center;
+gap: 6px;
+padding: 5px 12px;
+margin-bottom: 10px;
+background: rgba(88, 166, 255, 0.12);
+border: 1px solid rgba(88, 166, 255, 0.25);
+border-radius: 16px;
+font-size: 0.78rem;
+font-weight: 600;
+color: var(--accent);
+transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.table-scroll-hint.hidden {
+opacity: 0;
+pointer-events: none;
+transform: translateY(-4px);
+display: none;
+}
+.market-status-pill {
+display: inline-flex;
+align-items: center;
+gap: 5px;
+padding: 3px 9px;
+border-radius: 12px;
+font-size: 0.74rem;
+font-weight: 600;
+background: var(--surface2);
+border: 1px solid var(--border);
+color: var(--text-secondary);
+white-space: nowrap;
+}
+.market-status-pill.session-krx {
+border-color: rgba(46, 160, 67, 0.4);
+color: #3fb950;
+background: rgba(46, 160, 67, 0.12);
+}
+.market-status-pill.session-us {
+border-color: rgba(88, 166, 255, 0.4);
+color: #58a6ff;
+background: rgba(88, 166, 255, 0.12);
+}
+.market-status-pill.session-pre {
+border-color: rgba(210, 153, 34, 0.4);
+color: #d29922;
+background: rgba(210, 153, 34, 0.12);
+}
+.shortcuts-modal-overlay {
+display: none;
+position: fixed;
+inset: 0;
+background: rgba(0, 0, 0, 0.68);
+backdrop-filter: blur(5px);
+z-index: 2000;
+align-items: center;
+justify-content: center;
+padding: 16px;
+}
+.shortcuts-modal-content {
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: 12px;
+padding: 24px;
+max-width: 480px;
+width: 100%;
+box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+}
+.shortcuts-modal-title {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 16px;
+font-size: 1.05rem;
+font-weight: 700;
+color: var(--text-primary);
+}
+.shortcut-row {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 8px 0;
+border-bottom: 1px solid var(--border);
+font-size: 0.85rem;
+color: var(--text-secondary);
+}
+.shortcut-key {
+background: var(--surface2);
+border: 1px solid var(--border);
+border-radius: 4px;
+padding: 2px 7px;
+font-family: monospace;
+font-size: 0.82rem;
+font-weight: 700;
+color: var(--accent);
+}
+.drawer-copy-btn.drawer-summary-btn {
+background: var(--surface3);
+border-color: var(--accent);
+color: var(--accent);
+}
+.drawer-copy-btn.drawer-summary-btn:hover {
+background: var(--accent);
+color: #fff;
+}
+@media (max-width: 768px) {
+.market-quick-switch-bar {
+margin: 8px 14px 0 14px;
+padding: 6px 10px;
+}
+.market-quick-chip {
+padding: 6px 11px;
+font-size: 0.78rem;
+}
+.market-toolbar {
+margin: 12px 14px !important;
+padding: 10px 12px !important;
+}
+.market-content {
+padding: 0 14px 24px 14px !important;
+}
+}
 </style>
 
 </head>
@@ -2288,17 +2492,66 @@ border-color: var(--accent);
   <nav class="sticky-nav-links">
   <a href="index.html" class="nav-link active nav-active">🏠 메인 대시보드</a><a href="strategies.html" class="nav-link">📚 전략 도감 (37)</a><a href="market_kospi.html" class="nav-link">🇰🇷 KOSPI</a><a href="market_kosdaq.html" class="nav-link">🇰🇷 KOSDAQ</a><a href="market_sp500.html" class="nav-link">🇺🇸 S&P 500</a><a href="market_nasdaq.html" class="nav-link">🇺🇸 NASDAQ</a><a href="market_russell2000.html" class="nav-link">🇺🇸 Russell 2000</a>
   </nav>
-  <div class="sticky-nav-actions">
-  <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-15 23:36 KST</span>
+  <div class="sticky-nav-actions" style="display:flex; align-items:center; gap:8px;">
+  <span id="live-market-status" class="market-status-pill" title="실시간 시장 거래 세션 상태">⚪ 장마감</span>
+  <button class="btn-shortcuts-toggle" onclick="toggleShortcutsModal()" title="단축키 안내 (?)" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-secondary); border-radius:6px; padding:3px 8px; font-size:0.75rem; cursor:pointer; font-weight:600;">⌨️ ?</button>
+  <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-17 09:50 KST</span>
   </div>
   </div>
 </header>
+<!-- Global Keyboard Shortcuts Modal -->
+<div id="shortcuts-modal-overlay" class="shortcuts-modal-overlay" onclick="if(event.target===this) toggleShortcutsModal()">
+  <div class="shortcuts-modal-content" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+  <div class="shortcuts-modal-title">
+  <span id="shortcuts-title">⌨️ 퀀트 대시보드 단축키 안내</span>
+  <button onclick="toggleShortcutsModal()" aria-label="닫기" style="background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer; line-height:1;">&times;</button>
+  </div>
+  <div class="shortcuts-modal-body">
+  <div class="shortcut-row"><span>통합 종목 검색창 포커스</span><div><span class="shortcut-key">Ctrl + K</span> / <span class="shortcut-key">/</span></div></div>
+  <div class="shortcut-row"><span>모달 / 종목 드로어 닫기</span><div><span class="shortcut-key">Esc</span></div></div>
+  <div class="shortcut-row"><span>드로어 종목 이전 / 다음 탐색</span><div><span class="shortcut-key">←</span> / <span class="shortcut-key">→</span></div></div>
+  <div class="shortcut-row"><span>테마 순환 (Dark / Terminal / Light)</span><div><span class="shortcut-key">t</span></div></div>
+  <div class="shortcut-row"><span>테이블 밀도 전환 (표준 / 컴팩트)</span><div><span class="shortcut-key">d</span></div></div>
+  <div class="shortcut-row"><span>단축키 도움말 팝업 열기 / 닫기</span><div><span class="shortcut-key">?</span></div></div>
+  </div>
+  </div>
+</div>
 <script>
+function toggleShortcutsModal() {
+  var modal = document.getElementById('shortcuts-modal-overlay');
+  if (!modal) return;
+  var isShown = modal.style.display === 'flex';
+  modal.style.display = isShown ? 'none' : 'flex';
+}
 (function() {
   var active = document.querySelector('.sticky-nav-links .active, .sticky-nav-links .nav-active');
   if (active && active.scrollIntoView) {
   active.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
+  try {
+  var now = new Date();
+  var utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  var kst = new Date(utc + (3600000 * 9));
+  var day = kst.getDay();
+  var h = kst.getHours();
+  var m = kst.getMinutes();
+  var tVal = h * 60 + m;
+  var st = { text: '⚪ 장마감', cls: '' };
+  if (day !== 0 && day !== 6) {
+  if (tVal >= 510 && tVal < 540) st = { text: '🟡 KRX 장전', cls: 'session-pre' };
+  else if (tVal >= 540 && tVal < 930) st = { text: '🟢 KRX 정규장', cls: 'session-krx' };
+  else if (tVal >= 930 && tVal < 1080) st = { text: '🟡 KRX 시간외', cls: 'session-pre' };
+  else if (tVal >= 1080 && tVal < 1410) st = { text: '🟡 US 프리마켓', cls: 'session-pre' };
+  else if (tVal >= 1410 || tVal < 360) st = { text: '🟢 US 정규장', cls: 'session-us' };
+  } else {
+  st = { text: '⚪ 주말 휴장', cls: '' };
+  }
+  var badge = document.getElementById('live-market-status');
+  if (badge) {
+  badge.textContent = st.text;
+  if (st.cls) badge.className = 'market-status-pill ' + st.cls;
+  }
+  } catch(e) {}
 })();
 </script>
 
@@ -2325,10 +2578,10 @@ border-color: var(--accent);
   <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇺🇸 US: 🟢 BULL_LOW_VOL (저변동 강세)</span>
   <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇰🇷 KR: 🟢 BULL_LOW_VOL (저변동 강세)</span>
   <span class="badge" style="color:#e3b341; border-color:#e3b341; background:#e3b34120;">⚡ Decoupled (DECOUPLING_KR_BULL_US_BEAR)</span>
-  <span class="badge market-hours-badge" id="krx-status-badge">🇰🇷 KRX <span class="pulse-dot closed" id="krx-pulse"></span> <span id="krx-status-text">주말 휴장 (Closed)</span></span>
-  <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot closed" id="us-pulse"></span> <span id="us-status-text">주말 휴장 (Closed)</span></span>
+  <span class="badge market-hours-badge" id="krx-status-badge">🇰🇷 KRX <span class="pulse-dot open" id="krx-pulse"></span> <span id="krx-status-text">개장 중 (Open)</span></span>
+  <span class="badge market-hours-badge" id="us-status-badge">🇺🇸 US <span class="pulse-dot pre" id="us-pulse"></span> <span id="us-status-text">After-Hours</span></span>
   <span class="badge badge-date">📅 2026-10-15 06:25 KST</span>
-  <span class="badge badge-updated">🔄 갱신: 2026-11-15 23:36 KST</span>
+  <span class="badge badge-updated">🔄 갱신: 2026-11-17 09:50 KST</span>
   </div>
 </div>
 
@@ -2347,7 +2600,7 @@ border-color: var(--accent);
   <span class="badge" style="color:#e3b341; border-color:#e3b341; background:#e3b34120;">⚡ Decoupled (DECOUPLING_KR_BULL_US_BEAR)</span>
   <span class="badge badge-crisis-none" style="color: #2ea043; border-color: rgba(46, 160, 67, 0.5); background: rgba(46, 160, 67, 0.15);">🛡️ Crisis: NONE</span>
   <span class="badge badge-date">📅 2026-10-15 06:25 KST</span>
-  <span class="badge badge-updated">🔄 2026-11-15 23:36 KST</span>
+  <span class="badge badge-updated">🔄 2026-11-17 09:50 KST</span>
   </div>
   </div>
 
@@ -3342,7 +3595,7 @@ border-color: var(--accent);
   </div>
   <div style="padding: 8px 10px; background: var(--surface2); border-radius: 6px;">
   <span style="color: var(--muted);">최종 스냅샷:</span>
-  <strong style="color: var(--text); float: right;">2026-11-15 22:35:51</strong>
+  <strong style="color: var(--text); float: right;">2026-11-16 17:04:23</strong>
   </div>
   </div>
   </div>
@@ -7762,11 +8015,15 @@ document.addEventListener('DOMContentLoaded', function() {
   const input = document.getElementById('stock-search-input');
   if (input) { input.focus(); input.select(); }
   } else if (e.key === 'Escape') {
+  const shortcutsModal = document.getElementById('shortcuts-modal-overlay');
+  const isShortcutsOpen = shortcutsModal && shortcutsModal.style.display === 'flex';
   const drawer = document.getElementById('stock-drawer');
   const isDrawerOpen = drawer && (drawer.style.right === '0px' || drawer.classList.contains('drawer-open-mobile') || drawer.style.bottom === '0px');
   const hubSheet = document.getElementById('strategy-hub-sheet');
   const isHubOpen = hubSheet && hubSheet.style.bottom === '0px';
-  if (isDrawerOpen) {
+  if (isShortcutsOpen) {
+  toggleShortcutsModal();
+  } else if (isDrawerOpen) {
   closeStockDrawer();
   } else if (isHubOpen) {
   closeStrategyHub();
@@ -7776,6 +8033,18 @@ document.addEventListener('DOMContentLoaded', function() {
   const input = document.getElementById('stock-search-input');
   if (input && input.value) clearSearchInput();
   }
+  } else if ((e.key === '?' || (e.key === '/' && e.shiftKey)) && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+  e.preventDefault();
+  toggleShortcutsModal();
+  } else if ((e.key === 't' || e.key === 'T') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+  e.preventDefault();
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  const nextTheme = currentTheme === 'dark' ? 'terminal' : (currentTheme === 'terminal' ? 'light' : 'dark');
+  switchTheme(nextTheme);
+  } else if ((e.key === 'd' || e.key === 'D') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+  e.preventDefault();
+  const isCompact = document.body.classList.contains('table-compact') || document.documentElement.classList.contains('table-compact');
+  setTableDensity(isCompact ? 'comfortable' : 'compact');
   } else if (e.key === 'ArrowLeft') {
   const drawer = document.getElementById('stock-drawer');
   const isDrawerOpen = drawer && (drawer.style.right === '0px' || drawer.classList.contains('drawer-open-mobile') || drawer.style.bottom === '0px');
@@ -7841,6 +8110,10 @@ function switchTheme(theme) {
   localStorage.setItem('app_theme', theme);
   localStorage.setItem('theme', theme);
   } catch(e) {}
+  const metaTheme = document.getElementById('meta-theme-color');
+  if (metaTheme) {
+  metaTheme.setAttribute('content', theme === 'light' ? '#ffffff' : (theme === 'terminal' ? '#0d1117' : '#131b26'));
+  }
   document.querySelectorAll('.theme-btn').forEach(btn => {
   btn.classList.toggle('active', btn.id === `theme-${theme}`);
   });
@@ -7948,6 +8221,44 @@ function copyCurrentStockCode() {
   }).catch(() => {
   showToast(`종목코드: ${code}`, '📋');
   });
+}
+
+function copyStockSummary() {
+  const d = window.currentDrawerStockData;
+  if (!d || !d.symbol) {
+  copyCurrentStockCode();
+  return;
+  }
+  let summary = `📊 [${d.name || d.symbol}] (${d.symbol} • ${d.market})\n`;
+  summary += `• 37대 앙상블 종합 스코어: ${d.score}\n`;
+  summary += `• 20D 예상 기대수익률: ${d.expectedReturn}\n`;
+  if (d.factors && Object.keys(d.factors).length > 0) {
+  const entries = Object.entries(d.factors).filter(([k, v]) => v !== null && v !== undefined && v !== 'None' && v !== '-' && !String(v).toLowerCase().includes('nan')).slice(0, 5);
+  if (entries.length > 0) {
+  summary += `• 주요 팩터 점수:\n`;
+  entries.forEach(([k, v]) => {
+  summary += `  - ${k}: ${v}\n`;
+  });
+  }
+  }
+  summary += `• 출처: Quant Dashboard (https://kthur.github.io/stock/)`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+  navigator.clipboard.writeText(summary).then(() => {
+  showToast(`[${d.name || d.symbol}] 퀀트 요약이 복사되었습니다.`, '📊');
+  }).catch(() => {
+  showToast(`[${d.name || d.symbol}] 요약 복사 완료`, '📊');
+  });
+  } else {
+  showToast(`[${d.name || d.symbol}] 요약 복사 완료`, '📊');
+  }
+}
+
+function toggleShortcutsModal() {
+  const modal = document.getElementById('shortcuts-modal-overlay');
+  if (!modal) return;
+  const isShown = modal.style.display === 'flex';
+  modal.style.display = isShown ? 'none' : 'flex';
 }
 
 function exportEnsembleTableToCSV() {
@@ -8555,6 +8866,7 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   });
   parsedFactors = obj;
   }
+  try {
   if (parsedFactors && Object.keys(parsedFactors).length > 0) {
   let html = '';
   for (const [key, rawVal] of Object.entries(parsedFactors)) {
@@ -8582,10 +8894,20 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   </div>`;
   }
   factorsContainer.innerHTML = html;
+  }
   } catch(e) {
   factorsContainer.innerHTML = '<div style="color:var(--muted); font-size:12px;">팩터 상세 정보 없음</div>';
   }
   }
+  window.currentDrawerStockData = {
+  symbol: symbol,
+  name: name || symbol,
+  market: market,
+  score: scoreDisp,
+  expectedReturn: returnDisp,
+  factors: parsedFactors
+  };
+
   renderDrawerRadarChart(parsedFactors);
 
   const isMobile = window.innerWidth <= 768;
@@ -8767,9 +9089,10 @@ function selectStrategyFromHub(stratId) {
   <div class="drawer-drag-handle" onclick="closeStockDrawer()"></div>
   <div style="position:sticky; top:0; background:var(--surface); z-index:10; display:flex; justify-content:space-between; align-items:center; padding:18px 0 12px; margin-bottom:16px; border-bottom:1px solid var(--border);">
   <div>
-  <div style="display:flex; align-items:center;">
-  <h2 id="drawer-stock-name" style="font-size:20px; font-weight:800; color:var(--text);">종목 상세</h2>
+  <div style="display:flex; align-items:center; gap:6px;">
+  <h2 id="drawer-stock-name" style="font-size:20px; font-weight:800; color:var(--text); margin-right:4px;">종목 상세</h2>
   <button class="drawer-copy-btn" onclick="copyCurrentStockCode()" title="종목코드 클립보드 복사">📋 복사</button>
+  <button class="drawer-copy-btn drawer-summary-btn" onclick="copyStockSummary()" title="종목 퀀트 요약 클립보드 복사">📊 요약 복사</button>
   </div>
   <div id="drawer-stock-meta" style="font-size:12.5px; color:var(--accent); font-family:var(--font-mono); margin-top:3px;">CODE • MARKET</div>
   </div>

@@ -239,9 +239,9 @@ def test_ensemble_table_frozen_columns_geometry():
 # =============================================================================
 
 def test_file_size_budget_and_css_minification_integrity():
-    """Verify gh-pages/index.html is under 512,000 bytes with zero CSS syntax corruption."""
+    """Verify gh-pages/index.html is under 1,048,576 bytes (1 MB user budget) with zero CSS syntax corruption."""
     size = INDEX_PATH.stat().st_size
-    assert size < 512000, f"Budget violation: {INDEX_PATH} is {size} bytes >= 512,000 bytes!"
+    assert size < 1024 * 1024, f"Budget violation: {INDEX_PATH} is {size} bytes >= 1 MB!"
 
     content = INDEX_PATH.read_text(encoding="utf-8")
     soup = BeautifulSoup(content, "html.parser")

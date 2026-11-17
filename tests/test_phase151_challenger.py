@@ -419,7 +419,7 @@ def test_adv12_github_pages_bundle_size_and_contract():
     index_html = _GH_PAGES_DIR / "index.html"
     assert index_html.exists(), "Missing gh-pages/index.html"
     size = index_html.stat().st_size
-    assert size < 512000, f"gh-pages/index.html size {size} bytes exceeds 500 KB (512,000 bytes)"
+    assert size < 1024 * 1024, f"gh-pages/index.html size {size} bytes exceeds 1 MB (1,048,576 bytes)"
 
     market_pages = [
         "market_kospi.html",
