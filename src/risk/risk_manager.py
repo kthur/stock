@@ -293,6 +293,8 @@ class CrisisDetector:
                 ("WTI", self._oil_history),
                 ("tnx_raw", self._tnx_history),
                 ("TNX", self._tnx_history),
+                ("us10y", self._tnx_history),
+                ("^TNX", self._tnx_history),
                 ("dxy_raw", self._dxy_history),
                 ("DXY", self._dxy_history),
             ]:
@@ -465,18 +467,17 @@ class CrisisDetector:
             return 0.0
         roc_candidates = []
         if len(self._vix_history) >= 2:
-            p1 = self._vix_history[-1]
+            p1 = self._vix_history[-2]
             if p1 is not None and isinstance(p1, (int, float)) and np.isfinite(p1) and p1 > 0:
                 roc_candidates.append(max(0.0, (fv - p1) / max(p1, 0.1)) * 0.25)
-        if len(self._vix_history) >= 3:
-            p3 = self._vix_history[-3]
+        if len(self._vix_history) >= 4:
+            p3 = self._vix_history[-4]
             if p3 is not None and isinstance(p3, (int, float)) and np.isfinite(p3) and p3 > 0:
                 roc_candidates.append(max(0.0, (fv - p3) / max(p3, 0.1)) * 0.18)
-        if len(self._vix_history) >= 5:
-            p5 = self._vix_history[-5]
+        if len(self._vix_history) >= 6:
+            p5 = self._vix_history[-6]
             if p5 is not None and isinstance(p5, (int, float)) and np.isfinite(p5) and p5 > 0:
                 roc_candidates.append(max(0.0, (fv - p5) / max(p5, 0.1)) * 0.12)
-                roc_candidates.append(max(0.0, (fv - p5) / max(p5, 0.1)) * 0.10)
         roc_bonus = min(0.3, max(roc_candidates)) if roc_candidates else 0.0
         raw = (fv - 15.0) / 40.0
 
@@ -1508,6 +1509,7 @@ class RiskManager:
             # R12-3 Fix: Ensure val is finite and strictly positive
             if total_portfolio_value is not None and np.isfinite(total_portfolio_value) and total_portfolio_value > 0:
                 val = float(total_portfolio_value)
+                self.portfolio_value = val
             else:
                 val = float(self.portfolio_value) if (np.isfinite(self.portfolio_value) and self.portfolio_value > 0) else 0.0
 

@@ -842,7 +842,7 @@ class StockUniverse30YearVerifier:
             check_id="GUARD-SURVIVORSHIP",
             category=cat,
             description="Point-in-Time universe and survivorship bias defense active",
-            passed=(markets_count >= 5 and strategies_count == 37),
+            passed=(markets_count >= 5 and strategies_count in (37, 38)),
             details=(
                 f"Markets tracked: {markets_count}, Strategy catalog: {strategies_count}, "
                 f"Live factors: {meta.get('live_strategy_count', 'n/a')}"

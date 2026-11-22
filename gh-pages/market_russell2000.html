@@ -12,6 +12,8 @@
 <meta name="apple-mobile-web-app-title" content="Quant Alpha">
 <meta name="application-name" content="Quant Alpha">
 <meta name="format-detection" content="telephone=no">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
 <script>
 (function() {
@@ -35,7 +37,7 @@
   } catch(e) {}
 })();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 
 <style>
   :root {{
@@ -199,7 +201,8 @@
   .tooltip-wrapper .tooltip-content {{
     visibility: hidden;
     opacity: 0;
-    width: 340px;
+    width: min(300px, calc(100vw - 32px)) !important;
+    max-width: 90vw !important;
     background-color: var(--surface2);
     color: var(--text);
     text-align: left;
@@ -238,7 +241,7 @@
   /* Tabs */
   .tabs {{ 
     position: sticky; 
-    top: 0; 
+    top: 52px !important; 
     z-index: 100; 
     background: var(--surface); 
     backdrop-filter: blur(12px); 
@@ -520,7 +523,7 @@
   body.view-card-active .stock-cards-wrap {{
     display: grid !important;
   }}
-  body.view-card-active .table-wrap {{
+  body.view-card-active #panel-ensemble .market-panel .table-wrap {{
     display: none !important;
   }}
   .stock-card {{
@@ -944,7 +947,7 @@
     .row1-wrapper {{ grid-template-columns: 1fr; gap: 12px; padding: 12px; }}
 
 
-    .tabs {{ padding: 0 8px; height: 44px; }}
+    .tabs {{ padding: 0 8px; height: 44px; top: 52px !important; }}
     .tab {{ padding: 0 12px; font-size: 13px; min-height: 44px !important; display: inline-flex; align-items: center; box-sizing: border-box; }}
     thead th {{ top: 0; padding: 8px 6px; font-size: 12px; }}
     .table-wrap th.sticky-col {{ top: 0; }}
@@ -1049,6 +1052,14 @@
     #market-full-table .col-strat {{
       display: table-cell;
     }}
+    body.preset-ai .col-strat.col-cat-ai,
+    body.preset-mom .col-strat.col-cat-mom,
+    body.preset-val .col-strat.col-cat-val,
+    body.preset-flow .col-strat.col-cat-flow,
+    body.preset-micro .col-strat.col-cat-micro,
+    body.preset-macro .col-strat.col-cat-macro {{
+      display: table-cell !important;
+    }}
     .table-wrap table {{ min-width: 100% !important; }}
     .table-wrap .sticky-rank {{
       left: 0 !important;
@@ -1058,6 +1069,11 @@
       padding-left: 2px !important;
       padding-right: 2px !important;
       text-align: center !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }}
     .sticky-rank {{
       left: 0 !important;
@@ -1070,6 +1086,11 @@
       padding-left: 2px !important;
       padding-right: 2px !important;
       text-align: center !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }}
     .table-wrap .sticky-symbol {{
       left: 36px !important;
@@ -1159,7 +1180,9 @@
       border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
       box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
     }}
-    #market-full-table td.sticky-rank {{
+    #market-full-table td.sticky-rank,
+    .table-wrap td.sticky-rank,
+    td.sticky-rank {{
       left: 0 !important;
       width: 34px !important;
       min-width: 34px !important;
@@ -1168,6 +1191,11 @@
       text-align: center !important;
       padding-left: 2px !important;
       padding-right: 2px !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }}
     #market-full-table td.sticky-symbol {{
       left: 34px !important;
@@ -1276,6 +1304,9 @@
   }}
 
   @media (max-width: 480px) {{
+    .tabs {{
+      top: 50px !important;
+    }}
     .encyclopedia-intro {{
       padding: 10px 10px 0 10px !important;
     }}
@@ -1464,6 +1495,14 @@
   body.preset-flow .col-strat:not(.col-cat-flow),
   body.preset-macro .col-strat:not(.col-cat-macro) {{
     display: none !important;
+  }}
+  body.preset-ai .col-strat.col-cat-ai,
+  body.preset-mom .col-strat.col-cat-mom,
+  body.preset-val .col-strat.col-cat-val,
+  body.preset-flow .col-strat.col-cat-flow,
+  body.preset-micro .col-strat.col-cat-micro,
+  body.preset-macro .col-strat.col-cat-macro {{
+    display: table-cell !important;
   }}
 
   /* Font Scaling Controls */
@@ -1756,6 +1795,11 @@
       padding-left: 2px !important;
       padding-right: 2px !important;
       text-align: center !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }
     .table-wrap .sticky-symbol {
       left: 36px !important;
@@ -1791,6 +1835,11 @@
       padding-left: 2px !important;
       padding-right: 2px !important;
       text-align: center !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }
     .sticky-symbol {
       left: 34px !important;
@@ -1860,7 +1909,9 @@
       border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
       box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
     }
-    #market-full-table td.sticky-rank {
+    #market-full-table td.sticky-rank,
+    .table-wrap td.sticky-rank,
+    td.sticky-rank {
       left: 0 !important;
       width: 34px !important;
       min-width: 34px !important;
@@ -1869,6 +1920,11 @@
       text-align: center !important;
       padding-left: 2px !important;
       padding-right: 2px !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }
     #market-full-table td.sticky-symbol {
       left: 34px !important;
@@ -2644,8 +2700,12 @@
       padding: 6px 10px;
     }
     .market-quick-chip {
-      padding: 6px 11px;
-      font-size: 0.78rem;
+      min-height: 44px !important;
+      padding: 0 14px;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .market-toolbar {
       margin: 12px 14px !important;
@@ -2673,7 +2733,7 @@
     <div class="sticky-nav-actions" style="display:flex; align-items:center; gap:8px;">
       <span id="live-market-status" class="market-status-pill" title="실시간 시장 거래 세션 상태">⚪ 장마감</span>
       <button class="btn-shortcuts-toggle" onclick="toggleShortcutsModal()" title="단축키 안내 (?)" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-secondary); border-radius:6px; padding:3px 8px; font-size:0.75rem; cursor:pointer; font-weight:600;">⌨️ ?</button>
-      <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-17 09:50 KST</span>
+      <span class="nav-update-time" style="font-size:0.78rem; color:var(--text-secondary);">🔄 2026-11-22 12:51 KST</span>
     </div>
   </div>
 </header>
@@ -2755,7 +2815,7 @@ function toggleShortcutsModal() {
     <span class="badge badge-quant-edition">🇺🇸 RUSSELL2000 Dedicated Market</span>
     <span class="badge badge-date">총 분석 종목: 0개</span>
     <span class="badge badge-updated">📅 2026-10-15 06:25 KST</span>
-    <span class="badge badge-updated">🔄 갱신: 2026-11-17 09:50 KST</span>
+    <span class="badge badge-updated">🔄 갱신: 2026-11-22 12:51 KST</span>
   </div>
 </div>
 
@@ -3580,6 +3640,17 @@ function initMarketPage() {
   try {
     initDrawerTouchSwipe();
   } catch(e) {}
+  try {
+    const backToTopBtn = document.getElementById('btn-back-to-top');
+    if (backToTopBtn) {
+      window.addEventListener('scroll', function() {
+        backToTopBtn.style.display = window.scrollY > 300 ? 'flex' : 'none';
+      });
+      backToTopBtn.addEventListener('click', function() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+  } catch(e) {}
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initMarketPage);
@@ -3649,9 +3720,9 @@ if (document.readyState === 'loading') {
   </div>
 
   <div class="drawer-external-links">
-    <a id="drawer-naver-link" href="#" target="_blank" class="ext-portal-btn" style="color:#03c75a; border-color:rgba(3,199,90,0.4);">🇳 네이버증권</a>
-    <a id="drawer-yahoo-link" href="#" target="_blank" class="ext-portal-btn" style="color:#6001d2; border-color:rgba(96,1,210,0.4);">🟣 Yahoo Finance</a>
-    <a id="drawer-tv-link" href="#" target="_blank" class="ext-portal-btn" style="color:#2962ff; border-color:rgba(41,98,255,0.4);">📈 TradingView</a>
+    <a id="drawer-naver-link" href="#" target="_blank" rel="noopener noreferrer" class="ext-portal-btn" style="color:#03c75a; border-color:rgba(3,199,90,0.4);">🇳 네이버증권</a>
+    <a id="drawer-yahoo-link" href="#" target="_blank" rel="noopener noreferrer" class="ext-portal-btn" style="color:#6001d2; border-color:rgba(96,1,210,0.4);">🟣 Yahoo Finance</a>
+    <a id="drawer-tv-link" href="#" target="_blank" rel="noopener noreferrer" class="ext-portal-btn" style="color:#2962ff; border-color:rgba(41,98,255,0.4);">📈 TradingView</a>
   </div>
 </div>
 

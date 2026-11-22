@@ -70,7 +70,38 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          .venv/bin/python trading_system/realtime_monitor.py --once --dry-run 2>&1
+          mkdir -p trading_system/logs
+          set -o pipefail
+          .venv/bin/python trading_system/realtime_monitor.py --once --dry-run 2>&1 | tee trading_system/logs/realtime_monitor.log
+
+      - name: Write Monitor Step Summary
+        if: always()
+        run: |
+          STATUS="${{ steps.run.outcome }}"
+          ICON="✅"
+          [ "$STATUS" != "success" ] && ICON="❌"
+          echo "## ${ICON} 실시간 모니터링 요약" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 항목 | 내용 |" >> $GITHUB_STEP_SUMMARY
+          echo "|:---|:---|" >> $GITHUB_STEP_SUMMARY
+          echo "| 실행 일시 | $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST') |" >> $GITHUB_STEP_SUMMARY
+          echo "| 모니터링 상태 | ${STATUS} |" >> $GITHUB_STEP_SUMMARY
+          LOG_FILE="trading_system/logs/realtime_monitor.log"
+          SYMBOLS_CNT=$(grep -o 'Monitored symbols: [0-9]*' "$LOG_FILE" 2>/dev/null | cut -d: -f2 | tr -d ' ' || echo "전체 감시")
+          [ -z "$SYMBOLS_CNT" ] && SYMBOLS_CNT="워치리스트 종목 (정상)"
+          echo "| 점검 종목 수 | ${SYMBOLS_CNT} |" >> $GITHUB_STEP_SUMMARY
+          ALERT_CNT=$(grep -c 'ALERT' "$LOG_FILE" 2>/dev/null || echo "0")
+          echo "| 활성 알림 수 | ${ALERT_CNT}건 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 시장 레짐 | 장중 실시간 감시 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
+          if [ "$STATUS" != "success" ] && [ -f "$LOG_FILE" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "> [!CAUTION]" >> $GITHUB_STEP_SUMMARY
+            echo "> **모니터링 오류 로그 (최근 20줄)**:" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            tail -n 20 "$LOG_FILE" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Notify Telegram on Monitor Alert
         if: failure()
@@ -79,9 +110,17 @@ jobs:
           CHAT="${{ secrets.TELEGRAM_CHAT_ID }}"
           if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
             RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            ERR_SNIPPET=""
+            LOG_FILE="trading_system/logs/realtime_monitor.log"
+            if [ -f "$LOG_FILE" ]; then
+              ERR_SNIPPET=$(tail -n 5 "$LOG_FILE" | tr '\n' ' ' | cut -c1-200)
+            fi
             MSG="⚠️ *[Realtime Monitor] Run Failed*%0A%0A"
             MSG+="*Status:* ${{ steps.run.outcome }}%0A"
-            MSG+="*Time:* $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')%0A%0A"
+            MSG+="*Time:* $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')%0A"
+            if [ -n "$ERR_SNIPPET" ]; then
+              MSG+="*Error:* \`${ERR_SNIPPET}\`%0A"
+            fi
             MSG+="*Run URL:* ${RUN_URL}"
             curl -sf -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
               -d "chat_id=${CHAT}&text=${MSG}&parse_mode=Markdown" > /dev/null || true

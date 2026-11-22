@@ -174,3 +174,79 @@ class TestPhase123ModularEnsemble:
         empty_df = pd.DataFrame()
         assert decoupler.normalize_cross_sectional(empty_df).empty
         assert decoupler.synthesize_portfolio_dataframe(empty_df).empty
+
+    def test_tc14_historical_couplers_reexport_parity(self):
+        """Verifies Phase 44-62 couplers extraction and 100% backward-compatible re-exports."""
+        import src.ai.historical_couplers as hc
+        import src.ai.ensemble_scorer as es
+
+        # Verify key coupler classes
+        coupler_classes = [
+            'QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineMonsterWhittakerCoupler',
+            '_ObsoletePhase48MonsterWhittakerCoupler',
+            'QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsMoonshineWhittakerCoupler',
+            'QuantumGeometricLanglandsChiralAffineLieSuperalgebraBorcherdsKacMoodyWhittakerCoupler',
+            'QuantumGeometricLanglandsKacMoodyWhittakerCoupler',
+            'QuantumGeometricLanglandsVirasoroWhittakerCoupler',
+        ]
+        for cname in coupler_classes:
+            assert hasattr(hc, cname), f"Class {cname} missing from historical_couplers"
+            assert hasattr(es, cname), f"Class {cname} missing from ensemble_scorer re-exports"
+            assert getattr(hc, cname) is getattr(es, cname), f"Class {cname} identity mismatch"
+
+        # Verify key aliases
+        aliases = [
+            'Phase103Coupler', 'Phase48Coupler', 'Phase47Coupler',
+            'Phase46Coupler', 'Phase45Coupler', 'Phase44Coupler',
+            'WhittakerSheafCoupler', 'VirasoroWhittakerCoupler',
+        ]
+        for aname in aliases:
+            assert hasattr(hc, aname), f"Alias {aname} missing from historical_couplers"
+            assert hasattr(es, aname), f"Alias {aname} missing from ensemble_scorer"
+            assert getattr(hc, aname) is getattr(es, aname), f"Alias {aname} identity mismatch"
+
+    def test_tc15_combine_predictions_vectorized_consolidation(self):
+        """Verifies combine_predictions vectorized factor strategy consolidation."""
+        from src.ai.ensemble_scorer import EnsembleScoringEngine
+
+        scorer = EnsembleScoringEngine()
+        reg_df = pd.DataFrame({
+            'symbol': ['AAPL', 'MSFT'],
+            'expected_return': [0.05, 0.08],
+            'close': [150.0, 300.0],
+            'market': ['US', 'US'],
+        })
+        s_df = pd.DataFrame({'symbol': ['AAPL', 'MSFT'], 'surge_score': [0.7, 0.9]})
+        rim_df = pd.DataFrame({'symbol': ['AAPL', 'MSFT'], 'rim_score': [0.85, 0.65]})
+        vpin_df = pd.DataFrame({'symbol': ['AAPL', 'MSFT'], 'vpin_toxicity_score': [80.0, 45.0]})
+
+        res = scorer.combine_predictions(
+            reg_df=reg_df,
+            s_df=s_df,
+            rim_df=rim_df,
+            vpin_toxicity_df=vpin_df,
+        )
+
+        assert not res.empty
+        assert len(res) == 2
+        assert 'reg_score' in res.columns
+        assert 'surge_score' in res.columns
+        assert 'rim_score' in res.columns
+        assert 'vpin_toxicity_score' in res.columns
+
+        # Verify percentage rescaling (> 1.0 divided by 100)
+        aapl_row = res.loc[res['symbol'] == 'AAPL'].iloc[0]
+        assert aapl_row['rim_score'] == pytest.approx(0.85)
+        assert aapl_row['vpin_toxicity_score'] == pytest.approx(0.80)
+
+    def test_tc16_dual_tree_sha256_parity_couplers_and_scorer(self):
+        """Verifies 100% SHA-256 bit-for-bit parity for modified ai modules."""
+        for filename in ['historical_couplers.py', 'ensemble_scorer.py']:
+            f1 = PROJECT_ROOT / "src" / "ai" / filename
+            f2 = TRADING_SYSTEM_DIR / "src" / "ai" / filename
+            assert f1.exists(), f"File {f1} does not exist"
+            assert f2.exists(), f"File {f2} does not exist"
+            h1 = hashlib.sha256(f1.read_bytes()).hexdigest()
+            h2 = hashlib.sha256(f2.read_bytes()).hexdigest()
+            assert h1 == h2, f"Dual-tree SHA-256 mismatch for {filename}: {h1} != {h2}"
+

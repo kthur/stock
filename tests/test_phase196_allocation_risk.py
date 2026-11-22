@@ -44,6 +44,7 @@ try:
     from src.risk.unified_portfolio_allocator import (
         UnifiedPortfolioAllocator,
         AllocationResult,
+        allocate_portfolio_phase198,
         allocate_portfolio_phase196,
         allocate_portfolio_v186,
         allocate_portfolio_v182,
@@ -58,6 +59,7 @@ try:
 except ImportError:
     UnifiedPortfolioAllocator = None
     AllocationResult = None
+    allocate_portfolio_phase198 = None
     allocate_portfolio_phase196 = None
     allocate_portfolio_v186 = None
     allocate_portfolio_v182 = None
@@ -867,6 +869,105 @@ class TestPhase196Category7HighThroughputExecutionSLA(unittest.TestCase):
             fn(order_qty=1000.0 * (i + 1), spread_bps=12.0, urgency=0.5, hawkes_intensity=1.2)
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         self.assertLess(elapsed_ms, 10.0, f"Latency SLA breach: {elapsed_ms:.2f} ms >= 10.0 ms")
+
+
+# ===========================================================================
+# Category 8: Feature F984 Asymmetric Downside Semi-Volatility Clamping (TC42)
+# ===========================================================================
+class TestPhase198Category8DownsideSemiVolatilityClamping(unittest.TestCase):
+
+    def test_tc42_asymmetric_downside_semi_volatility_array_inputs(self):
+        """TC42 [F984 / R187]: Asymmetric downside semi-volatility clamping handles ndarray inputs cleanly and compresses leverage under downside shocks."""
+        N = 4
+        alphas = {f"SYM_{i}": 1.0 for i in range(N)}
+        cov = np.eye(N) * (0.10 ** 2 / 252.0)  # low annual variance ~10% vol
+
+        # 1. Downside shock history (negative returns)
+        shock_returns = np.full((50, N), -0.04, dtype=np.float64)
+        # 2. Pure upside drift history (positive returns)
+        upside_returns = np.full((50, N), 0.04, dtype=np.float64)
+        # 3. Direct semi-covariance matrix with severe downside variance
+        semi_cov_shock = np.eye(N, dtype=np.float64) * (0.40 ** 2)
+        # 4. Standard baseline semi-covariance matrix
+        semi_cov_base = np.eye(N, dtype=np.float64) * (0.05 ** 2)
+
+        alloc_fns = []
+        if allocate_portfolio_phase198 is not None:
+            alloc_fns.append(("allocate_portfolio_phase198", allocate_portfolio_phase198))
+        if allocate_portfolio_phase196 is not None:
+            alloc_fns.append(("allocate_portfolio_phase196", allocate_portfolio_phase196))
+
+        for name, fn in alloc_fns:
+            # A. Execute with returns_history=np.ndarray without raising ValueError
+            res_shock = fn(
+                alpha_vector=alphas,
+                cov_matrix=cov,
+                returns_history=shock_returns,
+                regime="BULL_STABLE",
+                contango_days=15,
+                vix1m=14.0,
+                vix3m=16.0,
+                vts_ratio=0.88,
+            )
+            res_up = fn(
+                alpha_vector=alphas,
+                cov_matrix=cov,
+                returns_history=upside_returns,
+                regime="BULL_STABLE",
+                contango_days=15,
+                vix1m=14.0,
+                vix3m=16.0,
+                vts_ratio=0.88,
+            )
+            self.assertIsInstance(res_shock, AllocationResult, f"{name}: Failed to return AllocationResult")
+            self.assertIsInstance(res_up, AllocationResult, f"{name}: Failed to return AllocationResult")
+            # Downside shock must compress gross leverage compared to pure upside drift
+            self.assertLess(
+                res_shock.gross_leverage,
+                res_up.gross_leverage,
+                f"{name}: Shock leverage ({res_shock.gross_leverage}) should be less than upside leverage ({res_up.gross_leverage})",
+            )
+            self.assertLessEqual(res_shock.gross_leverage, 0.50, f"{name}: Severe downside shock should compress leverage <= 0.50x")
+            self.assertGreaterEqual(res_up.gross_leverage, 2.00, f"{name}: Pure upside drift should preserve high leverage >= 2.00x")
+
+            # B. Execute with semi_cov_matrix=np.ndarray without raising ValueError
+            res_semi_shock = fn(
+                alpha_vector=alphas,
+                cov_matrix=cov,
+                semi_cov_matrix=semi_cov_shock,
+                regime="BULL_STABLE",
+                contango_days=15,
+                vix1m=14.0,
+                vix3m=16.0,
+                vts_ratio=0.88,
+            )
+            res_semi_base = fn(
+                alpha_vector=alphas,
+                cov_matrix=cov,
+                semi_cov_matrix=semi_cov_base,
+                regime="BULL_STABLE",
+                contango_days=15,
+                vix1m=14.0,
+                vix3m=16.0,
+                vts_ratio=0.88,
+            )
+            self.assertIsInstance(res_semi_shock, AllocationResult, f"{name}: Failed to return AllocationResult")
+            self.assertLess(
+                res_semi_shock.gross_leverage,
+                res_semi_base.gross_leverage,
+                f"{name}: Semi-cov shock leverage should be less than base leverage",
+            )
+
+            # C. Pass both returns_history and semi_cov_matrix simultaneously
+            res_both = fn(
+                alpha_vector=alphas,
+                cov_matrix=cov,
+                returns_history=shock_returns,
+                semi_cov_matrix=semi_cov_shock,
+                regime="BULL_STABLE",
+            )
+            self.assertIsInstance(res_both, AllocationResult)
+            self.assertLess(res_both.gross_leverage, res_up.gross_leverage)
 
 
 if __name__ == "__main__":

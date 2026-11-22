@@ -18,6 +18,7 @@ from trading_system.scripts.verify_gha_artifacts import (
     verify_gh_pages,
     run_verification,
     print_report,
+    generate_step_summary,
 )
 
 
@@ -127,3 +128,52 @@ def test_verify_gh_pages_mock():
         res = verify_gh_pages(tmp_path)
         assert res.valid is True
         assert len(res.strategy_panels_valid) == 38
+
+
+def test_generate_step_summary_3col_and_details():
+    """Verify that generate_step_summary outputs 3-col KPI table, collapsible details, and Pages link."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        res_dir = tmp_path / "result"
+        pages_dir = tmp_path / "gh-pages"
+        res_dir.mkdir()
+        pages_dir.mkdir()
+
+        report = run_verification(res_dir, pages_dir)
+        summary = generate_step_summary(report)
+
+        # 3-column table check
+        assert "| 마켓 | 37대 전략 충족률 | 상태 |" in summary
+        for mkt in MARKETS:
+            assert f"| {mkt} |" in summary
+
+        # Collapsible details check
+        assert "<details>" in summary
+        assert "<summary><b>📋 37대 전략별 세부 검증 결과 (펼치기)</b></summary>" in summary
+        assert "</details>" in summary
+
+        # Deployment link check
+        assert "https://kthur.github.io/stock/" in summary
+
+
+def test_cli_step_summary_environment(monkeypatch):
+    """Verify that --step-summary respects GITHUB_STEP_SUMMARY environment variable."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        step_summary_file = tmp_path / "step_summary.md"
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(step_summary_file))
+
+        res_dir = tmp_path / "result"
+        pages_dir = tmp_path / "gh-pages"
+        res_dir.mkdir()
+        pages_dir.mkdir()
+
+        # Run verification and generate summary directly
+        report = run_verification(res_dir, pages_dir)
+        summary = generate_step_summary(report)
+        step_summary_file.write_text(summary, encoding="utf-8")
+
+        assert step_summary_file.exists()
+        content = step_summary_file.read_text(encoding="utf-8")
+        assert "| 마켓 | 37대 전략 충족률 | 상태 |" in content
+

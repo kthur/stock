@@ -267,8 +267,9 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
             sig_acc = 1.0 / (1.0 + np.exp(-5.0 * (auction_volume_accel - 1.60)))
             gap_bonus = 0.18 * sig_imb * sig_acc
 
-            # Score normalized to [0.0, 1.0] scale centered at 0.50
-            net_score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15 + gap_bonus, 0.0, 1.0))
+            # Score normalized to [0.0, 1.0] scale centered at 0.50 (volume accel modulated by imbalance direction)
+            signed_accel = np.sign(bid_ask_imbalance) * (auction_volume_accel - 1.0)
+            net_score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + signed_accel * 0.15 + gap_bonus, 0.0, 1.0))
 
             # HFT Order Flow Momentum Booster for high-conviction order imbalance (smooth transition)
             smooth_boost = 1.0 + 0.15 / (1.0 + np.exp(-10.0 * (net_score - 0.70)))

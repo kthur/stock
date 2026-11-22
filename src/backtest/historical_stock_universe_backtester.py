@@ -126,7 +126,17 @@ CANONICAL_37_COLUMNS: List[str] = [
     "dual_correction_score",
     "index_rebalance_score",
     "overnight_gap_score",
+    "cross_market_micro_mom_score",
+    "stealth_accumulation_score",
+    "vpin_toxicity_score",
+    "macro_stress_spillover_score",
+    "sue_sur_decay_score",
+    "sentiment_divergence_score",
+    "fcf_velocity_score",
 ]
+
+CANONICAL_38_COLUMNS = CANONICAL_37_COLUMNS
+CANONICAL_44_COLUMNS = CANONICAL_37_COLUMNS
 
 STRATEGY_TO_COL_MAP: Dict[str, str] = {
     "regression": "reg_score",
@@ -166,6 +176,13 @@ STRATEGY_TO_COL_MAP: Dict[str, str] = {
     "dual_correction": "dual_correction_score",
     "index_rebalance": "index_rebalance_score",
     "overnight_gap_reversal": "overnight_gap_score",
+    "cross_market_micro_momentum": "cross_market_micro_mom_score",
+    "stealth_accumulation": "stealth_accumulation_score",
+    "vpin_toxicity": "vpin_toxicity_score",
+    "macro_stress_spillover": "macro_stress_spillover_score",
+    "sue_sur_decay": "sue_sur_decay_score",
+    "sentiment_divergence": "sentiment_divergence_score",
+    "fcf_velocity": "fcf_velocity_score",
 }
 
 COL_TO_STRATEGY_MAP: Dict[str, str] = {v: k for k, v in STRATEGY_TO_COL_MAP.items()}
@@ -442,6 +459,45 @@ def compute_cross_sectional_factor_scores(
         gap_fill = -(open_curr - prev_close) / max(1e-4, prev_close * 0.02)
         overnight_gap_score = float(np.clip(0.50 + 0.15 * gap_fill, 0.10, 0.90))
 
+        # 38. cross_market_micro_mom_score
+        open_chg = (open_curr - prev_close) / max(1e-4, prev_close)
+        ofi_proxy = float(np.sign(open_chg) * min(3.0, vol_accel) * np.sqrt(abs(open_chg)))
+        delta_lead = float(np.clip(0.40 * ret1 + 0.30 * ofi_proxy, -0.40, 0.40))
+        cross_market_micro_mom_score = float(np.clip(0.50 + delta_lead, 0.05, 0.95))
+
+        # 39. stealth_accumulation_score (Barclay-Warner accumulation)
+        h_i = float(df_causal["high"].iloc[-1]) if "high" in df_causal.columns else p_curr * 1.01
+        l_i = float(df_causal["low"].iloc[-1]) if "low" in df_causal.columns else p_curr * 0.99
+        br_i = max(1e-4, h_i - l_i)
+        clv_i = float(np.clip(((p_curr - l_i) - (h_i - p_curr)) / br_i, -1.0, 1.0))
+        vol_surge_i = math.log(1.0 + max(0.0, vol_accel))
+        stealth_accumulation_score = float(np.clip(0.50 + 0.20 * clv_i * vol_surge_i, 0.05, 0.95))
+
+        # 40. vpin_toxicity_score (Volume-Synchronized Probability of Toxicity proxy)
+        ln_hl = math.log(max(1.0, h_i / max(1e-4, l_i)))
+        ln_co = math.log(max(1e-4, p_curr / max(1e-4, open_curr)))
+        gk_vol = math.sqrt(max(1e-6, 0.5 * (ln_hl ** 2) - (2.0 * math.log(2.0) - 1.0) * (ln_co ** 2)))
+        bvc_dir = math.tanh(ln_co / max(1e-4, gk_vol))
+        vpin_pen = 0.15 if vol20 > 0.40 else 0.0
+        vpin_toxicity_score = float(np.clip(0.50 + 0.25 * bvc_dir - vpin_pen, 0.05, 0.95))
+
+        # 41. macro_stress_spillover_score (Protective macro risk firewall)
+        stress_beta = (vol20 / 0.20 - 1.0) * 0.5
+        macro_stress_spillover_score = float(np.clip(0.50 - 0.20 * stress_beta + 0.10 * (div_yield / 0.02 - 1.0), 0.05, 0.95))
+
+        # 42. sue_sur_decay_score (SUE/SUR multi-quarter memory decay proxy)
+        sue_sur_decay_score = float(np.clip(0.50 + 0.25 * (roe - 0.10) / 0.10 + 0.15 * (op_margin - 0.08) / 0.08, 0.05, 0.95))
+
+        # 43. sentiment_divergence_score (Retail vs Inst Sentiment Divergence)
+        rsi_proxy = float(np.clip(50.0 + 100.0 * ret5, 10.0, 90.0))
+        z_spr = -math.tanh(ret5 * 2.5) + 0.15 * math.tanh(vol_accel - 1.0)
+        sentiment_divergence_score = float(np.clip(0.50 + 0.25 * z_spr * (1.0 + abs(rsi_proxy - 50.0) / 50.0), 0.05, 0.95))
+
+        # 44. fcf_velocity_score (FCF Yield Velocity and Acceleration)
+        ev_ratio = max(1.0 + (pe / 15.0 - 1.0) * 0.20, 0.20)
+        fcf_yield_p = (op_margin * 0.70) / max(0.10, pb * ev_ratio)
+        fcf_velocity_score = float(np.clip(0.50 + 0.30 * (fcf_yield_p - 0.05) / 0.05, 0.05, 0.95))
+
         row = {
             "symbol": sym,
             "date": as_of_ts,
@@ -484,6 +540,13 @@ def compute_cross_sectional_factor_scores(
             "dual_correction_score": dual_correction_score,
             "index_rebalance_score": index_rebalance_score,
             "overnight_gap_score": overnight_gap_score,
+            "cross_market_micro_mom_score": cross_market_micro_mom_score,
+            "stealth_accumulation_score": stealth_accumulation_score,
+            "vpin_toxicity_score": vpin_toxicity_score,
+            "macro_stress_spillover_score": macro_stress_spillover_score,
+            "sue_sur_decay_score": sue_sur_decay_score,
+            "sentiment_divergence_score": sentiment_divergence_score,
+            "fcf_velocity_score": fcf_velocity_score,
         }
         rows.append(row)
 
@@ -727,7 +790,7 @@ class HistoricalStockUniverseBacktester:
 
         # Core Engines
         self.normalizer = CrossSectionalScoreNormalizer(method="student_t_4")
-        self.orthogonalizer = FactorOrthogonalizerEngine(default_method="pca_zca", preserve_top_k=2)
+        self.orthogonalizer = FactorOrthogonalizerEngine(default_method="pca_zca", preserve_top_k=4)
         self.turnover_optimizer = TurnoverOptimizer(turnover_threshold_pct=self.turnover_threshold_pct)
         self.regime_detector = MarketRegimeDetector(rolling_window=20)
         self.stats = AdvancedStatistics(risk_free_rate=self.risk_free_rate)
@@ -860,6 +923,14 @@ class HistoricalStockUniverseBacktester:
 
         cur_date = pd.to_datetime(date)
         scores: Dict[str, float] = {}
+
+        # Regime-adaptive factor weighting (Bull: +15% KER & 52w prox; Bear: +20% ROE/margin)
+        is_bull = "BULL" in str(regime).upper()
+        is_bear = "BEAR" in str(regime).upper() or "CRISIS" in str(regime).upper()
+        w_prox_eff = self.w_prox * 1.15 if is_bull else self.w_prox
+        w_ker_eff = self.w_ker * 1.15 if is_bull else self.w_ker
+        w_fund_eff = 0.36 if is_bear else 0.30
+
         for s in active_syms:
             df = p.price_tensor.get(s)
             if df is None or df.empty:
@@ -893,9 +964,9 @@ class HistoricalStockUniverseBacktester:
                 self.w_r12 * r12
                 + self.w_r6 * r6
                 + 0.35 * r3
-                + self.w_prox * prox52
-                + self.w_ker * ker
-                + 0.30 * (roe * 2.0 + op_margin)
+                + w_prox_eff * prox52
+                + w_ker_eff * ker
+                + w_fund_eff * (roe * 2.0 + op_margin)
             )
             scores[s] = float(alpha)
         return scores
@@ -929,15 +1000,25 @@ class HistoricalStockUniverseBacktester:
         port_val = float(portfolio_value or self.initial_capital)
         curr_w = {s: float(w) for s, w in (current_weights or {}).items() if w > 1e-6}
 
-        if regime is None or is_crisis is None:
-            regime, is_crisis, macro = self.classify_2d_regime(as_of_ts, panel=p)
+        if regime is None:
+            regime, auto_crisis, macro = self.classify_2d_regime(as_of_ts, panel=p)
+            if is_crisis is None:
+                is_crisis = auto_crisis
         else:
+            if is_crisis is None:
+                is_crisis = ("CRISIS" in str(regime).upper())
             macro = kwargs.get("macro") or getattr(self, "_last_macro_state", {"ret_20d": 0.0, "vol_20d": 0.15})
+
+        if "macro" in kwargs and kwargs["macro"] is not None:
+            macro = kwargs["macro"]
 
         active_syms = p.get_active_symbols(as_of_ts)
 
         # Market & Individual Stock SMA-200 gating
-        if self.enable_sma200_gating:
+        if "mkt_above_sma" in kwargs:
+            mkt_above_sma = bool(kwargs["mkt_above_sma"])
+            trend_dict = {s: mkt_above_sma for s in active_syms}
+        elif self.enable_sma200_gating:
             trend_dict = self.compute_sma_200_trend(as_of_ts, panel=p)
             above_sma = sum(1 for s in active_syms if trend_dict.get(s, False))
             valid_sma = len(active_syms)
@@ -953,7 +1034,14 @@ class HistoricalStockUniverseBacktester:
             scores = dict(alphas)
 
         if self.enable_sma200_gating:
-            scores = {s: sc for s, sc in scores.items() if trend_dict.get(s, False)}
+            filtered_scores = {s: sc for s, sc in scores.items() if trend_dict.get(s, False)}
+            # Dynamic bull cash drag reduction: when qualified stocks < top_k in confirmed bull market, backfill headroom
+            if self.enable_bull_drag_elim and len(filtered_scores) < self.top_k and mkt_above_sma and not is_crisis:
+                needed = self.top_k - len(filtered_scores)
+                fallback = sorted([(s, sc) for s, sc in scores.items() if s not in filtered_scores], key=lambda x: x[1], reverse=True)
+                for s, sc in fallback[:needed]:
+                    filtered_scores[s] = sc
+            scores = filtered_scores
 
         # Select top-k picks with sector diversification (max 5 per sector to strictly satisfy 25% sector cap)
         sorted_syms = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -970,7 +1058,7 @@ class HistoricalStockUniverseBacktester:
         macro_ret = macro.get("ret_20d", 0.0)
         macro_vol = macro.get("vol_20d", 0.15)
 
-        if not mkt_above_sma or is_crisis or macro_vol > 0.35:
+        if not mkt_above_sma or is_crisis or ("CRISIS" in str(regime).upper()) or macro_vol > 0.35:
             scale = 0.00
         elif regime in ("BEAR_HIGH_VOL", "BEAR_LOW_VOL") or macro_ret < -0.05:
             scale = 0.40
@@ -980,7 +1068,33 @@ class HistoricalStockUniverseBacktester:
         if scale <= 0.0 or not top_picks:
             target_w = {}
         else:
-            target_w = {s: min(self.max_stock_weight, scale / max(1, len(top_picks))) for s in top_picks}
+            n_picks = len(top_picks)
+            if n_picks == 1:
+                target_w = {top_picks[0]: min(self.max_stock_weight, scale)}
+            else:
+                # Conviction-tiered alpha rank allocation (power-law / alpha-ranked weights)
+                ranks = np.linspace(1.0, 0.45, n_picks)
+                raw_w = (ranks / np.sum(ranks)) * scale
+
+                # Dynamic headroom redistribution subject to max_stock_weight cap (<= 0.05) and sector cap (<= 0.25)
+                weights = list(raw_w)
+                max_w = self.max_stock_weight
+                for _ in range(10):
+                    capped = [min(w, max_w) for w in weights]
+                    surplus = scale - sum(capped)
+                    uncapped_indices = [i for i, w in enumerate(capped) if w < max_w - 1e-6]
+                    if surplus <= 1e-6 or not uncapped_indices:
+                        weights = capped
+                        break
+                    sub_sum = sum(weights[i] for i in uncapped_indices)
+                    if sub_sum > 1e-6:
+                        for i in uncapped_indices:
+                            weights[i] += surplus * (weights[i] / sub_sum)
+                    else:
+                        add_each = surplus / len(uncapped_indices)
+                        for i in uncapped_indices:
+                            weights[i] += add_each
+                target_w = {s: round(min(max_w, float(weights[i])), 6) for i, s in enumerate(top_picks)}
             target_w = {s: w for s, w in target_w.items() if w > 0.0}
 
         exec_w, turnover, friction_bps = self._execute_rebalance_orders(

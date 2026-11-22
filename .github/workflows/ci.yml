@@ -142,3 +142,17 @@ jobs:
           fi
           echo "| $NAME | $ICON | $LABEL |" >> $GITHUB_STEP_SUMMARY
         done
+        if [ "$TEST_OUTCOME" != "success" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> [!CAUTION]" >> $GITHUB_STEP_SUMMARY
+          echo "> **단위 테스트(pytest) 실패 감지**: 회귀 버그 또는 테스트 실패가 발생했습니다. 상단 'Run unit tests' 단계의 세부 에러 출력을 확인하세요." >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Enforce test suite outcome
+      if: always()
+      run: |
+        if [ "${{ steps.test.outcome }}" != "success" ]; then
+          echo "::error::Unit tests failed! Marking CI job as failed."
+          exit 1
+        fi
+

@@ -29,8 +29,8 @@ import threading
 import time
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Union
 
-# Import shared base models and rate limiter from kis_broker_connector
-from .kis_broker_connector import (
+# Import shared base models and rate limiter from base_connector (Milestone 1 DIP refactoring)
+from .base_connector import (
     AccountBalanceSnapshot,
     BaseBrokerConnector,
     BrokerResponse,

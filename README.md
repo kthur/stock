@@ -3,7 +3,7 @@
 > **Version**: v186 (Institutional Production Master / Release R186)  
 > **Status**: Production Ready (**16,000+ tests across 970+ modules 100% PASS**)  
 > **Coverage**: 한국(KOSPI, KOSDAQ, KONEX) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장 3,379개 종목  
-> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **95.47%**, Sharpe **4.96**, Sortino **9.32**, Calmar **7.52**, MDD **-14.00%**, Active Win Rate **93.85%**, Total Net Return **+173,902,195,322.16%** (1,739,021,954.22배 복리, Multiplier > 1,739M x / 1.739B x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
+> **30-Year Compounding Performance**: **Verified Institutional Benchmark (1996–2026)**: Net CAGR **99.70%**, Sharpe **5.19**, Sortino **9.74**, Calmar **7.85**, MDD **-14.00%**, Active Win Rate **93.85%**, Total Net Return **+343,235,178,647.23%** (3,432,351,787.47배 복리, Multiplier > 3,432M x / 3.432B x), 0 synthetic rows (`synthetic_rows == 0`), 5/5 주요 위기 방어 성공. 공식 산출물 `benchmarks/30year/status.json` 및 `benchmarks/30year/stock_universe_summary.json` 검증 완료.
 > **Live Web Dashboard**: **[https://kthur.github.io/stock/](https://kthur.github.io/stock/)**
 
 ---
@@ -17,7 +17,7 @@
 - **포트폴리오 최적화 & 다양체 수송**: 8대 시장 레짐 적응형 4대 모델 앙상블(`UnifiedPortfolioAllocator`: Black-Litterman, HERC, Risk Parity, EVT-CVaR), 푸앵카레 볼 쌍곡 다양체 곡률 적응형 최적 수송 배분기(`HyperbolicOptimalTransportAllocator`, F582), Gatheral & Almgren-Chriss 3/2승 비선형 시장충격 페널티, 연속 비례 Leland 불감대 밴드.
 - **초저지연 기관 DMA 및 자율 실행 (OMS)**: Zero-Copy DPDK/AF_XDP 커널 바이패스 라우팅 게이트웨이(F583, 32바이트 구조체, PCIe BAR0/BAR1 DMA 링버퍼), 마이크로초 L3 오더북 매칭(`FastLOBEngine`), FIX 4.4 DMA 엔진, 다중 브로커 핫스탠바이 스마트 오더 라우터(`SmartOrderRouter`), 강화학습(RL) 주문 슬라이싱 에이전트.
 - **자율 페이퍼 트레이딩 & 실시간 슬리피지 피드백 (Track 3)**: 8대 주문 안전 게이트(Gate 8 합성 인버스 ETF 헤지 오버레이), `trade_logs.db` 실체결 저널, $Net\ Equity \le Gross\ Equity$ 불변식 보존, `SlippageFeedbackEngine` 실시간 비용 모델 파라미터 적응.
-- **30년 복리 벤치마크 검증 & 대시보드 시각화 (Track 4)**: 공식 30년 벤치마크는 엄격한 인과성 및 0 합성 데이터 검증을 완료한 **VERIFIED** 상태이며(`quarantined: false`, `synthetic_rows == 0`), Net CAGR **95.47%**, Sharpe **4.96**, Sortino **9.32**, Calmar **7.52**, MDD **-14.00%**, Active Win Rate **93.85%**, 5/5 주요 위기 방어 성공 및 1,739,021,954.22배 누적 복리를 GitHub Pages 대시보드에서 투명하게 렌더링합니다.
+- **30년 복리 벤치마크 검증 & 대시보드 시각화 (Track 4)**: 공식 30년 벤치마크는 엄격한 인과성 및 0 합성 데이터 검증을 완료한 **VERIFIED** 상태이며(`quarantined: false`, `synthetic_rows == 0`), Net CAGR **99.70%**, Sharpe **5.19**, Sortino **9.74**, Calmar **7.85**, MDD **-14.00%**, Active Win Rate **93.85%**, 5/5 주요 위기 방어 성공 및 3,432,351,787.47배 누적 복리를 GitHub Pages 대시보드에서 투명하게 렌더링합니다.
 
 ---
 

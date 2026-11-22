@@ -155,9 +155,13 @@ class DarkPoolTrackerEngine:
                     dp_share = float(raw_ratio) if (raw_ratio is not None and np.isfinite(float(raw_ratio))) else 0.30
                     dp_buy_bias = float(raw_bias) if (raw_bias is not None and np.isfinite(float(raw_bias))) else 0.50
 
-                    if dp_share > 0.40 and dp_buy_bias > 0.65:  # High dark pool volume with institutional buy bias
-                        score = float(np.clip(score + 0.30, 0.0, 0.98))
-                        logger.info(f"[DARK POOL ENGINE] High Dark Pool institutional buying for {sym} (Share={dp_share*100:.1f}%, Buy Bias={dp_buy_bias:.2f})")
+                    if dp_share > 0.40:
+                        if dp_buy_bias > 0.65:  # High dark pool volume with institutional buy bias
+                            score = float(np.clip(score + 0.30, 0.0, 0.98))
+                            logger.info(f"[DARK POOL ENGINE] High Dark Pool institutional buying for {sym} (Share={dp_share*100:.1f}%, Buy Bias={dp_buy_bias:.2f})")
+                        elif dp_buy_bias < 0.35:  # High dark pool volume with institutional distribution
+                            score = float(np.clip(score - 0.30, 0.02, 0.98))
+                            logger.info(f"[DARK POOL ENGINE] High Dark Pool institutional distribution for {sym} (Share={dp_share*100:.1f}%, Buy Bias={dp_buy_bias:.2f})")
 
             score_clean = float(score) if (score is not None and np.isfinite(score)) else 0.50
             score_clipped = float(np.clip(score_clean, 0.0, 0.98))

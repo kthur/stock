@@ -64,7 +64,11 @@ class MarketRegimeDetector:
         features['sp500_vol_roll'] = sp500_s.rolling(self.rolling_window, min_periods=1).std().fillna(0.0)
 
         # ── 공포/위험선호 지표: VIX ────────────────────────────────────────────
-        if 'vix_change' in df.columns:
+        if 'vix_raw' in df.columns:
+            features['vix_level'] = df['vix_raw'].fillna(20.0) / 100.0
+        elif 'vix' in df.columns:
+            features['vix_level'] = df['vix'].fillna(20.0) / 100.0
+        elif 'vix_change' in df.columns:
             features['vix_level'] = df['vix_change'].fillna(0.0) / 100.0
         else:
             features['vix_level'] = 0.20
@@ -195,10 +199,16 @@ class MarketRegimeDetector:
 
         # Fast VIX / Shock Override: Check for extreme volatility or rapid drawdowns
         try:
-            if 'vix_change' in indicator_df.columns:
-                latest_vix = float(indicator_df['vix_change'].dropna().iloc[-1]) if not indicator_df['vix_change'].dropna().empty else 0.0
+            vix_col = next((c for c in ['vix_raw', 'vix'] if c in indicator_df.columns), None)
+            if vix_col:
+                latest_vix = float(indicator_df[vix_col].dropna().iloc[-1]) if not indicator_df[vix_col].dropna().empty else 0.0
                 if latest_vix > 30.0:
                     logger.warning(f"Fast VIX Shock Triggered (VIX={latest_vix:.2f} > 30.0): Forcing BEAR regime.")
+                    return 0  # BEAR
+            elif 'vix_change' in indicator_df.columns:
+                latest_vix = float(indicator_df['vix_change'].dropna().iloc[-1]) if not indicator_df['vix_change'].dropna().empty else 0.0
+                if latest_vix > 30.0:
+                    logger.warning(f"Fast VIX Shock Triggered (VIX change={latest_vix:.2f}% > 30.0%): Forcing BEAR regime.")
                     return 0  # BEAR
 
             if 'sp500_change' in indicator_df.columns:
@@ -259,7 +269,12 @@ class MarketRegimeDetector:
 
         try:
             # Check fast VIX shock
-            if 'vix_change' in indicator_df.columns:
+            vix_col = next((c for c in ['vix_raw', 'vix'] if c in indicator_df.columns), None)
+            if vix_col:
+                latest_vix = float(indicator_df[vix_col].dropna().iloc[-1]) if not indicator_df[vix_col].dropna().empty else 0.0
+                if latest_vix > 30.0:
+                    return {'p_bear': 0.85, 'p_sideways': 0.10, 'p_bull': 0.05, 'bear_shock_risk': True}
+            elif 'vix_change' in indicator_df.columns:
                 latest_vix = float(indicator_df['vix_change'].dropna().iloc[-1]) if not indicator_df['vix_change'].dropna().empty else 0.0
                 if latest_vix > 30.0:
                     return {'p_bear': 0.85, 'p_sideways': 0.10, 'p_bull': 0.05, 'bear_shock_risk': True}
@@ -473,7 +488,10 @@ class MarketRegimeDetector:
 
         try:
             if not indicator_df.empty:
-                vix_val = float(indicator_df['vix_change'].iloc[-1]) if 'vix_change' in indicator_df.columns else 0.0
+                vix_col = next((c for c in ['vix_raw', 'vix'] if c in indicator_df.columns), None)
+                vix_val = float(indicator_df[vix_col].dropna().iloc[-1]) if (vix_col and not indicator_df[vix_col].dropna().empty) else (
+                    float(indicator_df['vix_change'].dropna().iloc[-1]) if ('vix_change' in indicator_df.columns and not indicator_df['vix_change'].dropna().empty) else 0.0
+                )
                 tnx_val = float(indicator_df['us10y'].iloc[-1]) if 'us10y' in indicator_df.columns else 4.0
                 ktb_spread = float(indicator_df['ktb_spread'].iloc[-1]) if 'ktb_spread' in indicator_df.columns else 0.0
 
@@ -491,7 +509,7 @@ class MarketRegimeDetector:
                 is_inflation_shock = inflation_shock > 2.0
 
                 is_high_yield = tnx_val > 4.2 or ktb_spread > 0.3
-                is_squeeze = vix_val > 5.0 or (res_2d['volatility_label'] == 'HIGH_VOL' and is_high_yield)
+                is_squeeze = vix_val > 25.0 or (res_2d['volatility_label'] == 'HIGH_VOL' and is_high_yield)
 
                 # 우선순위 결정 (높은 위험도 우선)
                 if is_squeeze:

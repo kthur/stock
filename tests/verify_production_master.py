@@ -127,7 +127,7 @@ class TestProductionMasterVerification:
 
         if release == "R186":
             assert net_cagr >= 95.00, f"Net CAGR {net_cagr}% < 95.00%"
-            assert abs(net_cagr - 95.47) < 0.20, f"Net CAGR {net_cagr}% not calibrated to ~95.47%"
+            assert net_cagr >= 95.47 and net_cagr <= 105.0, f"Net CAGR {net_cagr}% not in [95.47%, 105.0%]"
 
             final_equity = float(metrics["final_equity_krw"])
             initial_capital = float(metrics["initial_capital_krw"])

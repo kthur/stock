@@ -12,22 +12,29 @@ Provides unified connectivity across domestic and global institutional brokers:
 
 from __future__ import annotations
 
-# Native OpenAPI Connectors (Phase 112 F530)
-from .kis_broker_connector import (
+# Base Connector & Shared Data Models (Milestone 1 DIP Refactoring)
+from .base_connector import (
     AccountBalanceSnapshot,
     BaseBrokerConnector,
     BrokerResponse,
     ConnectedState,
     ExecutionNotice,
-    KISBrokerConnector,
-    KISConnector,
-    KoreaInvestmentOpenAPIConnector,
     MarketTradeTick,
     OrderbookDepth,
     OrderbookLevel,
-    Phase112KISConnector,
     PositionSnapshot,
     TokenBucketRateLimiter,
+)
+# Unified Broker Adapter (Milestone 1 Interface Standardization)
+from .unified_adapter import (
+    UnifiedBrokerAdapter,
+)
+# Native OpenAPI Connectors (Phase 112 F530)
+from .kis_broker_connector import (
+    KISBrokerConnector,
+    KISConnector,
+    KoreaInvestmentOpenAPIConnector,
+    Phase112KISConnector,
 )
 from .ls_broker_connector import (
     EBestXingConnector,
@@ -163,6 +170,7 @@ __all__ = [
     "ConnectedState",
     "BrokerResponse",
     # Institutional Multi-Broker Infrastructure
+    "UnifiedBrokerAdapter",
     "BrokerProtocol",
     "BrokerType",
     "MultiBrokerManager",

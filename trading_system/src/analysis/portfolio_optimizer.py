@@ -308,10 +308,15 @@ def calculate_black_litterman_weights(
 def shrink_covariance_matrix(
     cov_matrix: np.ndarray,
     shrink_factor: Optional[float] = None,
-    n_samples: Optional[int] = None
+    n_samples: Optional[int] = None,
+    regime: Optional[str] = None,
+    returns_matrix: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
-    Analytical Ledoit-Wolf optimal covariance shrinkage towards diagonal variance target F = mean(diag(S)) * I.
+    Analytical Ledoit-Wolf optimal covariance shrinkage towards regime-adaptive target:
+    - Default: Diagonal variance target F = mean(diag(S)) * I.
+    - Bull regimes ('BULL'): Equicorrelation shrinkage target preserving alpha dispersion.
+    - Bear/Crisis regimes ('BEAR', 'CRISIS'): Lower-tail downside semi-covariance shrinkage target.
     Stabilizes covariance matrix, mitigates sample noise, and minimizes Frobenius loss in portfolio optimization.
     """
     if cov_matrix is None or not isinstance(cov_matrix, np.ndarray) or cov_matrix.size == 0:
@@ -320,21 +325,46 @@ def shrink_covariance_matrix(
     if n <= 1:
         return cov_matrix
 
+    vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-8))
     mean_var = float(np.mean(np.diag(cov_matrix)))
-    diag_target = mean_var * np.eye(n, dtype=np.float64)
+    reg_str = str(regime).upper() if regime is not None else ""
+
+    if "BULL" in reg_str:
+        # Equicorrelation shrinkage target: F_bull = diag(sigma) * ((1-rho)*I + rho*J) * diag(sigma)
+        corr = cov_matrix / np.maximum(np.outer(vols, vols), 1e-8)
+        np.fill_diagonal(corr, 0.0)
+        mean_rho = float(np.sum(corr) / max(1, n * (n - 1)))
+        mean_rho = float(np.clip(mean_rho, 0.0, 0.85))
+        equi_corr = (1.0 - mean_rho) * np.eye(n, dtype=np.float64) + mean_rho * np.ones((n, n), dtype=np.float64)
+        target = np.outer(vols, vols) * equi_corr
+    elif ("BEAR" in reg_str or "CRISIS" in reg_str) and returns_matrix is not None and len(returns_matrix) >= 10:
+        # Downside semi-covariance shrinkage target: F_bear = (1 - psi)*diag(S) + psi*S_semi
+        ret_arr = np.asarray(returns_matrix, dtype=np.float64)
+        downside = np.minimum(0.0, ret_arr - np.mean(ret_arr, axis=0))
+        semi_cov = (downside.T @ downside) / max(1, len(ret_arr))
+        psi = 0.50
+        target = (1.0 - psi) * np.diag(np.diag(cov_matrix)) + psi * semi_cov
+    elif "BEAR" in reg_str or "CRISIS" in reg_str:
+        # Contagion target with elevated systemic correlation rho ~ 0.55
+        rho_crisis = 0.55
+        contagion_corr = (1.0 - rho_crisis) * np.eye(n, dtype=np.float64) + rho_crisis * np.ones((n, n), dtype=np.float64)
+        target = np.outer(vols, vols) * contagion_corr
+    else:
+        # Canonical diagonal variance target
+        target = mean_var * np.eye(n, dtype=np.float64)
 
     if shrink_factor is not None:
         delta = float(np.clip(shrink_factor, 0.0, 1.0))
     else:
         # Analytical Frobenius-norm Ledoit-Wolf Shrinkage Intensity Estimation scaled by observation count T
-        d2 = float(np.sum((cov_matrix - diag_target) ** 2))
+        d2 = float(np.sum((cov_matrix - target) ** 2))
         if d2 < 1e-12:
             return cov_matrix
         t_eff = max(2, int(n_samples)) if n_samples is not None else 60
         asy_var = float(np.sum(cov_matrix ** 2)) / float(t_eff)
         delta = float(np.clip(asy_var / max(d2 + asy_var, 1e-8), 0.0, 1.0))
 
-    shrunk_cov = (1.0 - delta) * cov_matrix + delta * diag_target
+    shrunk_cov = (1.0 - delta) * cov_matrix + delta * target
 
     # R11-5 Fix: Enforce strict positive definiteness and maximum condition number clamp <= 1000
     try:

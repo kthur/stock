@@ -652,10 +652,26 @@ class FastOrderBookMatchingEngine:
             v_arr = np.asarray(order_volumes, dtype=np.float64)
             if len(v_arr) < 2:
                 return 0.0
-            diff = np.diff(v_arr)
+            # VPIN buy/sell partitioning requires price returns
+            prices = kwargs.get("prices") if kwargs.get("prices") is not None else kwargs.get("order_prices")
+            if prices is not None and len(prices) == len(v_arr):
+                p_arr = np.asarray(prices, dtype=np.float64)
+                diff = np.diff(p_arr)
+            elif len(self._rolling_prices) >= len(v_arr):
+                p_arr = np.array(list(self._rolling_prices)[-len(v_arr):], dtype=np.float64)
+                diff = np.diff(p_arr)
+            elif len(self._rolling_prices) >= 2:
+                p_arr = np.array(self._rolling_prices, dtype=np.float64)
+                p_diff = np.diff(p_arr)
+                diff = np.pad(p_diff, (0, max(0, len(v_arr) - 1 - len(p_diff))), mode='edge')[:len(v_arr) - 1]
+            else:
+                diff = np.diff(v_arr)
             std = float(np.std(diff)) if len(diff) > 1 else float(np.std(v_arr))
             if std <= 1e-8:
-                return 0.0
+                if np.any(np.abs(diff) > 1e-8):
+                    std = 1e-4
+                else:
+                    return 0.0
             z = np.clip(diff / std, -8.0, 8.0)
             buy_ratios = 0.5 * (1.0 + np.vectorize(math.erf)(z / 1.41421356))
             vb = v_arr[1:] * buy_ratios
@@ -991,7 +1007,10 @@ class FastOrderBookMatchingEngine:
         v_a1 = asks[0]["volume"] if asks else 0.0
 
         tot_vol1 = v_b1 + v_a1
-        micro_price = (v_a1 * p_b1 + v_b1 * p_a1) / tot_vol1 if tot_vol1 > 0 else (0.5 * (p_b1 + p_a1))
+        if p_b1 > 0 and p_a1 > 0 and tot_vol1 > 0:
+            micro_price = (v_a1 * p_b1 + v_b1 * p_a1) / tot_vol1
+        else:
+            micro_price = max(p_b1, p_a1)
         spread = max(0.0, p_a1 - p_b1) if (p_a1 > 0 and p_b1 > 0) else 0.0
 
         # Multi-tier OBI
@@ -1007,7 +1026,7 @@ class FastOrderBookMatchingEngine:
 
         # Multi-level exponential depth decay micro-price (lambda_depth = 0.35, F44)
         w_k = [math.exp(-0.35 * i) for i in range(min(len(bids), len(asks), levels))]
-        if w_k and sum(w_k) > 0:
+        if w_k and sum(w_k) > 0 and p_b1 > 0 and p_a1 > 0:
             num_l3 = sum(w_k[i] * (bids[i]["volume"] - asks[i]["volume"]) for i in range(len(w_k)))
             den_l3 = sum(w_k[i] * (bids[i]["volume"] + asks[i]["volume"]) for i in range(len(w_k)))
             l3_imbalance = float(np.clip(num_l3 / max(1e-6, den_l3), -1.0, 1.0)) if den_l3 > 0 else 0.0

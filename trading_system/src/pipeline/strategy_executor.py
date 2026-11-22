@@ -148,6 +148,13 @@ class AlphaStrategyExecutor:
         'dual_correction': 'dual_correction_score',
         'index_rebalance': 'index_rebalance_score',
         'overnight_gap_reversal': 'overnight_gap_score',
+        'cross_market_micro_momentum': 'cross_market_micro_mom_score',
+        'stealth_accumulation': 'stealth_accumulation_score',
+        'vpin_toxicity': 'vpin_toxicity_score',
+        'macro_stress_spillover': 'macro_stress_spillover_score',
+        'sue_sur_decay': 'sue_sur_decay_score',
+        'sentiment_divergence': 'sentiment_divergence_score',
+        'fcf_velocity': 'fcf_velocity_score',
     }
 
     def __init__(self, specs: Optional[List[StrategySpec]] = None):
@@ -606,6 +613,14 @@ class AlphaStrategyExecutor:
             from src.core.overnight_gap_reversal import OvernightGapReversalEngine
             return OvernightGapReversalEngine(ctx.cfg).calculate_scores(ctx.symbols_list, prices_dict=ctx.infer_data_dict)
 
+        def _eval_cross_market_micro_momentum(ctx: PipelineStrategyContext) -> pd.DataFrame:
+            from src.core.cross_market_micro_momentum import CrossMarketMicroMomentumEngine
+            return CrossMarketMicroMomentumEngine().compute_scores(
+                prices_dict=ctx.infer_data_dict,
+                indicators_df=ctx.indicator_infer,
+                sector_map=ctx.sector_mapping
+            )
+
         def _eval_cross_asset_spillover(ctx: PipelineStrategyContext) -> pd.DataFrame:
             from src.core.cross_asset_spillover import CrossAssetSpilloverEngine
             return CrossAssetSpilloverEngine().compute_scores(
@@ -624,6 +639,39 @@ class AlphaStrategyExecutor:
         def _eval_range_expansion_breakout(ctx: PipelineStrategyContext) -> pd.DataFrame:
             from src.core.range_expansion_breakout import RangeExpansionBreakoutEngine
             return RangeExpansionBreakoutEngine(ctx.cfg).compute_scores(prices_dict=ctx.infer_data_dict)
+
+        def _eval_stealth_accumulation(ctx: PipelineStrategyContext) -> pd.DataFrame:
+            from src.core.stealth_accumulation import StealthAccumulationEngine
+            return StealthAccumulationEngine().compute_scores(prices_dict=ctx.infer_data_dict)
+
+        def _eval_vpin_toxicity(ctx: PipelineStrategyContext) -> pd.DataFrame:
+            from src.core.vpin_toxicity import VPINToxicityEngine
+            return VPINToxicityEngine().compute_scores(prices_dict=ctx.infer_data_dict)
+
+        def _eval_macro_stress_spillover(ctx: PipelineStrategyContext) -> pd.DataFrame:
+            from src.core.macro_stress_spillover import MacroStressSpilloverEngine
+            return MacroStressSpilloverEngine().compute_scores(
+                prices_dict=ctx.infer_data_dict,
+                indicators_df=ctx.indicator_infer
+            )
+
+        def _eval_sue_sur_decay(ctx: PipelineStrategyContext) -> pd.DataFrame:
+            from src.core.sue_sur_decay import SUESURDecayEngine
+            return SUESURDecayEngine().compute_scores(
+                prices_dict=ctx.infer_data_dict,
+                fundamentals_dict=ctx.fund_input
+            )
+
+        def _eval_sentiment_divergence(ctx: PipelineStrategyContext) -> pd.DataFrame:
+            from src.core.sentiment_divergence import SentimentDivergenceEngine
+            return SentimentDivergenceEngine().compute_scores(prices_dict=ctx.infer_data_dict)
+
+        def _eval_fcf_velocity(ctx: PipelineStrategyContext) -> pd.DataFrame:
+            from src.core.fcf_velocity import FCFVelocityEngine
+            return FCFVelocityEngine().compute_scores(
+                prices_dict=ctx.infer_data_dict,
+                fundamentals_dict=ctx.fund_input
+            )
 
         return [
             StrategySpec('lstm', 'Strict Causal LSTM', _eval_lstm, 'lstm_score', 'Strategy 6: Strict Causal LSTM Predictions', 'lstm_predictions.txt', 'LSTM Score', 14),
@@ -655,4 +703,11 @@ class AlphaStrategyExecutor:
             StrategySpec('dual_correction', 'Dual Correction', _eval_dual_correction, 'dual_correction_score', 'Strategy 35: Dual Correction Predictions', 'dual_correction_predictions.txt', 'Dual Score', 16),
             StrategySpec('index_rebalance', 'Index Rebalance', _eval_index_rebalance, 'index_rebalance_score', 'Strategy 36: Index Rebalance Predictions', 'index_rebalance_predictions.txt', 'Rebal Score', 16),
             StrategySpec('overnight_gap_reversal', 'Overnight Gap Reversal', _eval_overnight_gap_reversal, 'overnight_gap_score', 'Strategy 37: Overnight Gap Reversal Predictions', 'overnight_gap_predictions.txt', 'Gap Score', 16),
+            StrategySpec('cross_market_micro_momentum', 'Cross-Market Micro Momentum', _eval_cross_market_micro_momentum, 'cross_market_micro_mom_score', 'Strategy 38: Cross-Market Micro Momentum Predictions', 'cross_market_micro_momentum_predictions.txt', 'MicroMom Score', 16),
+            StrategySpec('stealth_accumulation', 'Institutional Stealth Accumulation', _eval_stealth_accumulation, 'stealth_accumulation_score', 'Strategy 39: Institutional Stealth Accumulation Predictions', 'stealth_accumulation_predictions.txt', 'Stealth Score', 16),
+            StrategySpec('vpin_toxicity', 'Order Flow Toxicity (VPIN)', _eval_vpin_toxicity, 'vpin_toxicity_score', 'Strategy 40: Order Flow Toxicity (VPIN) Predictions', 'vpin_toxicity_predictions.txt', 'VPIN Score', 14),
+            StrategySpec('macro_stress_spillover', 'Macro-Financial Stress Spillover', _eval_macro_stress_spillover, 'macro_stress_spillover_score', 'Strategy 41: Macro-Financial Stress Spillover Predictions', 'macro_stress_spillover_predictions.txt', 'Stress Score', 16),
+            StrategySpec('sue_sur_decay', 'SUE/SUR Multi-Quarter Memory Decay', _eval_sue_sur_decay, 'sue_sur_decay_score', 'Strategy 42: SUE/SUR Multi-Quarter Memory Decay Predictions', 'sue_sur_decay_predictions.txt', 'SUE Score', 14),
+            StrategySpec('sentiment_divergence', 'Retail vs Inst Sentiment Divergence', _eval_sentiment_divergence, 'sentiment_divergence_score', 'Strategy 43: Retail vs Inst Sentiment Divergence Predictions', 'sentiment_divergence_predictions.txt', 'Div Score', 14),
+            StrategySpec('fcf_velocity', 'FCF Yield Velocity & Acceleration', _eval_fcf_velocity, 'fcf_velocity_score', 'Strategy 44: FCF Yield Velocity & Acceleration Predictions', 'fcf_velocity_predictions.txt', 'FCF Score', 14),
         ]

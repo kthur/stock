@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass, field
@@ -598,12 +599,91 @@ def print_report(report: PipelineVerificationReport) -> None:
     print("\n" + "=" * 220 + "\n")
 
 
+def generate_step_summary(report: PipelineVerificationReport) -> str:
+    lines = []
+    status_icon = "✅" if report.overall_passed else "❌"
+    lines.append(f"## {status_icon} 파이프라인 아티팩트 검증 리포트 (37대 전략 & 대시보드)")
+    lines.append("")
+
+    if not report.overall_passed:
+        lines.append("> [!CAUTION]")
+        lines.append("> **검증 실패 (Verification Alert)**: 일부 마켓의 전략 결과 파일이 누락되었거나 최소 요건(10개 이상, 비영 유효값)을 충족하지 못했습니다.")
+        lines.append("")
+
+    # 1. 3-column KPI summary table for 360px Galaxy mobile viewports
+    lines.append("### 📊 마켓별 전략 충족률 요약 (37대 전략)")
+    lines.append("| 마켓 | 37대 전략 충족률 | 상태 |")
+    lines.append("|:---|:---:|:---:|")
+
+    total_strats = len(STRATEGIES)
+    for market in MARKETS:
+        m = report.markets.get(market)
+        if not m:
+            lines.append(f"| {market} | 0/{total_strats} (0.0%) | ❌ 누락 |")
+            continue
+        valid_cnt = sum(1 for s in m.strategies.values() if s.valid)
+        pct = (valid_cnt / total_strats * 100.0) if total_strats > 0 else 0.0
+        if m.all_strategies_valid:
+            m_status = "✅ 정상"
+        elif valid_cnt > 0:
+            m_status = "⚠️ 부분 충족"
+        else:
+            m_status = "❌ 실패"
+        lines.append(f"| {market} | {valid_cnt}/{total_strats} ({pct:.1f}%) | {m_status} |")
+    lines.append("")
+
+    # 2. Grouped collapsible details table
+    lines.append("<details>")
+    lines.append("<summary><b>📋 37대 전략별 세부 검증 결과 (펼치기)</b></summary>")
+    lines.append("")
+    lines.append("| # | 전략 키 | " + " | ".join(MARKETS) + " |")
+    lines.append("|:---:|:---|:---:|:---:|:---:|:---:|:---:|")
+
+    for idx, strat in enumerate(STRATEGIES, start=1):
+        row_cols = [str(idx), f"`{strat}`"]
+        for mkt in MARKETS:
+            m = report.markets.get(mkt)
+            if m and strat in m.strategies and m.strategies[strat].valid:
+                cnt = m.strategies[strat].count
+                row_cols.append(f"✅ ({cnt})")
+            elif m and strat in m.strategies and m.strategies[strat].file_found:
+                cnt = m.strategies[strat].count
+                row_cols.append(f"⚠️ ({cnt})")
+            else:
+                row_cols.append("❌ (0)")
+        lines.append("| " + " | ".join(row_cols) + " |")
+
+    lines.append("</details>")
+    lines.append("")
+
+    # 3. Deployment status card & GitHub Pages link
+    lines.append("### 🌐 대시보드 & 앙상블 배포 현황")
+    ens_status = "✅ 정상" if report.ensemble.valid else "❌ 불완전"
+    gp_status = "✅ 정상" if report.gh_pages.valid else ("❌ 미달" if report.gh_pages.file_found else "⚠️ 미확인")
+    pages_url = "https://kthur.github.io/stock/"
+
+    lines.append(f"- **실시간 대시보드 URL**: [{pages_url}]({pages_url})")
+    lines.append(f"- **37대 전략 동적 앙상블**: {ens_status} ({report.ensemble.total_recommendations}개 종목 추천, {len(report.ensemble.markets_found)}대 마켓)")
+    if report.gh_pages.strategy_panels_valid:
+        valid_panels = sum(1 for v in report.gh_pages.strategy_panels_valid.values() if v)
+        total_panels = len(report.gh_pages.strategy_panels_valid)
+        lines.append(f"- **HTML 대시보드 패널**: {gp_status} ({valid_panels}/{total_panels} 전략 패널 데이터 탑재 완료)")
+    else:
+        lines.append(f"- **HTML 대시보드 패널**: {gp_status} ({report.gh_pages.message or 'HTML 미검증'})")
+
+    if report.ensemble.message:
+        lines.append(f"- **앙상블 상태 메시지**: `{report.ensemble.message}`")
+
+    return "\n".join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Verify pipeline outputs and GitHub Pages artifacts.")
     parser.add_argument("--result-dir", type=str, default="trading_system/result", help="Path to result directory")
     parser.add_argument("--gh-pages-dir", type=str, default="gh-pages", help="Path to gh-pages directory")
     parser.add_argument("--strict", action="store_true", help="Exit with code 1 if verification fails")
     parser.add_argument("--json", action="store_true", help="Output JSON report")
+    parser.add_argument("--step-summary", action="store_true", help="Generate and append Markdown summary to GITHUB_STEP_SUMMARY or step_summary.md")
 
     args = parser.parse_args()
 
@@ -617,6 +697,18 @@ def main():
         print(json.dumps(data, indent=2, ensure_ascii=False))
     else:
         print_report(report)
+
+    if args.step_summary or "GITHUB_STEP_SUMMARY" in os.environ:
+        summary_md = generate_step_summary(report)
+        step_summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+        if step_summary_path:
+            try:
+                with open(step_summary_path, "a", encoding="utf-8") as f:
+                    f.write("\n" + summary_md + "\n")
+            except Exception as e:
+                print(f"Warning: Failed to write to GITHUB_STEP_SUMMARY ({e})", file=sys.stderr)
+        if args.step_summary and not step_summary_path:
+            Path("step_summary.md").write_text(summary_md, encoding="utf-8")
 
     if args.strict and not report.overall_passed:
         sys.exit(1)

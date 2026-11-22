@@ -1659,13 +1659,20 @@ class PortfolioAllocator:
             hold_sum = sum(w for s, w in new_weights.items() if trades[s]["action"] == "HOLD")
             trade_sum = tot_asset_w - hold_sum
             avail_for_trades = max(0.0, effective_max_alloc - hold_sum)
-            if trade_sum > 0:
+            if trade_sum > 0 and avail_for_trades > 0:
                 scale = avail_for_trades / trade_sum
                 for s in new_weights:
                     if trades[s]["action"] != "HOLD":
                         new_weights[s] *= scale
                         trades[s]["w_new"] = new_weights[s]
                         trades[s]["trade_weight"] = new_weights[s] - trades[s].get("w_current", 0.0)
+            elif hold_sum > effective_max_alloc and tot_asset_w > 0:
+                # If hold_sum itself exceeds budget, scale all positions uniformly rather than liquidating trades
+                scale = effective_max_alloc / tot_asset_w
+                for s in new_weights:
+                    new_weights[s] *= scale
+                    trades[s]["w_new"] = new_weights[s]
+                    trades[s]["trade_weight"] = new_weights[s] - trades[s].get("w_current", 0.0)
 
         return {
             "new_weights": new_weights,
@@ -2463,7 +2470,7 @@ class PortfolioAllocator:
 
         port_beta = PortfolioAllocator.compute_portfolio_beta(portfolio_weights, beta_map)
         gross_long = sum(portfolio_weights.values())
-        invested_equity = max(0.0, 1.0 - cash_ratio) * gross_long
+        invested_equity = gross_long
 
         m_upper = str(market).upper()
         if m_upper in ("KOSPI", "KOSDAQ", "KRX"):

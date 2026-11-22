@@ -3370,6 +3370,13 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     cross_asset_spillover_df = _strat_result.get('cross_asset_spillover')
     supply_chain_gnn_df = _strat_result.get('supply_chain_gnn')
     range_expansion_breakout_df = _strat_result.get('range_expansion_breakout')
+    cross_market_micro_momentum_df = _strat_result.get('cross_market_micro_momentum')
+    stealth_accumulation_df = _strat_result.get('stealth_accumulation')
+    vpin_toxicity_df = _strat_result.get('vpin_toxicity')
+    macro_stress_spillover_df = _strat_result.get('macro_stress_spillover')
+    sue_sur_decay_df = _strat_result.get('sue_sur_decay')
+    sentiment_divergence_df = _strat_result.get('sentiment_divergence')
+    fcf_velocity_df = _strat_result.get('fcf_velocity')
     lstm_df_for_ens = _strat_result.get('lstm')
 
     # Backfill realized outcomes for previously stored ensemble predictions so that
@@ -3505,6 +3512,13 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         'cross_asset_spillover': cross_asset_spillover_df,
         'supply_chain_gnn': supply_chain_gnn_df,
         'range_expansion_breakout': range_expansion_breakout_df,
+        'cross_market_micro_momentum': cross_market_micro_momentum_df,
+        'stealth_accumulation': stealth_accumulation_df,
+        'vpin_toxicity': vpin_toxicity_df,
+        'macro_stress_spillover': macro_stress_spillover_df,
+        'sue_sur_decay': sue_sur_decay_df,
+        'sentiment_divergence': sentiment_divergence_df,
+        'fcf_velocity': fcf_velocity_df,
     }
     _active_strats = [name for name, df in _all_strategy_dfs.items() if df is not None and not (isinstance(df, pd.DataFrame) and df.empty)]
     _strat_coverage = len(_active_strats) / len(_all_strategy_dfs)
@@ -3556,6 +3570,13 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         dual_correction_df=dual_correction_df,
         index_rebalance_df=index_rebalance_df,
         overnight_gap_df=overnight_gap_df,
+        cross_market_micro_momentum_df=cross_market_micro_momentum_df,
+        stealth_accumulation_df=stealth_accumulation_df,
+        vpin_toxicity_df=vpin_toxicity_df,
+        macro_stress_spillover_df=macro_stress_spillover_df,
+        sue_sur_decay_df=sue_sur_decay_df,
+        sentiment_divergence_df=sentiment_divergence_df,
+        fcf_velocity_df=fcf_velocity_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20,
         prices_dict=infer_data_dict if 'infer_data_dict' in locals() else None,
@@ -3658,6 +3679,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         is_yield: bool = False
     ) -> float:
         val = raw_val
+        if is_yield and pd.notna(val) and val > 20.0:
+            val = val / 10.0
         if (pd.isna(val) or val <= min_val or val > max_val) and price_db is not None:
             try:
                 _df = price_db.get_prices(ticker, start_date=(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d'))
@@ -3781,7 +3804,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             vix=vix_report,
             usdkrw=usdkrw_report,
             oil=wti_report,
-            tnx=us10y_report
+            tnx=us10y_report,
+            dxy=dxy_report
         )
         crisis_detector.save_state()
         logger.info(f"[RISK MANAGER] Current Market Crisis Level evaluated: {crisis_lvl.value}")

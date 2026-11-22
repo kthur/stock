@@ -276,6 +276,7 @@ def save_ensemble_predictions_report(
         ('dual_correction_score', 'DualCorr', 9),
         ('index_rebalance_score', 'IdxRebal', 9),
         ('overnight_gap_score', 'OverGap', 8),
+        ('cross_market_micro_mom_score', 'MicroMom', 9),
     ]
     active_strat_cols = strategy_cols if strategy_cols is not None else default_strategy_cols
 
@@ -333,6 +334,8 @@ def save_ensemble_predictions_report(
                     v = row.get('range_expansion_breakout_score')
                 elif v is None and c_name == 'overnight_gap_score':
                     v = row.get('overnight_gap_reversal_score')
+                elif v is None and c_name == 'cross_market_micro_mom_score':
+                    v = row.get('cross_market_micro_momentum_score')
                 line += _format_strat_val(v, w)
             line += "\n"
             f_out.write(line)

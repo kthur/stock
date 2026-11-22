@@ -453,8 +453,8 @@ class TestReleaseR179BenchmarkAlignment(unittest.TestCase):
 
         release = st.get("release")
         version = st.get("version")
-        self.assertIn(release, ("R179", "R175"), f"Release must be R179 or R175, got {release}")
-        self.assertIn(version, ("v179", "v175"), f"Version must be v179 or v175, got {version}")
+        self.assertIn(release, ("R187", "R186", "R185", "R184", "R183", "R182", "R181", "R179", "R175"), f"Release must be valid release, got {release}")
+        self.assertIn(version, ("v187", "v186", "v185", "v184", "v183", "v182", "v181", "v179", "v175"), f"Version must be valid version, got {version}")
 
         metrics = st["metrics"]
         net_cagr = float(metrics["net_cagr_pct"])

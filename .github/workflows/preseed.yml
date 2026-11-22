@@ -21,20 +21,6 @@ on:
           - 'SP500'
           - 'NASDAQ'
           - 'RUSSELL2000'
-          - 'CHINA'
-          - 'JAPAN'
-          - 'INDIA'
-          - 'EUROPE'
-          - 'VIETNAM'
-          - 'TAIWAN'
-          - 'AUSTRALIA'
-          - 'BRAZIL'
-          - 'HKEX'
-          - 'SINGAPORE'
-          - 'CANADA'
-          - 'ASIA_DEV'
-          - 'ASIA_EMG'
-          - 'COMMODITY'
 
 concurrency:
   group: preseed-${{ github.ref }}
@@ -50,16 +36,8 @@ jobs:
         run: |
           TARGET="${{ inputs.target_market || 'ALL' }}"
           echo "Selected preseed target market input: $TARGET"
-          if [ "$TARGET" = "CORE_5" ]; then
+          if [ "$TARGET" = "CORE_5" ] || [ "$TARGET" = "ALL" ]; then
             echo 'matrix=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]' >> $GITHUB_OUTPUT
-          elif [ "$TARGET" = "ALL" ]; then
-            echo 'matrix=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "CHINA", "JAPAN", "INDIA", "EUROPE", "VIETNAM", "TAIWAN", "AUSTRALIA", "BRAZIL", "HKEX", "SINGAPORE", "CANADA"]' >> $GITHUB_OUTPUT
-          elif [ "$TARGET" = "ASIA_DEV" ]; then
-            echo 'matrix=["JAPAN", "TAIWAN", "HKEX", "SINGAPORE"]' >> $GITHUB_OUTPUT
-          elif [ "$TARGET" = "ASIA_EMG" ]; then
-            echo 'matrix=["CHINA", "INDIA", "VIETNAM"]' >> $GITHUB_OUTPUT
-          elif [ "$TARGET" = "COMMODITY" ]; then
-            echo 'matrix=["AUSTRALIA", "BRAZIL", "CANADA"]' >> $GITHUB_OUTPUT
           else
             echo "matrix=[\"$TARGET\"]" >> $GITHUB_OUTPUT
           fi
@@ -151,7 +129,9 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           source .venv/bin/activate
-          python trading_system/run_pipeline.py --skip-training --skip-inference --target ${{ matrix.target }} 2>&1
+          mkdir -p trading_system/logs
+          set -o pipefail
+          python trading_system/run_pipeline.py --skip-training --skip-inference --target ${{ matrix.target }} 2>&1 | tee trading_system/logs/preseed_${{ matrix.target }}.log
 
       - name: Write Step Summary
         if: always()
@@ -169,6 +149,23 @@ jobs:
           echo "| 실행 일시 | $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST') |" >> $GITHUB_STEP_SUMMARY
           echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$STATUS" != "success" ]; then
+            echo "> [!CAUTION]" >> $GITHUB_STEP_SUMMARY
+            echo "> **프리시드 캐싱 실패 감지 (${{ matrix.target }})**" >> $GITHUB_STEP_SUMMARY
+            echo ">" >> $GITHUB_STEP_SUMMARY
+            echo "> 실패 에러 로그 (최근 25줄):" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            LOG_FILE=$(ls -t trading_system/logs/*.log 2>/dev/null | head -1)
+            if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
+              tail -n 25 "$LOG_FILE" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "로그 파일을 찾을 수 없습니다." >> $GITHUB_STEP_SUMMARY
+            fi
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
           echo "### 💾 DB 캐시 파일 현황" >> $GITHUB_STEP_SUMMARY
           for db in stock_prices.db market_indicators.db; do
             DB_PATH="trading_system/$db"
@@ -197,10 +194,18 @@ jobs:
           CHAT="${{ secrets.TELEGRAM_CHAT_ID }}"
           if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
             RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            ERR_SNIPPET=""
+            LOG_FILE=$(ls -t trading_system/logs/*.log 2>/dev/null | head -1)
+            if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
+              ERR_SNIPPET=$(tail -n 5 "$LOG_FILE" | tr '\n' ' ' | cut -c1-200)
+            fi
             MSG="🚨 *[CRITICAL] GHA Preseed Cache Failed*%0A%0A"
             MSG+="*Market:* ${{ matrix.target }}%0A"
             MSG+="*Status:* ${{ steps.run.outcome }}%0A"
-            MSG+="*Time:* $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')%0A%0A"
+            MSG+="*Time:* $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')%0A"
+            if [ -n "$ERR_SNIPPET" ]; then
+              MSG+="*Error:* \`${ERR_SNIPPET}\`%0A"
+            fi
             MSG+="*Run URL:* ${RUN_URL}"
             curl -sf -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
               -d "chat_id=${CHAT}&text=${MSG}&parse_mode=Markdown" > /dev/null || true

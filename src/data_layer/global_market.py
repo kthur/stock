@@ -167,6 +167,11 @@ class GlobalMarketClient:
             return {"symbol": symbol, "price": None, "change_pct": None}
         price = float(prices.iloc[-1])
         prev = float(prices.iloc[-2]) if len(prices) > 1 else price
+        sym_clean = str(symbol).strip().upper()
+        if sym_clean in ("^TNX", "TNX", "^FVX", "FVX", "^IRX", "IRX") and price > 20.0:
+            price = price / 10.0
+            if prev > 20.0:
+                prev = prev / 10.0
         change_pct = ((price - prev) / abs(prev)) * 100.0 if (prev and abs(prev) > 1e-8) else 0.0
         return {
             "symbol": symbol,
@@ -225,6 +230,11 @@ class GlobalMarketClient:
             return {"symbol": symbol, "price": None, "change_pct": None}
         price = float(prices.iloc[-1])
         prev = float(prices.iloc[-2]) if len(prices) > 1 else price
+        sym_clean = str(symbol).strip().upper()
+        if sym_clean in ("^TNX", "TNX", "^FVX", "FVX", "^IRX", "IRX") and price > 20.0:
+            price = price / 10.0
+            if prev > 20.0:
+                prev = prev / 10.0
         change_pct = ((price - prev) / abs(prev)) * 100.0 if (prev and abs(prev) > 1e-8) else 0.0
         return {
             "symbol": symbol,

@@ -127,11 +127,15 @@ class OrderFlowEngine(BaseStrategyEngine):
                     vwap_dev = 0.0
                 vwap_score = float(np.clip(0.5 + vwap_dev * 5.0, 0.0, 1.0))
 
-                # Composite order flow indicator (MFI + OBV + Volume Accel + VWAP Deviation)
+                # Signed volume acceleration conditioned by order flow direction (MFI)
+                flow_dir_sign = 1.0 if mfi_ratio >= 0.50 else -1.0
+                signed_vol_score = float(np.clip(0.5 + flow_dir_sign * (vol_accel - 1.0) * 0.25, 0.0, 1.0))
+
+                # Composite order flow indicator (MFI + OBV + Signed Volume Accel + VWAP Deviation)
                 composite_flow = (
                     0.45 * mfi_ratio +
                     0.20 * np.clip(0.5 + obv_trend * 0.1, 0.0, 1.0) +
-                    0.15 * np.clip(vol_accel / 2.0, 0.0, 1.0) +
+                    0.15 * signed_vol_score +
                     0.20 * vwap_score
                 )
 

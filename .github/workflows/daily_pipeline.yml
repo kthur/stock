@@ -18,20 +18,6 @@ on:
           - 'SP500'
           - 'NASDAQ'
           - 'RUSSELL2000'
-          - 'CHINA'
-          - 'JAPAN'
-          - 'INDIA'
-          - 'EUROPE'
-          - 'VIETNAM'
-          - 'TAIWAN'
-          - 'AUSTRALIA'
-          - 'BRAZIL'
-          - 'HKEX'
-          - 'SINGAPORE'
-          - 'CANADA'
-          - 'ASIA_DEV'
-          - 'ASIA_EMG'
-          - 'COMMODITY'
       prediction_limit:
         description: '전략별 산출 종목 수 (Strategy Output Limit: all 또는 100)'
         required: true
@@ -59,16 +45,8 @@ jobs:
         run: |
           TARGET="${{ inputs.target_market || 'CORE_5' }}"
           echo "Selected target market input: $TARGET"
-          if [ "$TARGET" = "CORE_5" ]; then
+          if [ "$TARGET" = "CORE_5" ] || [ "$TARGET" = "ALL" ]; then
             echo 'matrix=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]' >> $GITHUB_OUTPUT
-          elif [ "$TARGET" = "ALL" ]; then
-            echo 'matrix=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "CHINA", "JAPAN", "INDIA", "EUROPE", "VIETNAM", "TAIWAN", "AUSTRALIA", "BRAZIL", "HKEX", "SINGAPORE", "CANADA"]' >> $GITHUB_OUTPUT
-          elif [ "$TARGET" = "ASIA_DEV" ]; then
-            echo 'matrix=["JAPAN", "TAIWAN", "HKEX", "SINGAPORE"]' >> $GITHUB_OUTPUT
-          elif [ "$TARGET" = "ASIA_EMG" ]; then
-            echo 'matrix=["CHINA", "INDIA", "VIETNAM"]' >> $GITHUB_OUTPUT
-          elif [ "$TARGET" = "COMMODITY" ]; then
-            echo 'matrix=["AUSTRALIA", "BRAZIL", "CANADA"]' >> $GITHUB_OUTPUT
           else
             echo "matrix=[\"$TARGET\"]" >> $GITHUB_OUTPUT
           fi
@@ -177,7 +155,9 @@ jobs:
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          .venv/bin/python trading_system/run_pipeline.py 2>&1
+          mkdir -p trading_system/logs
+          set -o pipefail
+          .venv/bin/python trading_system/run_pipeline.py 2>&1 | tee trading_system/logs/pipeline_${{ matrix.target }}.log
 
       # P0/P2: GitHub Step Summary — visible in GHA Actions tab without opening logs
       - name: Write Step Summary
@@ -197,10 +177,43 @@ jobs:
           echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| SKIP_TRAINING | ${{ env.SKIP_TRAINING }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📁 37대 전략 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$STATUS" != "success" ]; then
+            echo "> [!CAUTION]" >> $GITHUB_STEP_SUMMARY
+            echo "> **파이프라인 실행 실패 (${{ matrix.target }})**" >> $GITHUB_STEP_SUMMARY
+            echo ">" >> $GITHUB_STEP_SUMMARY
+            echo "> 최근 실행 로그 (마지막 25줄):" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            LOG_FILE=$(ls -t trading_system/logs/*.log 2>/dev/null | head -1)
+            if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
+              tail -n 25 "$LOG_FILE" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "로그 파일을 찾을 수 없습니다." >> $GITHUB_STEP_SUMMARY
+            fi
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          STRATEGY_FILES=(ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt stat_arb_predictions.txt sector_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt inst_foreign_sector_predictions.txt supply_chain_predictions.txt sentiment_predictions.txt factor_neutralized_predictions.txt vol_target_predictions.txt microstructure_predictions.txt accruals_quality_predictions.txt short_squeeze_predictions.txt valueup_catalyst_predictions.txt trend_efficiency_predictions.txt gamma_squeeze_predictions.txt insider_buying_predictions.txt darkpool_predictions.txt earnings_tone_drift_predictions.txt cross_asset_spillover_predictions.txt supply_chain_gnn_predictions.txt range_expansion_predictions.txt dual_correction_predictions.txt index_rebalance_predictions.txt overnight_gap_predictions.txt hft_order_flow_predictions.txt pipeline_result.csv)
+          TOTAL_COUNT=${#STRATEGY_FILES[@]}
+          EXIST_COUNT=0
+          for f in "${STRATEGY_FILES[@]}"; do
+            [ -f "trading_system/result/$f" ] && ((EXIST_COUNT++)) || true
+          done
+
+          echo "### 📊 37대 전략 산출물 요약" >> $GITHUB_STEP_SUMMARY
+          echo "| 구분 | 생성 파일 수 | 충족률 |" >> $GITHUB_STEP_SUMMARY
+          echo "|:---|:---:|:---:|" >> $GITHUB_STEP_SUMMARY
+          PCT=$(awk -v e="$EXIST_COUNT" -v t="$TOTAL_COUNT" 'BEGIN { printf "%.1f", (e/t)*100 }')
+          echo "| 전략 파일 | ${EXIST_COUNT} / ${TOTAL_COUNT} | ${PCT}% |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary><b>📁 37대 전략 출력 파일 상세 현황 (펼치기)</b></summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "| 전략 / 파일명 | 크기 | 줄 수 |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------------|------|-------|" >> $GITHUB_STEP_SUMMARY
-          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt stat_arb_predictions.txt sector_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt inst_foreign_sector_predictions.txt supply_chain_predictions.txt sentiment_predictions.txt factor_neutralized_predictions.txt vol_target_predictions.txt microstructure_predictions.txt accruals_quality_predictions.txt short_squeeze_predictions.txt valueup_catalyst_predictions.txt trend_efficiency_predictions.txt gamma_squeeze_predictions.txt insider_buying_predictions.txt darkpool_predictions.txt earnings_tone_drift_predictions.txt cross_asset_spillover_predictions.txt supply_chain_gnn_predictions.txt range_expansion_predictions.txt dual_correction_predictions.txt index_rebalance_predictions.txt overnight_gap_predictions.txt hft_order_flow_predictions.txt pipeline_result.csv; do
+          echo "|----------------|:---:|:---:|" >> $GITHUB_STEP_SUMMARY
+          for f in "${STRATEGY_FILES[@]}"; do
             FPATH="trading_system/result/$f"
             if [ -f "$FPATH" ]; then
               SIZE=$(du -sh "$FPATH" 2>/dev/null | cut -f1)
@@ -210,21 +223,28 @@ jobs:
               echo "| $f | ⚠️ 없음 | - |" >> $GITHUB_STEP_SUMMARY
             fi
           done
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ -f "trading_system/result/ensemble_predictions.txt" ]; then
+            echo "<details>" >> $GITHUB_STEP_SUMMARY
+            echo "<summary><b>📊 37대 전략 동적 앙상블 상세 추천 리스트 (펼치기)</b></summary>" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 📊 37대 전략 동적 앙상블 상세 추천 리스트" >> $GITHUB_STEP_SUMMARY
             echo '```text' >> $GITHUB_STEP_SUMMARY
             head -n 60 trading_system/result/ensemble_predictions.txt >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           fi
 
           if [ -f "trading_system/result/strategy_data_coverage_report.txt" ]; then
+            echo "<details>" >> $GITHUB_STEP_SUMMARY
+            echo "<summary><b>🔍 전략별 데이터 커버리지 & 결측 분석 (펼치기)</b></summary>" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 🔍 전략별 데이터 커버리지 & 결측 분석" >> $GITHUB_STEP_SUMMARY
             echo '```text' >> $GITHUB_STEP_SUMMARY
             cat trading_system/result/strategy_data_coverage_report.txt >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
           fi
 
       # P0: Telegram failure notification — send CRITICAL alert when pipeline fails
@@ -235,10 +255,18 @@ jobs:
           CHAT="${{ secrets.TELEGRAM_CHAT_ID }}"
           if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
             RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            ERR_SNIPPET=""
+            LOG_FILE=$(ls -t trading_system/logs/*.log 2>/dev/null | head -1)
+            if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
+              ERR_SNIPPET=$(tail -n 5 "$LOG_FILE" | tr '\n' ' ' | cut -c1-200)
+            fi
             MSG="🚨 *[CRITICAL] GHA Pipeline Failed*%0A%0A"
             MSG+="*Market:* ${{ matrix.target }}%0A"
             MSG+="*Status:* ${{ steps.run.outcome }}%0A"
-            MSG+="*Time:* $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')%0A%0A"
+            MSG+="*Time:* $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')%0A"
+            if [ -n "$ERR_SNIPPET" ]; then
+              MSG+="*Error:* \`${ERR_SNIPPET}\`%0A"
+            fi
             MSG+="*Run URL:* ${RUN_URL}"
             curl -sf -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
               -d "chat_id=${CHAT}&text=${MSG}&parse_mode=Markdown" > /dev/null || true
@@ -318,6 +346,25 @@ jobs:
           # Run python merging script to generate unified result files
           python3 trading_system/merge_predictions.py
           python3 trading_system/generate_run_snapshot.py
+
+      - name: Verify merged artifacts
+        run: |
+          python3 trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --step-summary
+
+      - name: Write Merge & Release Step Summary
+        if: always()
+        run: |
+          echo "## 📦 일일 예측 병합 및 릴리스 요약" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 항목 | 내용 |" >> $GITHUB_STEP_SUMMARY
+          echo "|:---|:---|" >> $GITHUB_STEP_SUMMARY
+          echo "| 병합 대상 마켓 | 5대 시장 (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ) |" >> $GITHUB_STEP_SUMMARY
+          TOTAL_RECS=$(grep -c '^[0-9]' trading_system/result/ensemble_predictions.txt 2>/dev/null || echo "N/A")
+          echo "| 총 추천 종목 수 | ${TOTAL_RECS}개 종목 |" >> $GITHUB_STEP_SUMMARY
+          REGIME=$(grep -m1 -o 'Regime: [^,]*' trading_system/result/ensemble_predictions.txt 2>/dev/null || echo "정상")
+          echo "| 시장 레짐 | ${REGIME} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 릴리스 태그 | [v${{ steps.date.outputs.date }}](https://github.com/${{ github.repository }}/releases/tag/v${{ steps.date.outputs.date }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 실행 일시 | $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST') |" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload merged results as artifact
         if: always()
@@ -432,6 +479,14 @@ jobs:
           echo "Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> gh-pages/build.txt
           ls -lh gh-pages/
 
+      - name: Verify dashboard & artifacts before deploy
+        run: |
+          .venv/bin/python trading_system/scripts/verify_gha_artifacts.py \
+            --result-dir trading_system/result \
+            --gh-pages-dir gh-pages \
+            --strict \
+            --step-summary
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -457,3 +512,18 @@ jobs:
           else
             echo "::warning::GitHub Pages deployment was delayed or timed out in GitHub queue (outcome=${{ steps.deployment.outcome }}). The artifact remains valid and will be published on subsequent runs."
           fi
+
+      - name: Write GitHub Pages Deployment Step Summary
+        if: always()
+        run: |
+          STATUS="${{ steps.deployment.outcome }}"
+          ICON="✅"
+          [ "$STATUS" != "success" ] && ICON="⚠️"
+          echo "## ${ICON} GitHub Pages 대시보드 배포 요약" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 항목 | 내용 |" >> $GITHUB_STEP_SUMMARY
+          echo "|:---|:---|" >> $GITHUB_STEP_SUMMARY
+          echo "| 실시간 대시보드 | [🚀 kthur.github.io/stock](https://kthur.github.io/stock/) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 배포 상태 | ${STATUS:-pending} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 배포 일시 | $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY

@@ -781,6 +781,11 @@ def build_styles(base_styles: str = "") -> str:
       padding-left: 2px !important;
       padding-right: 2px !important;
       text-align: center !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }
     .table-wrap .sticky-symbol {
       left: 36px !important;
@@ -816,6 +821,11 @@ def build_styles(base_styles: str = "") -> str:
       padding-left: 2px !important;
       padding-right: 2px !important;
       text-align: center !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }
     .sticky-symbol {
       left: 34px !important;
@@ -885,7 +895,9 @@ def build_styles(base_styles: str = "") -> str:
       border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
       box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
     }
-    #market-full-table td.sticky-rank {
+    #market-full-table td.sticky-rank,
+    .table-wrap td.sticky-rank,
+    td.sticky-rank {
       left: 0 !important;
       width: 34px !important;
       min-width: 34px !important;
@@ -894,6 +906,11 @@ def build_styles(base_styles: str = "") -> str:
       text-align: center !important;
       padding-left: 2px !important;
       padding-right: 2px !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }
     #market-full-table td.sticky-symbol {
       left: 34px !important;
@@ -1669,8 +1686,12 @@ def build_styles(base_styles: str = "") -> str:
       padding: 6px 10px;
     }
     .market-quick-chip {
-      padding: 6px 11px;
-      font-size: 0.78rem;
+      min-height: 44px !important;
+      padding: 0 14px;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .market-toolbar {
       margin: 12px 14px !important;
@@ -1724,9 +1745,11 @@ def build_head(title: str, description: str, active_page: str, extra_head: str =
 <meta name="apple-mobile-web-app-title" content="Quant Alpha">
 <meta name="application-name" content="Quant Alpha">
 <meta name="format-detection" content="telephone=no">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link rel="icon" href="{favicon_svg}">
 {theme_script}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 {extra_head}
 {build_styles(base_styles)}
 </head>"""
@@ -1922,7 +1945,7 @@ def build_index_html(ctx: dict, is_executive_summary: bool = True) -> str:
 <script>
 document.addEventListener('DOMContentLoaded', function() {{
   if (typeof updateMobileNavState === 'function') {{
-    updateMobileNavState('strategies');
+    updateMobileNavState('ensemble');
   }}
 }});
 </script>
@@ -1947,7 +1970,10 @@ def build_strategies_html(ctx: dict) -> str:
     """Builds the Strategy Encyclopedia & Technical Docs (strategies.html)."""
     now_kst = ctx.get("now_kst", "")
     base_styles = ctx.get("style_content", "")
-    mathjax_script = '<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>'
+    mathjax_script = (
+        '<script>window.MathJax = { tex: { inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]] }, svg: { fontCache: "global" } };</script>'
+        '<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>'
+    )
     head_html = build_head(
         title="📚 37대 퀀트 전략 백과사전 & 기술 문서 | Institutional Quant",
         description="한국 및 미국 주식 37대 다변화 팩터 전략의 정량적 수학 공식, 퀀트 가설, 2D 레짐 민감도 가중치 및 실시간 라이브 후보 종목 전수 수록",
@@ -2972,6 +2998,17 @@ function initMarketPage() {{
   try {{
     initDrawerTouchSwipe();
   }} catch(e) {{}}
+  try {{
+    const backToTopBtn = document.getElementById('btn-back-to-top');
+    if (backToTopBtn) {{
+      window.addEventListener('scroll', function() {{
+        backToTopBtn.style.display = window.scrollY > 300 ? 'flex' : 'none';
+      }});
+      backToTopBtn.addEventListener('click', function() {{
+        window.scrollTo({{ top: 0, behavior: 'smooth' }});
+      }});
+    }}
+  }} catch(e) {{}}
 }}
 if (document.readyState === 'loading') {{
   document.addEventListener('DOMContentLoaded', initMarketPage);
@@ -3075,3 +3112,17 @@ def build_all_pages(ctx: dict, out_dir: Path, out_path: Optional[Path] = None) -
         generated[m.lower()] = p_mkt
 
     return generated
+
+
+def main(args_list: Optional[list[str]] = None) -> None:
+    """CLI entry point for report_multipage: delegates to generate_report for complete 7-page generation."""
+    try:
+        from trading_system.generate_report import main as generate_report_main
+    except (ImportError, ModuleNotFoundError):
+        from generate_report import main as generate_report_main
+    generate_report_main(args_list)
+
+
+if __name__ == "__main__":
+    main()
+

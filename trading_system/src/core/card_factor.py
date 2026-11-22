@@ -82,10 +82,10 @@ class CARDFactorEngine(BaseStrategyEngine):
         # Standardize VIX shock to percentage scale matching FX and commodities
         vix_raw = _safe_macro('vix') or _safe_macro('vix_raw')
         vix_change = _safe_macro('vix_change') or _safe_macro('vix_pct')
-        if vix_raw and vix_raw > 0:
+        if vix_change is not None and (isinstance(vix_change, (int, float)) and np.isfinite(vix_change) and vix_change != 0):
+            vix_pct_shock = float(vix_change)
+        elif vix_raw and vix_raw > 0:
             vix_pct_shock = ((vix_raw - 20.0) / 20.0) * 10.0  # Normalized % shock proxy
-        elif vix_change:
-            vix_pct_shock = vix_change if abs(vix_change) > 1.0 else (vix_change * 100.0)
         else:
             vix_pct_shock = 0.0
 

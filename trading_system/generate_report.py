@@ -28,13 +28,8 @@ logger = logging.getLogger(__name__)
 KST = timezone(timedelta(hours=9))
 
 _CORE_ORDER = ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]
-_INTL_ORDER = [
-    "JAPAN_TSE", "JAPAN", "CHINA_SSE", "CHINA", "TAIWAN_TWSE", "TAIWAN",
-    "INDIA_NSE", "INDIA", "EUROPE_STOXX", "EUROPE", "VIETNAM_HOSE", "VIETNAM",
-    "AUSTRALIA_ASX", "AUSTRALIA", "BRAZIL_B3", "BRAZIL", "HKEX",
-    "SINGAPORE_SGX", "SINGAPORE", "CANADA_TSX", "CANADA", "KONEX", "CHINA_SZSE", "US"
-]
-KNOWN_ALL_MKTS = set(_CORE_ORDER + _INTL_ORDER)
+_INTL_ORDER = []
+KNOWN_ALL_MKTS = set(_CORE_ORDER)
 
 
 def _safe_json(obj: Any) -> str:
@@ -678,12 +673,7 @@ def parse_sector(text: str) -> tuple[str, list[SectorRow]]:
     date = ""
     rows: list[SectorRow] = []
     KNOWN_MKTS = {
-        "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "KONEX",
-        "CHINA_SSE", "CHINA_SZSE", "JAPAN_TSE", "INDIA_NSE",
-        "EUROPE_STOXX", "VIETNAM_HOSE", "TAIWAN_TWSE",
-        "AUSTRALIA_ASX", "BRAZIL_B3", "HKEX", "SINGAPORE_SGX", "CANADA_TSX",
-        "CHINA", "JAPAN", "INDIA", "EUROPE", "VIETNAM", "TAIWAN",
-        "AUSTRALIA", "BRAZIL", "SINGAPORE", "CANADA", "US"
+        "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"
     }
     for line in text.splitlines():
         line = line.strip()
@@ -825,12 +815,7 @@ def _parse_simple_strategy(text: str, score_col: str) -> tuple[str, list[SimpleS
     date = ""
     rows: list[SimpleStrategyRow] = []
     KNOWN_MKTS = {
-        "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "KONEX",
-        "CHINA_SSE", "CHINA_SZSE", "JAPAN_TSE", "INDIA_NSE",
-        "EUROPE_STOXX", "VIETNAM_HOSE", "TAIWAN_TWSE",
-        "AUSTRALIA_ASX", "BRAZIL_B3", "HKEX", "SINGAPORE_SGX", "CANADA_TSX",
-        "CHINA", "JAPAN", "INDIA", "EUROPE", "VIETNAM", "TAIWAN",
-        "AUSTRALIA", "BRAZIL", "SINGAPORE", "CANADA", "US"
+        "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"
     }
     current_market = ""
     for line in text.splitlines():
@@ -1247,39 +1232,7 @@ MARKET_FLAGS = {
     "SP500": "🇺🇸",
     "NASDAQ": "🇺🇸",
     "RUSSELL2000": "🇺🇸",
-    "CHINA_SSE": "🇨🇳",
-    "CHINA_SZSE": "🇨🇳",
-    "SSE": "🇨🇳",
-    "SZSE": "🇨🇳",
-    "CHINA": "🇨🇳",
-    "JAPAN_TSE": "🇯🇵",
-    "TSE": "🇯🇵",
-    "JAPAN": "🇯🇵",
-    "INDIA_NSE": "🇮🇳",
-    "INDIA_BSE": "🇮🇳",
-    "INDIA": "🇮🇳",
-    "EUROPE_STOXX": "🇪🇺",
-    "EUROPE": "🇪🇺",
-    "VIETNAM_HOSE": "🇻🇳",
-    "HOSE": "🇻🇳",
-    "VIETNAM": "🇻🇳",
-    "TAIWAN_TWSE": "🇹🇼",
-    "TWSE": "🇹🇼",
-    "TAIWAN": "🇹🇼",
-    "AUSTRALIA_ASX": "🇦🇺",
-    "ASX": "🇦🇺",
-    "AUSTRALIA": "🇦🇺",
-    "BRAZIL_B3": "🇧🇷",
-    "B3": "🇧🇷",
-    "BRAZIL": "🇧🇷",
-    "HKEX": "🇭🇰",
-    "HONGKONG": "🇭🇰",
-    "SINGAPORE_SGX": "🇸🇬",
-    "SGX": "🇸🇬",
-    "SINGAPORE": "🇸🇬",
-    "CANADA_TSX": "🇨🇦",
-    "TSX": "🇨🇦",
-    "CANADA": "🇨🇦",
+    "US": "🇺🇸",
 }
 
 REGIME_INFO = {
@@ -1341,9 +1294,9 @@ def make_stock_link(symbol: str, market: str) -> str:
     clean_sym = html.escape(symbol.strip())
     raw_code = clean_sym.split('.')[0]
     if market in ['KOSPI', 'KOSDAQ']:
-        return f'<a href="https://m.stock.naver.com/domestic/stock/{raw_code}/total" target="_blank" class="stock-link">{clean_sym}</a>'
+        return f'<a href="https://m.stock.naver.com/domestic/stock/{raw_code}/total" target="_blank" rel="noopener noreferrer" class="stock-link">{clean_sym}</a>'
     else:
-        return f'<a href="https://finance.yahoo.com/quote/{clean_sym}" target="_blank" class="stock-link">{clean_sym}</a>'
+        return f'<a href="https://finance.yahoo.com/quote/{clean_sym}" target="_blank" rel="noopener noreferrer" class="stock-link">{clean_sym}</a>'
 
 
 @dataclass
@@ -2307,7 +2260,7 @@ def build_30year_benchmark_dashboard_html(result_dir: Optional[Path] = None) -> 
         </div>
 
         <!-- Recent Annual Track Record & Paper Trading Live OMS Status -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px;">
           <!-- Left: Recent Annual Performance Badges -->
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
             <div style="font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 10px;">
@@ -2738,7 +2691,7 @@ def _prepare_report_context(
                     all_seen_markets.add(m_val.upper())
 
     active_markets_ordered = []
-    for mkt in _CORE_ORDER + _INTL_ORDER:
+    for mkt in _CORE_ORDER:
         if mkt in all_seen_markets and mkt not in active_markets_ordered:
             active_markets_ordered.append(mkt)
     for mkt in sorted(all_seen_markets):
@@ -2763,7 +2716,7 @@ def _prepare_report_context(
         rows_html = ""
         cards_html = ""
         if mkt_data and mkt_data.rows:
-            display_limit = 10
+            display_limit = 100
             display_rows = mkt_data.rows[:display_limit] if len(mkt_data.rows) > display_limit else mkt_data.rows
             for row_idx, erow in enumerate(display_rows):
                 rc = ret_class(erow.expected_return)
@@ -4030,7 +3983,8 @@ def _prepare_report_context(
   .tooltip-wrapper .tooltip-content {{
     visibility: hidden;
     opacity: 0;
-    width: 340px;
+    width: min(300px, calc(100vw - 32px)) !important;
+    max-width: 90vw !important;
     background-color: var(--surface2);
     color: var(--text);
     text-align: left;
@@ -4069,7 +4023,7 @@ def _prepare_report_context(
   /* Tabs */
   .tabs {{ 
     position: sticky; 
-    top: 0; 
+    top: 52px !important; 
     z-index: 100; 
     background: var(--surface); 
     backdrop-filter: blur(12px); 
@@ -4351,7 +4305,7 @@ def _prepare_report_context(
   body.view-card-active .stock-cards-wrap {{
     display: grid !important;
   }}
-  body.view-card-active .table-wrap {{
+  body.view-card-active #panel-ensemble .market-panel .table-wrap {{
     display: none !important;
   }}
   .stock-card {{
@@ -4775,7 +4729,7 @@ def _prepare_report_context(
     .row1-wrapper {{ grid-template-columns: 1fr; gap: 12px; padding: 12px; }}
 
 
-    .tabs {{ padding: 0 8px; height: 44px; }}
+    .tabs {{ padding: 0 8px; height: 44px; top: 52px !important; }}
     .tab {{ padding: 0 12px; font-size: 13px; min-height: 44px !important; display: inline-flex; align-items: center; box-sizing: border-box; }}
     thead th {{ top: 0; padding: 8px 6px; font-size: 12px; }}
     .table-wrap th.sticky-col {{ top: 0; }}
@@ -4880,6 +4834,14 @@ def _prepare_report_context(
     #market-full-table .col-strat {{
       display: table-cell;
     }}
+    body.preset-ai .col-strat.col-cat-ai,
+    body.preset-mom .col-strat.col-cat-mom,
+    body.preset-val .col-strat.col-cat-val,
+    body.preset-flow .col-strat.col-cat-flow,
+    body.preset-micro .col-strat.col-cat-micro,
+    body.preset-macro .col-strat.col-cat-macro {{
+      display: table-cell !important;
+    }}
     .table-wrap table {{ min-width: 100% !important; }}
     .table-wrap .sticky-rank {{
       left: 0 !important;
@@ -4889,6 +4851,11 @@ def _prepare_report_context(
       padding-left: 2px !important;
       padding-right: 2px !important;
       text-align: center !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }}
     .sticky-rank {{
       left: 0 !important;
@@ -4901,6 +4868,11 @@ def _prepare_report_context(
       padding-left: 2px !important;
       padding-right: 2px !important;
       text-align: center !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }}
     .table-wrap .sticky-symbol {{
       left: 36px !important;
@@ -4990,7 +4962,9 @@ def _prepare_report_context(
       border-right: 2px solid var(--border-color, rgba(255,255,255,0.1)) !important;
       box-shadow: 2px 0 4px rgba(0,0,0,0.15) !important;
     }}
-    #market-full-table td.sticky-rank {{
+    #market-full-table td.sticky-rank,
+    .table-wrap td.sticky-rank,
+    td.sticky-rank {{
       left: 0 !important;
       width: 34px !important;
       min-width: 34px !important;
@@ -4999,6 +4973,11 @@ def _prepare_report_context(
       text-align: center !important;
       padding-left: 2px !important;
       padding-right: 2px !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 2px !important;
     }}
     #market-full-table td.sticky-symbol {{
       left: 34px !important;
@@ -5107,6 +5086,9 @@ def _prepare_report_context(
   }}
 
   @media (max-width: 480px) {{
+    .tabs {{
+      top: 50px !important;
+    }}
     .encyclopedia-intro {{
       padding: 10px 10px 0 10px !important;
     }}
@@ -5295,6 +5277,14 @@ def _prepare_report_context(
   body.preset-flow .col-strat:not(.col-cat-flow),
   body.preset-macro .col-strat:not(.col-cat-macro) {{
     display: none !important;
+  }}
+  body.preset-ai .col-strat.col-cat-ai,
+  body.preset-mom .col-strat.col-cat-mom,
+  body.preset-val .col-strat.col-cat-val,
+  body.preset-flow .col-strat.col-cat-flow,
+  body.preset-micro .col-strat.col-cat-micro,
+  body.preset-macro .col-strat.col-cat-macro {{
+    display: table-cell !important;
   }}
 
   /* Font Scaling Controls */
@@ -5900,6 +5890,8 @@ def _prepare_report_context(
       <button class="filter-btn" onclick="filterScenarioMarket(this,'KOSPI')">🇰🇷 KOSPI (TOP 20)</button>
       <button class="filter-btn" onclick="filterScenarioMarket(this,'KOSDAQ')">🇰🇷 KOSDAQ (TOP 20)</button>
       <button class="filter-btn" onclick="filterScenarioMarket(this,'SP500')">🇺🇸 SP500 (TOP 20)</button>
+      <button class="filter-btn" onclick="filterScenarioMarket(this,'NASDAQ')">🇺🇸 NASDAQ (TOP 20)</button>
+      <button class="filter-btn" onclick="filterScenarioMarket(this,'RUSSELL2000')">🇺🇸 RUSSELL2000 (TOP 20)</button>
     </div>
 
     <div class="table-wrap">
@@ -6745,18 +6737,7 @@ document.addEventListener('DOMContentLoaded', function() {{
 
     const mktFlags = {{
       KOSPI: '🇰🇷', KOSDAQ: '🇰🇷', KRX: '🇰🇷',
-      SP500: '🇺🇸', NASDAQ: '🇺🇸', RUSSELL2000: '🇺🇸', US: '🇺🇸',
-      CHINA_SSE: '🇨🇳', CHINA_SZSE: '🇨🇳', SSE: '🇨🇳', SZSE: '🇨🇳', CHINA: '🇨🇳',
-      JAPAN_TSE: '🇯🇵', TSE: '🇯🇵', JAPAN: '🇯🇵', NIKKEI: '🇯🇵',
-      INDIA_NSE: '🇮🇳', INDIA_BSE: '🇮🇳', NSE: '🇮🇳', BSE: '🇮🇳', INDIA: '🇮🇳',
-      EUROPE_STOXX: '🇪🇺', EUROPE: '🇪🇺', STOXX: '🇪🇺', DAX: '🇩🇪', FTSE: '🇬🇧', CAC: '🇫🇷',
-      VIETNAM_HOSE: '🇻🇳', HOSE: '🇻🇳', VIETNAM: '🇻🇳',
-      TAIWAN_TWSE: '🇹🇼', TWSE: '🇹🇼', TAIWAN: '🇹🇼',
-      AUSTRALIA_ASX: '🇦🇺', ASX: '🇦🇺', AUSTRALIA: '🇦🇺',
-      BRAZIL_B3: '🇧🇷', B3: '🇧🇷', BRAZIL: '🇧🇷',
-      HKEX: '🇭🇰', HONGKONG: '🇭🇰',
-      SINGAPORE_SGX: '🇸🇬', SGX: '🇸🇬', SINGAPORE: '🇸🇬',
-      CANADA_TSX: '🇨🇦', TSX: '🇨🇦', CANADA: '🇨🇦'
+      SP500: '🇺🇸', NASDAQ: '🇺🇸', RUSSELL2000: '🇺🇸', US: '🇺🇸'
     }};
 
     let html = '';
@@ -6772,9 +6753,9 @@ document.addEventListener('DOMContentLoaded', function() {{
         let symLink = r.sym;
         const cleanCode = r.sym.split('.')[0];
         if (['KOSPI', 'KOSDAQ'].includes(r.mkt)) {{
-          symLink = '<a href="https://m.stock.naver.com/domestic/stock/' + cleanCode + '/total" target="_blank" class="stock-link">' + r.sym + '</a>';
+          symLink = '<a href="https://m.stock.naver.com/domestic/stock/' + cleanCode + '/total" target="_blank" rel="noopener noreferrer" class="stock-link">' + r.sym + '</a>';
         }} else {{
-          symLink = '<a href="https://finance.yahoo.com/quote/' + r.sym + '" target="_blank" class="stock-link">' + r.sym + '</a>';
+          symLink = '<a href="https://finance.yahoo.com/quote/' + r.sym + '" target="_blank" rel="noopener noreferrer" class="stock-link">' + r.sym + '</a>';
         }}
 
         html += '<tr>' +
@@ -8035,9 +8016,9 @@ function selectStrategyFromHub(stratId) {{
   </div>
 
   <div class="drawer-external-links">
-    <a id="drawer-naver-link" href="#" target="_blank" class="ext-portal-btn" style="color:#03c75a; border-color:rgba(3,199,90,0.4);">🇳 네이버증권</a>
-    <a id="drawer-yahoo-link" href="#" target="_blank" class="ext-portal-btn" style="color:#6001d2; border-color:rgba(96,1,210,0.4);">🟣 Yahoo Finance</a>
-    <a id="drawer-tv-link" href="#" target="_blank" class="ext-portal-btn" style="color:#2962ff; border-color:rgba(41,98,255,0.4);">📈 TradingView</a>
+    <a id="drawer-naver-link" href="#" target="_blank" rel="noopener noreferrer" class="ext-portal-btn" style="color:#03c75a; border-color:rgba(3,199,90,0.4);">🇳 네이버증권</a>
+    <a id="drawer-yahoo-link" href="#" target="_blank" rel="noopener noreferrer" class="ext-portal-btn" style="color:#6001d2; border-color:rgba(96,1,210,0.4);">🟣 Yahoo Finance</a>
+    <a id="drawer-tv-link" href="#" target="_blank" rel="noopener noreferrer" class="ext-portal-btn" style="color:#2962ff; border-color:rgba(41,98,255,0.4);">📈 TradingView</a>
   </div>
 </div>
 

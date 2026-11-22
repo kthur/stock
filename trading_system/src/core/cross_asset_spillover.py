@@ -323,7 +323,8 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
         t2 = 0.0
         for (f1, f2), gamma in gamma_pairs.items():
             if f1 in shocks and f2 in shocks:
-                t2 += 0.5 * gamma * shocks[f1] * shocks[f2]
+                # Harmonized decimal shock scaling: (100*s1)(100*s2)/100 = 100*s1*s2
+                t2 += 0.5 * gamma * (shocks[f1] * shocks[f2] * 100.0)
 
         psi_triplets = {
             ("vix", "usdkrw", "tnx"): -0.60,
@@ -331,11 +332,14 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
             ("vix", "vix", "vix"): -0.30,
             ("wti", "hy_spread", "vix"): -0.50,
             ("sp500", "sox", "vix"): -0.25,
+            ("sox", "sox", "sox"): 0.25,
+            ("wti", "wti", "wti"): 0.20,
         }
         t3 = 0.0
         for (f1, f2, f3), psi in psi_triplets.items():
             if f1 in shocks and f2 in shocks and f3 in shocks:
-                t3 += (1.0 / 6.0) * psi * shocks[f1] * shocks[f2] * shocks[f3]
+                # Harmonized decimal shock scaling: (100*s1)(100*s2)(100*s3)/100 = 10000*s1*s2*s3
+                t3 += (1.0 / 6.0) * psi * (shocks[f1] * shocks[f2] * shocks[f3] * 10000.0)
 
         impulse = float(vol_multiplier) * (t1 + t2 + t3)
         if not math.isfinite(impulse):
@@ -377,7 +381,7 @@ class CrossAssetSpilloverEngine(BaseStrategyEngine):
                                     # D30: Normalize percentage scale to decimal returns without 0.50 threshold discontinuity
                                     if "change" in str(alias).lower() or "pct" in str(alias).lower():
                                         macro_ret[k] = f_val / 100.0
-                                    elif abs(f_val) >= 0.15:
+                                    elif abs(f_val) > 1.0:
                                         macro_ret[k] = f_val / 100.0
                                     else:
                                         macro_ret[k] = f_val

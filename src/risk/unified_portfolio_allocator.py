@@ -355,9 +355,69 @@ class UnifiedPortfolioAllocator:
     compute_factor_risk_contributions = staticmethod(compute_factor_risk_contributions)
     calculate_factor_risk_parity_weights = staticmethod(calculate_factor_risk_parity_weights)
 
+    VERSION_PHASE198: int = 198
+    RELEASE_PHASE198: str = "R187"
+    FEATURE_PHASE198: str = "F984"
+
     VERSION_PHASE196: int = 196
     RELEASE_PHASE196: str = "R186"
     FEATURE_PHASE196: str = "F974"
+
+    TARGET_VOLS_PHASE198: Dict[str, float] = {
+        "BULL_STABLE": 0.150,
+        "BULL_LOW_VOL": 0.150,
+        "BULL_TRENDING": 0.145,
+        "BULL": 0.135,
+        "BULL_VOLATILE": 0.130,
+        "BULL_HIGH_VOL": 0.130,
+        "RELIEF_RALLY": 0.130,
+        "SIDEWAYS_STABLE": 0.110,
+        "NEUTRAL_EXPANSION": 0.110,
+        "SIDEWAYS_LOW_VOL": 0.110,
+        "SIDEWAYS": 0.100,
+        "SIDEWAYS_VOLATILE": 0.095,
+        "RANGE_COMPRESSION": 0.095,
+        "SIDEWAYS_HIGH_VOL": 0.095,
+        "BEAR_TRENDING": 0.080,
+        "BEAR_STABLE": 0.080,
+        "BEAR_LOW_VOL": 0.080,
+        "BEAR_DEFENSIVE": 0.080,
+        "BEAR": 0.075,
+        "BEAR_VOLATILE": 0.070,
+        "BEAR_HIGH_VOL": 0.070,
+        "PANIC_CRISIS": 0.055,
+        "CRISIS_HALT": 0.055,
+        "CRISIS": 0.055,
+        "PANIC": 0.055,
+    }
+
+    FRONTIER_LIMITS_PHASE198: Dict[str, float] = {
+        "BULL_STABLE": 2.50,
+        "BULL_LOW_VOL": 2.40,
+        "BULL_TRENDING": 2.20,
+        "BULL": 2.00,
+        "BULL_VOLATILE": 1.95,
+        "BULL_HIGH_VOL": 1.80,
+        "RELIEF_RALLY": 1.85,
+        "SIDEWAYS_STABLE": 1.65,
+        "NEUTRAL_EXPANSION": 1.35,
+        "SIDEWAYS_LOW_VOL": 1.35,
+        "SIDEWAYS": 1.25,
+        "SIDEWAYS_VOLATILE": 1.25,
+        "RANGE_COMPRESSION": 0.85,
+        "SIDEWAYS_HIGH_VOL": 0.85,
+        "BEAR_TRENDING": 0.85,
+        "BEAR_STABLE": 0.80,
+        "BEAR_LOW_VOL": 0.80,
+        "BEAR_DEFENSIVE": 0.40,
+        "BEAR": 0.60,
+        "BEAR_VOLATILE": 0.40,
+        "BEAR_HIGH_VOL": 0.35,
+        "PANIC_CRISIS": 0.20,
+        "CRISIS_HALT": 0.00,
+        "CRISIS": 0.00,
+        "PANIC": 0.00,
+    }
 
     TARGET_VOLS_PHASE196: Dict[str, float] = {
         "BULL_STABLE": 0.145,
@@ -415,8 +475,8 @@ class UnifiedPortfolioAllocator:
         "PANIC": 0.00,
     }
 
-    target_vols = TARGET_VOLS_PHASE196
-    frontier_limits = FRONTIER_LIMITS_PHASE196
+    target_vols = TARGET_VOLS_PHASE198
+    frontier_limits = FRONTIER_LIMITS_PHASE198
 
     VERSION_PHASE190: int = 190
     RELEASE_PHASE190: str = "R182"
@@ -436,40 +496,40 @@ class UnifiedPortfolioAllocator:
 
     REGIME_MODEL_WEIGHTS_PHASE190: Dict[str, Dict[str, float]] = {
         "BULL_STABLE": {
-            "black_litterman": 0.18,
-            "herc": 0.12,
-            "risk_parity": 0.08,
+            "black_litterman": 0.27,
+            "herc": 0.06,
+            "risk_parity": 0.03,
             "evt_cvar": 0.05,
-            "hyperbolic_ot": 0.15,
-            "regime_leverage": 0.18,
-            "spectral_evt": 0.08,
+            "hyperbolic_ot": 0.14,
+            "regime_leverage": 0.27,
+            "spectral_evt": 0.06,
             "leland_buffer": 0.06,
             "spectral_barycenter": 0.05,
-            "tail_kurtosis_parity": 0.05,
+            "tail_kurtosis_parity": 0.01,
         },
         "BULL_LOW_VOL": {
-            "black_litterman": 0.18,
-            "herc": 0.12,
-            "risk_parity": 0.08,
+            "black_litterman": 0.27,
+            "herc": 0.06,
+            "risk_parity": 0.03,
             "evt_cvar": 0.05,
-            "hyperbolic_ot": 0.15,
-            "regime_leverage": 0.18,
-            "spectral_evt": 0.08,
+            "hyperbolic_ot": 0.14,
+            "regime_leverage": 0.27,
+            "spectral_evt": 0.06,
             "leland_buffer": 0.06,
             "spectral_barycenter": 0.05,
-            "tail_kurtosis_parity": 0.05,
+            "tail_kurtosis_parity": 0.01,
         },
         "RELIEF_RALLY": {
-            "black_litterman": 0.18,
+            "black_litterman": 0.20,
             "herc": 0.12,
             "risk_parity": 0.08,
             "evt_cvar": 0.05,
             "hyperbolic_ot": 0.15,
-            "regime_leverage": 0.18,
+            "regime_leverage": 0.20,
             "spectral_evt": 0.08,
             "leland_buffer": 0.06,
-            "spectral_barycenter": 0.05,
-            "tail_kurtosis_parity": 0.05,
+            "spectral_barycenter": 0.03,
+            "tail_kurtosis_parity": 0.03,
         },
         "BULL_VOLATILE": {
             "black_litterman": 0.14,
@@ -826,8 +886,8 @@ class UnifiedPortfolioAllocator:
             adv = max(1_000_000.0, adv)
             sigma = float(vols.get(sym, 0.02))
             sigma = max(0.005, sigma)
-            frac_adv = traded_notional / adv
-            impact = eta * sigma * math.pow(frac_adv, 1.5) * traded_notional
+            frac_adv = max(1e-9, traded_notional / adv)
+            impact = eta * sigma * math.pow(frac_adv, 1.5) * adv
             tot_penalty += impact
         return float(tot_penalty)
 
@@ -1336,12 +1396,13 @@ class UnifiedPortfolioAllocator:
             float(mcsi_score or 0.0) >= 2.50
             or reg_str in ("CRISIS_HALT", "CRISIS", "PANIC", "CRISIS_PANIC", "PANIC_CRISIS")
         )
+        active_target_vols = kwargs.get("target_vols_override") or self.TARGET_VOLS_PHASE196
         if is_crisis_or_halt:
             eff_tv_halt = 0.055
         elif target_volatility is not None and math.isfinite(float(target_volatility)) and float(target_volatility) > 0:
             eff_tv_halt = float(target_volatility)
         else:
-            eff_tv_halt = float(self.TARGET_VOLS_PHASE196.get(reg_str, 0.110))
+            eff_tv_halt = float(active_target_vols.get(reg_str, 0.110))
 
         if N == 0:
             return AllocationResult(
@@ -1419,7 +1480,8 @@ class UnifiedPortfolioAllocator:
             )
 
         # 2. Frontier Limits & Emergency Crisis Gating
-        frontier_limits = dict(self.FRONTIER_LIMITS_PHASE196)
+        active_frontier_limits = kwargs.get("frontier_limits_override") or self.FRONTIER_LIMITS_PHASE196
+        frontier_limits = dict(active_frontier_limits)
 
         if is_crisis_or_halt:
             lev_target = 0.00
@@ -1432,7 +1494,7 @@ class UnifiedPortfolioAllocator:
         else:
             # Bug 2 Fix: Harmonized leverage decisioning respecting caller gross_leverage and backwardation
             base_lev = float(frontier_limits.get(reg_str, 1.00))
-            if reg_str in ("BULL_STABLE", "BULL_LOW_VOL"):
+            if reg_str in ("BULL_STABLE", "BULL_LOW_VOL", "BULL_TRENDING"):
                 if not is_contango_locked:
                     base_lev = min(base_lev, 1.45)
             if is_backwardation:
@@ -1480,7 +1542,7 @@ class UnifiedPortfolioAllocator:
         sum_exp = np.sum(exp_scores)
         w_bl = (exp_scores / sum_exp * lev_target) if sum_exp > 1e-12 else (np.ones(N) * lev_target / N)
 
-        # Asset Volatilities
+        # Asset Volatilities & Tail Moments
         if cov_matrix is not None and cov_matrix.shape == (N, N):
             vols = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-6))
         else:
@@ -1488,16 +1550,53 @@ class UnifiedPortfolioAllocator:
         inv_v = 1.0 / np.maximum(vols, 1e-4)
         sum_inv_v = np.sum(inv_v)
 
-        # Model 2: HERC (inverse volatility)
-        w_herc = (inv_v / sum_inv_v * lev_target) if sum_inv_v > 1e-12 else (np.ones(N) * lev_target / N)
+        if kurtosis_dict is not None and len(kurtosis_dict) > 0:
+            kurts = np.array([float(kurtosis_dict.get(sym, 3.0)) for sym in symbols], dtype=np.float64)
+            kurts = np.maximum(1.0, np.nan_to_num(kurts, nan=3.0, posinf=10.0, neginf=1.0))
+        else:
+            kurts = np.ones(N, dtype=np.float64) * 3.0
+
+        # Model 2: Hierarchical Equal Risk Contribution (HERC)
+        sector_map = kwargs.get("sector_map") or kwargs.get("sector_dict") or {}
+        if sector_map and any(sym in sector_map for sym in symbols):
+            sec_labels = [str(sector_map.get(sym, "Market")) for sym in symbols]
+        elif cov_matrix is not None and cov_matrix.shape == (N, N) and N >= 4:
+            corr_mat = cov_matrix / np.maximum(np.outer(vols, vols), 1e-8)
+            d_corr = np.sqrt(np.maximum(0.0, 0.5 * (1.0 - corr_mat)))
+            c1 = d_corr[0] > np.median(d_corr[0])
+            sec_labels = ["Cluster_A" if x else "Cluster_B" for x in c1]
+        else:
+            med_sc = np.median(raw_scores)
+            sec_labels = ["HighAlpha" if raw_scores[i] >= med_sc else "LowAlpha" for i in range(N)]
+
+        unique_secs = list(set(sec_labels))
+        sec_weights = {}
+        for sec in unique_secs:
+            sec_idx = [i for i, s_lbl in enumerate(sec_labels) if s_lbl == sec]
+            sec_vol = float(np.mean(vols[sec_idx])) if sec_idx else 0.15
+            sec_weights[sec] = 1.0 / max(sec_vol, 1e-4)
+        sum_sec_w = sum(sec_weights.values())
+        sec_weights = {k: v / sum_sec_w for k, v in sec_weights.items()}
+
+        w_herc = np.zeros(N, dtype=np.float64)
+        for sec in unique_secs:
+            sec_idx = [i for i, s_lbl in enumerate(sec_labels) if s_lbl == sec]
+            intra_inv = inv_v[sec_idx]
+            sum_intra = np.sum(intra_inv)
+            intra_norm = intra_inv / sum_intra if sum_intra > 1e-12 else np.ones(len(sec_idx)) / len(sec_idx)
+            w_herc[sec_idx] = sec_weights[sec] * intra_norm * lev_target
 
         # Model 3: Risk Parity (inverse variance)
         inv_var = 1.0 / np.maximum(vols ** 2, 1e-6)
         sum_inv_var = np.sum(inv_var)
         w_rp = (inv_var / sum_inv_var * lev_target) if sum_inv_var > 1e-12 else (np.ones(N) * lev_target / N)
 
-        # Model 4: EVT-CVaR tail risk
-        w_evt = (inv_v / sum_inv_v * lev_target) if sum_inv_v > 1e-12 else (np.ones(N) * lev_target / N)
+        # Model 4: EVT-CVaR Tail Risk Discounting (proportional to 1 / CVaR)
+        tail_xi = np.clip(0.10 + 0.05 * np.maximum(0.0, kurts - 3.0), 0.05, 0.40)
+        cvar_evt = vols * (1.0 + tail_xi / np.maximum(0.01, 1.0 - tail_xi))
+        inv_cvar = 1.0 / np.maximum(cvar_evt, 1e-4)
+        sum_inv_cvar = np.sum(inv_cvar)
+        w_evt = (inv_cvar / sum_inv_cvar * lev_target) if sum_inv_cvar > 1e-12 else (np.ones(N) * lev_target / N)
 
         # Model 5: Poincaré-Lorentz Hyperbolic OT Barycenter
         inv_hyp = 1.0 / (1.0 + np.abs(np.clip(raw_scores / 3.0, -1.0, 1.0)))
@@ -1505,11 +1604,20 @@ class UnifiedPortfolioAllocator:
         sum_hyp = np.sum(w_hyper)
         w_hyper = (w_hyper / sum_hyp * lev_target) if sum_hyp > 1e-12 else (np.ones(N) * lev_target / N)
 
-        # Model 6: Dynamic Regime Leverage / Kelly
-        w_kelly = (exp_scores / sum_exp * lev_target) if sum_exp > 1e-12 else (np.ones(N) * lev_target / N)
+        # Model 6: Distributionally Robust Fractional Kelly ((diag(sigma_i^2) + epsilon I)^-1 * max(0, mu_i - r_f))
+        mu_excess = np.maximum(0.0, raw_scores - np.min(raw_scores))
+        if np.sum(mu_excess) <= 1e-8:
+            mu_excess = exp_scores
+        diag_var = np.maximum(1e-6, np.nan_to_num(np.diag(cov_matrix), nan=0.0225)) if (cov_matrix is not None and cov_matrix.shape == (N, N)) else (vols ** 2)
+        kelly_raw = mu_excess / np.maximum(diag_var + 1e-4, 1e-4)
+        sum_kelly = np.sum(kelly_raw)
+        w_kelly = (kelly_raw / sum_kelly * lev_target) if sum_kelly > 1e-12 else (np.ones(N) * lev_target / N)
 
-        # Model 7: Spectral EVT-CVaR Tail-Risk Budgeting
-        w_spectral = (inv_v / sum_inv_v * lev_target) if sum_inv_v > 1e-12 else (np.ones(N) * lev_target / N)
+        # Model 7: Spectral Exponential Risk Measure (Kurtosis & Tail-Risk Averse)
+        spectral_penalty = 1.0 + (kurts / 3.0) ** 0.25
+        inv_spectral = 1.0 / np.maximum(vols * spectral_penalty, 1e-4)
+        sum_inv_spectral = np.sum(inv_spectral)
+        w_spectral = (inv_spectral / sum_inv_spectral * lev_target) if sum_inv_spectral > 1e-12 else (np.ones(N) * lev_target / N)
 
         # Model 8: Asymmetric Power-Law Leland Buffer pre-filter
         w_leland_pre = w_bl.copy()
@@ -1518,12 +1626,7 @@ class UnifiedPortfolioAllocator:
         w_bary = (w_bl + w_herc + w_rp) / 3.0
 
         # Model 10: Tail Kurtosis Parity
-        if kurtosis_dict is not None and len(kurtosis_dict) > 0:
-            kurts = np.array([float(kurtosis_dict.get(sym, 3.0)) for sym in symbols], dtype=np.float64)
-            kurts = np.maximum(1.0, kurts)
-            inv_k = 1.0 / kurts
-        else:
-            inv_k = 1.0 / np.maximum(vols ** 2, 1e-4)
+        inv_k = 1.0 / kurts
         sum_inv_k = np.sum(inv_k)
         w_tkp = (inv_k / sum_inv_k * lev_target) if sum_inv_k > 1e-12 else (np.ones(N) * lev_target / N)
 
@@ -1542,7 +1645,7 @@ class UnifiedPortfolioAllocator:
         )
 
         # 4. Single-Stock Weight Capping with Redistribution
-        eff_cap = max(0.05 * lev_target, lev_target / N)
+        eff_cap = max(lev_target / max(N, 1), min(0.10 * lev_target, max(0.075 * lev_target, 1.60 * lev_target / max(N, 1))))
         sum_blended = np.sum(w_blended)
         w_work = (w_blended / sum_blended * lev_target) if sum_blended > 1e-12 else (np.ones(N) * lev_target / N)
         capped = np.zeros(N, dtype=bool)
@@ -1567,7 +1670,7 @@ class UnifiedPortfolioAllocator:
         if target_volatility is not None and math.isfinite(float(target_volatility)) and float(target_volatility) > 0:
             eff_tv = float(target_volatility)
         else:
-            eff_tv = float(self.TARGET_VOLS_PHASE196.get(reg_str, 0.110))
+            eff_tv = float(active_target_vols.get(reg_str, 0.110))
 
         if is_crisis_or_halt:
             eff_tv = min(eff_tv, 0.055)
@@ -1575,8 +1678,32 @@ class UnifiedPortfolioAllocator:
         if cov_matrix is not None and cov_matrix.shape == (N, N):
             p_var = float(w_work.T @ cov_matrix @ w_work)
             port_vol = math.sqrt(max(1e-8, p_var))
-            if port_vol > eff_tv:
-                vol_scalar = min(1.0, eff_tv / port_vol)
+
+            # Feature F984: Asymmetric Downside Semi-Volatility / CVaR Clamping (Release R187)
+            # Compresses downside semivariance to maximize Sortino and Calmar while preserving upside drift
+            semi_cov = kwargs.get("semi_cov_matrix") if kwargs.get("semi_cov_matrix") is not None else kwargs.get("downside_semi_variance")
+            returns_history = kwargs.get("returns_history") if kwargs.get("returns_history") is not None else kwargs.get("returns_matrix")
+
+            if semi_cov is not None and getattr(semi_cov, "shape", None) == (N, N):
+                p_semi_var = float(w_work.T @ semi_cov @ w_work)
+                sigma_down = math.sqrt(max(1e-8, p_semi_var))
+            elif returns_history is not None:
+                R_hist = np.asarray(returns_history, dtype=np.float64)
+                if R_hist.ndim == 2 and R_hist.shape[1] == N and len(R_hist) >= 5:
+                    port_returns = R_hist @ w_work
+                    neg_returns = np.minimum(0.0, port_returns)
+                    sigma_down = math.sqrt(252.0 * float(np.mean(neg_returns ** 2)))
+                else:
+                    sigma_down = port_vol / math.sqrt(2.0)
+            else:
+                sigma_down = port_vol / math.sqrt(2.0)
+
+            eff_tv_down = eff_tv / math.sqrt(2.0)
+            down_scalar = min(1.0, eff_tv_down / max(1e-8, sigma_down)) if sigma_down > eff_tv_down else 1.0
+            tot_scalar = min(1.0, eff_tv / max(1e-8, port_vol)) if port_vol > eff_tv else 1.0
+            vol_scalar = min(down_scalar, tot_scalar)
+
+            if vol_scalar < 1.0:
                 w_work = w_work * vol_scalar
 
         w_final_arr = w_work
@@ -1638,6 +1765,63 @@ class UnifiedPortfolioAllocator:
         )
 
     allocate_portfolio_v186 = allocate_portfolio_phase196
+
+    def allocate_portfolio_phase198(
+        self,
+        alpha_vector: Union[pd.Series, Dict[str, float]],
+        current_weights: Optional[Dict[str, float]] = None,
+        regime: str = "BULL_STABLE",
+        gross_leverage: Optional[float] = None,
+        cov_matrix: Optional[np.ndarray] = None,
+        mcsi_score: float = 0.0,
+        apply_leland: bool = True,
+        adv_dict: Optional[Dict[str, float]] = None,
+        spread_dict: Optional[Dict[str, float]] = None,
+        eta_dict: Optional[Dict[str, float]] = None,
+        total_equity: float = 10_000_000_000.0,
+        kurtosis_dict: Optional[Dict[str, float]] = None,
+        contango_days: int = 10,
+        vts_ratio: float = 0.90,
+        target_volatility: Optional[float] = None,
+        vix_series: Optional[Any] = None,
+        vix_term_structure: Optional[Dict[str, Any]] = None,
+        vix_history: Optional[Sequence[Any]] = None,
+        **kwargs: Any,
+    ) -> AllocationResult:
+        """
+        Feature F984: Master 10-Model Unified Portfolio Allocator (Release R187 / Phase 198).
+        Elevates Bull Target Volatility (15.0% / 14.5%) and Dynamic Frontier Ceiling (2.50x / 2.40x)
+        under 10D VIX contango lock, tilts weights towards Black-Litterman and Kelly,
+        and strictly preserves crisis target volatility at 5.5% and leverage at 0.00x/0.20x.
+        """
+        return self.allocate_portfolio_phase196(
+            alpha_vector=alpha_vector,
+            current_weights=current_weights,
+            regime=regime,
+            gross_leverage=gross_leverage,
+            cov_matrix=cov_matrix,
+            mcsi_score=mcsi_score,
+            apply_leland=apply_leland,
+            adv_dict=adv_dict,
+            spread_dict=spread_dict,
+            eta_dict=eta_dict,
+            total_equity=total_equity,
+            kurtosis_dict=kurtosis_dict,
+            contango_days=contango_days,
+            vts_ratio=vts_ratio,
+            target_volatility=target_volatility,
+            vix_series=vix_series,
+            vix_term_structure=vix_term_structure,
+            vix_history=vix_history,
+            version_override=198,
+            release_override="R187",
+            feature_override="F984",
+            target_vols_override=self.TARGET_VOLS_PHASE198,
+            frontier_limits_override=self.FRONTIER_LIMITS_PHASE198,
+            **kwargs,
+        )
+
+    allocate_portfolio_v187 = allocate_portfolio_phase198
 
     def allocate_portfolio_phase186(
         self,
@@ -2243,8 +2427,8 @@ class UnifiedPortfolioAllocator:
                 lambda_entropy=0.001,
             )
 
-        self.target_vols = dict(self.TARGET_VOLS_PHASE196)
-        self.frontier_limits = dict(self.FRONTIER_LIMITS_PHASE196)
+        self.target_vols = dict(self.TARGET_VOLS_PHASE198)
+        self.frontier_limits = dict(self.FRONTIER_LIMITS_PHASE198)
         self.last_factor_risk_decomposition: Optional[Dict[str, Any]] = None
 
     @classmethod
@@ -28635,10 +28819,11 @@ class UnifiedPortfolioAllocator:
             has_adv_data = advs is not None and len(advs) == n
             active_mask = (delta_trades > 1e-6) & (gap_adv_ratios > 1e-6) if has_adv_data else np.zeros(n, dtype=bool)
             if np.any(active_mask):
-                numerator = daily_alpha[active_mask] + lambda_alpha[active_mask]
+                numerator = np.maximum(0.0, daily_alpha[active_mask] + lambda_alpha[active_mask])
                 denominator = 1.5 * kappa_eff[active_mask] * vols[active_mask]
+                adv_equity_ratio = daily_advs[active_mask] / float(total_capital)
                 trade_scaling = 1.0 / gap_adv_ratios[active_mask]
-                theta_impact[active_mask] = ((numerator / denominator) ** 2) * trade_scaling
+                theta_impact[active_mask] = ((numerator / denominator) ** 2) * (adv_equity_ratio ** 2) * trade_scaling
 
             # Dynamic maximum ADV liquidity participation cap
             curr_max_w = float(np.max(w_curr)) if (w_curr is not None and len(w_curr) > 0) else 0.0
@@ -29074,9 +29259,9 @@ class UnifiedPortfolioAllocator:
             tgt_w = target_weights[i]
             delta = leland_deltas[i]
 
-            # Bypass buffer for new entries (curr <= 1e-4), full liquidations (tgt <= 1e-4), or extreme drift (>= 50%)
-            drift = abs(curr_w - tgt_w) / max(tgt_w, 1e-6)
-            if curr_w <= 1e-4 or tgt_w <= 1e-4 or drift >= 0.50:
+            # Bypass buffer for new entries (curr <= 1e-4), full liquidations (tgt <= 1e-4), or absolute portfolio drift >= 10%
+            abs_drift = abs(curr_w - tgt_w)
+            if curr_w <= 1e-4 or tgt_w <= 1e-4 or abs_drift >= 0.10:
                 realized_w[i] = tgt_w
                 continue
 
@@ -29129,8 +29314,15 @@ class UnifiedPortfolioAllocator:
             realized_w = realized_w * (limit_exec / tot_w)
         elif tot_w > 0 and tot_w < ref_target * 0.92:
             # Rebalance-hold re-expansion: prevent unintended downward cash ratchet when holding inside boundary
-            expand_ratio = min(1.08, ref_target / tot_w)
-            realized_w = realized_w * expand_ratio
+            # Restrict expansion to active/traded positions only, leaving no-trade HOLD positions untouched
+            traded_mask = np.abs(realized_w - current_weights) > 1e-5
+            if np.any(traded_mask):
+                traded_sum = float(np.sum(realized_w[traded_mask]))
+                hold_sum = float(np.sum(realized_w[~traded_mask]))
+                avail_for_traded = max(0.0, ref_target - hold_sum)
+                if traded_sum > 0:
+                    expand_ratio = min(1.08, avail_for_traded / traded_sum)
+                    realized_w[traded_mask] = realized_w[traded_mask] * expand_ratio
 
         return realized_w
 
@@ -29334,7 +29526,7 @@ class UnifiedPortfolioAllocator:
             cov = prices_dict if isinstance(prices_dict, np.ndarray) else None
             reg = regime if isinstance(regime, str) else "BULL_STABLE"
             mcsi = float(kwargs.get("mcsi_score", 0.0))
-            return self.allocate_portfolio_phase196(
+            return self.allocate_portfolio_phase198(
                 alpha_vector=predictions_df,
                 cov_matrix=cov,
                 regime=reg,
@@ -32300,6 +32492,18 @@ __all__ = [
     "phase86_evar_bound",
     "compute_lmbmwdh36_evar",
     "lmbmwdh36_evar",
+    "VERSION_PHASE198",
+    "RELEASE_PHASE198",
+    "FEATURE_PHASE198",
+    "UnifiedPortfolioAllocatorPhase198",
+    "Phase198UnifiedPortfolioAllocator",
+    "UnifiedPortfolioAllocatorV187",
+    "F984UnifiedPortfolioAllocator",
+    "FRONTIER_LIMITS_PHASE198",
+    "TARGET_VOLS_PHASE198",
+    "REGIME_MODEL_WEIGHTS_PHASE198",
+    "allocate_portfolio_phase198",
+    "allocate_portfolio_v187",
     "VERSION_PHASE196",
     "RELEASE_PHASE196",
     "FEATURE_PHASE196",
@@ -32338,6 +32542,67 @@ __all__ = [
     "RELEASE_PHASE178",
     "FEATURE_PHASE178",
 ]
+
+VERSION_PHASE198: int = 198
+RELEASE_PHASE198: str = "R187"
+FEATURE_PHASE198: str = "F984"
+
+UnifiedPortfolioAllocatorPhase198 = UnifiedPortfolioAllocator
+Phase198UnifiedPortfolioAllocator = UnifiedPortfolioAllocator
+UnifiedPortfolioAllocatorV187 = UnifiedPortfolioAllocator
+F984UnifiedPortfolioAllocator = UnifiedPortfolioAllocator
+
+FRONTIER_LIMITS_PHASE198 = UnifiedPortfolioAllocator.FRONTIER_LIMITS_PHASE198
+TARGET_VOLS_PHASE198 = UnifiedPortfolioAllocator.TARGET_VOLS_PHASE198
+REGIME_MODEL_WEIGHTS_PHASE198 = UnifiedPortfolioAllocator.REGIME_MODEL_WEIGHTS_PHASE190
+
+
+def allocate_portfolio_phase198(
+    alpha_vector: Union[pd.Series, Dict[str, float]],
+    current_weights: Optional[Dict[str, float]] = None,
+    regime: str = "BULL_STABLE",
+    gross_leverage: Optional[float] = None,
+    cov_matrix: Optional[np.ndarray] = None,
+    mcsi_score: float = 0.0,
+    apply_leland: bool = True,
+    adv_dict: Optional[Dict[str, float]] = None,
+    spread_dict: Optional[Dict[str, float]] = None,
+    eta_dict: Optional[Dict[str, float]] = None,
+    total_equity: float = 10_000_000_000.0,
+    kurtosis_dict: Optional[Dict[str, float]] = None,
+    contango_days: int = 10,
+    vts_ratio: float = 0.90,
+    target_volatility: Optional[float] = None,
+    vix_series: Optional[Any] = None,
+    vix_term_structure: Optional[Dict[str, Any]] = None,
+    vix_history: Optional[Sequence[Any]] = None,
+    **kwargs: Any,
+) -> AllocationResult:
+    alloc = UnifiedPortfolioAllocator()
+    return alloc.allocate_portfolio_phase198(
+        alpha_vector=alpha_vector,
+        current_weights=current_weights,
+        regime=regime,
+        gross_leverage=gross_leverage,
+        cov_matrix=cov_matrix,
+        mcsi_score=mcsi_score,
+        apply_leland=apply_leland,
+        adv_dict=adv_dict,
+        spread_dict=spread_dict,
+        eta_dict=eta_dict,
+        total_equity=total_equity,
+        kurtosis_dict=kurtosis_dict,
+        contango_days=contango_days,
+        vts_ratio=vts_ratio,
+        target_volatility=target_volatility,
+        vix_series=vix_series,
+        vix_term_structure=vix_term_structure,
+        vix_history=vix_history,
+        **kwargs,
+    )
+
+
+allocate_portfolio_v187 = allocate_portfolio_phase198
 
 VERSION_PHASE196: int = 196
 RELEASE_PHASE196: str = "R186"

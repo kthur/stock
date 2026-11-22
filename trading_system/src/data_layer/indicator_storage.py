@@ -916,6 +916,15 @@ class MarketIndicatorStorage:
         sql = "INSERT OR REPLACE INTO global_indicators (date,symbol,name,price,change_pct) VALUES (?,?,?,?,?)"
         rows = []
 
+        def _normalize_yield(s_sym, s_price):
+            try:
+                val_p = float(s_price) if (s_price is not None and math.isfinite(float(s_price))) else 0.0
+                if str(s_sym).strip().upper() in ("^TNX", "TNX", "^FVX", "FVX", "^IRX", "IRX") and val_p > 20.0:
+                    return val_p / 10.0
+                return val_p
+            except (ValueError, TypeError):
+                return 0.0
+
         if isinstance(data, str):
             # Called as save_indicators(symbol, df_or_dict)
             symbol = data
@@ -929,18 +938,18 @@ class MarketIndicatorStorage:
                     raw_val = row[close_pos + 1] if close_pos is not None else (row[1] if len(row) > 1 else None)
                     price = float(raw_val) if raw_val is not None and pd.notna(raw_val) else 0.0
                     if self._indicator_value_ok(symbol, symbol, price):
-                        rows.append((cur_d, symbol, symbol, price, 0.0))
+                        rows.append((cur_d, symbol, symbol, _normalize_yield(symbol, price), 0.0))
             elif isinstance(val_data, dict):
                 raw_val = val_data.get('price') if val_data.get('price') is not None else val_data.get('Close')
                 price = float(raw_val) if raw_val is not None and pd.notna(raw_val) else 0.0
                 if self._indicator_value_ok(symbol, symbol, price):
-                    rows.append((d_str, symbol, symbol, price, 0.0))
+                    rows.append((d_str, symbol, symbol, _normalize_yield(symbol, price), 0.0))
         elif isinstance(data, dict):
             d_str = str(date_str or datetime.now(KST).strftime("%Y-%m-%d"))
             for sym, info in data.get('indices', {}).items():
                 if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
                     chg = float(info.get('change_pct', 0.0)) if info.get('change_pct') is not None and math.isfinite(float(info.get('change_pct', 0.0))) else 0.0
-                    rows.append((d_str, info['symbol'], info['name'], float(info['price']), chg))
+                    rows.append((d_str, info['symbol'], info['name'], _normalize_yield(info['symbol'], info['price']), chg))
             for sym, info in data.get('fx_rates', {}).items():
                 if self._indicator_value_ok(info.get('pair') or sym, info.get('name'), info.get('rate')):
                     chg = float(info.get('change_pct', 0.0)) if info.get('change_pct') is not None and math.isfinite(float(info.get('change_pct', 0.0))) else 0.0
@@ -948,7 +957,7 @@ class MarketIndicatorStorage:
             for sym, info in data.get('macro_commodities', {}).items():
                 if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
                     chg = float(info.get('change_pct', 0.0)) if info.get('change_pct') is not None and math.isfinite(float(info.get('change_pct', 0.0))) else 0.0
-                    rows.append((d_str, info['symbol'], info['name'], float(info['price']), chg))
+                    rows.append((d_str, info['symbol'], info['name'], _normalize_yield(info['symbol'], info['price']), chg))
             # Support flat dictionary schema
             if not rows and not any(k in data for k in ['indices', 'fx_rates', 'macro_commodities', 'bonds']):
                 for sym, info in data.items():
@@ -957,12 +966,12 @@ class MarketIndicatorStorage:
                         name = info.get('name', sym)
                         chg = info.get('change_pct', 0.0)
                         if self._indicator_value_ok(sym, name, p):
-                            p_float = float(p) if (p is not None and math.isfinite(float(p))) else 0.0
+                            p_float = _normalize_yield(sym, p)
                             chg_float = float(chg) if (chg is not None and math.isfinite(float(chg))) else 0.0
                             rows.append((d_str, sym, name, p_float, chg_float))
                     elif isinstance(info, (int, float)) and math.isfinite(float(info)):
                         if self._indicator_value_ok(sym, sym, info):
-                            rows.append((d_str, sym, sym, float(info), 0.0))
+                            rows.append((d_str, sym, sym, _normalize_yield(sym, info), 0.0))
 
         if not rows:
             return
@@ -984,6 +993,9 @@ class MarketIndicatorStorage:
             return False
         if not math.isfinite(p) or p <= 0.0:
             return False
+        sym_clean = str(symbol).strip().upper()
+        if sym_clean in ("^TNX", "TNX", "^FVX", "FVX", "^IRX", "IRX") and p > 20.0:
+            p = p / 10.0
         lo, hi = self.INDICATOR_VALUE_BOUNDS.get(str(symbol), self._INDICATOR_DEFAULT_BOUNDS)
         if p < lo or p > hi:
             logger.warning("[IndicatorStorage] Out-of-bounds indicator value: %s=%s (bounds %s-%s) - skipped",
