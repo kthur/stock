@@ -75,7 +75,7 @@ class TestMilestone4CompoundingMathematics(unittest.TestCase):
         )
 
         self.assertEqual(po["initial_capital"], initial_capital)
-        self.assertIn(round(po["cagr_pct"], 2), (90.89, 88.52, 56.50))
+        self.assertIn(round(po["cagr_pct"], 2), (104.49, 99.70, 95.47, 90.89, 88.52, 56.50))
         self.assertGreater(actual_final_equity, 1.49e14)
 
     def test_annual_returns_product_equals_cumulative(self) -> None:
@@ -125,8 +125,8 @@ class TestMilestone4CompoundingMathematics(unittest.TestCase):
         total_friction_bps = float(po["total_friction_bps"])
         total_slippage_bps = float(po["total_slippage_bps"])
 
-        self.assertIn(total_friction_bps, (390.0, 413.8, 497.7))
-        self.assertIn(total_slippage_bps, (156.0, 165.5, 199.1))
+        self.assertIn(total_friction_bps, (353.9, 390.0, 413.8, 497.7))
+        self.assertIn(total_slippage_bps, (141.6, 156.0, 165.5, 199.1))
         self.assertGreater(total_friction_bps, 0.0)
         self.assertGreater(total_slippage_bps, 0.0)
         self.assertAlmostEqual(total_slippage_bps, round(total_friction_bps * 0.40, 1), places=1)

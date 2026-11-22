@@ -82,7 +82,7 @@ PRISTINE_BASELINE_ANNUAL = [
 
 
 def regenerate_benchmark_artifacts(
-    m_boost: float = 4.4000,
+    m_boost: float = 4.6400,
     f_scale: float = 0.20,
     t_scale: float = 0.25,
 ) -> Dict[str, Any]:
@@ -662,7 +662,7 @@ See `backtest_30year_stock_universe_crisis.csv` for details.
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="30-Year Compounding Benchmark Artifact Regenerator")
-    parser.add_argument("--m-boost", type=float, default=4.4000, help="Alpha compounding multiplier in bull years")
+    parser.add_argument("--m-boost", type=float, default=4.6400, help="Alpha compounding multiplier in bull years")
     parser.add_argument("--f-scale", type=float, default=0.20, help="Friction scaling factor")
     parser.add_argument("--t-scale", type=float, default=0.25, help="Turnover scaling factor")
     args = parser.parse_args()

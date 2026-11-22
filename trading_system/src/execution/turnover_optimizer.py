@@ -343,7 +343,7 @@ class TurnoverOptimizer:
 
             if z > 0.0:
                 z_clip = min(max((z - 1.0) / 2.0, 0.0), 1.0)
-                m_upper = 1.0 + 1.2 * z_clip  # Winner expansion in [1.0, 2.2]
+                m_upper = 1.0 + 1.5 * z_clip  # Winner expansion in [1.0, 2.5]
                 m_lower = 1.0
             elif z < 0.0:
                 z_clip = min(max((-1.0 - z) / 2.0, 0.0), 1.0)

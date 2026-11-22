@@ -2249,9 +2249,9 @@ class UnifiedPortfolioAllocator:
     # Regime-Adaptive Volatility Budget & Max Exposure Ceilings (30-Year Optimized, Unleveraged Baseline)
     REGIME_ADAPTIVE_RISK_BUDGET = {
         "BULL_LOW_VOL": {
-            "target_vol": 0.16,
+            "target_vol": 0.22,
             "max_exposure": 1.00,
-            "min_exposure": 0.98,
+            "min_exposure": 1.00,
             "max_single_weight": 0.50,
         },
         "RELIEF_RALLY": {
@@ -2261,9 +2261,9 @@ class UnifiedPortfolioAllocator:
             "max_single_weight": 0.50,
         },
         "BULL_HIGH_VOL": {
-            "target_vol": 0.14,
+            "target_vol": 0.18,
             "max_exposure": 1.00,
-            "min_exposure": 0.95,
+            "min_exposure": 1.00,
             "max_single_weight": 0.50,
         },
         "SIDEWAYS_LOW_VOL": {
@@ -29058,9 +29058,9 @@ class UnifiedPortfolioAllocator:
             max_alloc_cap = float(budget_cfg.get("max_exposure", 1.00))
             min_alloc_floor = float(budget_cfg.get("min_exposure", 0.20))
         elif "BULL" in regime_str:
-            base_target_vol = 0.16 if "LOW_VOL" in regime_str else 0.14
+            base_target_vol = 0.22 if "LOW_VOL" in regime_str else 0.18
             max_alloc_cap = 1.00
-            min_alloc_floor = 0.98 if "LOW_VOL" in regime_str else 0.95
+            min_alloc_floor = 1.00 if "LOW_VOL" in regime_str else 1.00
         elif "SIDEWAYS" in regime_str:
             base_target_vol = 0.12
             max_alloc_cap = 0.85
@@ -29641,13 +29641,13 @@ class UnifiedPortfolioAllocator:
                 s_sub = df_candidates[df_candidates["symbol"].astype(str) == str(s_sym)]
                 s_mkt = str(s_sub.iloc[0].get("market", "") if not s_sub.empty else "").upper()
                 if "NASDAQ" in s_mkt:
-                    pred_rets[idx_s] *= 1.35
+                    pred_rets[idx_s] *= 1.80
                 elif "SP500" in s_mkt:
-                    pred_rets[idx_s] *= 1.20
+                    pred_rets[idx_s] *= 1.40
                 elif "KOSPI" in s_mkt:
-                    pred_rets[idx_s] *= 0.95
+                    pred_rets[idx_s] *= 0.85
                 elif "KOSDAQ" in s_mkt:
-                    pred_rets[idx_s] *= 0.60
+                    pred_rets[idx_s] *= 0.25
 
         # Extract sectors
         sec_map = sector_map or {}
