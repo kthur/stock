@@ -43,7 +43,7 @@ def test_yaml_syntax():
 def test_matrix_targets_consistency():
     print("[TEST 2] Testing Matrix target options across workflows...")
     workflows_with_matrix = [
-        ".github/workflows/pipeline.yml",
+        ".github/workflows/daily_pipeline.yml",
         ".github/workflows/training.yml",
         ".github/workflows/preseed.yml",
         ".github/workflows/weekly_hpo.yml"
@@ -62,7 +62,7 @@ def test_cache_keys_and_isolation():
     print("[TEST 3] Testing Cache keys and cross-target isolation...")
     # Verify that market-specific caches (db, ai-models) include ${{ matrix.target }}
     # to avoid cross-target cache collisions
-    for wf in [".github/workflows/pipeline.yml", ".github/workflows/training.yml", ".github/workflows/preseed.yml"]:
+    for wf in [".github/workflows/daily_pipeline.yml", ".github/workflows/training.yml", ".github/workflows/preseed.yml"]:
         with open(wf, "r", encoding="utf-8") as fp:
             content = fp.read()
             # If it has matrix.target, check cache keys for models and db
@@ -79,15 +79,17 @@ def test_cache_keys_and_isolation():
 
 def test_strategy_file_lists_parity():
     print("[TEST 4] Testing 31-strategy output listings parity in pipeline.yml...")
-    with open(".github/workflows/pipeline.yml", "r", encoding="utf-8") as fp:
+    with open(".github/workflows/daily_pipeline.yml", "r", encoding="utf-8") as fp:
         content = fp.read()
 
     # Strategy 6 is lstm_predictions.txt
     assert "lstm_predictions.txt" in content, "lstm_predictions.txt missing from pipeline.yml!"
     
     # Check step summary file loop
-    step_summary_match = re.search(r"### 📁 (?:31|34|37)대 전략 출력 파일 현황[\s\S]*?for f in ([^;]+);", content)
-    assert step_summary_match, "Step summary file loop not found in pipeline.yml"
+    step_summary_match = re.search(r"STRATEGY_FILES=\(([^)]+)\)", content)
+    if not step_summary_match:
+        step_summary_match = re.search(r"### 📁 (?:31|34|37|38)대 전략 출력 파일[\s\S]*?for f in ([^;]+);", content)
+    assert step_summary_match, "Step summary file loop not found in daily_pipeline.yml"
     summary_files = step_summary_match.group(1).split()
     assert "lstm_predictions.txt" in summary_files, "lstm_predictions.txt missing from Step Summary loop"
     print(f"  [OK] Step summary contains {len(summary_files)} entries including lstm_predictions.txt.")

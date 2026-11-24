@@ -11,16 +11,19 @@ on:
       target_market:
         description: 'HPO 최적화 대상 시장 / 국가 선택 (Select Target Market / Country for HPO)'
         required: true
-        default: 'CORE_5'
+        default: 'ALL'
         type: choice
         options:
-          - 'CORE_5'
           - 'ALL'
+          - 'CORE_5'
           - 'KOSPI'
           - 'KOSDAQ'
           - 'SP500'
           - 'NASDAQ'
           - 'RUSSELL2000'
+          - 'CHINA'
+          - 'EUROPE'
+          - 'HKEX'
 
 jobs:
   setup-matrix:
@@ -30,7 +33,7 @@ jobs:
     steps:
       - id: set-matrix
         run: |
-          TARGET="${{ inputs.target_market || 'CORE_5' }}"
+          TARGET="${{ inputs.target_market || 'ALL' }}"
           echo "Selected target market input: $TARGET"
           if [ "$TARGET" = "CORE_5" ] || [ "$TARGET" = "ALL" ]; then
             echo 'matrix=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]' >> $GITHUB_OUTPUT

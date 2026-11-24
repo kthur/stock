@@ -218,7 +218,9 @@ class TestMergeAndReportCompatibility:
 
 class TestPipelineWorkflowDefaults:
     def test_pipeline_workflow_defaults_to_all(self):
-        wf_path = Path(__file__).resolve().parent.parent / ".github" / "workflows" / "pipeline.yml"
+        wf_path = Path(__file__).resolve().parent.parent / ".github" / "workflows" / "daily_pipeline.yml"
+        if not wf_path.exists():
+            wf_path = Path(__file__).resolve().parent.parent / ".github" / "workflows" / "pipeline.yml"
         assert wf_path.exists(), f"Workflow file not found: {wf_path}"
         content = wf_path.read_text(encoding="utf-8")
 

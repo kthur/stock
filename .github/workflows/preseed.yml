@@ -21,6 +21,9 @@ on:
           - 'SP500'
           - 'NASDAQ'
           - 'RUSSELL2000'
+          - 'CHINA'
+          - 'EUROPE'
+          - 'HKEX'
 
 concurrency:
   group: preseed-${{ github.ref }}
